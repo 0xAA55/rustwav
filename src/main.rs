@@ -87,10 +87,10 @@ impl FreqProcessor {
         // modi 大于 1.0 的时候，new_freq 的增长速度大于 i，会超出 half，这个时候直接退出循环即可。
         // 否则 new_freq 的增长速度小于 i，达不到 half，此处不必处理。
         for i in 0..half {
-            let new_freq = (i as f64 * modi) as usize;
-            if new_freq < half {
-                ret[new_freq] = fftbuf[i];
-                ret[last - new_freq] = fftbuf[last - i];
+            let sample_position = (i as f64 * modi) as usize;
+            if sample_position < half {
+                ret[i] = fftbuf[sample_position];
+                ret[last - i] = fftbuf[last - sample_position];
             } else {
                 break;
             }
@@ -130,7 +130,7 @@ impl FreqProcessor {
         let avr_freq = self.tone_detect(&fftbuf);
 
         // 改变音调
-        let freq_mod = target_freq / avr_freq;
+        let freq_mod = avr_freq / target_freq;
         let mut fftbuf = Self::tone_modify(fftbuf, freq_mod);
 
         // 转换回来
