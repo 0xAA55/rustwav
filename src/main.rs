@@ -687,7 +687,7 @@ fn main() -> ExitCode {
     let target_freq = args[3].parse::<f64>().unwrap();
     let mut window_size = 0.1;
     if args.len() > 5 {window_size = args[4].parse::<f64>().unwrap();}
-    match process_wav_file(&output_file, &input_file, target_freq, window_size, true, true) {
+    match process_wav_file(&output_file, &input_file, target_freq, window_size, true, false) {
         Ok(_) => ExitCode::from(0),
         _ => ExitCode::from(2),
     }
