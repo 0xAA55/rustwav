@@ -1,0 +1,628 @@
+
+use std::{io::{BufReader, BufWriter}, fs::File, sync::Arc, error::Error};
+
+use hound::{SampleFormat, WavSpec, WavReader, WavWriter};
+
+use rustfft::{FftPlanner, Fft, num_complex::Complex};
+
+use rayon::iter::{ParallelIterator, ParallelBridge};
+
+fn length(x: f64, y: f64) -> f64 {
+    (x * x + y * y).sqrt()
+}
+
+struct FreqProcessor {
+    fft_forward: Arc<dyn Fft<f64>>,
+    fft_inverse: Arc<dyn Fft<f64>>,
+    sample_rate: u32,
+    section_sample_count: usize,
+    normalize_scaler: f64,
+}
+
+impl FreqProcessor {
+    fn new(section_sample_count: usize, sample_rate: u32) -> Self {
+        let mut planner = FftPlanner::new();
+        Self {
+            fft_forward: planner.plan_fft_forward(section_sample_count),
+            fft_inverse: planner.plan_fft_inverse(section_sample_count),
+            sample_rate,
+            section_sample_count,
+            normalize_scaler: 1.0 / section_sample_count as f64,
+        }
+    }
+
+    // 改变音调
+    fn tone_modify(fftbuf: Vec::<Complex::<f64>>, modi: f64) -> Vec::<Complex::<f64>> {
+        let size = fftbuf.len();
+        let last = size - 1;
+        let half = size / 2;
+        let mut ret = Vec::<Complex::<f64>>::new();
+        ret.resize(size, Complex{re: 0.0, im: 0.0});
+
+        // 对 FFT 频域数据进行重采样，音调的变化按 modi 值进行倍乘。
+        // modi 大于 1.0 的时候，new_freq 的增长速度大于 i，会超出 half，这个时候直接退出循环即可。
+        // 否则 new_freq 的增长速度小于 i，达不到 half，此处不必处理。
+        for i in 0..half {
+            let new_freq = (i as f64 * modi) as usize;
+            if new_freq < half {
+                ret[new_freq] = fftbuf[i];
+                ret[last - new_freq] = fftbuf[last - i];
+            } else {
+                // 此时应当考虑是否要 truncate
+                break;
+            }
+        }
+
+        ret
+    }
+
+    // 音频处理
+    fn proc(&self, samples: &Vec<f32>, target_freq: u32) -> Vec<f32> {
+
+        // 将音频样本转换为复数用于 FFT 计算。
+        let mut fftbuf = Vec::<Complex::<f64>>::with_capacity(self.section_sample_count);
+        for sample in samples.into_iter() {
+            fftbuf.push(Complex{re: (*sample) as f64, im: 0.0});
+        }
+
+        // 确保 FFT 缓冲区大小达到需求
+        if fftbuf.len() < self.section_sample_count {
+            fftbuf.resize(self.section_sample_count, Complex{re: 0.0, im: 0.0});
+        }
+
+        // 进行 FFT 转换
+        self.fft_forward.process(&mut fftbuf);
+
+        // TODO:
+        // 检测平均音调
+
+        // 改变音调
+        let mut fftbuf = Self::tone_modify(fftbuf, 0.5);
+
+        // 转换回来
+        self.fft_inverse.process(&mut fftbuf);
+
+        // 重新采样回来
+        let mut result = Vec::<f32>::with_capacity(self.section_sample_count);
+        for complex in fftbuf.into_iter() {
+
+            // 标准化值，只取实数部分
+            result.push((complex.re * self.normalize_scaler) as f32);
+        }
+        result
+    }
+}
+
+// 整数补位
+fn integer_upcast(value: i32, bits: u16) -> i32 {
+    let value = value as u32;
+    (match bits {
+         8 => {let value = 0xFF & value; (value << 24) | (value << 16) | (value << 8) | value},
+         16 => {let value = 0xFFFF & value; (value << 16) | value},
+         24 => {let value = 0xFFFFFF & value; (value << 8) | (value >> 16)},
+         32 => value,
+         _ => panic!("`bits` should be 8, 16, 24, 32, got {}", bits),
+     }) as i32
+}
+
+fn integers_upcast(values: &Vec<i32>, bits: u16) -> Vec<i32> {
+    let mut ret = Vec::<i32>::with_capacity(values.len());
+    for value in values.into_iter() {
+        ret.push(integer_upcast(*value, bits));
+    }
+    ret
+}
+
+fn convert_i2f(value: i32) -> f32 {
+    value as f32 / i32::MAX as f32
+}
+
+fn convert_samples_i2f(src_samples: &Vec<i32>) -> Vec<f32> {
+    let mut ret = Vec::<f32>::with_capacity(src_samples.len());
+    for sample in src_samples.into_iter() {
+        ret.push(convert_i2f(*sample));
+    }
+    ret
+}
+
+fn unzip_samples(src_samples: &Vec<f32>) -> (Vec<f32>, Vec<f32>) {
+    let size = src_samples.len() / 2;
+    assert_eq!(size * 2, src_samples.len());
+    let mut ret1 = Vec::<f32>::with_capacity(size);
+    let mut ret2 = Vec::<f32>::with_capacity(size);
+    for i in 0..size {
+        ret1.push(src_samples[i * 2 + 0]);
+        ret2.push(src_samples[i * 2 + 1]);
+    }
+    (ret1, ret2)
+}
+
+fn zip_samples(src_samples: &(Vec<f32>, Vec<f32>)) -> Vec<f32> {
+    let (chnl1, chnl2) = src_samples;
+    assert_eq!(chnl1.len(), chnl2.len());
+    let size = chnl1.len();
+    let mut ret = Vec::<f32>::with_capacity(size);
+    for i in 0..size {
+        ret.push(chnl1[i]);
+        ret.push(chnl2[i]);
+    }
+    ret
+}
+
+#[derive(Clone)]
+enum WaveFormChannels {
+    None,
+    Mono(Vec<f32>),
+    Stereo((Vec<f32>, Vec<f32>))
+}
+
+fn vecf32_add(v1: &Vec<f32>, v2: &Vec<f32>) -> Vec<f32> {
+    assert_eq!(v1.len(), v2.len());
+    let mut v3 = v1.clone();
+    for i in 0..v3.len() {
+        v3[i] += v2[i];
+    }
+    v3
+}
+
+fn chunk_get_len(chunk: &WaveFormChannels) -> usize {
+    match chunk {
+        WaveFormChannels::None => 0,
+        WaveFormChannels::Mono(mono) => mono.len(),
+        WaveFormChannels::Stereo((chnl1, chnl2)) => {
+            assert_eq!(chnl1.len(), chnl2.len());
+            chnl1.len()
+        },
+    }
+}
+
+// 使 WaveFormChannels 内容的长度增长到指定值，如果没有内容就不增长。
+fn chunk_extend(chunk: WaveFormChannels, target_size: usize) -> WaveFormChannels {
+    match chunk {
+        WaveFormChannels::None => return WaveFormChannels::None,
+        WaveFormChannels::Mono(mono) => {
+            let mut mono = mono;
+            mono.resize(target_size, 0.0);
+            return WaveFormChannels::Mono(mono);
+        },
+        WaveFormChannels::Stereo((chnl1, chnl2)) => {
+            let (mut chnl1, mut chnl2) = (chnl1, chnl2);
+            chnl1.resize(target_size, 0.0);
+            chnl2.resize(target_size, 0.0);
+            return WaveFormChannels::Stereo((chnl1, chnl2));
+        },
+    }
+}
+
+// 拼接两个 WaveFormChannels，会检查其中的类型，不允许不同类型的进行拼接，但是 None 可以参与拼接。
+fn chunk_concat(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormChannels {
+    match chunk1 {
+        // 1 是 None，返回 2
+        WaveFormChannels::None => return chunk2.clone(),
+
+        // 1 是 Mono，根据 2 来判断
+        WaveFormChannels::Mono(mono) => match chunk2 {
+
+            // 2 是 None，返回 1
+            WaveFormChannels::None => return chunk1.clone(),
+
+            // 2 是 Mono，进行拼接
+            WaveFormChannels::Mono(mono2) => {
+                let mut cmono = mono.clone();
+                cmono.extend(mono2);
+                return WaveFormChannels::Mono(cmono);
+            },
+
+            // 2 是 Stereo，类型不同，不能拼接。
+            WaveFormChannels::Stereo(_) => panic!("Must concat same type `WaveFormChannels`."),
+        },
+
+        // 1 是 Stereo，根据 2 来判断
+        WaveFormChannels::Stereo(stereo) => match chunk2 {
+
+            // 2 是 None，返回 1
+            WaveFormChannels::None => return chunk1.clone(),
+
+            // 2 是 Mono，类型不同，不能拼接。
+            WaveFormChannels::Mono(_) => panic!("Must concat same type `WaveFormChannels`."),
+
+            // 2 是 Stereo，进行拼接
+            WaveFormChannels::Stereo((chnl1_2, chnl2_2)) => {
+                let (mut chnl1_1, mut chnl2_1) = stereo.clone();
+                chnl1_1.extend(chnl1_2);
+                chnl2_1.extend(chnl2_2);
+                return WaveFormChannels::Stereo((chnl1_1, chnl2_1));
+            },
+        },
+    }
+}
+
+fn chunk_split(chunk: &WaveFormChannels, at: usize) -> (WaveFormChannels, WaveFormChannels) {
+    match chunk {
+        WaveFormChannels::None => (WaveFormChannels::None, WaveFormChannels::None),
+        WaveFormChannels::Mono(mono) => (WaveFormChannels::Mono(mono[0..at].to_vec()),
+                                         WaveFormChannels::Mono(mono[at..].to_vec())),
+        WaveFormChannels::Stereo((chnl1, chnl2)) => (WaveFormChannels::Stereo((chnl1[0..at].to_vec(), chnl2[0..at].to_vec())),
+                                                     WaveFormChannels::Stereo((chnl1[at..].to_vec(), chnl2[at..].to_vec()))),
+    }
+}
+
+// 叠加两个 chunk 的值
+fn chunks_add(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormChannels {
+    match (chunk1, chunk2) {
+        (WaveFormChannels::None, WaveFormChannels::None) => WaveFormChannels::None,
+        (WaveFormChannels::Mono(mono1), WaveFormChannels::Mono(mono2)) => WaveFormChannels::Mono(vecf32_add(&mono1, &mono2)),
+        (WaveFormChannels::Stereo((chnl1_1, chnl2_1)), WaveFormChannels::Stereo((chnl1_2, chnl2_2))) =>
+            WaveFormChannels::Stereo((vecf32_add(&chnl1_1, &chnl1_2), vecf32_add(&chnl2_1, &chnl2_2))),
+        _ => panic!("Two chunks to add must have same channel type."),
+    }
+}
+
+trait WaveReader {
+    fn open(input_file: &str) -> Result<Self, hound::Error> where Self: Sized;
+    fn spec(&self) -> &WavSpec;
+    fn set_chunk_size(&mut self, chunk_size: usize);
+}
+
+trait WaveWriter {
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> where Self: Sized;
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error>;
+    fn finalize(&mut self) -> Result<(), hound::Error>;
+
+    fn set_window_size(&mut self, _window_size: usize) {
+        panic!("`set_window_size()` is not implemented here.");
+    }
+}
+
+struct WaveReaderSimple {
+    reader: WavReader<BufReader<File>>,
+    spec: WavSpec,
+    chunk_size: usize,
+}
+
+impl WaveReader for WaveReaderSimple {
+    fn open(input_file: &str) -> Result<Self, hound::Error> {
+        let reader = WavReader::open(input_file)?;
+        let spec = reader.spec();
+        Ok(Self {
+            reader,
+            spec,
+            chunk_size: 0,
+        })
+    }
+
+    fn spec(&self) -> &WavSpec {
+        &self.spec
+    }
+
+    fn set_chunk_size(&mut self, chunk_size: usize) {
+        self.chunk_size = chunk_size;
+    }
+}
+
+impl Iterator for WaveReaderSimple {
+    type Item = WaveFormChannels;
+
+    // 被当作迭代器使用时，返回一块块的音频数据
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.chunk_size == 0 {panic!("Must set chunk size before iterations.")}
+
+        // 分浮点数格式和整数格式分别处理（整数）
+        match self.spec.sample_format {
+            SampleFormat::Int =>
+                // 整数要转换为浮点数，并且不同长度的整数要标准化到相同的长度
+                match self.spec.channels {
+                    1 => loop {
+                        let mono: Vec<i32> = self.reader.samples::<i32>().take(self.chunk_size).flatten().collect();
+                        if mono.is_empty() { return None; }
+                        let mono = integers_upcast(&mono, self.spec.bits_per_sample);
+                        let mono = convert_samples_i2f(&mono);
+                        return Some(Self::Item::Mono(mono));
+                    },
+                    2 => loop {
+                        let stereo: Vec<i32> = self.reader.samples::<i32>().take(self.chunk_size * 2).flatten().collect();
+                        if stereo.is_empty() { return None; }
+                        let stereo = integers_upcast(&stereo, self.spec.bits_per_sample);
+                        let stereo = convert_samples_i2f(&stereo);
+                        return Some(Self::Item::Stereo(unzip_samples(&stereo)));
+                    },
+                    other => panic!("Unsupported channel number: {}", other)
+                },
+            SampleFormat::Float =>
+                // 浮点数不用转换
+                match self.spec.channels {
+                    1 => loop {
+                        let mono: Vec<f32> = self.reader.samples::<f32>().take(self.chunk_size).flatten().collect();
+                        if mono.is_empty() { return None; }
+                        return Some(Self::Item::Mono(mono));
+                    },
+                    2 => loop {
+                        let stereo: Vec<f32> = self.reader.samples::<f32>().take(self.chunk_size * 2).flatten().collect();
+                        if stereo.is_empty() { return None; }
+                        return Some(Self::Item::Stereo(unzip_samples(&stereo)));
+                    },
+                    other => panic!("Unsupported channel number: {}", other)
+                },
+        }
+    }
+}
+
+struct WaveWriterSimple {
+    writer: WavWriter<BufWriter<File>>,
+}
+
+impl WaveWriter for WaveWriterSimple {
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> {
+        let writer = WavWriter::create(output_file, WavSpec {
+            channels: spec.channels,
+            sample_rate: spec.sample_rate,
+            bits_per_sample: 32,
+            sample_format: SampleFormat::Float,
+        })?;
+        Ok(Self {
+            writer,
+        })
+    }
+
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error> {
+        match channels_data {
+            WaveFormChannels::Mono(mono) => {
+                for sample in mono.into_iter() {
+                    self.writer.write_sample(sample)?
+                }
+            },
+            WaveFormChannels::Stereo(stereo) => {
+                for sample in zip_samples(&stereo).into_iter() {
+                    self.writer.write_sample(sample)?
+                }
+            },
+            _ => panic!("Must not give `WaveFormChannels::None` for a `WaveWriterSimple` to write."),
+        }
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<(), hound::Error>
+    {
+        self.writer.flush()
+    }
+}
+
+fn apply_hann_window(samples: &mut Vec<f32>) {
+    let num_samples = samples.len();
+    let pi = std::f32::consts::PI;
+    for i in 0..num_samples {
+        let progress = i as f32 / (num_samples - 1) as f32;
+        samples[i] *= 0.5 - 0.5 * (2.0 * pi * progress).cos()
+    }
+}
+
+struct WaveReaderWindowed {
+    reader: WaveReaderSimple,
+    spec: WavSpec,
+    last_chunk: WaveFormChannels,
+    chunk_size: usize,
+}
+
+impl WaveReader for WaveReaderWindowed {
+    fn open(input_file: &str) ->  Result<Self, hound::Error> {
+        let reader = WaveReaderSimple::open(input_file)?;
+        let spec = reader.spec;
+        Ok(Self {
+            reader,
+            spec,
+            last_chunk: WaveFormChannels::None,
+            chunk_size: 0,
+        })
+    }
+
+    fn spec(&self) -> &WavSpec {
+        &self.spec
+    }
+
+    fn set_chunk_size(&mut self, chunk_size: usize) {
+        self.reader.set_chunk_size(chunk_size / 2);
+        self.chunk_size = self.reader.chunk_size * 2;
+    }
+}
+
+impl Iterator for WaveReaderWindowed {
+    type Item = WaveFormChannels;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.chunk_size == 0 {panic!("Must set chunk size before iterations.")}
+
+        let new_chunk = self.reader.next();
+        match new_chunk {
+            None => { // 新块没有数据了
+                match self.last_chunk {
+                    // 旧的块都无了，则返回 None 结束迭代
+                    WaveFormChannels::None => return None,
+
+                    // 旧的块还有，延长旧的块为全块大小，将其返回，然后让旧的块变为无。
+                    _ => {
+                        let ret = chunk_extend(self.last_chunk.clone(), self.chunk_size);
+                        self.last_chunk = WaveFormChannels::None;
+                        return Some(ret);
+                    },
+                }
+            },
+            Some(chunk) => { // 新块有数据
+                // 不论如何，延长到半块大小
+                let chunk = chunk_extend(chunk, self.reader.chunk_size);
+                match self.last_chunk {
+                    // 没有旧块，但是有新块，说明是第一次迭代。此时应当再次迭代，才能组成一个完整的块。
+                    WaveFormChannels::None => {
+                        self.last_chunk = chunk;
+                        return self.next();
+                    },
+                    // 有新块，有旧块
+                    _ => {
+                        let ret = chunk_concat(&self.last_chunk, &chunk);
+                        self.last_chunk = chunk;
+                        return Some(ret);
+                    }
+                }
+            },
+        }
+    }
+}
+
+struct WaveWindowedWriter {
+    writer: WaveWriterSimple,
+    window_size: usize,
+    window: WaveFormChannels,
+}
+
+impl WaveWriter for WaveWindowedWriter {
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> {
+        let writer = WaveWriterSimple::create(output_file, spec)?;
+        Ok(Self {
+            writer,
+            window_size: 0,
+            window: WaveFormChannels::None,
+        })
+    }
+
+    fn set_window_size(&mut self, window_size: usize) {
+        self.window_size = window_size;
+    }
+
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error> {
+        // 策略：
+        // 输入的音频被设计为窗口长度的两倍。
+        // 平时存储上一个输入的音频的后半部分，音频来了以后，合并前半部分，写入文件。
+        // 然后再存储新音频的后半部分。
+        // 最后要调用一次 `finalize()`，把存储的最后一段音频的后半部分写入。
+        if chunk_get_len(&channels_data) < self.window_size {
+            panic!("Channel data to write must be greater than the window size.")
+        }
+        // 按窗口大小分割音频
+        let (first, second) = chunk_split(&channels_data, self.window_size);
+        if let WaveFormChannels::None = self.window {
+            // 第一次写入，直接写入前半段，存住后半段
+            self.writer.write(first)?;
+        } else {
+            // 写入叠加窗口
+            self.writer.write(chunks_add(&first, &self.window))?;
+        }
+        self.window = second;
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<(), hound::Error>
+    {
+        self.writer.write(self.window.clone())?;
+        self.writer.finalize()
+    }
+}
+
+trait IteratorWithWaveReader: Iterator<Item = WaveFormChannels> + WaveReader + Send {}
+impl<T> IteratorWithWaveReader for T where T: Iterator<Item = WaveFormChannels> + WaveReader + Send {}
+
+fn wave_reader_create(input_file: &str, do_hann_window: bool) -> Box<dyn IteratorWithWaveReader> {
+    if do_hann_window {
+        Box::new(WaveReaderWindowed::open(input_file).unwrap())
+    } else {
+        Box::new(WaveReaderSimple::open(input_file).unwrap())
+    }
+}
+
+fn wave_writer_create(output_file: &str, spec: &WavSpec, do_hann_window: bool) -> Box<dyn WaveWriter> {
+    if do_hann_window {
+        Box::new(WaveWindowedWriter::create(output_file, &spec).unwrap())
+    } else {
+        Box::new(WaveWriterSimple::create(output_file, &spec).unwrap())
+    }
+}
+
+// 处理单个块
+fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_hann_window: bool, target_freq: u32) -> WaveFormChannels {
+    match chunk {
+        WaveFormChannels::Mono(mono) => {
+            let mut mono_process = freq_processor.proc(&mono, target_freq);
+            if do_hann_window { apply_hann_window(&mut mono_process); }
+            WaveFormChannels::Mono(mono_process)
+        },
+        WaveFormChannels::Stereo((chnl1, chnl2)) => {
+            let mut chnl1_process = freq_processor.proc(&chnl1, target_freq);
+            let mut chnl2_process = freq_processor.proc(&chnl2, target_freq);
+            if do_hann_window {
+                apply_hann_window(&mut chnl1_process);
+                apply_hann_window(&mut chnl2_process);
+            }
+            WaveFormChannels::Stereo((chnl1_process, chnl2_process))
+        },
+        WaveFormChannels::None => WaveFormChannels::None,
+    }
+}
+
+fn process_wav_file(
+    output_file: &str, // 输出文件
+    input_file: &str,  // 输入文件
+    target_freq: u32,  // 调音的目标频率
+    section_duration: f32, // 调音的分节长度
+    do_hann_window: bool, // 是否进行汉宁窗处理
+    concurrent: bool, // 是否并行处理
+) -> Result<(), Box<dyn Error>> {
+
+    // 打开源文件，以一边分节读取处理一边保存的策略进行音频的处理。
+    let mut reader = wave_reader_create(input_file, do_hann_window);
+
+    // 获取音频文件规格
+    let sample_rate = reader.spec().sample_rate;
+
+    // 打开写入文件
+    let mut writer = wave_writer_create(output_file, &reader.spec(), do_hann_window);
+
+    // 根据输入文件的采样率，计算出调音的分节包含的样本数量
+    let section_sample_count = (sample_rate as f32 * section_duration * 0.5) as usize * 2;
+
+    // 设置块大小
+    reader.set_chunk_size(section_sample_count);
+
+    if do_hann_window {
+        // 设置窗口大小
+        writer.set_window_size(section_sample_count / 2);
+    }
+
+    // 初始化 FFT 模块
+    let freq_processor = FreqProcessor::new(section_sample_count, sample_rate);
+
+    // 进行处理
+    if concurrent {
+        // 先并行处理，返回索引和数据
+        let indexed_all_samples: Vec::<(usize, WaveFormChannels)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, WaveFormChannels)> {
+            Some((i, process_chunk(&freq_processor, chunk, do_hann_window, target_freq)))
+        }).collect::<Vec<Option<(usize, WaveFormChannels)>>>().into_iter().flatten().collect();
+
+        // 根据索引，重新排列数据
+        let mut all_samples = Vec::<WaveFormChannels>::with_capacity(indexed_all_samples.len());
+        for _ in 0..indexed_all_samples.len() {
+            all_samples.push(WaveFormChannels::None);
+        }
+        for indexed_sample in indexed_all_samples.into_iter() {
+            let (i, sample) = indexed_sample;
+            all_samples[i] = sample;
+        }
+
+        // 按顺序存储所有数据
+        for chunk in all_samples {
+            writer.write(chunk)?;
+        }
+    }
+    else {
+        // 不并行处理，则一边处理一边存储
+        for chunk in reader {
+            writer.write(process_chunk(&freq_processor, chunk, do_hann_window, target_freq))?;
+        }
+    }
+
+    writer.finalize().unwrap();
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    process_wav_file("output_mono.wav", "test_mono.wav", 256, 2.0, false, true)?;
+    process_wav_file("output.wav", "test.wav", 256, 2.0, false, true)?;
+    Ok(())
+}

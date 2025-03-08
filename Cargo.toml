@@ -1,0 +1,9 @@
+[package]
+name = "evoice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hound = "3.5.1"
+rayon = "1.10.0"
+rustfft = "6.2.0"
