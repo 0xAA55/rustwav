@@ -1,5 +1,6 @@
 
-use std::{io::{BufReader, BufWriter}, fs::File, sync::Arc, error::Error};
+
+use std::{env, io::{BufReader, BufWriter}, fs::File, sync::Arc, error::Error, process::ExitCode};
 
 use hound::{SampleFormat, WavSpec, WavReader, WavWriter};
 
@@ -31,6 +32,49 @@ impl FreqProcessor {
         }
     }
 
+    // 检测音调算法1
+    fn tone_detect(&self, fftbuf: &Vec::<Complex::<f64>>) -> f64 {
+        let max_freq = self.sample_rate as f64 / 2.0;
+        let min_freq = max_freq / self.section_sample_count as f64;
+        let freq_range = max_freq - min_freq;
+        let half = self.section_sample_count / 2;
+        let last = self.section_sample_count - 1;
+
+        // 权重
+        let mut weights = Vec::<f64>::new();
+        weights.resize(half, 0.0);
+
+        let mut max_weight = 0.0;
+        for i in 0..half {
+            let front = &fftbuf[i];
+            let back = &fftbuf[last - i];
+            let weight = length(front.re, front.im) + length(back.re, back.im);
+            // let weight = weight * weight;
+            if weight > max_weight {max_weight = weight}
+            weights[i] = weight;
+        }
+
+        let mut weighted_freq_sum = 0.0;
+        let mut weight_sum = 0.0;
+
+        // 进行加权平均数计算
+        for i in 0..half {
+            // 标准化权重值
+            let weight = weights[i] / max_weight;
+
+            // 当前 i 值对应的频率值
+            let freq_of_i = i as f64 * freq_range / half as f64 + min_freq;
+
+            // 总和
+            weighted_freq_sum += weight * freq_of_i;
+
+            // 权重总和
+            weight_sum += weight;
+        }
+        let weighted_avr = weighted_freq_sum / weight_sum;
+        weighted_avr
+    }
+
     // 改变音调
     fn tone_modify(fftbuf: Vec::<Complex::<f64>>, modi: f64) -> Vec::<Complex::<f64>> {
         let size = fftbuf.len();
@@ -48,7 +92,6 @@ impl FreqProcessor {
                 ret[new_freq] = fftbuf[i];
                 ret[last - new_freq] = fftbuf[last - i];
             } else {
-                // 此时应当考虑是否要 truncate
                 break;
             }
         }
@@ -56,8 +99,18 @@ impl FreqProcessor {
         ret
     }
 
+    // 对一段样本施加汉宁窗使其便于叠加
+    fn apply_hann_window(samples: &mut Vec<f32>) {
+        let num_samples = samples.len();
+        let pi = std::f32::consts::PI;
+        for i in 0..num_samples {
+            let progress = i as f32 / (num_samples - 1) as f32;
+            samples[i] *= 0.5 - 0.5 * (2.0 * pi * progress).cos();
+        }
+    }
+
     // 音频处理
-    fn proc(&self, samples: &Vec<f32>, target_freq: u32) -> Vec<f32> {
+    fn proc(&self, samples: &Vec<f32>, target_freq: f64, do_hann_window: bool) -> Vec<f32> {
 
         // 将音频样本转换为复数用于 FFT 计算。
         let mut fftbuf = Vec::<Complex::<f64>>::with_capacity(self.section_sample_count);
@@ -73,11 +126,12 @@ impl FreqProcessor {
         // 进行 FFT 转换
         self.fft_forward.process(&mut fftbuf);
 
-        // TODO:
         // 检测平均音调
+        let avr_freq = self.tone_detect(&fftbuf);
 
         // 改变音调
-        let mut fftbuf = Self::tone_modify(fftbuf, 0.5);
+        let freq_mod = target_freq / avr_freq;
+        let mut fftbuf = Self::tone_modify(fftbuf, freq_mod);
 
         // 转换回来
         self.fft_inverse.process(&mut fftbuf);
@@ -88,6 +142,20 @@ impl FreqProcessor {
 
             // 标准化值，只取实数部分
             result.push((complex.re * self.normalize_scaler) as f32);
+        }
+
+        // 采样回来后，因为音调发生了变化，波形的长度其实是发生了变化的。
+        // 如果波形缩短，则需要做额外的处理。
+        if freq_mod > 1.0 {
+            let real_size = (self.section_sample_count as f64 * avr_freq) as usize;
+            result.resize(real_size, 0.0);
+            result.extend(&result.clone());
+            result.resize(self.section_sample_count, 0.0);
+        }
+
+        // 施加汉宁窗
+        if do_hann_window {
+            Self::apply_hann_window(&mut result);
         }
         result
     }
@@ -387,15 +455,6 @@ impl WaveWriter for WaveWriterSimple {
     }
 }
 
-fn apply_hann_window(samples: &mut Vec<f32>) {
-    let num_samples = samples.len();
-    let pi = std::f32::consts::PI;
-    for i in 0..num_samples {
-        let progress = i as f32 / (num_samples - 1) as f32;
-        samples[i] *= 0.5 - 0.5 * (2.0 * pi * progress).cos()
-    }
-}
-
 struct WaveReaderWindowed {
     reader: WaveReaderSimple,
     spec: WavSpec,
@@ -536,20 +595,15 @@ fn wave_writer_create(output_file: &str, spec: &WavSpec, do_hann_window: bool) -
 }
 
 // 处理单个块
-fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_hann_window: bool, target_freq: u32) -> WaveFormChannels {
+fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_hann_window: bool, target_freq: f64) -> WaveFormChannels {
     match chunk {
         WaveFormChannels::Mono(mono) => {
-            let mut mono_process = freq_processor.proc(&mono, target_freq);
-            if do_hann_window { apply_hann_window(&mut mono_process); }
+            let mono_process = freq_processor.proc(&mono, target_freq, do_hann_window);
             WaveFormChannels::Mono(mono_process)
         },
         WaveFormChannels::Stereo((chnl1, chnl2)) => {
-            let mut chnl1_process = freq_processor.proc(&chnl1, target_freq);
-            let mut chnl2_process = freq_processor.proc(&chnl2, target_freq);
-            if do_hann_window {
-                apply_hann_window(&mut chnl1_process);
-                apply_hann_window(&mut chnl2_process);
-            }
+            let chnl1_process = freq_processor.proc(&chnl1, target_freq, do_hann_window);
+            let chnl2_process = freq_processor.proc(&chnl2, target_freq, do_hann_window);
             WaveFormChannels::Stereo((chnl1_process, chnl2_process))
         },
         WaveFormChannels::None => WaveFormChannels::None,
@@ -559,8 +613,8 @@ fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_han
 fn process_wav_file(
     output_file: &str, // 输出文件
     input_file: &str,  // 输入文件
-    target_freq: u32,  // 调音的目标频率
-    section_duration: f32, // 调音的分节长度
+    target_freq: f64,  // 调音的目标频率
+    section_duration: f64, // 调音的分节长度
     do_hann_window: bool, // 是否进行汉宁窗处理
     concurrent: bool, // 是否并行处理
 ) -> Result<(), Box<dyn Error>> {
@@ -575,7 +629,7 @@ fn process_wav_file(
     let mut writer = wave_writer_create(output_file, &reader.spec(), do_hann_window);
 
     // 根据输入文件的采样率，计算出调音的分节包含的样本数量
-    let section_sample_count = (sample_rate as f32 * section_duration * 0.5) as usize * 2;
+    let section_sample_count = (sample_rate as f64 * section_duration * 0.5) as usize * 2;
 
     // 设置块大小
     reader.set_chunk_size(section_sample_count);
@@ -621,8 +675,20 @@ fn process_wav_file(
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    process_wav_file("output_mono.wav", "test_mono.wav", 256, 2.0, false, true)?;
-    process_wav_file("output.wav", "test.wav", 256, 2.0, false, true)?;
-    Ok(())
+fn usage() {
+    println!("Usage: evoice <input.wav> <output.wav> <target freq> [window size]");
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 4 {usage(); return ExitCode::from(1);}
+    let input_file = args[1].clone();
+    let output_file = args[2].clone();
+    let target_freq = args[3].parse::<f64>().unwrap();
+    let mut window_size = 0.1;
+    if args.len() > 5 {window_size = args[4].parse::<f64>().unwrap();}
+    match process_wav_file(&output_file, &input_file, target_freq, window_size, true, true) {
+        Ok(_) => ExitCode::from(0),
+        _ => ExitCode::from(2),
+    }
 }
