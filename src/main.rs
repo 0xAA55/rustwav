@@ -1,6 +1,7 @@
 
+use std::{env, io::{BufReader, BufWriter, Seek, Read, Write}, fs::File, sync::Arc, error::Error, process::ExitCode};
 
-use std::{env, io::{BufReader, BufWriter}, fs::File, sync::Arc, error::Error, process::ExitCode};
+use tempfile::tempfile;
 
 use hound::{SampleFormat, WavSpec, WavReader, WavWriter};
 
@@ -216,7 +217,7 @@ fn zip_samples(src_samples: &(Vec<f32>, Vec<f32>)) -> Vec<f32> {
     ret
 }
 
-#[derive(Clone)]
+#[derive(Clone, bincode::Encode, bincode::Decode)]
 enum WaveFormChannels {
     None,
     Mono(Vec<f32>),
@@ -609,6 +610,33 @@ fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_han
     }
 }
 
+// 将一个 chunk 序列化为字节数据用于暂存到硬盘
+fn chunk_to_bytes(chunk: &WaveFormChannels) -> Vec<u8> {
+    bincode::encode_to_vec(chunk, bincode::config::standard()).unwrap()
+}
+
+// 将一个 chunk 从字节数据恢复出来
+fn chunk_from_bytes(data: &[u8]) -> WaveFormChannels {
+    let (ret, _size) = bincode::decode_from_slice(data, bincode::config::standard()).unwrap();
+    ret
+}
+
+// 暂存 chunk 到临时文件，这个文件句柄需要保留。关闭文件导致临时文件被自动删除。
+fn make_cached(chunk: WaveFormChannels) -> File {
+    let mut ret = tempfile().expect("Could not open the temp file.");
+    ret.write_all(&chunk_to_bytes(&chunk)).expect("Could not write to the temp file.");
+    ret.flush().expect("Could not flush the temp file.");
+    ret
+}
+
+// 从临时文件取回 chunk 数据。
+fn read_back(file: &mut File) -> WaveFormChannels {
+    let mut buf = Vec::<u8>::new();
+    file.rewind().expect("Could not rewind the temp file.");
+    file.read_to_end(&mut buf).expect("Could not read from the temp file.");
+    chunk_from_bytes(&buf)
+}
+
 fn process_wav_file(
     output_file: &str, // 输出文件
     input_file: &str,  // 输入文件
@@ -644,23 +672,16 @@ fn process_wav_file(
     // 进行处理
     if concurrent {
         // 先并行处理，返回索引和数据
-        let indexed_all_samples: Vec::<(usize, WaveFormChannels)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, WaveFormChannels)> {
-            Some((i, process_chunk(&freq_processor, chunk, do_hann_window, target_freq)))
-        }).collect::<Vec<Option<(usize, WaveFormChannels)>>>().into_iter().flatten().collect();
+        let mut indexed_all_samples: Vec::<(usize, File)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, File)> {
+            Some((i, make_cached(process_chunk(&freq_processor, chunk, do_hann_window, target_freq))))
+        }).collect::<Vec<Option<(usize, File)>>>().into_iter().flatten().collect();
 
-        // 根据索引，重新排列数据
-        let mut all_samples = Vec::<WaveFormChannels>::with_capacity(indexed_all_samples.len());
-        for _ in 0..indexed_all_samples.len() {
-            all_samples.push(WaveFormChannels::None);
-        }
-        for indexed_sample in indexed_all_samples.into_iter() {
-            let (i, sample) = indexed_sample;
-            all_samples[i] = sample;
-        }
+        // 排序
+        indexed_all_samples.sort_by_key(|k| k.0);
 
         // 按顺序存储所有数据
-        for chunk in all_samples {
-            writer.write(chunk)?;
+        for (_, mut file) in indexed_all_samples {
+            writer.write(read_back(&mut file))?;
         }
     }
     else {
@@ -686,7 +707,7 @@ fn main() -> ExitCode {
     let target_freq = args[3].parse::<f64>().unwrap();
     let mut window_size = 0.1;
     if args.len() > 5 {window_size = args[4].parse::<f64>().unwrap();}
-    match process_wav_file(&output_file, &input_file, target_freq, window_size, true, false) {
+    match process_wav_file(&output_file, &input_file, target_freq, window_size, true, true) {
         Ok(_) => ExitCode::from(0),
         _ => ExitCode::from(2),
     }
