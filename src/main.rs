@@ -50,7 +50,6 @@ impl FreqProcessor {
             let front = &fftbuf[i];
             let back = &fftbuf[last - i];
             let weight = length(front.re, front.im) + length(back.re, back.im);
-            // let weight = weight * weight;
             if weight > max_weight {max_weight = weight}
             weights[i] = weight;
         }
@@ -103,9 +102,9 @@ impl FreqProcessor {
     fn apply_hann_window(samples: &mut [f32]) {
         let num_samples = samples.len();
         let pi = std::f32::consts::PI;
-        for i in 0..num_samples {
+        for (i, sample) in samples.iter_mut().enumerate().take(num_samples) {
             let progress = i as f32 / (num_samples - 1) as f32;
-            samples[i] *= 0.5 - 0.5 * (2.0 * pi * progress).cos();
+            *sample *= 0.5 - 0.5 * (2.0 * pi * progress).cos();
         }
     }
 
@@ -199,7 +198,7 @@ fn unzip_samples(src_samples: &[f32]) -> (Vec<f32>, Vec<f32>) {
     let mut ret1 = Vec::<f32>::with_capacity(size);
     let mut ret2 = Vec::<f32>::with_capacity(size);
     for i in 0..size {
-        ret1.push(src_samples[i * 2 + 0]);
+        ret1.push(src_samples[i * 2]);
         ret2.push(src_samples[i * 2 + 1]);
     }
     (ret1, ret2)
