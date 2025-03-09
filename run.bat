@@ -1,2 +1,2 @@
-cargo run %1 output.wav 1024 0.1
+cargo run %1 output.wav 2048 0.1
 @pause
