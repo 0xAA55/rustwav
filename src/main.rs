@@ -13,6 +13,10 @@ fn length(x: f64, y: f64) -> f64 {
     (x * x + y * y).sqrt()
 }
 
+fn lerp(a: f64, b: f64, s: f64) -> f64 {
+    a + (b - a) * s
+}
+
 struct FreqProcessor {
     fft_forward: Arc<dyn Fft<f64>>,
     fft_inverse: Arc<dyn Fft<f64>>,
@@ -36,7 +40,7 @@ impl FreqProcessor {
     // 检测音调算法1
     fn tone_detect(&self, fftbuf: &[Complex::<f64>]) -> f64 {
         let max_freq = self.sample_rate as f64 / 2.0;
-        let min_freq = max_freq / self.section_sample_count as f64;
+        let min_freq = self.sample_rate as f64 / self.section_sample_count as f64;
         let freq_range = max_freq - min_freq;
         let half = self.section_sample_count / 2;
         let last = self.section_sample_count - 1;
@@ -60,7 +64,7 @@ impl FreqProcessor {
         // 进行加权平均数计算
         for (i, weight) in weights.iter().enumerate().take(half) {
             // 标准化权重值
-            let weight = weight / max_weight;
+            let weight = *weight / max_weight;
 
             // 当前 i 值对应的频率值
             let freq_of_i = i as f64 * freq_range / half as f64 + min_freq;
@@ -127,6 +131,9 @@ impl FreqProcessor {
 
         // 检测平均音调
         let avr_freq = self.tone_detect(&fftbuf);
+
+        // 做插值，使检测到的平均音调比较接近目标音调值，以免调音处理用力过度
+        let avr_freq = lerp(avr_freq, target_freq, 0.75);
 
         // 改变音调
         let freq_mod = avr_freq / target_freq;
