@@ -53,7 +53,9 @@ impl FreqProcessor {
         for i in 0..half {
             let front = &fftbuf[i];
             let back = &fftbuf[last - i];
+            let progress = i as f64 / half as f64;
             let weight = length(front.re, front.im) + length(back.re, back.im);
+            let weight = weight * (1.0 - progress);
             if weight > max_weight {max_weight = weight}
             weights[i] = weight;
         }
