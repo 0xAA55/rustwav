@@ -157,7 +157,13 @@ impl FreqProcessor {
         if freq_mod > 1.0 {
             let real_size = (self.section_sample_count as f64 * avr_freq) as usize;
             result.resize(real_size, 0.0);
-            result.extend(&result.clone());
+            loop {
+                if result.len() < self.section_sample_count {
+                    result.extend(&result.clone());
+                } else {
+                    break;
+                }
+            }
             result.resize(self.section_sample_count, 0.0);
         }
 
