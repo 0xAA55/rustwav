@@ -53,9 +53,10 @@ impl FreqProcessor {
         for i in 0..half {
             let front = &fftbuf[i];
             let back = &fftbuf[last - i];
-            let progress = i as f64 / half as f64;
+            // 注释掉的代码被用于压低高频部分的权重值，这次要想办法测试出图，用图表来实际查看频谱图长啥样。
+            //let progress = i as f64 / half as f64;
             let weight = length(front.re, front.im) + length(back.re, back.im);
-            let weight = weight * (1.0 - progress);
+            //let weight = weight * (1.0 - progress);
             if weight > max_weight {max_weight = weight}
             weights[i] = weight;
         }
