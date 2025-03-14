@@ -322,20 +322,29 @@ fn chunk_concat(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFor
 fn chunk_split(chunk: &WaveFormChannels, at: usize) -> (WaveFormChannels, WaveFormChannels) {
     match chunk {
         WaveFormChannels::None => (WaveFormChannels::None, WaveFormChannels::None),
-        WaveFormChannels::Mono(mono) => (WaveFormChannels::Mono(mono[0..at].to_vec()),
-                                         WaveFormChannels::Mono(mono[at..].to_vec())),
-        WaveFormChannels::Stereo((chnl1, chnl2)) => (WaveFormChannels::Stereo((chnl1[0..at].to_vec(), chnl2[0..at].to_vec())),
-                                                     WaveFormChannels::Stereo((chnl1[at..].to_vec(), chnl2[at..].to_vec()))),
+        WaveFormChannels::Mono(mono) => {
+            (WaveFormChannels::Mono(mono[0..at].to_vec()),
+             WaveFormChannels::Mono(mono[at..].to_vec()))
+        },
+        WaveFormChannels::Stereo((chnl1, chnl2)) => {
+            (WaveFormChannels::Stereo((chnl1[0..at].to_vec(), chnl2[0..at].to_vec())),
+             WaveFormChannels::Stereo((chnl1[at..].to_vec(), chnl2[at..].to_vec())))
+        },
     }
 }
 
 // 叠加两个 chunk 的值
 fn chunks_add(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormChannels {
     match (chunk1, chunk2) {
-        (WaveFormChannels::None, WaveFormChannels::None) => WaveFormChannels::None,
-        (WaveFormChannels::Mono(mono1), WaveFormChannels::Mono(mono2)) => WaveFormChannels::Mono(vecf32_add(mono1, mono2)),
-        (WaveFormChannels::Stereo((chnl1_1, chnl2_1)), WaveFormChannels::Stereo((chnl1_2, chnl2_2))) =>
-            WaveFormChannels::Stereo((vecf32_add(chnl1_1, chnl1_2), vecf32_add(chnl2_1, chnl2_2))),
+        (WaveFormChannels::None, WaveFormChannels::None) => {
+            WaveFormChannels::None
+        },
+            (WaveFormChannels::Mono(mono1), WaveFormChannels::Mono(mono2)) => {
+             WaveFormChannels::Mono(vecf32_add(mono1, mono2))
+        },
+            (WaveFormChannels::Stereo((chnl1_1, chnl2_1)), WaveFormChannels::Stereo((chnl1_2, chnl2_2))) => {
+             WaveFormChannels::Stereo((vecf32_add(chnl1_1, chnl1_2), vecf32_add(chnl2_1, chnl2_2))),
+        },
         _ => panic!("Two chunks to add must have same channel type."),
     }
 }
