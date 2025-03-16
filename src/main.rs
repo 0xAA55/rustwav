@@ -1,7 +1,5 @@
 
-use std::{env, io::{BufReader, BufWriter, Seek, Read, Write}, fs::File, sync::Arc, error::Error, process::ExitCode};
-
-use tempfile::tempfile;
+use std::{env, fs::File, io::{BufReader, BufWriter}, sync::Arc, error::Error, process::ExitCode};
 
 use hound::{SampleFormat, WavSpec, WavReader, WavWriter};
 
@@ -10,7 +8,7 @@ use rustfft::{FftPlanner, Fft, num_complex::Complex};
 use rayon::iter::{ParallelIterator, ParallelBridge};
 
 mod waveform;
-use waveform::WaveFormChannels;
+use waveform::WaveForm;
 
 #[derive(Debug, Clone)]
 pub enum AudioError {
@@ -258,7 +256,7 @@ trait WaveReader {
 
 trait WaveWriter {
     fn create(output_file: &str, spec: &WavSpec) -> Result<Self, Box<dyn Error>> where Self: Sized;
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>>;
+    fn write(&mut self, channels_data: WaveForm) -> Result<(), Box<dyn Error>>;
     fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
 
     fn set_window_size(&mut self, _window_size: usize) {
@@ -293,7 +291,7 @@ impl WaveReader for WaveReaderSimple {
 }
 
 impl Iterator for WaveReaderSimple {
-    type Item = WaveFormChannels;
+    type Item = WaveForm;
 
     // 被当作迭代器使用时，返回一块块的音频数据
     fn next(&mut self) -> Option<Self::Item> {
@@ -356,19 +354,19 @@ impl WaveWriter for WaveWriterSimple {
         })
     }
 
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>> {
+    fn write(&mut self, channels_data: WaveForm) -> Result<(), Box<dyn Error>> {
         match channels_data {
-            WaveFormChannels::Mono(mono) => {
+            WaveForm::Mono(mono) => {
                 for sample in mono.into_iter() {
                     self.writer.write_sample(sample)?
                 }
             },
-            WaveFormChannels::Stereo(stereo) => {
+            WaveForm::Stereo(stereo) => {
                 for sample in zip_samples(&stereo).into_iter() {
                     self.writer.write_sample(sample)?
                 }
             },
-            _ => panic!("Must not give `WaveFormChannels::None` for a `WaveWriterSimple` to write."),
+            _ => panic!("Must not give `WaveForm::None` for a `WaveWriterSimple` to write."),
         }
         Ok(())
     }
@@ -382,7 +380,7 @@ impl WaveWriter for WaveWriterSimple {
 struct WaveReaderWindowed {
     reader: WaveReaderSimple,
     spec: WavSpec,
-    last_chunk: WaveFormChannels,
+    last_chunk: WaveForm,
     chunk_size: usize,
 }
 
@@ -393,7 +391,7 @@ impl WaveReader for WaveReaderWindowed {
         Ok(Self {
             reader,
             spec,
-            last_chunk: WaveFormChannels::None,
+            last_chunk: WaveForm::None,
             chunk_size: 0,
         })
     }
@@ -409,7 +407,7 @@ impl WaveReader for WaveReaderWindowed {
 }
 
 impl Iterator for WaveReaderWindowed {
-    type Item = WaveFormChannels;
+    type Item = WaveForm;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.chunk_size == 0 {panic!("Must set chunk size before iterations.")}
@@ -419,12 +417,12 @@ impl Iterator for WaveReaderWindowed {
             None => { // 新块没有数据了
                 match self.last_chunk {
                     // 旧的块都无了，则返回 None 结束迭代
-                    WaveFormChannels::None => None,
+                    WaveForm::None => None,
 
                     // 旧的块还有，延长旧的块为全块大小，将其返回，然后让旧的块变为无。
                     _ => {
                         let ret = self.last_chunk.resized(self.chunk_size);
-                        self.last_chunk = WaveFormChannels::None;
+                        self.last_chunk = WaveForm::None;
                         Some(ret)
                     },
                 }
@@ -434,7 +432,7 @@ impl Iterator for WaveReaderWindowed {
                 let chunk = chunk.resized(self.reader.chunk_size);
                 match self.last_chunk {
                     // 没有旧块，但是有新块，说明是第一次迭代。此时应当再次迭代，才能组成一个完整的块。
-                    WaveFormChannels::None => {
+                    WaveForm::None => {
                         self.last_chunk = chunk;
                         self.next()
                     },
@@ -453,7 +451,7 @@ impl Iterator for WaveReaderWindowed {
 struct WaveWindowedWriter {
     writer: WaveWriterSimple,
     window_size: usize,
-    window: WaveFormChannels,
+    window: WaveForm,
 }
 
 impl WaveWriter for WaveWindowedWriter {
@@ -462,7 +460,7 @@ impl WaveWriter for WaveWindowedWriter {
         Ok(Self {
             writer,
             window_size: 0,
-            window: WaveFormChannels::None,
+            window: WaveForm::None,
         })
     }
 
@@ -470,7 +468,7 @@ impl WaveWriter for WaveWindowedWriter {
         self.window_size = window_size;
     }
 
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>> {
+    fn write(&mut self, channels_data: WaveForm) -> Result<(), Box<dyn Error>> {
         // 策略：
         // 输入的音频被设计为窗口长度的两倍。
         // 平时存储上一个输入的音频的后半部分，音频来了以后，合并前半部分，写入文件。
@@ -481,7 +479,7 @@ impl WaveWriter for WaveWindowedWriter {
         }
         // 按窗口大小分割音频
         let (first, second) = channels_data.split(self.window_size);
-        if let WaveFormChannels::None = self.window {
+        if let WaveForm::None = self.window {
             // 第一次写入，直接写入前半段，存住后半段
             self.writer.write(first)?;
         } else {
@@ -499,8 +497,8 @@ impl WaveWriter for WaveWindowedWriter {
     }
 }
 
-trait IteratorWithWaveReader: Iterator<Item = WaveFormChannels> + WaveReader + Send {}
-impl<T> IteratorWithWaveReader for T where T: Iterator<Item = WaveFormChannels> + WaveReader + Send {}
+trait IteratorWithWaveReader: Iterator<Item = WaveForm> + WaveReader + Send {}
+impl<T> IteratorWithWaveReader for T where T: Iterator<Item = WaveForm> + WaveReader + Send {}
 
 fn wave_reader_create(input_file: &str, do_hann_window: bool) -> Box<dyn IteratorWithWaveReader> {
     if do_hann_window {
@@ -519,46 +517,19 @@ fn wave_writer_create(output_file: &str, spec: &WavSpec, do_hann_window: bool) -
 }
 
 // 处理单个块
-fn process_chunk(freq_processor: &FreqProcessor, chunk_index: usize, chunk: WaveFormChannels, do_hann_window: bool, target_freq: f64) -> WaveFormChannels {
+fn process_chunk(freq_processor: &FreqProcessor, chunk_index: usize, chunk: WaveForm, do_hann_window: bool, target_freq: f64) -> WaveForm {
     match chunk {
-        WaveFormChannels::Mono(mono) => {
+        WaveForm::Mono(mono) => {
             let mono_process = freq_processor.proc(chunk_index, &mono, target_freq, do_hann_window);
-            WaveFormChannels::Mono(mono_process)
+            WaveForm::Mono(mono_process)
         },
-        WaveFormChannels::Stereo((chnl1, chnl2)) => {
+        WaveForm::Stereo((chnl1, chnl2)) => {
             let chnl1_process = freq_processor.proc(chunk_index, &chnl1, target_freq, do_hann_window);
             let chnl2_process = freq_processor.proc(chunk_index, &chnl2, target_freq, do_hann_window);
-            WaveFormChannels::Stereo((chnl1_process, chnl2_process))
+            WaveForm::Stereo((chnl1_process, chnl2_process))
         },
-        WaveFormChannels::None => WaveFormChannels::None,
+        WaveForm::None => WaveForm::None,
     }
-}
-
-// 将一个 chunk 序列化为字节数据用于暂存到硬盘
-fn chunk_to_bytes(chunk: &WaveFormChannels) -> Vec<u8> {
-    bincode::encode_to_vec(chunk, bincode::config::standard()).unwrap()
-}
-
-// 将一个 chunk 从字节数据恢复出来
-fn chunk_from_bytes(data: &[u8]) -> WaveFormChannels {
-    let (ret, _size) = bincode::decode_from_slice(data, bincode::config::standard()).unwrap();
-    ret
-}
-
-// 暂存 chunk 到临时文件，这个文件句柄需要保留。关闭文件导致临时文件被自动删除。
-fn make_cached(chunk: WaveFormChannels) -> File {
-    let mut ret = tempfile().expect("Could not open the temp file.");
-    ret.write_all(&chunk_to_bytes(&chunk)).expect("Could not write to the temp file.");
-    ret.flush().expect("Could not flush the temp file.");
-    ret
-}
-
-// 从临时文件取回 chunk 数据。
-fn read_back(file: &mut File) -> WaveFormChannels {
-    let mut buf = Vec::<u8>::new();
-    file.rewind().expect("Could not rewind the temp file.");
-    file.read_to_end(&mut buf).expect("Could not read from the temp file.");
-    chunk_from_bytes(&buf)
 }
 
 fn process_wav_file(
@@ -597,15 +568,15 @@ fn process_wav_file(
     if concurrent {
         // 先并行处理，返回索引和数据
         let mut indexed_all_samples: Vec::<(usize, File)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, File)> {
-            Some((i, make_cached(process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq))))
+            Some((i, process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq).to_tempfile().unwrap()))
         }).collect::<Vec<Option<(usize, File)>>>().into_iter().flatten().collect();
 
         // 排序
         indexed_all_samples.sort_by_key(|k| k.0);
 
         // 按顺序存储所有数据
-        for (_, mut file) in indexed_all_samples {
-            writer.write(read_back(&mut file))?;
+        for (_, file) in indexed_all_samples {
+            writer.write(WaveForm::restore_from_tempfile(file).unwrap())?;
         }
     }
     else {
