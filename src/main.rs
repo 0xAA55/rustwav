@@ -9,6 +9,24 @@ use rustfft::{FftPlanner, Fft, num_complex::Complex};
 
 use rayon::iter::{ParallelIterator, ParallelBridge};
 
+mod waveform;
+use waveform::WaveFormChannels;
+
+#[derive(Debug, Clone)]
+pub enum AudioError {
+    WaveFormLengthError(String),
+}
+
+impl Error for AudioError {}
+
+impl std::fmt::Display for AudioError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+       match self {
+           AudioError::WaveFormLengthError(str) => write!(f, "{str}: wave form length error"),
+       }
+    }
+}
+
 fn length(x: f64, y: f64) -> f64 {
     (x * x + y * y).sqrt()
 }
@@ -232,134 +250,16 @@ fn zip_samples(src_samples: &(Vec<f32>, Vec<f32>)) -> Vec<f32> {
     ret
 }
 
-#[derive(Clone, bincode::Encode, bincode::Decode)]
-enum WaveFormChannels {
-    None,
-    Mono(Vec<f32>),
-    Stereo((Vec<f32>, Vec<f32>))
-}
-
-fn vecf32_add(v1: &[f32], v2: &[f32]) -> Vec<f32> {
-    assert_eq!(v1.len(), v2.len());
-    let mut v3 = v1.to_owned();
-    for i in 0..v3.len() {
-        v3[i] += v2[i];
-    }
-    v3
-}
-
-fn chunk_get_len(chunk: &WaveFormChannels) -> usize {
-    match chunk {
-        WaveFormChannels::None => 0,
-        WaveFormChannels::Mono(mono) => mono.len(),
-        WaveFormChannels::Stereo((chnl1, chnl2)) => {
-            assert_eq!(chnl1.len(), chnl2.len());
-            chnl1.len()
-        },
-    }
-}
-
-// 使 WaveFormChannels 内容的长度增长到指定值，如果没有内容就不增长。
-fn chunk_extend(chunk: WaveFormChannels, target_size: usize) -> WaveFormChannels {
-    match chunk {
-        WaveFormChannels::None => WaveFormChannels::None,
-        WaveFormChannels::Mono(mono) => {
-            let mut mono = mono;
-            mono.resize(target_size, 0.0);
-            WaveFormChannels::Mono(mono)
-        },
-        WaveFormChannels::Stereo((chnl1, chnl2)) => {
-            let (mut chnl1, mut chnl2) = (chnl1, chnl2);
-            chnl1.resize(target_size, 0.0);
-            chnl2.resize(target_size, 0.0);
-            WaveFormChannels::Stereo((chnl1, chnl2))
-        },
-    }
-}
-
-// 拼接两个 WaveFormChannels，会检查其中的类型，不允许不同类型的进行拼接，但是 None 可以参与拼接。
-fn chunk_concat(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormChannels {
-    match chunk1 {
-        // 1 是 None，返回 2
-        WaveFormChannels::None => chunk2.clone(),
-
-        // 1 是 Mono，根据 2 来判断
-        WaveFormChannels::Mono(mono) => match chunk2 {
-
-            // 2 是 None，返回 1
-            WaveFormChannels::None => chunk1.clone(),
-
-            // 2 是 Mono，进行拼接
-            WaveFormChannels::Mono(mono2) => {
-                let mut cmono = mono.clone();
-                cmono.extend(mono2);
-                WaveFormChannels::Mono(cmono)
-            },
-
-            // 2 是 Stereo，类型不同，不能拼接。
-            WaveFormChannels::Stereo(_) => panic!("Must concat same type `WaveFormChannels`."),
-        },
-
-        // 1 是 Stereo，根据 2 来判断
-        WaveFormChannels::Stereo(stereo) => match chunk2 {
-
-            // 2 是 None，返回 1
-            WaveFormChannels::None => chunk1.clone(),
-
-            // 2 是 Mono，类型不同，不能拼接。
-            WaveFormChannels::Mono(_) => panic!("Must concat same type `WaveFormChannels`."),
-
-            // 2 是 Stereo，进行拼接
-            WaveFormChannels::Stereo((chnl1_2, chnl2_2)) => {
-                let (mut chnl1_1, mut chnl2_1) = stereo.clone();
-                chnl1_1.extend(chnl1_2);
-                chnl2_1.extend(chnl2_2);
-                WaveFormChannels::Stereo((chnl1_1, chnl2_1))
-            },
-        },
-    }
-}
-
-fn chunk_split(chunk: &WaveFormChannels, at: usize) -> (WaveFormChannels, WaveFormChannels) {
-    match chunk {
-        WaveFormChannels::None => (WaveFormChannels::None, WaveFormChannels::None),
-        WaveFormChannels::Mono(mono) => {
-            (WaveFormChannels::Mono(mono[0..at].to_vec()),
-             WaveFormChannels::Mono(mono[at..].to_vec()))
-        },
-        WaveFormChannels::Stereo((chnl1, chnl2)) => {
-            (WaveFormChannels::Stereo((chnl1[0..at].to_vec(), chnl2[0..at].to_vec())),
-             WaveFormChannels::Stereo((chnl1[at..].to_vec(), chnl2[at..].to_vec())))
-        },
-    }
-}
-
-// 叠加两个 chunk 的值
-fn chunks_add(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormChannels {
-    match (chunk1, chunk2) {
-        (WaveFormChannels::None, WaveFormChannels::None) => {
-            WaveFormChannels::None
-        },
-            (WaveFormChannels::Mono(mono1), WaveFormChannels::Mono(mono2)) => {
-             WaveFormChannels::Mono(vecf32_add(mono1, mono2))
-        },
-            (WaveFormChannels::Stereo((chnl1_1, chnl2_1)), WaveFormChannels::Stereo((chnl1_2, chnl2_2))) => {
-             WaveFormChannels::Stereo((vecf32_add(chnl1_1, chnl1_2), vecf32_add(chnl2_1, chnl2_2)))
-        },
-        _ => panic!("Two chunks to add must have same channel type."),
-    }
-}
-
 trait WaveReader {
-    fn open(input_file: &str) -> Result<Self, hound::Error> where Self: Sized;
+    fn open(input_file: &str) -> Result<Self, Box<dyn Error>> where Self: Sized;
     fn spec(&self) -> &WavSpec;
     fn set_chunk_size(&mut self, chunk_size: usize);
 }
 
 trait WaveWriter {
-    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> where Self: Sized;
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error>;
-    fn finalize(&mut self) -> Result<(), hound::Error>;
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, Box<dyn Error>> where Self: Sized;
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>>;
+    fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
 
     fn set_window_size(&mut self, _window_size: usize) {
         panic!("`set_window_size()` is not implemented here.");
@@ -373,7 +273,7 @@ struct WaveReaderSimple {
 }
 
 impl WaveReader for WaveReaderSimple {
-    fn open(input_file: &str) -> Result<Self, hound::Error> {
+    fn open(input_file: &str) -> Result<Self, Box<dyn Error>> {
         let reader = WavReader::open(input_file)?;
         let spec = reader.spec();
         Ok(Self {
@@ -444,7 +344,7 @@ struct WaveWriterSimple {
 }
 
 impl WaveWriter for WaveWriterSimple {
-    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> {
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, Box<dyn Error>> {
         let writer = WavWriter::create(output_file, WavSpec {
             channels: spec.channels,
             sample_rate: spec.sample_rate,
@@ -456,7 +356,7 @@ impl WaveWriter for WaveWriterSimple {
         })
     }
 
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error> {
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>> {
         match channels_data {
             WaveFormChannels::Mono(mono) => {
                 for sample in mono.into_iter() {
@@ -473,9 +373,9 @@ impl WaveWriter for WaveWriterSimple {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(), hound::Error>
+    fn finalize(&mut self) -> Result<(), Box<dyn Error>>
     {
-        self.writer.flush()
+        Ok(self.writer.flush()?)
     }
 }
 
@@ -487,7 +387,7 @@ struct WaveReaderWindowed {
 }
 
 impl WaveReader for WaveReaderWindowed {
-    fn open(input_file: &str) ->  Result<Self, hound::Error> {
+    fn open(input_file: &str) -> Result<Self, Box<dyn Error>> {
         let reader = WaveReaderSimple::open(input_file)?;
         let spec = reader.spec;
         Ok(Self {
@@ -523,7 +423,7 @@ impl Iterator for WaveReaderWindowed {
 
                     // 旧的块还有，延长旧的块为全块大小，将其返回，然后让旧的块变为无。
                     _ => {
-                        let ret = chunk_extend(self.last_chunk.clone(), self.chunk_size);
+                        let ret = self.last_chunk.resized(self.chunk_size);
                         self.last_chunk = WaveFormChannels::None;
                         Some(ret)
                     },
@@ -531,7 +431,7 @@ impl Iterator for WaveReaderWindowed {
             },
             Some(chunk) => { // 新块有数据
                 // 不论如何，延长到半块大小
-                let chunk = chunk_extend(chunk, self.reader.chunk_size);
+                let chunk = chunk.resized(self.reader.chunk_size);
                 match self.last_chunk {
                     // 没有旧块，但是有新块，说明是第一次迭代。此时应当再次迭代，才能组成一个完整的块。
                     WaveFormChannels::None => {
@@ -540,7 +440,7 @@ impl Iterator for WaveReaderWindowed {
                     },
                     // 有新块，有旧块
                     _ => {
-                        let ret = chunk_concat(&self.last_chunk, &chunk);
+                        let ret = self.last_chunk.extended(&chunk).unwrap();
                         self.last_chunk = chunk;
                         Some(ret)
                     },
@@ -557,7 +457,7 @@ struct WaveWindowedWriter {
 }
 
 impl WaveWriter for WaveWindowedWriter {
-    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, hound::Error> {
+    fn create(output_file: &str, spec: &WavSpec) -> Result<Self, Box<dyn Error>> {
         let writer = WaveWriterSimple::create(output_file, spec)?;
         Ok(Self {
             writer,
@@ -570,29 +470,29 @@ impl WaveWriter for WaveWindowedWriter {
         self.window_size = window_size;
     }
 
-    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), hound::Error> {
+    fn write(&mut self, channels_data: WaveFormChannels) -> Result<(), Box<dyn Error>> {
         // 策略：
         // 输入的音频被设计为窗口长度的两倍。
         // 平时存储上一个输入的音频的后半部分，音频来了以后，合并前半部分，写入文件。
         // 然后再存储新音频的后半部分。
         // 最后要调用一次 `finalize()`，把存储的最后一段音频的后半部分写入。
-        if chunk_get_len(&channels_data) < self.window_size {
-            panic!("Channel data to write must be greater than the window size.")
+        if channels_data.len().unwrap() < self.window_size {
+            return Err(AudioError::WaveFormLengthError("The length of the chunk to write must be longer than the window size.".to_string()).into());
         }
         // 按窗口大小分割音频
-        let (first, second) = chunk_split(&channels_data, self.window_size);
+        let (first, second) = channels_data.split(self.window_size);
         if let WaveFormChannels::None = self.window {
             // 第一次写入，直接写入前半段，存住后半段
             self.writer.write(first)?;
         } else {
             // 写入叠加窗口
-            self.writer.write(chunks_add(&first, &self.window))?;
+            self.writer.write(first.add_to(&self.window)?)?;
         }
         self.window = second;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(), hound::Error>
+    fn finalize(&mut self) -> Result<(), Box<dyn Error>>
     {
         self.writer.write(self.window.clone())?;
         self.writer.finalize()
