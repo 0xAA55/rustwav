@@ -116,7 +116,7 @@ impl FreqProcessor {
     }
 
     // 音频处理
-    fn proc(&self, samples: &[f32], target_freq: f64, do_hann_window: bool) -> Vec<f32> {
+    fn proc(&self, chunk_index: usize, samples: &[f32], target_freq: f64, do_hann_window: bool) -> Vec<f32> {
 
         // 将音频样本转换为复数用于 FFT 计算。
         let mut fftbuf = Vec::<Complex::<f64>>::with_capacity(self.section_sample_count);
@@ -344,7 +344,7 @@ fn chunks_add(chunk1: &WaveFormChannels, chunk2: &WaveFormChannels) -> WaveFormC
              WaveFormChannels::Mono(vecf32_add(mono1, mono2))
         },
             (WaveFormChannels::Stereo((chnl1_1, chnl2_1)), WaveFormChannels::Stereo((chnl1_2, chnl2_2))) => {
-             WaveFormChannels::Stereo((vecf32_add(chnl1_1, chnl1_2), vecf32_add(chnl2_1, chnl2_2))),
+             WaveFormChannels::Stereo((vecf32_add(chnl1_1, chnl1_2), vecf32_add(chnl2_1, chnl2_2)))
         },
         _ => panic!("Two chunks to add must have same channel type."),
     }
@@ -619,15 +619,15 @@ fn wave_writer_create(output_file: &str, spec: &WavSpec, do_hann_window: bool) -
 }
 
 // 处理单个块
-fn process_chunk(freq_processor: &FreqProcessor, chunk: WaveFormChannels, do_hann_window: bool, target_freq: f64) -> WaveFormChannels {
+fn process_chunk(freq_processor: &FreqProcessor, chunk_index: usize, chunk: WaveFormChannels, do_hann_window: bool, target_freq: f64) -> WaveFormChannels {
     match chunk {
         WaveFormChannels::Mono(mono) => {
-            let mono_process = freq_processor.proc(&mono, target_freq, do_hann_window);
+            let mono_process = freq_processor.proc(chunk_index, &mono, target_freq, do_hann_window);
             WaveFormChannels::Mono(mono_process)
         },
         WaveFormChannels::Stereo((chnl1, chnl2)) => {
-            let chnl1_process = freq_processor.proc(&chnl1, target_freq, do_hann_window);
-            let chnl2_process = freq_processor.proc(&chnl2, target_freq, do_hann_window);
+            let chnl1_process = freq_processor.proc(chunk_index, &chnl1, target_freq, do_hann_window);
+            let chnl2_process = freq_processor.proc(chunk_index, &chnl2, target_freq, do_hann_window);
             WaveFormChannels::Stereo((chnl1_process, chnl2_process))
         },
         WaveFormChannels::None => WaveFormChannels::None,
@@ -697,7 +697,7 @@ fn process_wav_file(
     if concurrent {
         // 先并行处理，返回索引和数据
         let mut indexed_all_samples: Vec::<(usize, File)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, File)> {
-            Some((i, make_cached(process_chunk(&freq_processor, chunk, do_hann_window, target_freq))))
+            Some((i, make_cached(process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq))))
         }).collect::<Vec<Option<(usize, File)>>>().into_iter().flatten().collect();
 
         // 排序
@@ -710,8 +710,8 @@ fn process_wav_file(
     }
     else {
         // 不并行处理，则一边处理一边存储
-        for chunk in reader {
-            writer.write(process_chunk(&freq_processor, chunk, do_hann_window, target_freq))?;
+        for (i, chunk) in reader.enumerate() {
+            writer.write(process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq))?;
         }
     }
 
