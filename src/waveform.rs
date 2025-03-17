@@ -4,6 +4,8 @@ use std::{fs::File, io::{Seek, Read, Write}};
 use tempfile::tempfile;
 use bincode::{Encode, Decode, encode_to_vec, decode_from_slice};
 
+use crate::sampleutils::SampleUtils;
+
 #[derive(Clone, Encode, Decode)]
 pub enum WaveForm {
     None,
@@ -34,24 +36,6 @@ impl std::fmt::Display for Error {
     }
 }
 
-fn vecf32_add(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
-    if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
-    let mut v3 = v1.to_owned();
-    for i in 0..v3.len() {
-        v3[i] += v2[i];
-    }
-    Ok(v3)
-}
-
-fn vecf32_mix(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
-    if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
-    let mut v3 = v1.to_owned();
-    for i in 0..v3.len() {
-        v3[i] = (v3[i] + v2[i]) * 0.5;
-    }
-    Ok(v3)
-}
-
 impl WaveForm {
     pub fn len(&self) -> Result<usize, Error> {
         match self {
@@ -72,7 +56,7 @@ impl WaveForm {
         match self {
             WaveForm::None => Err(Error::Empty),
             WaveForm::Mono(mono) => Ok(WaveForm::Mono(mono.clone())),
-            WaveForm::Stereo((chnl1, chnl2)) => Ok(WaveForm::Mono(vecf32_mix(&chnl1, &chnl2)?)),
+            WaveForm::Stereo((chnl1, chnl2)) => Ok(WaveForm::Mono(SampleUtils::samples_mix(&chnl1, &chnl2)?)),
         }
     }
 
@@ -221,10 +205,10 @@ impl WaveForm {
                 Ok(WaveForm::None)
             },
             (WaveForm::Mono(mono1), WaveForm::Mono(mono2)) => {
-                Ok(WaveForm::Mono(vecf32_add(mono1, mono2)?))
+                Ok(WaveForm::Mono(SampleUtils::samples_add(mono1, mono2)?))
             },
             (WaveForm::Stereo((chnl1_1, chnl2_1)), WaveForm::Stereo((chnl1_2, chnl2_2))) => {
-                Ok(WaveForm::Stereo((vecf32_add(chnl1_1, chnl1_2)?, vecf32_add(chnl2_1, chnl2_2)?)))
+                Ok(WaveForm::Stereo((SampleUtils::samples_add(chnl1_1, chnl1_2)?, SampleUtils::samples_add(chnl2_1, chnl2_2)?)))
             },
             _ => Err(Error::ChannelNotMatch),
         }
