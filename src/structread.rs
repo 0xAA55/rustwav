@@ -28,6 +28,14 @@ impl<R> StructRead<R> where R: Read + Seek {
 		}
 	}
 
+	pub fn stream_position(&mut self) -> Result<u64, Error> {
+		self.reader.stream_position()
+	}
+	
+	pub fn seek(&mut self, pos: SeekFrom) -> Result<u64, Error> {
+		self.reader.seek(pos)
+	}
+
 	pub fn read_le_i8(&mut self) -> Result<i8, Error> {
 		let mut buf = [0u8; 1];
 		self.reader.read_exact(&mut buf)?;
