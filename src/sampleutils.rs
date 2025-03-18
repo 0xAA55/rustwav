@@ -2,7 +2,6 @@ pub struct SampleUtils;
 
 impl SampleUtils {
 
-    // 整数补位
     pub fn si_to_i32(value: i32, bits: u16) -> i32 {
         let value = value as u32;
         let ret = match bits {
@@ -41,7 +40,6 @@ impl SampleUtils {
         Self::si_to_f32(value as i32, 16)
     }
 
-    // 整数除位
     pub fn i32_to_i16(value: i32) -> i16 {
         (value >> 16) as i16
     }
@@ -54,7 +52,18 @@ impl SampleUtils {
         (value >> 8) as i8
     }
 
-    // 整数符号转换
+    pub fn u32_to_u16(value: u32) -> u16 {
+        (value >> 16) as u16
+    }
+
+    pub fn u32_to_u8(value: u32) -> u8 {
+        (value >> 24) as u8
+    }
+
+    pub fn u16_to_u8(value: u16) -> u8 {
+        (value >> 8) as u8
+    }
+
     pub fn i32_to_u32(value: i32) -> u32 {
         value.wrapping_add(0x80000000u32 as i32) as u32
     }
@@ -63,48 +72,29 @@ impl SampleUtils {
         (value as i32).wrapping_sub(0x80000000u32 as i32)
     }
 
-    // 整数转小数
     pub fn i32_to_f32(value: i32) -> f32 {
         value as f32 / i32::MAX as f32
     }
 
-    pub fn i32s_to_f32s(value: &[i32]) -> Vec<f32> {
-        let mut ret = Vec::<f32>::with_capacity(value.len());
-        for i in value.iter() {
-            ret.push(Self::i32_to_f32(*i));
+    pub fn clamp(value: f32) -> f32 {
+        if value > 1.0 {
+            1.0
+        } else if value < -1.0 {
+            -1.0
+        } else {
+            value
         }
-        ret
     }
 
-    pub fn integers_to_f32s(src_samples: &[i32], bits: u16) -> Vec<f32> {
-        let mut ret = Vec::<f32>::with_capacity(src_samples.len());
-        for sample in src_samples.iter() {
-            ret.push(Self::i32_to_f32(Self::si_to_i32(*sample, bits)));
-        }
-        ret
+    pub fn f32_to_i32(value: f32) -> i32 {
+        (Self::clamp(value) * i32::MAX as f32) as i32
     }
 
-    pub fn unzip_samples(src_samples: &[f32]) -> (Vec<f32>, Vec<f32>) {
-        let size = src_samples.len() / 2;
-        assert_eq!(size * 2, src_samples.len());
-        let mut ret1 = Vec::<f32>::with_capacity(size);
-        let mut ret2 = Vec::<f32>::with_capacity(size);
-        for i in 0..size {
-            ret1.push(src_samples[i * 2]);
-            ret2.push(src_samples[i * 2 + 1]);
-        }
-        (ret1, ret2)
+    pub fn f32_to_i16(value: f32) -> i16 {
+        Self::i32_to_i16(Self::f32_to_i32(value))
     }
 
-    pub fn zip_samples(src_samples: &(Vec<f32>, Vec<f32>)) -> Vec<f32> {
-        let (chnl1, chnl2) = src_samples;
-        assert_eq!(chnl1.len(), chnl2.len());
-        let size = chnl1.len();
-        let mut ret = Vec::<f32>::with_capacity(size);
-        for i in 0..size {
-            ret.push(chnl1[i]);
-            ret.push(chnl2[i]);
-        }
-        ret
+    pub fn f32_to_u8(value: f32) -> u8 {
+        Self::u32_to_u8(Self::i32_to_u32(Self::f32_to_i32(value)))
     }
 }
