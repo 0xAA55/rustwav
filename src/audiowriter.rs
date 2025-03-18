@@ -1,33 +1,26 @@
 use std::error::Error;
 
-use crate::waveform::WaveForm;
-use crate::audioreader::Spec;
+use crate::audiocore::{Spec, Frame};
 
-#[derive(Debug, Clone)]
-pub enum WriterError {
-    WaveFormLengthError,
+#[derive(Debug)]
+pub enum AudioWriteError {
+    IOError(String), // 读写错误，应停止处理
+    UnsupportedFormat, // 不支持的写入格式
 }
 
-impl std::error::Error for WriterError {}
+impl Error for AudioWriteError {}
 
-impl std::fmt::Display for WriterError {
+impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
-           WriterError::WaveFormLengthError => write!(f, "The length of the chunk to write must be longer than the window size."),
+           AudioWriteError::IOError(error) => write!(f, "IOError {error}"),
+           AudioWriteError::UnsupportedFormat => write!(f, "Unsupported PCM format"),
        }
     }
 }
 
 pub trait AudioWriter {
-    fn create(_output_file: &str, _spec: &Spec) -> Result<Self, Box<dyn Error>> where Self: Sized {
-        panic!("Not implemented for `create()`");
-    }
-    fn upgrade(_writer: Box<dyn AudioWriter>) -> Result<Self, Box<dyn Error>> where Self: Sized {
-        panic!("Not implemented for `upgrade()`");
-    }
-    fn set_window_size(&mut self, _window_size: usize) {
-        panic!("Not implemented for `set_window_size`");
-    }
-    fn write(&mut self, channels_data: WaveForm) -> Result<(), Box<dyn Error>>;
+    fn spec(&self) -> Spec;
+    fn write(&mut self, frame: &Frame) -> Result<(), Box<dyn Error>>;
     fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
 }
