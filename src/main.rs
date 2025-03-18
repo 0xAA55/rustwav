@@ -1,12 +1,16 @@
+/*
+mod structread;
+mod structwrite;
+mod sampleutils;
+mod waveform;
 mod audioreader;
 mod audiowriter;
 mod wavreader;
 mod wavwriter;
-mod sampleutils;
-mod waveform;
-mod freqproc;
+mod flacreader;
 mod windowedreader;
 mod windowedwriter;
+mod freqproc;
 
 use std::{env, fs::File, error::Error, process::ExitCode};
 
@@ -14,29 +18,21 @@ use rayon::iter::{ParallelIterator, ParallelBridge};
 
 use freqproc::FreqProcessor;
 use waveform::WaveForm;
-use wavreader::WaveReaderSimple;
-use wavwriter::WaveWriterSimple;
+use wavreader::WaveReader;
+use flacreader::FlacReader;
+use wavwriter::WaveWriter;
 use audioreader::{AudioReader, Spec};
 use audiowriter::AudioWriter;
 use windowedreader::WindowedAudioReader;
 use windowedwriter::WindowedAudioComposer;
 
-pub trait IteratorWithAudioReader: Iterator<Item = WaveForm> + AudioReader + Send {}
-impl<T> IteratorWithAudioReader for T where T: Iterator<Item = WaveForm> + AudioReader + Send {}
-
-fn wave_reader_create(input_file: &str, do_hann_window: bool) -> Result<Box<dyn AudioReader>, Box<dyn Error>> {
-    let mut reader: Box<dyn AudioReader> = Box::new(WaveReaderSimple::open(input_file)?);
-    if do_hann_window {
-        reader = Box::new(WindowedAudioReader::upgrade(reader)?);
-    }
-    Ok(reader)
+fn audio_reader_create(input_file: &str) -> Result<Box<dyn AudioReader>, Box<dyn Error>> {
+    if let Ok(reader) = WaveReader::open(input_file) { return Ok(Box::new(reader));}
+    panic!("您猜我为啥恐慌")
 }
 
-fn wave_writer_create(output_file: &str, spec: &Spec, do_hann_window: bool) -> Result<Box<dyn AudioWriter>, Box<dyn Error>> {
-    let mut writer: Box<dyn AudioWriter> = Box::new(WaveWriterSimple::create(output_file, spec)?);
-    if do_hann_window {
-        writer = Box::new(WindowedAudioComposer::upgrade(writer)?);
-    }
+fn audio_writer_create(output_file: &str, spec: &Spec) -> Result<Box<dyn AudioWriter>, Box<dyn Error>> {
+    let mut writer: Box<dyn AudioWriter> = Box::new(WaveWriter::create(output_file, spec)?);
     Ok(writer)
 }
 
@@ -66,13 +62,13 @@ fn process_wav_file(
 ) -> Result<(), Box<dyn Error>> {
 
     // 打开源文件，以一边分节读取处理一边保存的策略进行音频的处理。
-    let mut reader = wave_reader_create(input_file, do_hann_window)?;
+    let mut reader = audio_reader_create(input_file)?;
 
     // 获取音频文件规格
     let sample_rate = reader.spec().sample_rate;
 
     // 打开写入文件
-    let mut writer = wave_writer_create(output_file, &reader.spec(), do_hann_window)?;
+    let mut writer = audio_writer_create(output_file, &reader.spec())?;
 
     // 根据输入文件的采样率，计算出调音的分节包含的样本数量
     let section_sample_count = (sample_rate as f64 * section_duration * 0.5) as usize * 2;
@@ -82,6 +78,8 @@ fn process_wav_file(
 
     if do_hann_window {
         // 设置窗口大小
+        reader = Box::new(WindowedAudioReader::upgrade(reader)?);
+        writer = Box::new(WindowedAudioComposer::upgrade(writer)?);
         writer.set_window_size(section_sample_count / 2);
     }
 
@@ -91,7 +89,7 @@ fn process_wav_file(
     // 进行处理
     if concurrent {
         // 先并行处理，返回索引和数据
-        let mut indexed_all_samples: Vec::<(usize, File)> = reader.enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, File)> {
+        let mut indexed_all_samples: Vec::<(usize, File)> = reader.iter().enumerate().par_bridge().map(|(i, chunk)| -> Option<(usize, File)> {
             Some((i, process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq).to_tempfile().unwrap()))
         }).collect::<Vec<Option<(usize, File)>>>().into_iter().flatten().collect();
 
@@ -105,7 +103,7 @@ fn process_wav_file(
     }
     else {
         // 不并行处理，则一边处理一边存储
-        for (i, chunk) in reader.enumerate() {
+        for (i, chunk) in reader.iter().enumerate() {
             writer.write(process_chunk(&freq_processor, i, chunk, do_hann_window, target_freq))?;
         }
     }
@@ -130,4 +128,19 @@ fn main() -> ExitCode {
         Ok(_) => ExitCode::from(0),
         _ => ExitCode::from(2),
     }
+}
+
+*/
+
+
+mod structread;
+mod structwrite;
+mod sampleutils;
+mod wavreader;
+mod audioreader;
+
+use std::process::ExitCode;
+
+fn main() -> ExitCode {
+    ExitCode::from(0)
 }
