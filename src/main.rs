@@ -132,12 +132,14 @@ fn main() -> ExitCode {
 
 */
 
-
+mod audiocore;
+mod audioreader;
+mod audiowriter;
+mod wavreader;
+mod wavwriter;
 mod structread;
 mod structwrite;
 mod sampleutils;
-mod wavreader;
-mod audioreader;
 
 use std::process::ExitCode;
 
