@@ -1,5 +1,7 @@
 use std::{error::Error};
 
+use crate::audiocore::{Spec, Frame};
+
 #[derive(Debug)]
 pub enum AudioReadError {
     IOError(String), // 读写错误，应停止处理
@@ -22,34 +24,6 @@ impl std::fmt::Display for AudioReadError {
        }
     }
 }
-
-#[derive(Copy, Clone)]
-pub enum SampleFormat {
-    Unknown,
-    Float,
-    Int,
-}
-
-#[derive(Clone)]
-pub struct Spec {
-    pub channels: u16,
-    pub sample_rate: u32,
-    pub bits_per_sample: u16,
-    pub sample_format: SampleFormat,
-}
-
-impl Spec {
-    pub fn new() -> Self {
-        Self {
-            channels: 0,
-            sample_rate: 0,
-            bits_per_sample: 0,
-            sample_format: SampleFormat::Unknown,
-        }
-    }
-}
-
-pub struct Frame(pub f32, pub f32);
 
 pub trait AudioReader {
     fn spec(&self) -> Spec;
