@@ -1,42 +1,66 @@
-use crate::waveform::Error;
-
 pub struct SampleUtils;
 
 impl SampleUtils {
 
     // 整数补位
-    pub fn integer_to_i32(value: i32, bits: u16) -> i32 {
-        #[allow(arithmetic_overflow)]
+    pub fn si_to_i32(value: i32, bits: u16) -> i32 {
         let value = value as u32;
-        (match bits {
-             8 => {let value = 0xFF & value; (value << 24) | (value << 16) | (value << 8) | value},
-             16 => {let value = 0xFFFF & value; (value << 16) | value},
-             24 => {let value = 0xFFFFFF & value; (value << 8) | (value >> 16)},
-             32 => value,
-             _ => panic!("`bits` should be 8, 16, 24, 32, got {}", bits),
-         }) as i32
+        let ret = match bits {
+            8 => {let value = 0xFF & value; (value << 24) | (value << 16) | (value << 8) | value},
+            16 => {let value = 0xFFFF & value; (value << 16) | value},
+            24 => {let value = 0xFFFFFF & value; (value << 8) | (value >> 16)},
+            32 => value,
+            _ => panic!("`bits` should be 8, 16, 24, 32, got {}", bits),
+        };
+        ret as i32
+    }
+
+    pub fn ui_to_u32(value: u32, bits: u16) -> u32 {
+        match bits {
+            8 => {let value = 0xFF & value; (value << 24) | (value << 16) | (value << 8) | value},
+            16 => {let value = 0xFFFF & value; (value << 16) | value},
+            24 => {let value = 0xFFFFFF & value; (value << 8) | (value >> 16)},
+            32 => value,
+            _ => panic!("`bits` should be 8, 16, 24, 32, got {}", bits),
+        }
+    }
+
+    pub fn si_to_f32(value: i32, bits: u16) -> f32 {
+        Self::i32_to_f32(Self::si_to_i32(value, bits))
+    }
+
+    pub fn ui_to_f32(value: u32, bits: u16) -> f32 {
+        Self::i32_to_f32(Self::u32_to_i32(Self::ui_to_u32(value, bits)))
+    }
+
+    pub fn u8_to_f32(value: u8) -> f32 {
+        Self::ui_to_f32(value as u32, 8)
+    }
+
+    pub fn i16_to_f32(value: i16) -> f32 {
+        Self::si_to_f32(value as i32, 16)
     }
 
     // 整数除位
     pub fn i32_to_i16(value: i32) -> i16 {
-        value >> 16
+        (value >> 16) as i16
     }
 
     pub fn i32_to_i8(value: i32) -> i8 {
-        value >> 24
+        (value >> 24) as i8
     }
 
     pub fn i16_to_i8(value: i16) -> i8 {
-        value >> 8
+        (value >> 8) as i8
     }
 
     // 整数符号转换
     pub fn i32_to_u32(value: i32) -> u32 {
-        value.wrapping_add(0x80000000) as u32
+        value.wrapping_add(0x80000000u32 as i32) as u32
     }
 
     pub fn u32_to_i32(value: u32) -> i32 {
-        (value as i32).wrapping_sub(0x80000000)
+        (value as i32).wrapping_sub(0x80000000u32 as i32)
     }
 
     // 整数转小数
@@ -47,7 +71,7 @@ impl SampleUtils {
     pub fn i32s_to_f32s(value: &[i32]) -> Vec<f32> {
         let mut ret = Vec::<f32>::with_capacity(value.len());
         for i in value.iter() {
-            ret.push(Self::i32_to_f32(i));
+            ret.push(Self::i32_to_f32(*i));
         }
         ret
     }
@@ -55,7 +79,7 @@ impl SampleUtils {
     pub fn integers_to_f32s(src_samples: &[i32], bits: u16) -> Vec<f32> {
         let mut ret = Vec::<f32>::with_capacity(src_samples.len());
         for sample in src_samples.iter() {
-            ret.push(Self::integer_to_i32(*sample, bits));
+            ret.push(Self::i32_to_f32(Self::si_to_i32(*sample, bits)));
         }
         ret
     }
@@ -82,25 +106,5 @@ impl SampleUtils {
             ret.push(chnl2[i]);
         }
         ret
-    }
-
-    // 两个向量各元素各自相叠加
-    pub fn samples_add(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
-        if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
-        let mut v3 = v1.to_owned();
-        for i in 0..v3.len() {
-            v3[i] += v2[i];
-        }
-        Ok(v3)
-    }
-
-    // 两个向量各元素求平均值
-    pub fn samples_mix(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
-        if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
-        let mut v3 = v1.to_owned();
-        for i in 0..v3.len() {
-            v3[i] = (v3[i] + v2[i]) * 0.5;
-        }
-        Ok(v3)
     }
 }
