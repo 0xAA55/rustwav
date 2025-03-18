@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bincode = "2.0.0"
-hound = "3.5.1"
+flac = "0.5.0"
 rayon = "1.10.0"
 rustfft = "6.2.0"
 tempfile = "3.18.0"
