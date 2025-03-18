@@ -36,6 +36,27 @@ impl std::fmt::Display for Error {
     }
 }
 
+
+// 两个向量各元素各自相叠加
+fn samples_add(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
+    if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
+    let mut v3 = v1.to_owned();
+    for i in 0..v3.len() {
+        v3[i] += v2[i];
+    }
+    Ok(v3)
+}
+
+// 两个向量各元素求平均值
+fn samples_mix(v1: &[f32], v2: &[f32]) -> Result<Vec<f32>, Error> {
+    if v1.len() != v2.len() {return Err(Error::LengthNotMatch);}
+    let mut v3 = v1.to_owned();
+    for i in 0..v3.len() {
+        v3[i] = (v3[i] + v2[i]) * 0.5;
+    }
+    Ok(v3)
+}
+
 impl WaveForm {
     pub fn len(&self) -> Result<usize, Error> {
         match self {
