@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{Write, Seek, Error}};
+use std::{io::{Write, Seek, SeekFrom, Error}};
 
 pub struct StructWrite<W> {
 	pub writer: W,
@@ -11,6 +11,18 @@ impl<W> StructWrite<W> where W: Write + Seek {
 		Self {
 			writer
 		}
+	}
+
+	pub fn stream_position(&mut self) -> Result<u64, Error> {
+		self.writer.stream_position()
+	}
+
+	pub fn seek(&mut self, pos: SeekFrom) -> Result<u64, Error> {
+		self.writer.seek(pos)
+	}
+
+	pub fn write_bytes(&mut self, v: &[u8]) -> Result<(), Error> {
+		self.writer.write_all(v)
 	}
 
 	pub fn write_le_i8(&mut self, v: i8) -> Result<(), Error> {
