@@ -1,4 +1,3 @@
-
 use crate::waveform::Error;
 
 pub struct SampleUtils;
@@ -6,7 +5,8 @@ pub struct SampleUtils;
 impl SampleUtils {
 
     // 整数补位
-    pub fn integer_upcast(value: i32, bits: u16) -> i32 {
+    pub fn integer_to_i32(value: i32, bits: u16) -> i32 {
+        #[allow(arithmetic_overflow)]
         let value = value as u32;
         (match bits {
              8 => {let value = 0xFF & value; (value << 24) | (value << 16) | (value << 8) | value},
@@ -17,18 +17,45 @@ impl SampleUtils {
          }) as i32
     }
 
-    pub fn convert_i2f(value: i32) -> f32 {
+    // 整数除位
+    pub fn i32_to_i16(value: i32) -> i16 {
+        value >> 16
+    }
+
+    pub fn i32_to_i8(value: i32) -> i8 {
+        value >> 24
+    }
+
+    pub fn i16_to_i8(value: i16) -> i8 {
+        value >> 8
+    }
+
+    // 整数符号转换
+    pub fn i32_to_u32(value: i32) -> u32 {
+        value.wrapping_add(0x80000000) as u32
+    }
+
+    pub fn u32_to_i32(value: u32) -> i32 {
+        (value as i32).wrapping_sub(0x80000000)
+    }
+
+    // 整数转小数
+    pub fn i32_to_f32(value: i32) -> f32 {
         value as f32 / i32::MAX as f32
     }
 
-    pub fn integer_upcast_to_float(value: i32, bits: u16) -> f32 {
-        Self::convert_i2f(Self::integer_upcast(value, bits))
+    pub fn i32s_to_f32s(value: &[i32]) -> Vec<f32> {
+        let mut ret = Vec::<f32>::with_capacity(value.len());
+        for i in value.iter() {
+            ret.push(Self::i32_to_f32(i));
+        }
+        ret
     }
 
-    pub fn integers_upcast_to_floats(src_samples: &[i32], bits: u16) -> Vec<f32> {
+    pub fn integers_to_f32s(src_samples: &[i32], bits: u16) -> Vec<f32> {
         let mut ret = Vec::<f32>::with_capacity(src_samples.len());
         for sample in src_samples.iter() {
-            ret.push(Self::integer_upcast_to_float(*sample, bits));
+            ret.push(Self::integer_to_i32(*sample, bits));
         }
         ret
     }
