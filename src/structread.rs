@@ -36,6 +36,34 @@ impl<R> StructRead<R> where R: Read + Seek {
 		self.reader.seek(pos)
 	}
 
+	pub fn seek_to(&mut self, pos: u64) -> Result<u64, Error> {
+		self.reader.seek(SeekFrom::Start(pos))
+	}
+
+	pub fn skip(&mut self, bytes: i64) -> Result<u64, Error> {
+		self.reader.seek(SeekFrom::Current(bytes))
+	}
+
+	pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+		self.reader.read_exact(buf)
+	}
+
+	pub fn read_string(&mut self, size: usize) -> Result<String, Box<dyn std::error::Error>> {
+		let mut buf = Vec::<u8>::new();
+		buf.resize(size, 0);
+		self.read_exact(&mut buf)?;
+		Ok(std::str::from_utf8(&buf)?.to_string())
+	}
+
+	pub fn read_zstring(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+		let mut buf = Vec::<u8>::new();
+		loop {
+			let b = self.read_le_u8()?;
+			if b != 0 {buf.push(b);}
+		}
+		Ok(std::str::from_utf8(&buf)?.to_string())
+	}
+
 	pub fn read_le_i8(&mut self) -> Result<i8, Error> {
 		let mut buf = [0u8; 1];
 		self.reader.read_exact(&mut buf)?;
@@ -168,13 +196,13 @@ impl<R> StructRead<R> where R: Read + Seek {
 		ret
 	}
 
-	pub fn expect_flag(&mut self, compare_to: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+	pub fn expect_flag(&mut self, compare_to: &[u8], errtype: Box<dyn std::error::Error>) -> Result<(), Box<dyn std::error::Error>> {
 		let mut buf = vec![0u8; compare_to.len()];
 		self.reader.read_exact(&mut buf)?;
 		if buf == compare_to {
 			Ok(())
 		} else {
-			Err(MatchError::NotMatch(Self::bytes_to_string(compare_to)).into())
+			Err(errtype)
 		}
 	}
 
