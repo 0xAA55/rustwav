@@ -21,6 +21,14 @@ impl<W> StructWrite<W> where W: Write + Seek {
 		self.writer.seek(pos)
 	}
 
+	pub fn seek_to(&mut self, pos: u64) -> Result<u64, Error> {
+		self.writer.seek(SeekFrom::Start(pos))
+	}
+
+	pub fn skip(&mut self, bytes: i64) -> Result<u64, Error> {
+		self.writer.seek(SeekFrom::Current(bytes))
+	}
+
 	pub fn write_bytes(&mut self, v: &[u8]) -> Result<(), Error> {
 		self.writer.write_all(v)
 	}
