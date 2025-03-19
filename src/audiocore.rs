@@ -1,12 +1,12 @@
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum SampleFormat {
     Unknown,
     Float,
     Int,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Spec {
     pub channels: u16,
     pub sample_rate: u32,
