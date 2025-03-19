@@ -25,4 +25,3 @@ impl Spec {
     }
 }
 
-pub struct Frame(pub f32, pub f32);
