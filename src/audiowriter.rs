@@ -6,6 +6,7 @@ use crate::audiocore::{Spec};
 pub enum AudioWriteError {
     IOError(String), // 读写错误，应停止处理
     UnsupportedFormat, // 不支持的写入格式
+    ChannelCountNotMatch, // 声道数不匹配
 }
 
 impl Error for AudioWriteError {}

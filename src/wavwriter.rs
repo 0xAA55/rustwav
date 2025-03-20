@@ -2,7 +2,7 @@ use std::{fs::File, {path::Path}, io::{Write, BufWriter, Seek, SeekFrom}, error:
 
 use crate::structwrite::StructWrite;
 use crate::sampleutils::SampleUtils;
-use crate::audiocore::{SampleFormat::{Int, UInt, Float}, Spec, Frame};
+use crate::audiocore::{SampleFormat::{Int, UInt, Float}, Spec};
 use crate::audiowriter::{AudioWriter, AudioWriteError};
 
 pub struct WaveWriter<W> {
@@ -35,7 +35,7 @@ impl<W> WaveWriter<W> where W: Write + Seek {
         writer.write_bytes(match ext {
             true => 40,
             false => 16,
-        })?;
+        }?);
         writer.write_le_u16(match ext {
             true => 0xFFFE,
             false => {
@@ -47,7 +47,7 @@ impl<W> WaveWriter<W> where W: Write + Seek {
                     _ => return Err(AudioWriteError::UnsupportedFormat.into()),
                 }
             }
-        }?;
+        }?);
         writer.write_le_u16(spec.channels)?;
         writer.write_le_u32(spec.sample_rate)?;
         writer.write_le_u32(spec.sample_rate * frame_size as u32)?;
@@ -103,7 +103,7 @@ impl<W> AudioWriter for WaveWriter<W> where W: Write + Seek {
         self.spec.clone()
     }
 
-    fn write(&mut self, frame: &Frame) -> Result<(), Box<dyn Error>> {
+    fn write(&mut self, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
         self.packer.save_sample(&mut self.writer, frame)?;
         self.num_frames += 1;
         Ok(())
@@ -113,9 +113,9 @@ impl<W> AudioWriter for WaveWriter<W> where W: Write + Seek {
     {
         const header_size: u32 = 44;
         let all_sample_size = self.num_frames * self.frame_size as u32;
-        self.writer.seek(SeekFrom::Start(self.riff_offset))?;
+        self.writer.seek_to(self.riff_offset)?;
         self.writer.write_le_u32(header_size + all_sample_size - 8)?;
-        self.writer.seek(SeekFrom::Start(self.data_offset))?;
+        self.writer.seek_to(self.data_offset)?;
         self.writer.write_le_u32(all_sample_size)?;
         Ok(())
     }
@@ -123,12 +123,20 @@ impl<W> AudioWriter for WaveWriter<W> where W: Write + Seek {
 
 trait SamplePacker<W> where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>;
+    fn check_channels(w: &StructWrite::<W>, f: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        if f.len() != w.spec.channels {
+            Err(AudioWriteError::ChannelCountNotMatch.into())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 struct PackerU8;
 
 impl<W> SamplePacker<W> for PackerU8 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_le_u8(SampleUtils::f32_to_u8(sample))?;
         }
@@ -140,6 +148,7 @@ struct PackerS16;
 
 impl<W> SamplePacker<W> for PackerS16 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_le_s16(SampleUtils::f32_to_i16(sample))?;
         }
@@ -152,6 +161,7 @@ struct PackerS24;
 
 impl<W> SamplePacker<W> for PackerS24 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_bytes(SampleUtils::f32_to_i24(sample))?;
         }
@@ -163,6 +173,7 @@ struct PackerS32;
 
 impl<W> SamplePacker<W> for PackerS32 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_le_i32(SampleUtils::f32_to_i32(sample))?;
         }
@@ -172,8 +183,9 @@ impl<W> SamplePacker<W> for PackerS32 where W: Write + Seek {
 
 struct PackerF32;
 
-impl<W> SamplePacker<W> for PackerF32M where W: Write + Seek {
+impl<W> SamplePacker<W> for PackerF32 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_le_f32(SampleUtils::f32_to_f32(sample))?;
         }
@@ -183,8 +195,9 @@ impl<W> SamplePacker<W> for PackerF32M where W: Write + Seek {
 
 struct PackerF64;
 
-impl<W> SamplePacker<W> for PackerF64M where W: Write + Seek {
+impl<W> SamplePacker<W> for PackerF64 where W: Write + Seek {
     fn save_sample(&self, writer: &mut StructWrite::<W>, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        check_channels(writer, frame)?;
         for sample in frame.iter() {
             writer.write_le_f64(SampleUtils::f32_to_f64(sample))?;
         }
