@@ -13,7 +13,6 @@ pub struct WaveReader<R> {
     fact_data: u32, // fact 块的参数
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
-    sampler: Box<dyn SampleUnpacker<R>>, // 快速取样器
     bwav_chunk: Option<BWAVChunk>,
     smpl_chunk: Option<SMPLChunk>,
     inst_chunk: Option<INSTChunk>,
@@ -274,7 +273,7 @@ impl Cue {
 }
 
 #[derive(Debug, Clone)]
-struct LISTChunk {
+struct LISTChunk { // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
     info: Option<HashMap<String, String>>,
     adtl: Option<AdtlChunk>,
 }
@@ -543,21 +542,6 @@ impl<R> WaveReader<R> where R: Read + Seek {
             fact_data,
             frame_size,
             num_frames,
-            sampler: match (fmt.bits_per_sample, fmt.channels, sample_format) {
-                (8, 1, Int) => Box::new(UnpackerU8M{}),
-                (8, 2, Int) => Box::new(UnpackerU8S{}),
-                (16, 1, Int) => Box::new(UnpackerS16M{}),
-                (16, 2, Int) => Box::new(UnpackerS16S{}),
-                (24, 1, Int) => Box::new(UnpackerS24M{}),
-                (24, 2, Int) => Box::new(UnpackerS24S{}),
-                (32, 1, Int) => Box::new(UnpackerS32M{}),
-                (32, 2, Int) => Box::new(UnpackerS32S{}),
-                (32, 1, Float) => Box::new(UnpackerF32M{}),
-                (32, 2, Float) => Box::new(UnpackerF32S{}),
-                (64, 1, Float) => Box::new(UnpackerF64M{}),
-                (64, 2, Float) => Box::new(UnpackerF64S{}),
-                _ => return Err(AudioReadError::Unimplemented.into()),
-            },
             bwav_chunk,
             smpl_chunk,
             inst_chunk,
@@ -566,11 +550,6 @@ impl<R> WaveReader<R> where R: Read + Seek {
             ixml_chunk,
             list_chunk,
         })
-    }
-
-    pub fn seek_to_frame(&mut self, position: u64) -> Result<(), Box<dyn Error>> {
-        self.reader.seek_to(self.first_sample_offset + position * self.frame_size as u64)?;
-        Ok(())
     }
 }
 
@@ -588,134 +567,7 @@ impl<R> AudioReader for WaveReader<R> where R: Read + Seek {
         self.spec.clone()
     }
 
-    fn get_sample(&mut self, position: u64) -> Result<Frame, Box<dyn Error>> {
-        self.seek_to_frame(position)?;
-        self.sampler.get_sample(&mut self.reader)
-    }
+    fn iter<T>(&mut self) -> Iter<T> where Self: Sized;
 }
 
-trait SampleUnpacker<R> where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>>;
-}
-
-struct UnpackerU8M;
-
-impl<R> SampleUnpacker<R> for UnpackerU8M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = SampleUtils::u8_to_f32(reader.read_le_u8()?);
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerU8S;
-
-impl<R> SampleUnpacker<R> for UnpackerU8S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = SampleUtils::u8_to_f32(reader.read_le_u8()?);
-        let chnl2 = SampleUtils::u8_to_f32(reader.read_le_u8()?);
-        Ok(Frame(chnl1, chnl2))
-    }
-}
-
-struct UnpackerS16M;
-
-impl<R> SampleUnpacker<R> for UnpackerS16M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = SampleUtils::i16_to_f32(reader.read_le_i16()?);
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerS16S;
-
-impl<R> SampleUnpacker<R> for UnpackerS16S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = SampleUtils::i16_to_f32(reader.read_le_i16()?);
-        let chnl2 = SampleUtils::i16_to_f32(reader.read_le_i16()?);
-        Ok(Frame(chnl1, chnl2))
-    }
-}
-
-fn read_i24_as_i32<R>(reader: &mut StructRead::<R>) -> Result<i32, Box<dyn Error>> where R: Read + Seek {
-    let mut v = reader.read_flag(3)?;
-    v.push(v[0]);
-    let mut buf = [0u8; 4];
-    for i in 0..4 {buf[i] = v[i];}
-    Ok(i32::from_le_bytes(buf))
-}
-
-struct UnpackerS24M;
-
-impl<R> SampleUnpacker<R> for UnpackerS24M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = SampleUtils::i32_to_f32(read_i24_as_i32(reader)?);
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerS24S;
-
-impl<R> SampleUnpacker<R> for UnpackerS24S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = SampleUtils::i32_to_f32(read_i24_as_i32(reader)?);
-        let chnl2 = SampleUtils::i32_to_f32(read_i24_as_i32(reader)?);
-        Ok(Frame(chnl1, chnl2))
-    }
-}
-
-struct UnpackerS32M;
-
-impl<R> SampleUnpacker<R> for UnpackerS32M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = SampleUtils::i32_to_f32(reader.read_le_i32()?);
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerS32S;
-
-impl<R> SampleUnpacker<R> for UnpackerS32S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = SampleUtils::i32_to_f32(reader.read_le_i32()?);
-        let chnl2 = SampleUtils::i32_to_f32(reader.read_le_i32()?);
-        Ok(Frame(chnl1, chnl2))
-    }
-}
-
-struct UnpackerF32M;
-
-impl<R> SampleUnpacker<R> for UnpackerF32M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = reader.read_le_f32()?;
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerF32S;
-
-impl<R> SampleUnpacker<R> for UnpackerF32S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = reader.read_le_f32()?;
-        let chnl2 = reader.read_le_f32()?;
-        Ok(Frame(chnl1, chnl2))
-    }
-}
-
-struct UnpackerF64M;
-
-impl<R> SampleUnpacker<R> for UnpackerF64M where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead::<R>) -> Result<Frame, Box<dyn Error>> {
-        let mono = reader.read_le_f64()? as f32;
-        Ok(Frame(mono, mono))
-    }
-}
-
-struct UnpackerF64S;
-
-impl<R> SampleUnpacker<R> for UnpackerF64S where R: Read + Seek {
-    fn get_sample(&self, reader: &mut StructRead<R>) -> Result<Frame, Box<dyn Error>> {
-        let chnl1 = reader.read_le_f64()? as f32;
-        let chnl2 = reader.read_le_f64()? as f32;
-        Ok(Frame(chnl1, chnl2))
-    }
-}
+impl Iter<T>: Iterator {}
