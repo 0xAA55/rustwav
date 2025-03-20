@@ -91,8 +91,8 @@ impl<W> WaveWriter<W> where W: Write + Seek {
 
 // 用指定写入文件的方式，自动套上 BufWriter 来提升读取效率
 impl WaveWriter<BufWriter<File>> {
-    pub fn open<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter<BufWriter<File>>, Box<dyn Error>> {
-        let file = File::open(filename)?;
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter<BufWriter<File>>, Box<dyn Error>> {
+        let file = File::create(filename)?;
         let buf_writer = BufWriter::new(file);
         WaveWriter::new(buf_writer, spec)
     }
