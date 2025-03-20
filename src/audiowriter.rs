@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::audiocore::{Spec, Frame};
+use crate::audiocore::{Spec};
 
 #[derive(Debug)]
 pub enum AudioWriteError {
@@ -21,6 +21,6 @@ impl std::fmt::Display for AudioWriteError {
 
 pub trait AudioWriter {
     fn spec(&self) -> Spec;
-    fn write(&mut self, frame: &Frame) -> Result<(), Box<dyn Error>>;
+    fn write(&mut self, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>;
     fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
 }
