@@ -1,5 +1,6 @@
 
 pub trait SampleUtils{
+
     // 无符号升位数
     fn u8_to_u16(v: u8) -> u16{
         let v = v as u16;
@@ -14,13 +15,13 @@ pub trait SampleUtils{
         (v << 32) | v
     }
     fn u8_to_u32(v: u8) -> u32{
-        u16_to_u32(u8_to_u16(v))
+        Self::u16_to_u32(Self::u8_to_u16(v))
     }
     fn u8_to_u64(v: u8) -> u64{
-        u16_to_u64(u8_to_u16(v))
+        Self::u16_to_u64(Self::u8_to_u16(v))
     }
     fn u16_to_u64(v: u16) -> u64{
-        u32_to_u64(u16_to_u32(v))
+        Self::u32_to_u64(Self::u16_to_u32(v))
     }
 
     // 有符号升位数
@@ -37,13 +38,13 @@ pub trait SampleUtils{
         (v << 32) | (v & 0xFFFFFFFF)
     }
     fn i8_to_i32(v: i8) -> i32{
-        i16_to_i32(i8_to_i16(v))
+        Self::i16_to_i32(Self::i8_to_i16(v))
     }
     fn i8_to_i64(v: i8) -> i64{
-        i16_to_i64(i8_to_i16(v))
+        Self::i16_to_i64(Self::i8_to_i16(v))
     }
     fn i16_to_i64(v: i16) -> i64{
-        i32_to_i64(i16_to_i32(v))
+        Self::i32_to_i64(Self::i16_to_i32(v))
     }
 
     // 无符号降位数
@@ -116,62 +117,62 @@ pub trait SampleUtils{
 
     // 降位数u变i
     fn u16_to_i8(v: u16) -> i8{
-        i16_to_i8(u16_to_i16(v))
+        Self::i16_to_i8(Self::u16_to_i16(v))
     }
     fn u32_to_i16(v: u32) -> i16{
-        i32_to_i16(u32_to_i32(v))
+        Self::i32_to_i16(Self::u32_to_i32(v))
     }
     fn u32_to_i8(v: u32) -> i8{
-        i32_to_i8(u32_to_i32(v))
+        Self::i32_to_i8(Self::u32_to_i32(v))
     }
     fn u64_to_i32(v: u64) -> i32{
-        i64_to_i32(u64_to_i64(v))
+        Self::i64_to_i32(Self::u64_to_i64(v))
     }
     fn u64_to_i16(v: u64) -> i16{
-        i64_to_i16(u64_to_i64(v))
+        Self::i64_to_i16(Self::u64_to_i64(v))
     }
     fn u64_to_i8(v: u64) -> i8{
-        i64_to_i8(u64_to_i64(v))
+        Self::i64_to_i8(Self::u64_to_i64(v))
     }
 
     // 降位数i变u
     fn i16_to_u8(v: i16) -> u8{
-        u16_to_u8(i16_to_u16(v))
+        Self::u16_to_u8(Self::i16_to_u16(v))
     }
     fn i32_to_u16(v: i32) -> u16{
-        u32_to_u16(i32_to_u32(v))
+        Self::u32_to_u16(Self::i32_to_u32(v))
     }
     fn i32_to_u8(v: i32) -> u8{
-        u32_to_u8(i32_to_u32(v))
+        Self::u32_to_u8(Self::i32_to_u32(v))
     }
     fn i64_to_u32(v: i64) -> u32{
-        u64_to_u32(i64_to_u64(v))
+        Self::u64_to_u32(Self::i64_to_u64(v))
     }
     fn i64_to_u16(v: i64) -> u16{
-        u64_to_u16(i64_to_u64(v))
+        Self::u64_to_u16(Self::i64_to_u64(v))
     }
     fn i64_to_u8(v: i64) -> u8{
-        u64_to_u8(i64_to_u64(v))
+        Self::u64_to_u8(Self::i64_to_u64(v))
     }
 
     // 升位数u变i
     fn u8_to_i16(v: u8) -> i16{
-        u16_to_i16(u8_to_u16(v))
+        Self::u16_to_i16(Self::u8_to_u16(v))
     }
     fn u8_to_i32(v: u8) -> i32{
-        u32_to_i32(u8_to_u32(v))
+        Self::u32_to_i32(Self::u8_to_u32(v))
     }
     fn u16_to_i32(v: u16) -> i32{
-        u32_to_i32(u16_to_u32(v))
+        Self::u32_to_i32(Self::u16_to_u32(v))
     }
     fn u32_to_i64(v: u32) -> i64{
-        u64_to_i64(u32_to_u64(v))
+        Self::u64_to_i64(Self::u32_to_u64(v))
     }
     fn u16_to_i64(v: u16) -> i64{
-        u64_to_i64(u16_to_u64(v))
+        Self::u64_to_i64(Self::u16_to_u64(v))
     }
     fn u8_to_i64(v: u8) -> i64{
-        u64_to_i64(u8_to_u64(v))
+        Self::u64_to_i64(Self::u8_to_u64(v))
     }
 
     // 有符号转浮点
@@ -202,28 +203,28 @@ pub trait SampleUtils{
 
     // 无符号转浮点
     fn u64_to_f32(v: u64) -> f32{
-        i64_to_f32(u64_to_i64(v))
+        Self::i64_to_f32(Self::u64_to_i64(v))
     }
     fn u32_to_f32(v: u32) -> f32{
-        i32_to_f32(u32_to_i32(v))
+        Self::i32_to_f32(Self::u32_to_i32(v))
     }
     fn u16_to_f32(v: u16) -> f32{
-        i16_to_f32(u16_to_i16(v))
+        Self::i16_to_f32(Self::u16_to_i16(v))
     }
     fn u8_to_f32(v: u8) -> f32{
-        i8_to_f32(u8_to_i8(v))
+        Self::i8_to_f32(Self::u8_to_i8(v))
     }
     fn u64_to_f64(v: u64) -> f64{
-        i64_to_f64(u64_to_i64(v))
+        Self::i64_to_f64(Self::u64_to_i64(v))
     }
     fn u32_to_f64(v: u32) -> f64{
-        i32_to_f64(u32_to_i32(v))
+        Self::i32_to_f64(Self::u32_to_i32(v))
     }
     fn u16_to_f64(v: u16) -> f64{
-        i16_to_f64(u16_to_i16(v))
+        Self::i16_to_f64(Self::u16_to_i16(v))
     }
     fn u8_to_f64(v: u8) -> f64{
-        i8_to_f64(u8_to_i8(v))
+        Self::i8_to_f64(Self::u8_to_i8(v))
     }
 
     fn clampf(v: f32) -> f32 {
@@ -248,54 +249,54 @@ pub trait SampleUtils{
 
     // 浮点转有符号整数
     fn f32_to_i64(v: f32) -> i64{
-        (clampf(v) * (i64::MAX as f32)) as i64
+        (Self::clampf(v) * (i64::MAX as f32)) as i64
     }
     fn f32_to_i32(v: f32) -> i32{
-        (clampf(v) * (i32::MAX as f32)) as i32
+        (Self::clampf(v) * (i32::MAX as f32)) as i32
     }
     fn f32_to_i16(v: f32) -> i16{
-        (clampf(v) * (i16::MAX as f32)) as i16
+        (Self::clampf(v) * (i16::MAX as f32)) as i16
     }
     fn f32_to_i8(v: f32) -> i8{
-        (clampf(v) * (i8::MAX as f32)) as i8
+        (Self::clampf(v) * (i8::MAX as f32)) as i8
     }
     fn f64_to_i64(v: f64) -> i64{
-        (clampd(v) * (i64::MAX as f64)) as i64
+        (Self::clampd(v) * (i64::MAX as f64)) as i64
     }
     fn f64_to_i32(v: f64) -> i32{
-        (clampd(v) * (i32::MAX as f64)) as i32
+        (Self::clampd(v) * (i32::MAX as f64)) as i32
     }
     fn f64_to_i16(v: f64) -> i16{
-        (clampd(v) * (i16::MAX as f64)) as i16
+        (Self::clampd(v) * (i16::MAX as f64)) as i16
     }
     fn f64_to_i8(v: f64) -> i8{
-        (clampd(v) * (i8::MAX as f64)) as i8
+        (Self::clampd(v) * (i8::MAX as f64)) as i8
     }
 
     // 浮点转无符号整数
     fn f32_to_u64(v: f32) -> u64{
-        i64_to_u64(f32_to_i64(v))
+        Self::i64_to_u64(Self::f32_to_i64(v))
     }
     fn f32_to_u32(v: f32) -> u32{
-        i32_to_u32(f32_to_i32(v))
+        Self::i32_to_u32(Self::f32_to_i32(v))
     }
     fn f32_to_u16(v: f32) -> u16{
-        i16_to_u16(f32_to_i16(v))
+        Self::i16_to_u16(Self::f32_to_i16(v))
     }
     fn f32_to_u8(v: f32) -> u8{
-        i8_to_u8(f32_to_i8(v))
+        Self::i8_to_u8(Self::f32_to_i8(v))
     }
     fn f64_to_u64(v: f64) -> u64{
-        i64_to_u64(f64_to_i64(v))
+        Self::i64_to_u64(Self::f64_to_i64(v))
     }
     fn f64_to_u32(v: f64) -> u32{
-        i32_to_u32(f64_to_i32(v))
+        Self::i32_to_u32(Self::f64_to_i32(v))
     }
     fn f64_to_u16(v: f64) -> u16{
-        i16_to_u16(f64_to_i16(v))
+        Self::i16_to_u16(Self::f64_to_i16(v))
     }
     fn f64_to_u8(v: f64) -> u8{
-        i8_to_u8(f64_to_i8(v))
+        Self::i8_to_u8(Self::f64_to_i8(v))
     }
 
     // 自己转自己
@@ -366,5 +367,53 @@ pub trait SampleUtils{
         ret[1] = i32_be[1];
         ret[2] = i32_be[2];
         ret
+    }
+
+    fn i8_to_i24_le(v: i8) -> [u8; 3] {
+        i32_to_i24_le(i8_to_i32(v))
+    }
+
+    fn i16_to_i24_le(v: i16) -> [u8; 3] {
+        i32_to_i24_le(i16_to_i32(v))
+    }
+
+    fn i64_to_i24_le(v: i64) -> [u8; 3] {
+        i32_to_i24_le(i64_to_i32(v))
+    }
+
+    fn i8_to_i24_be(v: i8) -> [u8; 3] {
+        i32_to_i24_be(i8_to_i32(v))
+    }
+
+    fn i16_to_i24_be(v: i16) -> [u8; 3] {
+        i32_to_i24_be(i16_to_i32(v))
+    }
+
+    fn i64_to_i24_be(v: i64) -> [u8; 3] {
+        i32_to_i24_be(i64_to_i32(v))
+    }
+
+    fn u8_to_i24_le(v: u8) -> [u8; 3] {
+        i32_to_i24_le(u8_to_i32(v))
+    }
+
+    fn u16_to_i24_le(v: u16) -> [u8; 3] {
+        i32_to_i24_le(u16_to_i32(v))
+    }
+
+    fn u64_to_i24_le(v: u64) -> [u8; 3] {
+        i32_to_i24_le(u64_to_i32(v))
+    }
+
+    fn u8_to_i24_be(v: u8) -> [u8; 3] {
+        i32_to_i24_be(u8_to_i32(v))
+    }
+
+    fn u16_to_i24_be(v: u16) -> [u8; 3] {
+        i32_to_i24_be(u16_to_i32(v))
+    }
+
+    fn u64_to_i24_be(v: u64) -> [u8; 3] {
+        i32_to_i24_be(u64_to_i32(v))
     }
 }
