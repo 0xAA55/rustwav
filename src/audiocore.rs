@@ -2,7 +2,7 @@ use std::error::Error;
 
 #[derive(Debug)]
 pub enum GuessError {
-    CantGuessChannelMask(channels), // 无法猜出声道掩码
+    CantGuessChannelMask(u16), // 无法猜出声道掩码
 }
 
 impl Error for GuessError {}
