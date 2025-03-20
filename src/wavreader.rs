@@ -4,7 +4,7 @@ use tempfile::tempfile;
 
 use crate::structread::StructRead;
 use crate::sampleutils::SampleUtils;
-use crate::audiocore::{SampleFormat, Spec, Frame};
+use crate::audiocore::{SampleFormat, Spec};
 use crate::audioreader::{AudioReader, AudioReadError};
 
 pub struct WaveReader<R> {
@@ -570,9 +570,9 @@ impl WaveReader {
         let tfile = tempfile().unwrap();
         let buf_writer = BufWriter::new(tfile);
         self.reader.seek_to(self.data_offset);
-        let buf = [u8; self.frame_size];
+        let buf = vec![self.frame_size; 0u8];
         for i in 0..self.num_frames {
-            reader.read_exact(&buf).unwrap();
+            self.reader.read_exact(&buf).unwrap();
             buf_writer.write_all(&buf).unwrap();
         }
         buf_writer.rewind().unwrap();
