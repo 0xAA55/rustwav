@@ -22,7 +22,7 @@ pub struct StructRead<R> {
 }
 
 impl<R> StructRead<R> where R: Read + Seek {
-	pub fn new(reader: R) -> Self {
+	pub fn new(&mut reader: R) -> Self {
 		Self {
 			reader
 		}
