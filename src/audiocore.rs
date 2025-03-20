@@ -1,16 +1,18 @@
 use std::error::Error;
 
 #[derive(Debug)]
-pub enum GuessError {
+pub enum AudioError {
     CantGuessChannelMask(u16), // 无法猜出声道掩码
+    ChannelNotMatchMask, // 声道数不和声道掩码匹配
 }
 
-impl Error for GuessError {}
+impl Error for AudioError {}
 
-impl std::fmt::Display for GuessError {
+impl std::fmt::Display for AudioError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
-           GuessError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}.", channels),
+           AudioError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}.", channels),
+           AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
        }
     }
 }
@@ -36,7 +38,27 @@ pub trait ChannelMaskValues {
     const TopBackRight: u32 = 0x20000;
 }
 
-#[derive(Clone, Copy, Debug)]
+pub enum SpeakerPosition {
+    FrontLeft,
+    FrontRight,
+    FrontCenter,
+    LowFreq,
+    BackLeft,
+    BackRight,
+    FrontLeftOfCenter,
+    FrontRightOfCenter,
+    BackCenter,
+    SideLeft,
+    SideRight,
+    TopCenter,
+    TopFrontLeft,
+    TopFrontCenter,
+    TopFrontRight,
+    TopBackLeft,
+    TopBackCenter,
+    TopBackRight,
+}
+
 pub enum SampleFormat {
     Unknown,
     Float,
@@ -64,12 +86,66 @@ impl Spec {
         }
     }
 
-    pub fn guess_channel_mask(channels: u16) -> Option<u32, GuessError> {
+    pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
+        use ChannelMaskValues::*;
         match channels {
-            1 => Ok(1),
-            2 => Ok(3),
-            other => Err(GuessError::CantGuessChannelMask(other)),
+            1 => Ok(FrontCenter),
+            2 => Ok(FrontLeft | FrontRight),
+            other => Err(AudioError::CantGuessChannelMask(other)),
+        }
+    }
+
+    pub which_channel_which_speaker(&self) -> Result<Vec<ChannelType>, AudioError> {
+        let masks = [
+            ChannelMaskValues::FrontLeft,
+            ChannelMaskValues::FrontRight,
+            ChannelMaskValues::FrontCenter,
+            ChannelMaskValues::LowFreq,
+            ChannelMaskValues::BackLeft,
+            ChannelMaskValues::BackRight,
+            ChannelMaskValues::FrontLeftOfCenter,
+            ChannelMaskValues::FrontRightOfCenter,
+            ChannelMaskValues::BackCenter,
+            ChannelMaskValues::SideLeft,
+            ChannelMaskValues::SideRight,
+            ChannelMaskValues::TopCenter,
+            ChannelMaskValues::TopFrontLeft,
+            ChannelMaskValues::TopFrontCenter,
+            ChannelMaskValues::TopFrontRight,
+            ChannelMaskValues::TopBackLeft,
+            ChannelMaskValues::TopBackCenter,
+            ChannelMaskValues::TopBackRight,
+        ];
+        let enums = [
+            SpeakerPosition::FrontLeft,
+            SpeakerPosition::FrontRight,
+            SpeakerPosition::FrontCenter,
+            SpeakerPosition::LowFreq,
+            SpeakerPosition::BackLeft,
+            SpeakerPosition::BackRight,
+            SpeakerPosition::FrontLeftOfCenter,
+            SpeakerPosition::FrontRightOfCenter,
+            SpeakerPosition::BackCenter,
+            SpeakerPosition::SideLeft,
+            SpeakerPosition::SideRight,
+            SpeakerPosition::TopCenter,
+            SpeakerPosition::TopFrontLeft,
+            SpeakerPosition::TopFrontCenter,
+            SpeakerPosition::TopFrontRight,
+            SpeakerPosition::TopBackLeft,
+            SpeakerPosition::TopBackCenter,
+            SpeakerPosition::TopBackRight,
+        ];
+        let mut ret = Vec::<SpeakerPosition>::new();
+        for (i, m) in masks.iter().enumerate() {
+            if self.channel_mask & m == m {ret.push(enums[i]);}
+        }
+        return if ret.len() == self.channels {
+            Ok(ret)
+        } else {
+            Err(AudioError::ChannelNotMatchMask)
         }
     }
 }
+
 
