@@ -1,6 +1,6 @@
 use std::{error::Error};
 
-use crate::audiocore::{Spec, Frame};
+use crate::audiocore::{Spec};
 
 #[derive(Debug)]
 pub enum AudioReadError {
@@ -28,30 +28,11 @@ impl std::fmt::Display for AudioReadError {
 pub trait AudioReader {
     fn spec(&self) -> Spec;
 
-    fn get_sample(&mut self, position: u64) -> Result<Frame, Box<dyn Error>>;
-
-    fn iter(&mut self) -> AudioReaderIter where Self: Sized {
-        AudioReaderIter{
-            reader: self,
-            position: 0,
-        }
-    }
+    fn iter<T>(&mut self) -> Iter<T> where Self: Sized;
 }
 
-pub struct AudioReaderIter<'a> {
-    reader: &'a mut dyn AudioReader,
-    position: u64,
-}
+pub trait Iter<T> : Iterator {
+    type Item;
 
-impl Iterator for AudioReaderIter<'_> {
-    type Item = Frame;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let query = self.position;
-        self.position += 1;
-        match self.reader.get_sample(query) {
-            Ok(frame) => Some(frame),
-            Err(_) => None,
-        }
-    }
+    fn next(&mut self) -> Option<Self::Item>;
 }
