@@ -26,13 +26,13 @@ impl std::fmt::Display for AudioReadError {
 }
 
 pub trait AudioReader {
-    fn spec(&self) -> Spec;
+    fn spec(&self) -> &Spec;
 
     fn iter<T>(&mut self) -> Iter<T> where Self: Sized;
 }
 
 pub trait Iter<T> : Iterator {
-    type Item;
+    type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item>;
 }
