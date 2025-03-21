@@ -3,14 +3,17 @@
 pub struct i24(pub i8, pub i8, pub i8);
 
 impl i24 {
-    fn from(data: &[i8; 3]) -> Self {
+    pub fn from(data: &[i8; 3]) -> Self {
         Self(data[0], data[1], data[2])
     }
-    fn to_i32(&self) -> i32 {
+    pub fn to_i32(&self) -> i32 {
         i32::from_le_bytes([self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
     }
-    fn to_i64(&self) -> i64 {
+    pub fn to_i64(&self) -> i64 {
         i64::from_le_bytes([self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
+    }
+    pub fn to_bytes(&self) -> [u8; 3] {
+        [self.0 as u8, self.1 as u8, self.2 as u8]
     }
 }
 
