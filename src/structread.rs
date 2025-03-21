@@ -2,6 +2,8 @@
 
 use std::{io::{Read, Seek, SeekFrom, Error}};
 
+use crate::sampleutils::SampleConv;
+
 #[derive(Debug)]
 pub enum MatchError {
     NotMatch(String),
@@ -17,12 +19,15 @@ impl std::fmt::Display for MatchError {
     }
 }
 
-pub struct StructRead<R> {
-	pub reader: R,
+pub trait Reader: Read + Seek {}
+impl<T> Reader where T: Read + Seek {}
+
+pub struct StructRead {
+	pub reader: Box<dyn Reader>,
 }
 
-impl<R> StructRead<R> where R: Read + Seek {
-	pub fn new(&mut reader: R) -> Self {
+impl StructRead {
+	pub fn new(&mut reader: Box<dyn Reader>) -> Self {
 		Self {
 			reader
 		}
@@ -62,6 +67,12 @@ impl<R> StructRead<R> where R: Read + Seek {
 			if b != 0 {buf.push(b);}
 		}
 		Ok(std::str::from_utf8(&buf)?.to_string())
+	}
+
+	pub fn read_le<T: SampleConv> (&mut self) -> Result<T, Error> {
+		let mut buf = [0u8; T::sizeof];
+		self.reader.read_exact(&mut buf)?;
+		Ok(T::from_le_bytes(buf))
 	}
 
 	pub fn read_le_i8(&mut self) -> Result<i8, Error> {
@@ -183,6 +194,8 @@ impl<R> StructRead<R> where R: Read + Seek {
 		self.reader.read_exact(&mut buf)?;
 		Ok(f64::from_be_bytes(buf))
 	}
+
+	pub fn read
 
 	fn bytes_to_string(u8s: &[u8]) -> String {
 		let mut ret = String::new();
