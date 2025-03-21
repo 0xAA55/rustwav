@@ -2,7 +2,7 @@
 
 use std::{io::{Read, Seek, SeekFrom, Error}};
 
-use crate::sampleutils::SampleConv;
+use crate::sampleutils::i24;
 
 #[derive(Debug)]
 pub enum MatchError {
@@ -20,14 +20,14 @@ impl std::fmt::Display for MatchError {
 }
 
 pub trait Reader: Read + Seek {}
-impl<T> Reader where T: Read + Seek {}
+impl<T> Reader for T where T: Read + Seek {}
 
 pub struct StructRead {
 	pub reader: Box<dyn Reader>,
 }
 
 impl StructRead {
-	pub fn new(&mut reader: Box<dyn Reader>) -> Self {
+	pub fn new(reader: Box<dyn Reader>) -> Self {
 		Self {
 			reader
 		}
@@ -64,15 +64,13 @@ impl StructRead {
 		let mut buf = Vec::<u8>::new();
 		loop {
 			let b = self.read_le_u8()?;
-			if b != 0 {buf.push(b);}
+			if b != 0 {
+				buf.push(b);
+			} else {
+				break;
+			}
 		}
 		Ok(std::str::from_utf8(&buf)?.to_string())
-	}
-
-	pub fn read_le<T: SampleConv> (&mut self) -> Result<T, Error> {
-		let mut buf = [0u8; T::sizeof];
-		self.reader.read_exact(&mut buf)?;
-		Ok(T::from_le_bytes(buf))
 	}
 
 	pub fn read_le_i8(&mut self) -> Result<i8, Error> {
@@ -85,6 +83,12 @@ impl StructRead {
 		let mut buf = [0u8; 2];
 		self.reader.read_exact(&mut buf)?;
 		Ok(i16::from_le_bytes(buf))
+	}
+
+	pub fn read_le_i24(&mut self) -> Result<i24, Error> {
+		let mut ret = [0u8; 3];
+		self.reader.read_exact(&mut ret)?;
+		Ok(i24(ret[0] as i8, ret[1] as i8, ret[2] as i8))
 	}
 
 	pub fn read_le_i32(&mut self) -> Result<i32, Error> {
@@ -194,8 +198,6 @@ impl StructRead {
 		self.reader.read_exact(&mut buf)?;
 		Ok(f64::from_be_bytes(buf))
 	}
-
-	pub fn read
 
 	fn bytes_to_string(u8s: &[u8]) -> String {
 		let mut ret = String::new();
