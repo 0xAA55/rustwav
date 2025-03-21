@@ -21,6 +21,7 @@ pub trait SampleConv {
     fn clampd(&self) -> f64 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
+    fn from(v: impl SampleConv) -> Self;
     fn to_i8(&self) -> i8;
     fn to_i16(&self) -> i16;
     fn to_i32(&self) -> i32;
@@ -35,6 +36,9 @@ pub trait SampleConv {
 }
 
 impl SampleConv for i8{
+    fn from(v: impl SampleConv) -> i8{
+        v.to_i8()
+    }
     fn to_i8(&self) -> i8{
         *self
     } 
@@ -75,6 +79,9 @@ impl SampleConv for i8{
 }
 
 impl SampleConv for i16{
+    fn from(v: impl SampleConv) -> i16{
+        v.to_i16()
+    }
     fn to_i8(&self) -> i8{
         (*self >> 8) as i8
     } 
@@ -116,6 +123,9 @@ impl SampleConv for i16{
 }
 
 impl SampleConv for i24 {
+    fn from(v: impl SampleConv) -> i24{
+        v.to_i24()
+    }
     fn to_i8(&self) -> i8 {
         self.0
     }
@@ -152,6 +162,9 @@ impl SampleConv for i24 {
 }
 
 impl SampleConv for i32{
+    fn from(v: impl SampleConv) -> i32{
+        v.to_i32()
+    }
     fn to_i8(&self) -> i8{
         (*self >> 24) as i8
     } 
@@ -193,6 +206,9 @@ impl SampleConv for i32{
 }
 
 impl SampleConv for i64{
+    fn from(v: impl SampleConv) -> i64{
+        v.to_i64()
+    }
     fn to_i8(&self) -> i8{
         (*self >> 56) as i8
     } 
@@ -229,6 +245,9 @@ impl SampleConv for i64{
 }
 
 impl SampleConv for u8{
+    fn from(v: impl SampleConv) -> u8{
+        v.to_u8()
+    }
     fn to_i8(&self) -> i8{
         self.wrapping_sub(0x80) as i8
     } 
@@ -268,6 +287,9 @@ impl SampleConv for u8{
 }
 
 impl SampleConv for u16{
+    fn from(v: impl SampleConv) -> u16{
+        v.to_u16()
+    }
     fn to_i8(&self) -> i8{
         self.to_i16().to_i8()
     } 
@@ -306,6 +328,9 @@ impl SampleConv for u16{
 }
 
 impl SampleConv for u32{
+    fn from(v: impl SampleConv) -> u32{
+        v.to_u32()
+    }
     fn to_i8(&self) -> i8{
         self.to_i32().to_i8()
     } 
@@ -343,6 +368,9 @@ impl SampleConv for u32{
 }
 
 impl SampleConv for u64{
+    fn from(v: impl SampleConv) -> u64{
+        v.to_u64()
+    }
     fn to_i8(&self) -> i8{
         self.to_i64().to_i8()
     } 
@@ -390,6 +418,9 @@ impl SampleConv for f32{
         }
     }
 
+    fn from(v: impl SampleConv) -> f32{
+        v.to_f32()
+    }
     fn to_i8(&self) -> i8{
         (self.clampf() * (i8::MAX as f32)) as i8
     } 
@@ -437,6 +468,9 @@ impl SampleConv for f64{
         }
     }
 
+    fn from(v: impl SampleConv) -> f64{
+        v.to_f64()
+    }
     fn to_i8(&self) -> i8{
         (self.clampd() * (i8::MAX as f64)) as i8
     } 
