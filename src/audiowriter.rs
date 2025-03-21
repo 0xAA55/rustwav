@@ -16,6 +16,7 @@ impl std::fmt::Display for AudioWriteError {
        match self {
            AudioWriteError::IOError(error) => write!(f, "IOError {error}"),
            AudioWriteError::UnsupportedFormat => write!(f, "Unsupported PCM format"),
+           AudioWriteError::ChannelCountNotMatch => write!(f, "Channel count not match"),
        }
     }
 }
@@ -24,4 +25,12 @@ pub trait AudioWriter {
     fn spec(&self) -> Spec;
     fn write(&mut self, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>;
     fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
+
+    fn check_channels(&self, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        if frame.len() != self.spec().channels as usize {
+            Err(AudioWriteError::ChannelCountNotMatch.into())
+        } else {
+            Ok(())
+        }
+    }
 }
