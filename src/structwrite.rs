@@ -2,12 +2,15 @@
 
 use std::{io::{Write, Seek, SeekFrom, Error}};
 
-pub struct StructWrite<W> {
-	pub writer: W,
+pub trait Writer: Write + Seek {}
+impl<T> Writer for T where T: Write + Seek {}
+
+pub struct StructWrite {
+	pub writer: Box<dyn Writer>,
 }
 
-impl<W> StructWrite<W> where W: Write + Seek {
-	pub fn new(writer: W) -> Self {
+impl StructWrite{
+	pub fn new(writer: Box<dyn Writer>) -> Self {
 		Self {
 			writer
 		}
