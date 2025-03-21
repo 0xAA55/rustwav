@@ -1,6 +1,7 @@
 use std::{error::Error};
 
 use crate::audiocore::{Spec};
+use crate::sampleutils::SampleConv;
 
 #[derive(Debug)]
 pub enum AudioReadError {
@@ -28,11 +29,9 @@ impl std::fmt::Display for AudioReadError {
 pub trait AudioReader {
     fn spec(&self) -> &Spec;
 
-    fn iter<T>(&mut self) -> Iter<T> where Self: Sized;
+    fn iter<T>(&mut self) -> Result<impl AudioIter<T>, Box<dyn Error>> where Self: Sized, T: SampleConv;
 }
 
-pub trait Iter<T> : Iterator {
-    type Item = Vec<T>;
-
+pub trait AudioIter<T: SampleConv>{
     fn next(&mut self) -> Option<Self::Item>;
 }
