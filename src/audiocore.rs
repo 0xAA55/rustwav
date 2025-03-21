@@ -95,7 +95,7 @@ impl Spec {
         }
     }
 
-    pub which_channel_which_speaker(&self) -> Result<Vec<ChannelType>, AudioError> {
+    pub fn which_channel_which_speaker(&self) -> Result<Vec<ChannelType>, AudioError> {
         let masks = [
             ChannelMaskValues::FrontLeft,
             ChannelMaskValues::FrontRight,
