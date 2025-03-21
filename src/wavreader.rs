@@ -2,15 +2,16 @@ use std::{fs::File, {path::Path}, io::{self, Seek, Read, BufReader, Write, BufWr
 
 use tempfile::tempfile;
 
-use crate::structread::StructRead;
-use crate::sampleutils::SampleUtils;
+use crate::structread::{Reader, StructRead};
+use crate::sampleutils::SampleConv;
 use crate::audiocore::{SampleFormat, Spec};
 use crate::audioreader::{AudioReader, AudioReadError};
 
-pub struct WaveReader<R> {
-    reader: StructRead<R>,
+#[derive(Clone, Debug)]
+pub struct WaveReader {
+    filepath: Option<Path>,
+    reader: StructRead,
     spec: Spec,
-    channel_mask: u32, // 通道标记，整逗比音效多音道那一块儿的玩意儿
     fact_data: u32, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
@@ -33,7 +34,7 @@ struct Chunk {
 }
 
 impl Chunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         // 读取 WAV 中的每个块
         // 注意 WAV 中会有 JUNK 块，目前的做法就是跳过所有的 JUNK 块。
         // 在 AVI 里面，JUNK 块里面会包含重要信息，但是 WAV 我就管它丫的了。
@@ -59,11 +60,11 @@ impl Chunk {
         addr + (addr & 1)
     }
 
-    fn next_chunk_pos<R>(&self, reader: &mut StructRead<R>) -> u64 where R: Read + Seek {
+    fn next_chunk_pos(&self, reader: &mut StructRead) -> u64 {
         Self::align(self.chunk_start_pos + self.size as u64)
     }
 
-    fn seek_to_next_chunk<R>(&self, reader: &mut StructRead<R>) -> Result<u64, io::Error> where R: Read + Seek {
+    fn seek_to_next_chunk(&self, reader: &mut StructRead) -> Result<u64, io::Error> {
         reader.seek_to(self.next_chunk_pos())
     }
 }
@@ -86,7 +87,7 @@ const guid_pcm_format: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00
 const guid_ieee_float_format: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
 
 impl GUID {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         Ok( Self (
             reader.read_le_u32()?,
             reader.read_le_u16()?,
@@ -120,7 +121,7 @@ struct BWAVChunk {
 }
 
 impl BWAVChunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, Box<dyn Error>> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, Box<dyn Error>> {
         let description = reader.read_string(256)?;
         let originator = reader.read_string(32)?;
         let originatorRef = reader.read_string(32)?;
@@ -174,7 +175,7 @@ struct SMPLSampleLoop {
 }
 
 impl SMPLChunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         let mut ret = Self{
             manufacturer: reader.read_le_u32()?,
             product: reader.read_le_u32()?,
@@ -195,7 +196,7 @@ impl SMPLChunk {
 }
 
 impl SMPLSampleLoop {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         Ok(Self{
             identifier: reader.read_le_u32()?,
             type_: reader.read_le_u32()?,
@@ -219,7 +220,7 @@ struct INSTChunk {
 }
 
 impl INSTChunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         Ok(Self{
             baseNote: reader.read_le_u8()?,
             detune: reader.read_le_u8()?,
@@ -250,7 +251,7 @@ struct Cue {
 }
 
 impl Cue_Chunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         let mut ret = Cue_Chunk {
             num_cues: reader.read_le_u32()?,
             cues: Vec::<Cue>::new(),
@@ -263,7 +264,7 @@ impl Cue_Chunk {
 }
 
 impl Cue {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         Ok(Self{
             identifier: reader.read_le_u32()?,
             order: reader.read_le_u32()?,
@@ -282,7 +283,7 @@ struct LISTChunk { // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-f
 }
 
 impl LISTChunk {
-    fn read<R>(reader: &mut StructRead<R>) -> Result<Self, io::Error> where R: Read + Seek {
+    fn read(reader: &mut StructRead) -> Result<Self, io::Error> {
         let mut info: Option<HashMap<String, String>> = None;
         let mut adtl: Option<AdtlChunk> = None;
         let sub_chunk = Chunk::read(reader)?;
@@ -364,8 +365,8 @@ struct LTXTChunk {
     data: String,
 }
 
-impl<R> WaveReader where R: Read + Seek {
-    pub fn new(&mut reader: R) -> Result<WaveReader, Box<dyn Error>> {
+impl WaveReader {
+    pub fn new(&mut reader: Reader) -> Result<WaveReader, Box<dyn Error>> {
         use SampleFormat::{Int, UInt, Float, Unknown};
         let mut reader = StructRead::new(reader);
 
@@ -534,14 +535,15 @@ impl<R> WaveReader where R: Read + Seek {
         let frame_size = fmt.block_align;
         let num_frames = data_size / frame_size as u64;
         Ok(Self {
+            None,
             reader,
             spec: Spec {
                 channels: fmt.channels,
+                channel_mask,
                 sample_rate: fmt.sample_rate,
                 bits_per_sample: fmt.bits_per_sample,
                 sample_format,
             },
-            channel_mask,
             fact_data,
             data_offset,
             data_size,
@@ -560,49 +562,141 @@ impl<R> WaveReader where R: Read + Seek {
 
 // 用文件来读取的方式，自动套上 BufReader 来提升读取效率
 impl WaveReader {
-    pub fn open<P: AsRef<Path>>(filename: P) -> Result<WaveReader, Box<dyn Error>> {
+    // 从文件打开一个 WaveReader，因为有文件名，所以可以记录文件名
+    pub fn open(filename: &Path) -> Result<WaveReader, Box<dyn Error>> {
         let file = File::open(filename)?;
         let buf_reader = BufReader::new(file);
-        WaveReader::new(buf_reader)
+        let ret = WaveReader::new(buf_reader);
+        ret.filepath = Some(filename);
+        ret
     }
 
-    fn CreateIter<R>(&mut self) -> WaveIter<BufReader<R>> where R: Read + Seek {
-        let tfile = tempfile().unwrap();
-        let buf_writer = BufWriter::new(tfile);
-        self.reader.seek_to(self.data_offset);
-        let buf = vec![self.frame_size; 0u8];
-        for i in 0..self.num_frames {
-            self.reader.read_exact(&buf).unwrap();
-            buf_writer.write_all(&buf).unwrap();
-        }
-        buf_writer.rewind().unwrap();
+    // 创建迭代器。
+    // 迭代器的作用是读取每个音频帧
+    fn CreateIter(&mut self) -> WaveIter {
+        let mut data_offset: u64 = 0;
+        let file = if let Some(filepath) = self.filepath {
+            // 因为是从文件读取的，重新读取文件以制作迭代器。
+            data_offset = self.data_offset;
+            File::open(filepath).unwrap()
+        } else {
+            // 不是从文件读取的，可能是从某种能够 Seek 的流读取的，或者就是内存文件。
+            // 因为不能再次打开，所以把 data 节开膛破肚装进临时文件。
+            data_offset = 0;
+            let tfile = tempfile().unwrap();
+            let buf_writer = BufWriter::new(tfile);
+            self.reader.seek_to(self.data_offset);
+            let buf = vec![self.frame_size; 0u8];
+            for i in 0..self.num_frames {
+                self.reader.read_exact(&buf).unwrap();
+                buf_writer.write_all(&buf).unwrap();
+            }
+            buf_writer.rewind().unwrap();
+            tfile
+        };
         WaveIter {
-            reader: StructRead::new(BufReader::new(tfile)),
-            channel_mask: self.channel_mask,
-            frame_pos: self.frame_pos,
+            reader: StructRead::new(BufReader::new(file)),
+            spec: self.spec.clone(),
+            data_offset,
+            frame_pos: 0,
             max_frames: self.max_frames,
+            match (self.bits_per_sample, self.sample_format) {
+                (8, UInt) => Box::new(FrameUnpackerU8),
+                (16, Int) => Box::new(FrameUnpackerS16),
+                (24, Int) => Box::new(FrameUnpackerS24),
+                (32, Int) => Box::new(FrameUnpackerS32),
+                (32, Float) => Box::new(FrameUnpackerF32),
+                (64, Float) => Box::new(FrameUnpackerF64),
+                _ => panic!("Unexpected unknown internal state for getting wrong file spec."),
+            }
         }
     }
 }
 
-struct WaveIter<R> {
-    reader: StructRead<R>, // 临时文件
-    channel_mask: u32, // 声道标记
+struct WaveIter {
+    reader: StructRead, // 临时文件
+    spec: Spec,
+    data_offset: u64, // 数据部分的偏移量
     frame_pos: u64, // 当前帧位置
     max_frames: u64, // 最大帧数量
+    unpacker: Box<dyn FrameUnpacker>,
 }
 
-impl<R> AudioReader for WaveReader<R> where R: Read + Seek {
-    fn spec(&self) -> Spec {
-        self.spec.clone()
+trait FrameUnpacker {
+    fn get_sample(iter: &mut WaveIter) -> f32;
+
+    fn convert<T: SampleConv>(T v){
+        v.to_f32()
     }
 
-    fn iter<T>(&mut self) -> Iter<T> where Self: Sized
+    fn unpack(&self, iter: &mut WaveIter) -> Option<vec<f32>> {
+        if iter.frame_pos >= iter.max_frames {return None;}
+
+        let mut ret = vec::<f32>::new();
+        for i in 0..iter.spec.channels {
+            ret.push(Self::get_sample(&iter))
+        }
+        Ok(ret)
+    }
+}
+
+struct FrameUnpackerU8;
+struct FrameUnpackerS16;
+struct FrameUnpackerS24;
+struct FrameUnpackerS32;
+struct FrameUnpackerF32;
+struct FrameUnpackerF64;
+
+impl FrameUnpacker for FrameUnpackerU8 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_u8().unwrap())
+    }
+}
+
+impl FrameUnpacker for FrameUnpackerS16 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_i16().unwrap())
+    }
+}
+
+impl FrameUnpacker for FrameUnpackerS24 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_i24().unwrap())
+    }
+}
+
+impl FrameUnpacker for FrameUnpackerS32 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_i32().unwrap())
+    }
+}
+impl FrameUnpacker for FrameUnpackerF32 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_f32().unwrap())
+    }
+}
+impl FrameUnpacker for FrameUnpackerF64 {
+    fn get_sample(iter: &mut WaveIter) -> f32 {
+        Self::convert(iter.reader.read_le_f64().unwrap())
+    }
+}
+
+impl AudioReader for WaveReader {
+    fn spec(&self) -> &Spec {
+        &self.spec
+    }
+
+    fn iter<T>(&mut self) -> WaveIter<T> where Self: Sized
     {
-
+        CreateIter(&mut self)
     }
 }
 
-trait Iter<T>: Iterator {
+impl Iterator for WaveIter<T>  {
     type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        
+    }
+
 }
