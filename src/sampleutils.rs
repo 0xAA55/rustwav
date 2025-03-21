@@ -1,233 +1,386 @@
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub struct i24(pub i8, pub i8, pub i8);
 
-pub trait SampleUtils{
+impl i24 {
+    fn from(data: &[i8; 3]) -> Self {
+        Self(data[0], data[1], data[2])
+    }
+    fn to_i32(&self) -> i32 {
+        i32::from_le_bytes([self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
+    }
+    fn to_i64(&self) -> i64 {
+        i64::from_le_bytes([self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
+    }
+}
 
-    // 无符号升位数
-    fn u8_to_u16(v: u8) -> u16{
-        let v = v as u16;
-        (v << 8) | v
+pub trait SampleConv {
+    fn clampf(&self) -> f32 {
+        panic!("There shouldn't a `clampf()` call on integers");
     }
-    fn u16_to_u32(v: u16) -> u32{
-        let v = v as u32;
-        (v << 16) | v
+    fn clampd(&self) -> f64 {
+        panic!("There shouldn't a `clampf()` call on integers");
     }
-    fn u32_to_u64(v: u32) -> u64{
-        let v = v as u64;
-        (v << 32) | v
-    }
-    fn u8_to_u32(v: u8) -> u32{
-        Self::u16_to_u32(Self::u8_to_u16(v))
-    }
-    fn u8_to_u64(v: u8) -> u64{
-        Self::u16_to_u64(Self::u8_to_u16(v))
-    }
-    fn u16_to_u64(v: u16) -> u64{
-        Self::u32_to_u64(Self::u16_to_u32(v))
-    }
+    fn to_i8(&self) -> i8;
+    fn to_i16(&self) -> i16;
+    fn to_i32(&self) -> i32;
+    fn to_i64(&self) -> i64;
+    fn to_u8(&self) -> u8;
+    fn to_u16(&self) -> u16;
+    fn to_u32(&self) -> u32;
+    fn to_u64(&self) -> u64;
+    fn to_i24(&self) -> i24;
+    fn to_f32(&self) -> f32;
+    fn to_f64(&self) -> f64;
+}
 
-    // 有符号升位数
-    fn i8_to_i16(v: i8) -> i16{
-        let v = v as i16;
+impl SampleConv for i8{
+    fn to_i8(&self) -> i8{
+        *self
+    } 
+    fn to_i16(&self) -> i16{
+        let v = *self as i16;
         (v << 8) | (v & 0xFF)
     }
-    fn i16_to_i32(v: i16) -> i32{
-        let v = v as i32;
+    fn to_i32(&self) -> i32{
+        let v = self.to_i16() as i32;
         (v << 16) | (v & 0xFFFF)
     }
-    fn i32_to_i64(v: i32) -> i64{
-        let v = v as i64;
+    fn to_i64(&self) -> i64{
+        let v = self.to_i32() as i64;
         (v << 32) | (v & 0xFFFFFFFF)
     }
-    fn i8_to_i32(v: i8) -> i32{
-        Self::i16_to_i32(Self::i8_to_i16(v))
+    fn to_u8(&self) -> u8{
+        (*self as u8).wrapping_add(0x80)
+    } 
+    fn to_u16(&self) -> u16{
+        self.to_u8().to_u16()
     }
-    fn i8_to_i64(v: i8) -> i64{
-        Self::i16_to_i64(Self::i8_to_i16(v))
+    fn to_u32(&self) -> u32{
+        self.to_u16().to_u32()
     }
-    fn i16_to_i64(v: i16) -> i64{
-        Self::i32_to_i64(Self::i16_to_i32(v))
+    fn to_u64(&self) -> u64{
+        self.to_u16().to_u64()
     }
+    fn to_i24(&self) -> i24{
+        let v = *self;
+        i24(v, v, v)
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 无符号降位数
-    fn u16_to_u8(v: u16) -> u8{
-        (v >> 8) as u8
+impl SampleConv for i16{
+    fn to_i8(&self) -> i8{
+        (*self >> 8) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        *self
     }
-    fn u32_to_u8(v: u32) -> u8{
-        (v >> 24) as u8
+    fn to_i32(&self) -> i32{
+        let v = *self as i32;
+        (v << 16) | (v & 0xFFFF)
     }
-    fn u32_to_u16(v: u32) -> u16{
-        (v >> 16) as u16
+    fn to_i64(&self) -> i64{
+        let v = self.to_i32() as i64;
+        (v << 32) | (v & 0xFFFFFFFF)
     }
-    fn u64_to_u32(v: u64) -> u32{
-        (v >> 32) as u32
+    fn to_u8(&self) -> u8{
+        self.to_u16().to_u8()
+    } 
+    fn to_u16(&self) -> u16{
+        (*self as u16).wrapping_add(0x8000)
     }
-    fn u64_to_u16(v: u64) -> u16{
-        (v >> 48) as u16
+    fn to_u32(&self) -> u32{
+        self.to_u16().to_u32()
     }
-    fn u64_to_u8(v: u64) -> u8{
-        (v >> 56) as u8
+    fn to_u64(&self) -> u64{
+        self.to_u16().to_u64()
     }
+    fn to_i24(&self) -> i24{
+        let v = self.to_i16();
+        let h = (v >> 8) as i8;
+        let l = (v & 0xFF) as i8;
+        i24(h, l, h)
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 有符号降位数
-    fn i16_to_i8(v: i16) -> i8{
-        (v >> 8) as i8
+impl SampleConv for i24 {
+    fn to_i8(&self) -> i8 {
+        self.0
     }
-    fn i32_to_i8(v: i32) -> i8{
-        (v >> 24) as i8
+    fn to_i16(&self) -> i16{
+        i16::from_le_bytes([self.0 as u8, self.1 as u8])
     }
-    fn i32_to_i16(v: i32) -> i16{
-        (v >> 16) as i16
+    fn to_i32(&self) -> i32{
+        self.to_i32()
     }
-    fn i64_to_i32(v: i64) -> i32{
-        (v >> 32) as i32
+    fn to_i64(&self) -> i64{
+        self.to_i32().to_i64()
     }
-    fn i64_to_i16(v: i64) -> i16{
-        (v >> 48) as i16
+    fn to_u8(&self) -> u8{
+        self.0.to_u8()
     }
-    fn i64_to_i8(v: i64) -> i8{
-        (v >> 56) as i8
+    fn to_u16(&self) -> u16{
+        self.to_i16().to_u16()
     }
+    fn to_u32(&self) -> u32{
+        self.to_i32().to_u32()
+    }
+    fn to_u64(&self) -> u64{
+        self.to_i64().to_u64()
+    }
+    fn to_i24(&self) -> i24{
+        *self
+    }
+    fn to_f32(&self) -> f32{
+        self.to_i32().to_f32()
+    }
+    fn to_f64(&self) -> f64{
+        self.to_i64().to_f64()
+    }
+}
 
-    // 同位数u变i
-    fn u8_to_i8(v: u8) -> i8{
-        v.wrapping_add(0x80u8) as i8
+impl SampleConv for i32{
+    fn to_i8(&self) -> i8{
+        (*self >> 24) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        (*self >> 16) as i16
     }
-    fn u16_to_i16(v: u16) -> i16{
-        v.wrapping_add(0x8000u16) as i16
+    fn to_i32(&self) -> i32{
+        *self
     }
-    fn u32_to_i32(v: u32) -> i32{
-        v.wrapping_add(0x80000000u32) as i32
+    fn to_i64(&self) -> i64{
+        let v = self.to_i32() as i64;
+        (v << 32) | (v & 0xFFFFFFFF)
     }
-    fn u64_to_i64(v: u64) -> i64{
-        v.wrapping_add(0x80000000_00000000u64) as i64
+    fn to_u8(&self) -> u8{
+        self.to_u32().to_u8()
+    } 
+    fn to_u16(&self) -> u16{
+        self.to_u32().to_u16()
     }
+    fn to_u32(&self) -> u32{
+        (*self as u32).wrapping_add(0x80000000)
+    }
+    fn to_u64(&self) -> u64{
+        self.to_u32().to_u64()
+    }
+    fn to_i24(&self) -> i24{
+        let v = *self;
+        let h = ((v >> 24) & 0xFF) as i8;
+        let m = ((v >> 16) & 0xFF) as i8;
+        let l = ((v >> 8) & 0xFF) as i8;
+        i24(h, m, l)
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 同位数i变u
-    fn i8_to_u8(v: i8) -> u8{
-        v.wrapping_sub(0x80i8) as u8
+impl SampleConv for i64{
+    fn to_i8(&self) -> i8{
+        (*self >> 56) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        (*self >> 48) as i16
     }
-    fn i16_to_u16(v: i16) -> u16{
-        v.wrapping_sub(0x8000i16) as u16
+    fn to_i32(&self) -> i32{
+        (*self >> 32) as i32
     }
-    fn i32_to_u32(v: i32) -> u32{
-        v.wrapping_sub(0x80000000i32) as u32
+    fn to_i64(&self) -> i64{
+        *self
     }
-    fn i64_to_u64(v: i64) -> u64{
-        v.wrapping_sub(0x80000000_00000000i64) as u64
+    fn to_u8(&self) -> u8{
+        self.to_u64().to_u8()
+    } 
+    fn to_u16(&self) -> u16{
+        self.to_u64().to_u16()
     }
+    fn to_u32(&self) -> u32{
+        self.to_u64().to_u32()
+    }
+    fn to_u64(&self) -> u64{
+        (*self as u64).wrapping_add(0x80000000_00000000)
+    }
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 降位数u变i
-    fn u16_to_i8(v: u16) -> i8{
-        Self::i16_to_i8(Self::u16_to_i16(v))
+impl SampleConv for u8{
+    fn to_i8(&self) -> i8{
+        self.wrapping_sub(0x80) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        self.to_i8().to_i16()
     }
-    fn u32_to_i16(v: u32) -> i16{
-        Self::i32_to_i16(Self::u32_to_i32(v))
+    fn to_i32(&self) -> i32{
+        self.to_i8().to_i32()
     }
-    fn u32_to_i8(v: u32) -> i8{
-        Self::i32_to_i8(Self::u32_to_i32(v))
+    fn to_i64(&self) -> i64{
+        self.to_i8().to_i64()
     }
-    fn u64_to_i32(v: u64) -> i32{
-        Self::i64_to_i32(Self::u64_to_i64(v))
+    fn to_u8(&self) -> u8{
+        *self
+    } 
+    fn to_u16(&self) -> u16{
+        let v = self.to_u8() as u16;
+        (v << 8) | v
     }
-    fn u64_to_i16(v: u64) -> i16{
-        Self::i64_to_i16(Self::u64_to_i64(v))
+    fn to_u32(&self) -> u32{
+        let v = self.to_u16() as u32;
+        (v << 16) | v
     }
-    fn u64_to_i8(v: u64) -> i8{
-        Self::i64_to_i8(Self::u64_to_i64(v))
+    fn to_u64(&self) -> u64{
+        let v = self.to_u32() as u64;
+        (v << 32) | v
     }
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 降位数i变u
-    fn i16_to_u8(v: i16) -> u8{
-        Self::u16_to_u8(Self::i16_to_u16(v))
+impl SampleConv for u16{
+    fn to_i8(&self) -> i8{
+        self.to_i16().to_i8()
+    } 
+    fn to_i16(&self) -> i16{
+        self.wrapping_sub(0x8000) as i16
     }
-    fn i32_to_u16(v: i32) -> u16{
-        Self::u32_to_u16(Self::i32_to_u32(v))
+    fn to_i32(&self) -> i32{
+        self.to_i16().to_i32()
     }
-    fn i32_to_u8(v: i32) -> u8{
-        Self::u32_to_u8(Self::i32_to_u32(v))
+    fn to_i64(&self) -> i64{
+        self.to_i16().to_i64()
     }
-    fn i64_to_u32(v: i64) -> u32{
-        Self::u64_to_u32(Self::i64_to_u64(v))
+    fn to_u8(&self) -> u8{
+        (*self >> 8) as u8
+    } 
+    fn to_u16(&self) -> u16{
+        *self
     }
-    fn i64_to_u16(v: i64) -> u16{
-        Self::u64_to_u16(Self::i64_to_u64(v))
+    fn to_u32(&self) -> u32{
+        let v = self.to_u16() as u32;
+        (v << 16) | v
     }
-    fn i64_to_u8(v: i64) -> u8{
-        Self::u64_to_u8(Self::i64_to_u64(v))
+    fn to_u64(&self) -> u64{
+        let v = self.to_u32() as u64;
+        (v << 32) | v
     }
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 升位数u变i
-    fn u8_to_i16(v: u8) -> i16{
-        Self::u16_to_i16(Self::u8_to_u16(v))
+impl SampleConv for u32{
+    fn to_i8(&self) -> i8{
+        self.to_i32().to_i8()
+    } 
+    fn to_i16(&self) -> i16{
+        self.to_i32().to_i16()
     }
-    fn u8_to_i32(v: u8) -> i32{
-        Self::u32_to_i32(Self::u8_to_u32(v))
+    fn to_i32(&self) -> i32{
+        self.wrapping_sub(0x80000000) as i32
     }
-    fn u16_to_i32(v: u16) -> i32{
-        Self::u32_to_i32(Self::u16_to_u32(v))
+    fn to_i64(&self) -> i64{
+        self.to_i32().to_i64()
     }
-    fn u32_to_i64(v: u32) -> i64{
-        Self::u64_to_i64(Self::u32_to_u64(v))
+    fn to_u8(&self) -> u8{
+        (*self >> 24) as u8
+    } 
+    fn to_u16(&self) -> u16{
+        (*self >> 16) as u16
     }
-    fn u16_to_i64(v: u16) -> i64{
-        Self::u64_to_i64(Self::u16_to_u64(v))
+    fn to_u32(&self) -> u32{
+        *self
     }
-    fn u8_to_i64(v: u8) -> i64{
-        Self::u64_to_i64(Self::u8_to_u64(v))
+    fn to_u64(&self) -> u64{
+        let v = self.to_u32() as u64;
+        (v << 32) | v
     }
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
+    }
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
+    }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 有符号转浮点
-    fn i64_to_f32(v: i64) -> f32{
-        (v as f32) / (i64::MAX as f32)
+impl SampleConv for u64{
+    fn to_i8(&self) -> i8{
+        self.to_i64().to_i8()
+    } 
+    fn to_i16(&self) -> i16{
+        self.to_i64().to_i16()
     }
-    fn i32_to_f32(v: i32) -> f32{
-        (v as f32) / (i32::MAX as f32)
+    fn to_i32(&self) -> i32{
+        self.to_i64().to_i32()
     }
-    fn i16_to_f32(v: i16) -> f32{
-        (v as f32) / (i16::MAX as f32)
+    fn to_i64(&self) -> i64{
+        self.wrapping_sub(0x80000000_00000000) as i64
     }
-    fn i8_to_f32(v: i8) -> f32{
-        (v as f32) / (i8::MAX as f32)
+    fn to_u8(&self) -> u8{
+        (*self >> 56) as u8
+    } 
+    fn to_u16(&self) -> u16{
+        (*self >> 48) as u16
     }
-    fn i64_to_f64(v: i64) -> f64{
-        (v as f64) / (i64::MAX as f64)
+    fn to_u32(&self) -> u32{
+        (*self >> 32) as u32
     }
-    fn i32_to_f64(v: i32) -> f64{
-        (v as f64) / (i32::MAX as f64)
+    fn to_u64(&self) -> u64{
+        *self
     }
-    fn i16_to_f64(v: i16) -> f64{
-        (v as f64) / (i16::MAX as f64)
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
     }
-    fn i8_to_f64(v: i8) -> f64{
-        (v as f64) / (i8::MAX as f64)
+    fn to_f32(&self) -> f32{
+        (*self as f32) / (Self::MAX as f32)
     }
+    fn to_f64(&self) -> f64{
+        (*self as f64) / (Self::MAX as f64)
+    }
+}
 
-    // 无符号转浮点
-    fn u64_to_f32(v: u64) -> f32{
-        Self::i64_to_f32(Self::u64_to_i64(v))
-    }
-    fn u32_to_f32(v: u32) -> f32{
-        Self::i32_to_f32(Self::u32_to_i32(v))
-    }
-    fn u16_to_f32(v: u16) -> f32{
-        Self::i16_to_f32(Self::u16_to_i16(v))
-    }
-    fn u8_to_f32(v: u8) -> f32{
-        Self::i8_to_f32(Self::u8_to_i8(v))
-    }
-    fn u64_to_f64(v: u64) -> f64{
-        Self::i64_to_f64(Self::u64_to_i64(v))
-    }
-    fn u32_to_f64(v: u32) -> f64{
-        Self::i32_to_f64(Self::u32_to_i32(v))
-    }
-    fn u16_to_f64(v: u16) -> f64{
-        Self::i16_to_f64(Self::u16_to_i16(v))
-    }
-    fn u8_to_f64(v: u8) -> f64{
-        Self::i8_to_f64(Self::u8_to_i8(v))
-    }
-
-    fn clampf(v: f32) -> f32 {
+impl SampleConv for f32{
+    fn clampf(&self) -> f32 {
+        let v = *self;
         if v > 1.0 {
             1.0
         } else if v < -1.0 {
@@ -237,7 +390,44 @@ pub trait SampleUtils{
         }
     }
 
-    fn clampd(v: f64) -> f64 {
+    fn to_i8(&self) -> i8{
+        (self.clampf() * (i8::MAX as f32)) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        (self.clampf() * (i16::MAX as f32)) as i16
+    }
+    fn to_i32(&self) -> i32{
+        (self.clampf() * (i32::MAX as f32)) as i32
+    }
+    fn to_i64(&self) -> i64{
+        (self.clampf() * (i64::MAX as f32)) as i64
+    }
+    fn to_u8(&self) -> u8{
+        self.to_i8().to_u8()
+    } 
+    fn to_u16(&self) -> u16{
+        self.to_i16().to_u16()
+    }
+    fn to_u32(&self) -> u32{
+        self.to_i32().to_u32()
+    }
+    fn to_u64(&self) -> u64{
+        self.to_i64().to_u64()
+    }
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
+    }
+    fn to_f32(&self) -> f32{
+        *self
+    }
+    fn to_f64(&self) -> f64{
+        *self as f64
+    }
+}
+
+impl SampleConv for f64{
+    fn clampd(&self) -> f64 {
+        let v = *self;
         if v > 1.0 {
             1.0
         } else if v < -1.0 {
@@ -247,173 +437,37 @@ pub trait SampleUtils{
         }
     }
 
-    // 浮点转有符号整数
-    fn f32_to_i64(v: f32) -> i64{
-        (Self::clampf(v) * (i64::MAX as f32)) as i64
+    fn to_i8(&self) -> i8{
+        (self.clampd() * (i8::MAX as f64)) as i8
+    } 
+    fn to_i16(&self) -> i16{
+        (self.clampd() * (i16::MAX) as f64) as i16
     }
-    fn f32_to_i32(v: f32) -> i32{
-        (Self::clampf(v) * (i32::MAX as f32)) as i32
+    fn to_i32(&self) -> i32{
+        (self.clampd() * (i32::MAX) as f64) as i32
     }
-    fn f32_to_i16(v: f32) -> i16{
-        (Self::clampf(v) * (i16::MAX as f32)) as i16
+    fn to_i64(&self) -> i64{
+        (self.clampd() * (i64::MAX) as f64) as i64
     }
-    fn f32_to_i8(v: f32) -> i8{
-        (Self::clampf(v) * (i8::MAX as f32)) as i8
+    fn to_u8(&self) -> u8{
+        self.to_i8().to_u8()
+    } 
+    fn to_u16(&self) -> u16{
+        self.to_i16().to_u16()
     }
-    fn f64_to_i64(v: f64) -> i64{
-        (Self::clampd(v) * (i64::MAX as f64)) as i64
+    fn to_u32(&self) -> u32{
+        self.to_i32().to_u32()
     }
-    fn f64_to_i32(v: f64) -> i32{
-        (Self::clampd(v) * (i32::MAX as f64)) as i32
+    fn to_u64(&self) -> u64{
+        self.to_i64().to_u64()
     }
-    fn f64_to_i16(v: f64) -> i16{
-        (Self::clampd(v) * (i16::MAX as f64)) as i16
+    fn to_i24(&self) -> i24{
+        self.to_i32().to_i24()
     }
-    fn f64_to_i8(v: f64) -> i8{
-        (Self::clampd(v) * (i8::MAX as f64)) as i8
+    fn to_f32(&self) -> f32{
+        *self as f32
     }
-
-    // 浮点转无符号整数
-    fn f32_to_u64(v: f32) -> u64{
-        Self::i64_to_u64(Self::f32_to_i64(v))
-    }
-    fn f32_to_u32(v: f32) -> u32{
-        Self::i32_to_u32(Self::f32_to_i32(v))
-    }
-    fn f32_to_u16(v: f32) -> u16{
-        Self::i16_to_u16(Self::f32_to_i16(v))
-    }
-    fn f32_to_u8(v: f32) -> u8{
-        Self::i8_to_u8(Self::f32_to_i8(v))
-    }
-    fn f64_to_u64(v: f64) -> u64{
-        Self::i64_to_u64(Self::f64_to_i64(v))
-    }
-    fn f64_to_u32(v: f64) -> u32{
-        Self::i32_to_u32(Self::f64_to_i32(v))
-    }
-    fn f64_to_u16(v: f64) -> u16{
-        Self::i16_to_u16(Self::f64_to_i16(v))
-    }
-    fn f64_to_u8(v: f64) -> u8{
-        Self::i8_to_u8(Self::f64_to_i8(v))
-    }
-
-    // 自己转自己
-    fn i8_to_i8(v: i8) -> i8{
-        v
-    }
-    fn i16_to_i16(v: i16) -> i16{
-        v
-    }
-    fn i32_to_i32(v: i32) -> i32{
-        v
-    }
-    fn i64_to_i64(v: i64) -> i64{
-        v
-    }
-    fn u8_to_u8(v: u8) -> u8{
-        v
-    }
-    fn u16_to_u16(v: u16) -> u16{
-        v
-    }
-    fn u32_to_u32(v: u32) -> u32{
-        v
-    }
-    fn u64_to_u64(v: u64) -> u64{
-        v
-    }
-    fn f32_to_f32(v: f32) -> f32{
-        v
-    }
-    fn f64_to_f64(v: f64) -> f64{
-        v
-    }
-
-    // 特殊情况：i24 的读取。读取三个字节，然后转换为 i32
-    fn i24_le_to_i32(i24_le: &[u8; 3]) -> i32 {
-        let mut i32_le = [0u8; 4];
-        i32_le[0] = i24_le[2];
-        i32_le[1] = i24_le[0];
-        i32_le[2] = i24_le[1];
-        i32_le[3] = i24_le[2];
-        i32::from_le_bytes(i32_le)
-    }
-
-    fn i24_be_to_i32(i24_be: &[u8; 3]) -> i32 {
-        let mut i32_be = [0u8; 4];
-        i32_be[0] = i24_be[0];
-        i32_be[1] = i24_be[1];
-        i32_be[2] = i24_be[2];
-        i32_be[3] = i24_be[0];
-        i32::from_be_bytes(i32_be)
-    }
-
-    // 将 i32 转换为 i24（的字节）
-    fn i32_to_i24_le(v: i32) -> [u8; 3] {
-        let i32_le = v.to_le_bytes();
-        let mut ret = [0u8; 3];
-        ret[0] = i32_le[1];
-        ret[1] = i32_le[2];
-        ret[2] = i32_le[3];
-        ret
-    }
-
-    fn i32_to_i24_be(v: i32) -> [u8; 3] {
-        let i32_be = v.to_be_bytes();
-        let mut ret = [0u8; 3];
-        ret[0] = i32_be[0];
-        ret[1] = i32_be[1];
-        ret[2] = i32_be[2];
-        ret
-    }
-
-    fn i8_to_i24_le(v: i8) -> [u8; 3] {
-        i32_to_i24_le(i8_to_i32(v))
-    }
-
-    fn i16_to_i24_le(v: i16) -> [u8; 3] {
-        i32_to_i24_le(i16_to_i32(v))
-    }
-
-    fn i64_to_i24_le(v: i64) -> [u8; 3] {
-        i32_to_i24_le(i64_to_i32(v))
-    }
-
-    fn i8_to_i24_be(v: i8) -> [u8; 3] {
-        i32_to_i24_be(i8_to_i32(v))
-    }
-
-    fn i16_to_i24_be(v: i16) -> [u8; 3] {
-        i32_to_i24_be(i16_to_i32(v))
-    }
-
-    fn i64_to_i24_be(v: i64) -> [u8; 3] {
-        i32_to_i24_be(i64_to_i32(v))
-    }
-
-    fn u8_to_i24_le(v: u8) -> [u8; 3] {
-        i32_to_i24_le(u8_to_i32(v))
-    }
-
-    fn u16_to_i24_le(v: u16) -> [u8; 3] {
-        i32_to_i24_le(u16_to_i32(v))
-    }
-
-    fn u64_to_i24_le(v: u64) -> [u8; 3] {
-        i32_to_i24_le(u64_to_i32(v))
-    }
-
-    fn u8_to_i24_be(v: u8) -> [u8; 3] {
-        i32_to_i24_be(u8_to_i32(v))
-    }
-
-    fn u16_to_i24_be(v: u16) -> [u8; 3] {
-        i32_to_i24_be(u16_to_i32(v))
-    }
-
-    fn u64_to_i24_be(v: u64) -> [u8; 3] {
-        i32_to_i24_be(u64_to_i32(v))
+    fn to_f64(&self) -> f64{
+        *self
     }
 }
