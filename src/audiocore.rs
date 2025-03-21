@@ -17,48 +17,29 @@ impl std::fmt::Display for AudioError {
     }
 }
 
-pub trait ChannelMaskValues {
-    const FrontLeft: u32 = 0x1;
-    const FrontRight: u32 = 0x2;
-    const FrontCenter: u32 = 0x4;
-    const LowFreq: u32 = 0x8;
-    const BackLeft: u32 = 0x10;
-    const BackRight: u32 = 0x20;
-    const FrontLeftOfCenter: u32 = 0x40;
-    const FrontRightOfCenter: u32 = 0x80;
-    const BackCenter: u32 = 0x100;
-    const SideLeft: u32 = 0x200;
-    const SideRight: u32 = 0x400;
-    const TopCenter: u32 = 0x800;
-    const TopFrontLeft: u32 = 0x1000;
-    const TopFrontCenter: u32 = 0x2000;
-    const TopFrontRight: u32 = 0x4000;
-    const TopBackLeft: u32 = 0x8000;
-    const TopBackCenter: u32 = 0x10000;
-    const TopBackRight: u32 = 0x20000;
-}
-
+#[derive(Clone, Copy, Debug)]
 pub enum SpeakerPosition {
-    FrontLeft,
-    FrontRight,
-    FrontCenter,
-    LowFreq,
-    BackLeft,
-    BackRight,
-    FrontLeftOfCenter,
-    FrontRightOfCenter,
-    BackCenter,
-    SideLeft,
-    SideRight,
-    TopCenter,
-    TopFrontLeft,
-    TopFrontCenter,
-    TopFrontRight,
-    TopBackLeft,
-    TopBackCenter,
-    TopBackRight,
+    FrontLeft = 0x1,
+    FrontRight = 0x2,
+    FrontCenter = 0x4,
+    LowFreq = 0x8,
+    BackLeft = 0x10,
+    BackRight = 0x20,
+    FrontLeftOfCenter = 0x40,
+    FrontRightOfCenter = 0x80,
+    BackCenter = 0x100,
+    SideLeft = 0x200,
+    SideRight = 0x400,
+    TopCenter = 0x800,
+    TopFrontLeft = 0x1000,
+    TopFrontCenter = 0x2000,
+    TopFrontRight = 0x4000,
+    TopBackLeft = 0x8000,
+    TopBackCenter = 0x10000,
+    TopBackRight = 0x20000,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum SampleFormat {
     Unknown,
     Float,
@@ -87,35 +68,14 @@ impl Spec {
     }
 
     pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
-        use ChannelMaskValues::*;
         match channels {
-            1 => Ok(FrontCenter),
-            2 => Ok(FrontLeft | FrontRight),
+            1 => Ok(SpeakerPosition::FrontCenter as u32),
+            2 => Ok((SpeakerPosition::FrontLeft as u32) | (SpeakerPosition::FrontRight as u32)),
             other => Err(AudioError::CantGuessChannelMask(other)),
         }
     }
 
-    pub fn which_channel_which_speaker(&self) -> Result<Vec<ChannelType>, AudioError> {
-        let masks = [
-            ChannelMaskValues::FrontLeft,
-            ChannelMaskValues::FrontRight,
-            ChannelMaskValues::FrontCenter,
-            ChannelMaskValues::LowFreq,
-            ChannelMaskValues::BackLeft,
-            ChannelMaskValues::BackRight,
-            ChannelMaskValues::FrontLeftOfCenter,
-            ChannelMaskValues::FrontRightOfCenter,
-            ChannelMaskValues::BackCenter,
-            ChannelMaskValues::SideLeft,
-            ChannelMaskValues::SideRight,
-            ChannelMaskValues::TopCenter,
-            ChannelMaskValues::TopFrontLeft,
-            ChannelMaskValues::TopFrontCenter,
-            ChannelMaskValues::TopFrontRight,
-            ChannelMaskValues::TopBackLeft,
-            ChannelMaskValues::TopBackCenter,
-            ChannelMaskValues::TopBackRight,
-        ];
+    pub fn which_channel_which_speaker(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
         let enums = [
             SpeakerPosition::FrontLeft,
             SpeakerPosition::FrontRight,
@@ -137,10 +97,11 @@ impl Spec {
             SpeakerPosition::TopBackRight,
         ];
         let mut ret = Vec::<SpeakerPosition>::new();
-        for (i, m) in masks.iter().enumerate() {
+        for (i, m) in enums.iter().enumerate() {
+            let m = *m as u32;
             if self.channel_mask & m == m {ret.push(enums[i]);}
         }
-        return if ret.len() == self.channels {
+        return if ret.len() == self.channels.into() {
             Ok(ret)
         } else {
             Err(AudioError::ChannelNotMatchMask)
