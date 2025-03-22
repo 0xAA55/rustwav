@@ -773,3 +773,25 @@ impl SampleConv for f64{
     }
 }
 
+impl String {
+    pub fn read<T: Read>(r: &mut T, size: usize) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut buf = Vec::<u8>::new();
+        buf.resize(size, 0);
+        r.read_exact(&mut buf)?;
+        Ok(std::str::from_utf8(&buf)?.to_string())
+    }
+
+    pub fn read_sz<T: Read>(w: &mut T) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut buf = Vec::<u8>::new();
+        loop {
+            let b = r.read_le_u8()?;
+            if b != 0 {
+                buf.push(b);
+            } else {
+                break;
+            }
+        }
+        Ok(std::str::from_utf8(&buf)?.to_string())
+    }
+}
+
