@@ -1,4 +1,4 @@
-use std::{fs::File, {path::Path}, io::{self, BufReader, Write, SeekFrom}, error::Error, collections::HashMap};
+use std::{fs::File, {path::Path}, io::{self, Read, Seek, SeekFrom, BufReader}, error::Error, collections::HashMap};
 
 use tempfile::tempfile;
 
@@ -34,17 +34,19 @@ pub struct WaveReader<R: Reader> {
     list_chunk: Option<LISTChunk>,
 }
 
-impl<R> WaveReader<R> where R: Reader {
+impl WaveReader {
     // 从文件打开一个 WaveReader，因为有文件名，所以可以记录文件名。
     // 会自动给它套上一个 BufReader。
-    pub fn open(filename: &Path) -> Result<WaveReader, Box<dyn Error>> {
+    pub fn open(filename: &Path) -> Result<WaveReader<BufReader<File>>, Box<dyn Error>> {
         let mut ret = WaveReader::new(BufReader::new(File::open(filename)?))?;
         ret.filepath = Some(filename.into());
         Ok(ret)
     }
+}
 
+impl<R> WaveReader<R> where R: Reader {
     // 从读取器打开
-    pub fn new(&mut reader: R) -> Result<WaveReader, Box<dyn Error>> {
+    pub fn new(&mut reader: R) -> Result<WaveReader<R>, Box<dyn Error>> {
         let mut riff_len = 0u64;
         let mut riff_end = 0u64;
         let mut isRF64 = false;
@@ -187,6 +189,8 @@ impl<R> WaveReader<R> where R: Reader {
         self.read_exact(&buf);
         if buf != flag {
             Err(err)
+        } else {
+            Ok(())
         }
     }
 
@@ -207,7 +211,7 @@ impl<R> WaveReader<R> where R: Reader {
                 File::open(filepath)?
             },
             None => {
-                tempfile()?
+                tempfile()? // 这个临时文件会在不要它的时候自动删除
             },
         };
 
@@ -250,7 +254,7 @@ impl<R> WaveReader<R> where R: Reader {
             spec,
             frame_pos,
             max_frames,
-            unpacker: SampleReader::<S>::new(reader.into(), spec.sample_format),
+            unpacker: SampleReader::<S>::new(reader.into(), spec.sample_format)?,
         })
     }
 }
@@ -265,47 +269,47 @@ struct WaveIter<'a, S> where S: SampleConv {
 }
 
 impl<S> WaveIter<'_, S> where S: SampleConv {
-    fn new(reader: Box<dyn Reader>, data_offset: u64, spec: Spec, max_frames: u64) -> Self {
-        let unpacker = SampleReader::<S>::new(&reader, spec.sample_format);
-        Self {
+    fn new(reader: Box<dyn Reader>, data_offset: u64, spec: Spec, max_frames: u64) -> Result<Self, AudioError> {
+        let unpacker = SampleReader::<S>::new(&reader, spec.sample_format)?;
+        Ok(Self {
             reader,
             data_offset,
             spec,
             frame_pos: 0,
             max_frames,
             unpacker,
-        }
+        })
     }
 }
 
 struct SampleReader<'a, C> where C: SampleConv {
     reader: &'a Box<dyn Reader>,
-    get_sample: fn(&mut Box<dyn Reader>) -> Result<C, io::Error>,
+    get_sample_func: fn(&mut Box<dyn Reader>) -> Result<C, io::Error>,
 }
 
 impl<C> SampleReader<'_, C> where C: SampleConv {
-    fn new(reader: &Box<dyn Reader>, sample_format: SampleFormat) -> Self {
+    fn new(reader: &Box<dyn Reader>, sample_format: SampleFormat) -> Result<Self, AudioError> {
         Self {
             reader,
             get_sample: {
                 match sample_format {
-                    U8 =>  Self::_get_sample::<u8>,
-                    S16 => Self::_get_sample::<i16>,
-                    S24 => Self::_get_sample::<i24>,
-                    S32 => Self::_get_sample::<i32>,
-                    F32 => Self::_get_sample::<f32>,
-                    F64 => Self::_get_sample::<f64>,
-                    _ => panic!("Unknown sample_format {:?}", sample_format),
+                    U8 =>  Ok(Self::get_sample_var::<u8 >),
+                    S16 => Ok(Self::get_sample_var::<i16>),
+                    S24 => Ok(Self::get_sample_var::<i24>),
+                    S32 => Ok(Self::get_sample_var::<i32>),
+                    F32 => Ok(Self::get_sample_var::<f32>),
+                    F64 => Ok(Self::get_sample_var::<f64>),
+                    _ => Err(AudioError::Unimplemented),
                 }
             },
         }
     }
 
     fn get_sample(&self) -> Result<C, io::Error> {
-        (self.get_sample)(&mut self.reader)
+        (self.get_sample_func)(&mut self.reader)
     }
 
-    fn _get_sample<T: SampleConv>(r: &mut Box<dyn Reader>) -> Result<C, io::Error> {
+    fn get_sample_var<T: SampleConv>(r: &mut Box<dyn Reader>) -> Result<C, io::Error> {
         Ok(C::from(T::read_le(&mut r)?))
     }
 }
