@@ -1,9 +1,11 @@
 use std::{fs::File, {path::Path}, io::{BufWriter}, error::Error};
 
+pub use crate::errors::*;
+pub use crate::wavcore::*;
 use crate::structwrite::{Writer, StructWrite};
 use crate::sampleutils::SampleConv;
 use crate::audiocore::{SampleFormat, Spec};
-use crate::audiowriter::{AudioWriter, AudioWriteError};
+use crate::audiowriter::{AudioWriter};
 
 pub struct WaveWriter {
     writer: StructWrite,
@@ -150,7 +152,6 @@ impl SamplePacker for PackerS16 {
         Ok(())
     }
 }
-
 
 struct PackerS24;
 
