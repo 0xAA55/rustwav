@@ -1,19 +1,27 @@
+use std::{io::{Read, Write, Error}};
+
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub struct i24(pub i8, pub i8, pub i8);
+pub struct i24(pub u8, pub u8, pub u8); // 低中高
 
 impl i24 {
-    pub fn from(data: &[i8; 3]) -> Self {
+    pub fn from_le_bytes(data: [u8; 3]) -> Self {
         Self(data[0], data[1], data[2])
     }
+    pub fn from_be_bytes(data: [u8; 3]) -> Self {
+        Self(data[2], data[1], data[0])
+    }
     pub fn to_i32(&self) -> i32 {
-        i32::from_le_bytes([self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
+        i32::from_le_bytes([self.2, self.0, self.1, self.2])
     }
     pub fn to_i64(&self) -> i64 {
-        i64::from_le_bytes([self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8, self.2 as u8, self.1 as u8, self.0 as u8])
+        i64::from_le_bytes([self.1, self.2, self.0, self.1, self.2, self.0, self.1, self.2])
     }
-    pub fn to_bytes(&self) -> [u8; 3] {
-        [self.0 as u8, self.1 as u8, self.2 as u8]
+    pub fn to_le_bytes(&self) -> [u8; 3] {
+        [self.0, self.1, self.2]
+    }
+    pub fn to_be_bytes(&self) -> [u8; 3] {
+        [self.2, self.1, self.0]
     }
 }
 
@@ -36,6 +44,10 @@ pub trait SampleConv {
     fn to_i24(&self) -> i24;
     fn to_f32(&self) -> f32;
     fn to_f64(&self) -> f64;
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized;
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized;
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized;
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized;
 }
 
 impl SampleConv for i8{
@@ -70,7 +82,7 @@ impl SampleConv for i8{
         self.to_u16().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let v = *self;
+        let v = *self as u8;
         i24(v, v, v)
     }
     fn to_f32(&self) -> f32{
@@ -78,6 +90,22 @@ impl SampleConv for i8{
     }
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 1];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 1];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -112,16 +140,30 @@ impl SampleConv for i16{
         self.to_u16().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let v = self.to_i16();
-        let h = (v >> 8) as i8;
-        let l = (v & 0xFF) as i8;
-        i24(h, l, h)
+        let b = self.to_le_bytes();
+        i24(b[1] as u8, b[0] as u8, b[1] as u8)
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
     }
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 2];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 2];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -130,10 +172,10 @@ impl SampleConv for i24 {
         v.to_i24()
     }
     fn to_i8(&self) -> i8 {
-        self.0
+        self.0 as i8
     }
     fn to_i16(&self) -> i16{
-        i16::from_le_bytes([self.0 as u8, self.1 as u8])
+        i16::from_le_bytes([self.1, self.2])
     }
     fn to_i32(&self) -> i32{
         self.to_i32()
@@ -161,6 +203,22 @@ impl SampleConv for i24 {
     }
     fn to_f64(&self) -> f64{
         self.to_i64().to_f64()
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 3];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 3];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -194,17 +252,30 @@ impl SampleConv for i32{
         self.to_u32().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let v = *self;
-        let h = ((v >> 24) & 0xFF) as i8;
-        let m = ((v >> 16) & 0xFF) as i8;
-        let l = ((v >> 8) & 0xFF) as i8;
-        i24(h, m, l)
+        let b = self.to_le_bytes();
+        i24(b[1] as u8, b[2] as u8, b[3] as u8)
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
     }
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -244,6 +315,22 @@ impl SampleConv for i64{
     }
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -287,6 +374,22 @@ impl SampleConv for u8{
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
     }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 1];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 1];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
+    }
 }
 
 impl SampleConv for u16{
@@ -328,6 +431,22 @@ impl SampleConv for u16{
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
     }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 2];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 2];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
+    }
 }
 
 impl SampleConv for u32{
@@ -368,6 +487,22 @@ impl SampleConv for u32{
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
     }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
+    }
 }
 
 impl SampleConv for u64{
@@ -406,6 +541,22 @@ impl SampleConv for u64{
     }
     fn to_f64(&self) -> f64{
         (*self as f64) / (Self::MAX as f64)
+    }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
     }
 }
 
@@ -457,6 +608,22 @@ impl SampleConv for f32{
     fn to_f64(&self) -> f64{
         *self as f64
     }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 4];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
+    }
 }
 
 impl SampleConv for f64{
@@ -507,4 +674,21 @@ impl SampleConv for f64{
     fn to_f64(&self) -> f64{
         *self
     }
+    fn read_le<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
+    }
+    fn read_be<T: Read>(r: &mut T) -> Result<Self, Error> where Self: Sized {
+        let mut buf = [0u8; 8];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+    fn write_le<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_le_bytes())
+    }
+    fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized {
+        w.write_all(&self.to_be_bytes())
+    }
 }
+
