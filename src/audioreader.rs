@@ -4,10 +4,8 @@ pub use crate::errors::*;
 use crate::audiocore::{Spec};
 use crate::sampleutils::SampleConv;
 
-pub trait AudioReader {
+pub trait AudioReader<T: SampleConv> {
     fn spec(&self) -> &Spec;
 
-    fn iter<T>(&mut self) -> Result<Box<dyn AudioIter<T>>, Box<dyn std::error::Error>> where Self: Sized, T: SampleConv;
+    fn iter<T>(&mut self) -> Result<Iterator<Item = Vec<T>>, Box<dyn std::error::Error>> where Self: Sized;
 }
-
-pub trait AudioIter<T: SampleConv>: Iterator<Item = Vec<T>> {}
