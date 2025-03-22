@@ -158,7 +158,7 @@ struct PackerS24;
 impl SamplePacker for PackerS24 {
     fn save_sample(&self, writer: &mut StructWrite, frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
         for sample in frame.iter() {
-            writer.write_bytes(&sample.to_i24().to_bytes())?;
+            writer.write_bytes(&sample.to_i24().to_le_bytes())?;
         }
         Ok(())
     }
