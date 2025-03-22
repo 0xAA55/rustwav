@@ -24,6 +24,7 @@ impl std::fmt::Display for AudioReadError {
 
 #[derive(Debug)]
 pub enum AudioWriteError {
+    InvalidArguments, // 输入了错误的参数
     IOError(String), // 读写错误，应停止处理
     UnsupportedFormat, // 不支持的写入格式
     ChannelCountNotMatch, // 声道数不匹配
@@ -34,8 +35,9 @@ impl std::error::Error for AudioWriteError {}
 impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
+           AudioWriteError::InvalidArguments => write!(f, "Invalid arguments or fields to write"),
            AudioWriteError::IOError(error) => write!(f, "IOError {error}"),
-           AudioWriteError::UnsupportedFormat => write!(f, "Unsupported PCM format"),
+           AudioWriteError::UnsupportedFormat => write!(f, "Unsupported PCM format to be saved"),
            AudioWriteError::ChannelCountNotMatch => write!(f, "Channel count not match"),
        }
     }
