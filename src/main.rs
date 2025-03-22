@@ -132,6 +132,8 @@ fn main() -> ExitCode {
 
 */
 
+mod errors;
+mod wavcore;
 mod audiocore;
 mod audioreader;
 mod audiowriter;
