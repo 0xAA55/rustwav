@@ -51,4 +51,12 @@ impl GUID {
             ]
         ))
     }
+
+    pub fn write<T: Write>(&self, w: &mut T) -> Result<(), std::io::Error> {
+        self.0.write_le(w)?;
+        self.1.write_le(w)?;
+        self.2.write_le(w)?;
+        w.write_all(self.3)?;
+        Ok(())
+    }
 }
