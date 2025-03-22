@@ -2,28 +2,16 @@
 
 use std::{io::{Read, Seek, SeekFrom, Error}};
 
+#[allow(unused_imports)]
+use crate::errors::*;
+
 use crate::sampleutils::i24;
-
-#[derive(Debug)]
-pub enum MatchError {
-    NotMatch(String),
-}
-
-impl std::error::Error for MatchError {}
-
-impl std::fmt::Display for MatchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           MatchError::NotMatch(flag) => write!(f, "File flag {flag} not match"),
-       }
-    }
-}
 
 pub trait Reader: Read + Seek {}
 impl<T> Reader for T where T: Read + Seek {}
 
 pub struct StructRead {
-	pub reader: Box<dyn Reader>,
+	reader: Box<dyn Reader>,
 }
 
 impl StructRead {
@@ -31,6 +19,10 @@ impl StructRead {
 		Self {
 			reader
 		}
+	}
+
+	pub fn get_underlying_reader(&self) -> Box<dyn Reader> {
+		reader
 	}
 
 	pub fn stream_position(&mut self) -> Result<u64, Error> {
