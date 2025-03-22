@@ -58,16 +58,13 @@ impl SampleConv for i8{
         *self
     } 
     fn to_i16(&self) -> i16{
-        let v = *self as i16;
-        (v << 8) | (v & 0xFF)
+        self.to_u8().to_u16().to_i16()
     }
     fn to_i32(&self) -> i32{
-        let v = self.to_i16() as i32;
-        (v << 16) | (v & 0xFFFF)
+        self.to_u8().to_u32().to_i32()
     }
     fn to_i64(&self) -> i64{
-        let v = self.to_i32() as i64;
-        (v << 32) | (v & 0xFFFFFFFF)
+        self.to_u8().to_u64().to_i64()
     }
     fn to_u8(&self) -> u8{
         (*self as u8).wrapping_add(0x80)
@@ -82,8 +79,7 @@ impl SampleConv for i8{
         self.to_u16().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let v = *self as u8;
-        i24(v, v, v)
+        self.to_u8().to_u32().to_i32().to_i24()
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -120,12 +116,10 @@ impl SampleConv for i16{
         *self
     }
     fn to_i32(&self) -> i32{
-        let v = *self as i32;
-        (v << 16) | (v & 0xFFFF)
+        self.to_u16().to_u32().to_i32()
     }
     fn to_i64(&self) -> i64{
-        let v = self.to_i32() as i64;
-        (v << 32) | (v & 0xFFFFFFFF)
+        self.to_u16().to_u64().to_i64()
     }
     fn to_u8(&self) -> u8{
         self.to_u16().to_u8()
@@ -140,8 +134,7 @@ impl SampleConv for i16{
         self.to_u16().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let b = self.to_le_bytes();
-        i24(b[1] as u8, b[0] as u8, b[1] as u8)
+        self.to_u8().to_u32().to_i32().to_i24()
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -236,8 +229,7 @@ impl SampleConv for i32{
         *self
     }
     fn to_i64(&self) -> i64{
-        let v = self.to_i32() as i64;
-        (v << 32) | (v & 0xFFFFFFFF)
+        self.to_u64().to_i64()
     }
     fn to_u8(&self) -> u8{
         self.to_u32().to_u8()
@@ -691,4 +683,3 @@ impl SampleConv for f64{
         w.write_all(&self.to_be_bytes())
     }
 }
-
