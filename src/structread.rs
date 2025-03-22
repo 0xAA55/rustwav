@@ -22,7 +22,7 @@ impl StructRead {
 	}
 
 	pub fn get_underlying_reader(&self) -> Box<dyn Reader> {
-		reader
+		self.reader
 	}
 
 	pub fn stream_position(&mut self) -> Result<u64, Error> {
