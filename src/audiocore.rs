@@ -1,21 +1,4 @@
-use std::error::Error;
-
-#[derive(Debug)]
-pub enum AudioError {
-    CantGuessChannelMask(u16), // 无法猜出声道掩码
-    ChannelNotMatchMask, // 声道数不和声道掩码匹配
-}
-
-impl Error for AudioError {}
-
-impl std::fmt::Display for AudioError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           AudioError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}.", channels),
-           AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
-       }
-    }
-}
+use crate::errors::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum SpeakerPosition {

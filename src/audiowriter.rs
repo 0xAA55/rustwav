@@ -1,25 +1,7 @@
 use std::error::Error;
 
+use crate::errors::*;
 use crate::audiocore::{Spec};
-
-#[derive(Debug)]
-pub enum AudioWriteError {
-    IOError(String), // 读写错误，应停止处理
-    UnsupportedFormat, // 不支持的写入格式
-    ChannelCountNotMatch, // 声道数不匹配
-}
-
-impl Error for AudioWriteError {}
-
-impl std::fmt::Display for AudioWriteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           AudioWriteError::IOError(error) => write!(f, "IOError {error}"),
-           AudioWriteError::UnsupportedFormat => write!(f, "Unsupported PCM format"),
-           AudioWriteError::ChannelCountNotMatch => write!(f, "Channel count not match"),
-       }
-    }
-}
 
 pub trait AudioWriter {
     fn spec(&self) -> Spec;
