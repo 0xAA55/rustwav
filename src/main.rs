@@ -139,8 +139,6 @@ mod audioreader;
 mod audiowriter;
 mod wavreader;
 mod wavwriter;
-// mod structread;
-// mod structwrite;
 mod sampleutils;
 
 use std::process::ExitCode;
