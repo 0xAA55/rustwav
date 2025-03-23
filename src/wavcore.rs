@@ -27,7 +27,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Res
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
 pub const guid_pcm_format: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
