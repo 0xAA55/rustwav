@@ -133,6 +133,7 @@ fn main() -> ExitCode {
 */
 
 mod errors;
+mod filehasher;
 mod wavcore;
 mod audiocore;
 mod audioreader;
