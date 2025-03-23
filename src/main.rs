@@ -142,8 +142,16 @@ mod wavreader;
 mod wavwriter;
 mod sampleutils;
 
-use std::process::ExitCode;
+use std::{env, process::ExitCode};
+
+use wavreader::WaveReader;
 
 fn main() -> ExitCode {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {return ExitCode::from(1);}
+
+    let wavereader = WaveReader::open(&args[1]).unwrap();
+    dbg!(wavereader);
+
     ExitCode::from(0)
 }
