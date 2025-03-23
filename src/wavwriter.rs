@@ -26,7 +26,8 @@ pub struct WaveWriter<W: Writer> {
     packer: Packer<f64>,
 }
 
-impl<W> WaveWriter<W> where W: Writer {
+impl<W> WaveWriter<W>
+where W: Writer {
     pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter<BufWriter<File>>, Box<dyn Error>> {
         WaveWriter::new(BufWriter::new(File::create(filename)?), spec)
     }
@@ -130,7 +131,8 @@ struct Packer<S: SampleConv> {
     save_sample_func: fn(&mut dyn Writer, &Vec<S>) -> Result<(), io::Error>,
 }
 
-impl<S> Packer<S> where S: SampleConv {
+impl<S> Packer<S>
+where S: SampleConv {
 
     // 根据自己的音频格式，挑选合适的函数指针来写入正确的样本类型。
     pub fn new(writer_spec: &Spec) -> Result<Self, AudioWriteError> {
@@ -194,7 +196,8 @@ impl<S> Packer<S> where S: SampleConv {
     }
 }
 
-impl<W> AudioWriter for WaveWriter<W> where W: Writer {
+impl<W> AudioWriter for WaveWriter<W>
+where W: Writer {
     fn spec(&self) -> &Spec {
         &self.spec
     }
