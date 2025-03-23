@@ -1,4 +1,4 @@
-use std::{io::{Read, Write, Error}};
+use std::{io::{Read, Write}};
 
 pub use crate::errors::*;
 pub use crate::audiocore::SampleFormat;
@@ -37,8 +37,8 @@ impl GUID {
     pub fn read<T: Read>(r: &mut T) -> Result<Self, std::io::Error> {
         Ok( Self (
             u32::read_le(r)?,
-            u16::read_le_u16(r)?,
-            u16::read_le_u16(r)?,
+            u16::read_le(r)?,
+            u16::read_le(r)?,
             [
                 u8::read_le(r)?,
                 u8::read_le(r)?,
@@ -56,7 +56,7 @@ impl GUID {
         self.0.write_le(w)?;
         self.1.write_le(w)?;
         self.2.write_le(w)?;
-        w.write_all(self.3)?;
+        w.write_all(&self.3)?;
         Ok(())
     }
 }
