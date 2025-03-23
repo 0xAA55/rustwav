@@ -1,4 +1,4 @@
-use std::{hash::DefaultHasher, io::{Read, Seek, SeekFrom, Error}, cmp::min};
+use std::{hash::{Hasher, DefaultHasher}, io::{Read, Seek, SeekFrom, Error}};
 
 trait Reader: Read + Seek {}
 impl<T> Reader for T
@@ -9,26 +9,26 @@ pub struct FileHasher {
 }
 
 impl FileHasher{
-	fn new() -> Self {
+	pub fn new() -> Self {
 		Self {
 			hasher: DefaultHasher::new(),
 		}
 	}
 
-	fn hash<R>(&mut self, reader: &mut R, from_byte: u64, length: u64) -> Result<u64, Error>
+	pub fn hash<R>(&mut self, reader: &mut R, from_byte: u64, length: u64) -> Result<u64, Error>
 	where R: Reader {
 		reader.seek(SeekFrom::Start(from_byte))?;
-		const BUFFER_SIZE = 8192usize;
-		let mut buf = vec![0u8; BUFFER_SIZE];
+		const BUFFER_SIZE: u64 = 8192;
+		let mut buf = vec![0u8; BUFFER_SIZE as usize];
 		let mut to_hash = length;
-		while to_hash >= BUFFER_SIZE {
-			reader.read_exact(&buf)?;
+		while to_hash >= BUFFER_SIZE as u64 {
+			reader.read_exact(&mut buf)?;
 			self.hasher.write(&buf);
 			to_hash -= BUFFER_SIZE;
 		}
 		if to_hash != 0 {
-			buf.resize(to_hash, 0);
-			reader.read_exact(&buf)?;
+			buf.resize(to_hash as usize, 0);
+			reader.read_exact(&mut buf)?;
 			self.hasher.write(&buf);
 		}
 		Ok(self.hasher.finish())
