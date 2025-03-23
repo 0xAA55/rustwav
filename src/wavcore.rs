@@ -13,7 +13,7 @@ pub enum WaveSampleType {
     F64,
 }
 
-pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioReadError> {
+pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
     use SampleFormat::{UInt, Int, Float};
     use WaveSampleType::{U8,S16,S24,S32,F32,F64};
     match (bits_per_sample, sample_format) {
@@ -23,7 +23,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Res
         (32, Int) => Ok(S32),
         (32, Float) => Ok(F32),
         (64, Float) => Ok(F64),
-        _ => Err(AudioReadError::Unimplemented),
+        _ => Err(AudioError::UnknownSampleType),
     }
 }
 
