@@ -48,6 +48,7 @@ pub enum AudioError {
     CantGuessChannelMask(u16), // 无法猜出声道掩码
     ChannelNotMatchMask, // 声道数不和声道掩码匹配
     Unimplemented, // 没有实现的解析格式
+    UnknownSampleType, // 不知道的样本的格式
 }
 
 impl std::error::Error for AudioError {}
@@ -58,6 +59,7 @@ impl std::fmt::Display for AudioError {
            AudioError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}.", channels),
            AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
            AudioError::Unimplemented => write!(f, "Unimplemented for the file format"),
+           AudioError::UnknownSampleType => write!(f, "Unknown sample type we got from the spec"),
        }
     }
 }
