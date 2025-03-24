@@ -4,7 +4,7 @@ pub trait Reader: Read + Seek {}
 impl<T> Reader for T where T: Read + Seek {}
 
 pub trait Writer: Write + Seek{}
-impl<T> Writer for T where T: Write + Seek{}
+impl<T> Writer for T where T: Write + Seek {}
 
 #[allow(non_camel_case_types)]
 pub struct ReaderS_Over_D {
