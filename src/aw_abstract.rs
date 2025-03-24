@@ -11,11 +11,11 @@ use crate::audiocore::{Spec};
 // 完成所有的音频样本的写入后，一定要调用一次 finalize()，否则头文件里面的信息不会被更新。
 pub trait AudioWriter {
     fn spec(&self) -> &Spec;
-    fn write(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>> where S: SampleConv;
+    fn write<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>> where S: SampleType;
     fn finalize(&mut self) -> Result<(), Box<dyn Error>>;
 
-    fn check_channels(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
-    where S: SampleConv {
+    fn check_channels<S>(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    where S: SampleType {
         if frame.len() != self.spec().channels as usize {
             Err(AudioWriteError::ChannelCountNotMatch.into())
         } else {
