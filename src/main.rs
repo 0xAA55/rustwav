@@ -151,7 +151,7 @@ fn main() -> ExitCode {
     if args.len() < 2 {return ExitCode::from(1);}
 
     let wavereader = WaveReader::open(&args[1]).unwrap();
-    dbg!(wavereader);
+    println!("{}", wavereader.ToString());
 
     ExitCode::from(0)
 }
