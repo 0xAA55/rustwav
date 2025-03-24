@@ -134,13 +134,16 @@ fn main() -> ExitCode {
 
 mod errors;
 mod filehasher;
+mod readwrite;
+mod sampleutils;
 mod wavcore;
 mod audiocore;
-mod audioreader;
-mod audiowriter;
 mod wavreader;
 mod wavwriter;
-mod sampleutils;
+mod audioreader;
+mod audiowriter;
+mod ar_abstract;
+mod aw_abstract;
 
 use std::{env, process::ExitCode};
 
