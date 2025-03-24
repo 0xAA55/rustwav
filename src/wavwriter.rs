@@ -26,6 +26,12 @@ pub struct WaveWriter {
     packer_s32: Packer<DynWriter, i32>,
     packer_f32: Packer<DynWriter, f32>,
     packer_f64: Packer<DynWriter, f64>,
+    typeid__u8: TypeId,
+    typeid_s16: TypeId,
+    typeid_s24: TypeId,
+    typeid_s32: TypeId,
+    typeid_f32: TypeId,
+    typeid_f64: TypeId,
 }
 
 impl WaveWriter {
@@ -46,12 +52,18 @@ impl WaveWriter {
             riff_offset: 0,
             datalen_offset: 0,
             data_offset: 0,
-            packer__u8: Packer::<DynWriter,  u8>::new(&spec)?,
-            packer_s16: Packer::<DynWriter, i16>::new(&spec)?,
-            packer_s24: Packer::<DynWriter, i24>::new(&spec)?,
-            packer_s32: Packer::<DynWriter, i32>::new(&spec)?,
-            packer_f32: Packer::<DynWriter, f32>::new(&spec)?,
-            packer_f64: Packer::<DynWriter, f64>::new(&spec)?,
+            packer__u8: Packer::<DynWriter,  u8>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            packer_s16: Packer::<DynWriter, i16>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            packer_s24: Packer::<DynWriter, i24>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            packer_s32: Packer::<DynWriter, i32>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            packer_f32: Packer::<DynWriter, f32>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            packer_f64: Packer::<DynWriter, f64>::new(&spec)?, // 所有这些东西都是接收泛型参数的类型再根据 spec 的要求存储样本
+            typeid__u8: TypeId::of::<u8 >(),
+            typeid_s16: TypeId::of::<i16>(),
+            typeid_s24: TypeId::of::<i24>(),
+            typeid_s32: TypeId::of::<i32>(),
+            typeid_f32: TypeId::of::<f32>(),
+            typeid_f64: TypeId::of::<f64>(),
         };
         ret.write_header()?;
         Ok(ret)
@@ -130,33 +142,44 @@ impl WaveWriter {
         Ok(())
     }
 
-    pub fn save_frame<S>(&self, frame: &Vec<S>, sample_type: WaveSampleType) -> Result<(), Box<dyn Error>>
+    // 将一种格式的样本转换为另一种格式的样本。
+    // 这个代码的实际作用是忽悠编译器。
+    fn frame_conv<T1, T2>(frame: &Vec<T1>) -> Vec<T2>
+    where T1: SampleType,
+          T2: SampleType {
+        let mut ret = Vec::<T2>::with_capacity(frame.len());
+        for sample in frame.iter() {
+            ret.push(T2::from(*sample));
+        }
+        ret
+    }
+
+    pub fn save_frame<S>(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType {
 
         // 用户输入的样本格式是 S，而我们要存储的格式则是由我们的 spec 决定的。
         // 根据 spec 要求，我们需要转换为我们自己的格式，再保存到文件里。
         // 在这里，我们的不同类型的 packer 能把 S 转换为各自的类型再存储。
         // 但似乎光从泛型参数 S 来判断输入的格式不太合理，因为 Rust 编译器的能力有限，它会很轴，认为 S 一定不等于 u8，我是服了。
-        //     if TypeId::of::<S>() == TypeId::of::<u8 >() { self.packer_u8 .save_sample(&mut self.writer, frame)?;}
-        //else if TypeId::of::<S>() == TypeId::of::<i16>() { self.packer_s16.save_sample(&mut self.writer, frame)?;}
-        //else if TypeId::of::<S>() == TypeId::of::<i24>() { self.packer_s24.save_sample(&mut self.writer, frame)?;}
-        //else if TypeId::of::<S>() == TypeId::of::<i32>() { self.packer_s32.save_sample(&mut self.writer, frame)?;}
-        //else if TypeId::of::<S>() == TypeId::of::<f32>() { self.packer_f32.save_sample(&mut self.writer, frame)?;}
-        //else if TypeId::of::<S>() == TypeId::of::<f64>() { self.packer_f64.save_sample(&mut self.writer, frame)?;}
-        //else { return Err(AudioWriteError::UnsupportedFormat.into);}
 
-        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
-        match sample_type {
-            U8  => self.packer__u8.save_sample(&mut self.writer, frame)?,
-            S16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
-            S24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
-            S32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
-            F32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
-            F64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
-            _ => return Err(AudioWriteError::UnsupportedFormat.into),
+        let typeid__u8 = self.typeid__u8;
+        let typeid_s16 = self.typeid_s16;
+        let typeid_s24 = self.typeid_s24;
+        let typeid_s32 = self.typeid_s32;
+        let typeid_f32 = self.typeid_f32;
+        let typeid_f64 = self.typeid_f64;
+        match TypeId::of::<S>() {
+            typeid_u8  => self.packer__u8.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            typeid_s16 => self.packer_s16.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            typeid_s24 => self.packer_s24.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            typeid_s32 => self.packer_s32.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            typeid_f32 => self.packer_f32.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            typeid_f64 => self.packer_f64.save_sample(&mut self.writer, &Self::frame_conv(frame))?,
+            _ => return Err(AudioWriteError::UnsupportedFormat.into()),
         }
 
         self.num_frames += 1;
+        Ok(())
     }
 
     // 一旦调用，WaveWriter 就失去了对 DynWriter 的所有权

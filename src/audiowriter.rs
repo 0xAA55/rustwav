@@ -11,30 +11,11 @@ impl AudioWriter for WaveWriter {
         &self.spec
     }
 
+    // 允许用户输入任何格式为 S 的样本组成的音频帧，内部我们根据 spec 会做具体的类型转换。
     fn write<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         self.check_channels(frame)?;
-
-        let mut sample_type = WaveSampleType::U8;
-
-        let type_id_of_s = TypeId::of::<S>();
-        if type_id_of_s == TypeId::of::<u8>() {
-            sample_type = WaveSampleType::U8;
-        } else if type_id_of_s == TypeId::of::<i16>() {
-            sample_type = WaveSampleType::S16;
-        } else if type_id_of_s == TypeId::of::<i24>() {
-            sample_type = WaveSampleType::S24;
-        } else if type_id_of_s == TypeId::of::<i32>() {
-            sample_type = WaveSampleType::S32;
-        } else if type_id_of_s == TypeId::of::<f32>() {
-            sample_type = WaveSampleType::F32;
-        } else if type_id_of_s == TypeId::of::<f64>() {
-            sample_type = WaveSampleType::F64;
-        } else {
-            return Err(AudioWriteError::UnsupportedFormat.into);
-        }
-
-        self.save_frame::<S>(frame, sample_type)?;
+        self.save_frame::<S>(frame)?;
         Ok(())
     }
 
