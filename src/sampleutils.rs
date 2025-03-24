@@ -80,14 +80,14 @@ impl u24 {
     }
 }
 
-pub trait SampleConv {
+pub trait SampleType {
     fn clampf(&self) -> f32 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
     fn clampd(&self) -> f64 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
-    fn from(v: impl SampleConv) -> Self;
+    fn from(v: impl SampleType) -> Self;
     fn to_i8(&self) -> i8;
     fn to_i16(&self) -> i16;
     fn to_i32(&self) -> i32;
@@ -106,8 +106,8 @@ pub trait SampleConv {
     fn write_be<T: Write>(&self, w: &mut T) -> Result<(), Error> where Self: Sized;
 }
 
-impl SampleConv for i8{
-    fn from(v: impl SampleConv) -> i8{
+impl SampleType for i8{
+    fn from(v: impl SampleType) -> i8{
         v.to_i8()
     }
     fn to_i8(&self) -> i8{
@@ -164,8 +164,8 @@ impl SampleConv for i8{
     }
 }
 
-impl SampleConv for i16{
-    fn from(v: impl SampleConv) -> i16{
+impl SampleType for i16{
+    fn from(v: impl SampleType) -> i16{
         v.to_i16()
     }
     fn to_i8(&self) -> i8{
@@ -222,8 +222,8 @@ impl SampleConv for i16{
     }
 }
 
-impl SampleConv for i24 {
-    fn from(v: impl SampleConv) -> i24{
+impl SampleType for i24 {
+    fn from(v: impl SampleType) -> i24{
         v.to_i24()
     }
     fn to_i8(&self) -> i8 {
@@ -280,8 +280,8 @@ impl SampleConv for i24 {
     }
 }
 
-impl SampleConv for i32{
-    fn from(v: impl SampleConv) -> i32{
+impl SampleType for i32{
+    fn from(v: impl SampleType) -> i32{
         v.to_i32()
     }
     fn to_i8(&self) -> i8{
@@ -339,8 +339,8 @@ impl SampleConv for i32{
     }
 }
 
-impl SampleConv for i64{
-    fn from(v: impl SampleConv) -> i64{
+impl SampleType for i64{
+    fn from(v: impl SampleType) -> i64{
         v.to_i64()
     }
     fn to_i8(&self) -> i8{
@@ -397,8 +397,8 @@ impl SampleConv for i64{
     }
 }
 
-impl SampleConv for u8{
-    fn from(v: impl SampleConv) -> u8{
+impl SampleType for u8{
+    fn from(v: impl SampleType) -> u8{
         v.to_u8()
     }
     fn to_i8(&self) -> i8{
@@ -458,8 +458,8 @@ impl SampleConv for u8{
     }
 }
 
-impl SampleConv for u16{
-    fn from(v: impl SampleConv) -> u16{
+impl SampleType for u16{
+    fn from(v: impl SampleType) -> u16{
         v.to_u16()
     }
     fn to_i8(&self) -> i8{
@@ -518,8 +518,8 @@ impl SampleConv for u16{
     }
 }
 
-impl SampleConv for u32{
-    fn from(v: impl SampleConv) -> u32{
+impl SampleType for u32{
+    fn from(v: impl SampleType) -> u32{
         v.to_u32()
     }
     fn to_i8(&self) -> i8{
@@ -577,8 +577,8 @@ impl SampleConv for u32{
     }
 }
 
-impl SampleConv for u64{
-    fn from(v: impl SampleConv) -> u64{
+impl SampleType for u64{
+    fn from(v: impl SampleType) -> u64{
         v.to_u64()
     }
     fn to_i8(&self) -> i8{
@@ -635,7 +635,7 @@ impl SampleConv for u64{
     }
 }
 
-impl SampleConv for f32{
+impl SampleType for f32{
     fn clampf(&self) -> f32 {
         let v = *self;
         if v > 1.0 {
@@ -647,7 +647,7 @@ impl SampleConv for f32{
         }
     }
 
-    fn from(v: impl SampleConv) -> f32{
+    fn from(v: impl SampleType) -> f32{
         v.to_f32()
     }
     fn to_i8(&self) -> i8{
@@ -704,7 +704,7 @@ impl SampleConv for f32{
     }
 }
 
-impl SampleConv for f64{
+impl SampleType for f64{
     fn clampd(&self) -> f64 {
         let v = *self;
         if v > 1.0 {
@@ -716,7 +716,7 @@ impl SampleConv for f64{
         }
     }
 
-    fn from(v: impl SampleConv) -> f64{
+    fn from(v: impl SampleType) -> f64{
         v.to_f64()
     }
     fn to_i8(&self) -> i8{

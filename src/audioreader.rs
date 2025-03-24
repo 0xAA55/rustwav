@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::audiocore::{Spec};
-use crate::sampleutils::SampleConv;
+use crate::sampleutils::SampleType;
 
 // 音频文件读取器的接口，提供迭代器用于获取每个 Frame 的音频数据。
 // 当音频的声道数超出你的认知的时候，请阅读 audiocore 里面的 Spec::which_channel_which_speaker()，它会返回一个数组告诉你哪个声道对应哪个扬声器。
@@ -11,5 +11,11 @@ use crate::sampleutils::SampleConv;
 pub trait AudioReader {
     fn spec(&self) -> &Spec;
 
-    fn iter<T: SampleConv>(&mut self) -> Result<Iterator<Item = Vec<T>>, Box<dyn Error>> where Self: Sized;
+    fn iter<T>(&mut self) -> Result<Iterator<Item = Vec<T>>>, Box<dyn Error>>
+    where Self: Sized,
+          T: SampleType;
+}
+
+pub trait AudioIterator<T>: Iterator {
+
 }

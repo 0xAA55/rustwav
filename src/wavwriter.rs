@@ -32,7 +32,7 @@ where W: Writer {
         WaveWriter::new(BufWriter::new(File::create(filename)?), spec)
     }
  
-    pub fn new(&mut writer: Writer, spec: &Spec) -> Result<WaveWriter<W>, Box<dyn Error>> {
+    pub fn new(writer: &mut Writer, spec: &Spec) -> Result<WaveWriter<W>, Box<dyn Error>> {
         use SampleFormat::{Int, UInt, Float};
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
@@ -127,12 +127,12 @@ where W: Writer {
     }
 }
 
-struct Packer<S: SampleConv> {
+struct Packer<S: SampleType> {
     save_sample_func: fn(&mut dyn Writer, &Vec<S>) -> Result<(), io::Error>,
 }
 
 impl<S> Packer<S>
-where S: SampleConv {
+where S: SampleType {
 
     // 根据自己的音频格式，挑选合适的函数指针来写入正确的样本类型。
     pub fn new(writer_spec: &Spec) -> Result<Self, AudioWriteError> {
