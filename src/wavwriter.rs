@@ -1,4 +1,4 @@
-use std::{fs::File, {path::Path}, io::{self, Write, Seek, SeekFrom, BufWriter}, error::Error};
+use std::{any::TypeId, fs::File, {path::Path}, io::{self, Write, Seek, SeekFrom, BufWriter}, error::Error};
 
 #[allow(unused_imports)]
 pub use crate::errors::*;
@@ -9,54 +9,91 @@ pub use crate::wavcore::*;
 #[allow(unused_imports)]
 pub use crate::audiocore::*;
 
+use crate::readwrite::*;
 use crate::sampleutils::*;
-use crate::audiowriter::{AudioWriter};
 
-trait Writer: Write + Seek {}
-impl<T> Writer for T where T: Write + Seek{}
-
-pub struct WaveWriter<W: Writer> {
-    writer: W,
+pub struct WaveWriter {
+    writer: DynWriter,
     spec: Spec,
     num_frames: u32,
     frame_size: u16,
     riff_offset: u64,
+    datalen_offset: u64,
     data_offset: u64,
-    sample_offset: u64,
-    packer: Packer<f64>,
+    packer_u8 : Packer<DynWriter, u8 >,
+    packer_s16: Packer<DynWriter, i16>,
+    packer_s24: Packer<DynWriter, i24>,
+    packer_s32: Packer<DynWriter, i32>,
+    packer_f32: Packer<DynWriter, f32>,
+    packer_f64: Packer<DynWriter, f64>,
+    typeid_u8 : TypeId,
+    typeid_s16: TypeId,
+    typeid_s24: TypeId,
+    typeid_s32: TypeId,
+    typeid_f32: TypeId,
+    typeid_f64: TypeId,
 }
 
-impl<W> WaveWriter<W>
-where W: Writer {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter<BufWriter<File>>, Box<dyn Error>> {
-        WaveWriter::new(BufWriter::new(File::create(filename)?), spec)
+impl WaveWriter {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter, Box<dyn Error>> {
+        let writer = Box::new(BufWriter::new(File::create(filename)?));
+        Self::new(writer, spec)
     }
- 
-    pub fn new(writer: &mut Writer, spec: &Spec) -> Result<WaveWriter<W>, Box<dyn Error>> {
-        use SampleFormat::{Int, UInt, Float};
+
+    pub fn new(writer: Box<dyn Writer>, spec: &Spec) -> Result<WaveWriter, Box<dyn Error>> {
+        let spec = spec.clone();
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
+        let mut ret = Self{
+            writer: DynWriter::new(writer),
+            spec,
+            num_frames: 0,
+            frame_size,
+            riff_offset: 0,
+            datalen_offset: 0,
+            data_offset: 0,
+            packer_u8:  Packer::<DynWriter, u8 >::new(&spec)?,
+            packer_s16: Packer::<DynWriter, i16>::new(&spec)?,
+            packer_s24: Packer::<DynWriter, i24>::new(&spec)?,
+            packer_s32: Packer::<DynWriter, i32>::new(&spec)?,
+            packer_f32: Packer::<DynWriter, f32>::new(&spec)?,
+            packer_f64: Packer::<DynWriter, f64>::new(&spec)?,
+            typeid_u8:  TypeId::of::<u8 >(),
+            typeid_s16: TypeId::of::<i16>(),
+            typeid_s24: TypeId::of::<i24>(),
+            typeid_s32: TypeId::of::<i32>(),
+            typeid_f32: TypeId::of::<f32>(),
+            typeid_f64: TypeId::of::<f64>(),
+        };
+        ret.write_header()?;
+        Ok(ret)
+    }
+
+    fn write_header(&mut self) -> Result<(), Box<dyn Error>>
+    {
+        use SampleFormat::{Int, UInt, Float};
+        let mut writer = self.writer;
         writer.write_all(b"RIFF")?;
-        let riff_offset = writer.stream_position()?;
-        0u32.write_le(writer)?;
+        self.riff_offset = writer.stream_position()?;
+        0u32.write_le(&mut writer)?;
         writer.write_all(b"WAVE")?;
         writer.write_all(b"fmt ")?;
         // 如果格式类型是 0xFFFE 则需要单独对待
-        let mut ext = match (spec.bits_per_sample, spec.sample_format) {
+        let mut ext = match (self.spec.bits_per_sample, self.spec.sample_format) {
             (24, Int) | (32, Int) => true,
             _ => false
         };
         // 如果有针对声道的特殊要求，则需要扩展数据
-        ext |= match spec.channels {
+        ext |= match self.spec.channels {
             1 => {
-                if spec.channel_mask != SpeakerPosition::FrontCenter as u32 {
+                if self.spec.channel_mask != SpeakerPosition::FrontCenter as u32 {
                     true
                 } else {
                     false
                 }
             },
             2 => {
-                if spec.channel_mask != SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32 {
+                if self.spec.channel_mask != SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32 {
                     true
                 } else {
                     false
@@ -68,11 +105,11 @@ where W: Writer {
         (match ext {
             true => 40,
             false => 16,
-        } as u32).write_le(writer)?;
+        } as u32).write_le(&mut writer)?;
         (match ext {
             true => 0xFFFE,
             false => {
-                match (spec.bits_per_sample, spec.sample_format) {
+                match (self.spec.bits_per_sample, self.spec.sample_format) {
                     (8, UInt) => 1,
                     (16, Int) => 1,
                     (32, Float) => 3,
@@ -80,137 +117,154 @@ where W: Writer {
                     _ => return Err(AudioWriteError::UnsupportedFormat.into()),
                 }
             }
-        } as u16).write_le(writer)?;
-        (spec.channels as u16).write_le(writer)?;
-        (spec.sample_rate as u32).write_le(writer)?;
-        (spec.sample_rate * frame_size as u32).write_le(writer)?;
-        (frame_size as u16).write_le(writer)?;
-        (spec.bits_per_sample as u16).write_le(writer)?;
+        } as u16).write_le(&mut writer)?;
+        (self.spec.channels as u16).write_le(&mut writer)?;
+        (self.spec.sample_rate as u32).write_le(&mut writer)?;
+        (self.spec.sample_rate * self.frame_size as u32).write_le(&mut writer)?;
+        (self.frame_size as u16).write_le(&mut writer)?;
+        (self.spec.bits_per_sample as u16).write_le(&mut writer)?;
         if ext == true {
-            22u16.write_le(writer)?; // 额外数据大小
-            (spec.bits_per_sample as u16).write_le(writer)?;
-            (spec.channel_mask as u32).write_le(writer)?; // 声道掩码
+            22u16.write_le(&mut writer)?; // 额外数据大小
+            (self.spec.bits_per_sample as u16).write_le(&mut writer)?;
+            (self.spec.channel_mask as u32).write_le(&mut writer)?; // 声道掩码
 
             // 写入具体格式的 GUID
-            match spec.sample_format {
-                Int => guid_pcm_format.write(writer)?,
-                Float => guid_ieee_float_format.write(writer)?,
+            match self.spec.sample_format {
+                Int => guid_pcm_format.write(&mut writer)?,
+                Float => guid_ieee_float_format.write(&mut writer)?,
                 _ => return Err(AudioWriteError::InvalidArguments.into()),
             }
         };
         writer.write_all(b"data")?;
-        let data_offset = writer.stream_position()?;
-        0u32.write_le(writer)?;
-        let sample_offset = writer.stream_position()?;
-        let spec = spec.clone();
-        Ok(Self{
-            writer,
-            spec,
-            num_frames: 0,
-            frame_size,
-            riff_offset,
-            data_offset,
-            sample_offset,
-            packer: Packer::<f64>::new(&spec)?,
-        })
-    }
-
-    fn update_header(&mut self) -> Result<(), Box<dyn Error>>
-    {
-        const header_size: u32 = 44;
-        let all_sample_size = self.num_frames * self.frame_size as u32;
-        self.writer.seek(SeekFrom::Start(self.riff_offset))?;
-        (header_size + all_sample_size - 8).write_le(&mut self.writer)?;
-        self.writer.seek(SeekFrom::Start(self.data_offset))?;
-        all_sample_size.write_le(&mut self.writer)?;
+        self.datalen_offset = writer.stream_position()?;
+        0u32.write_le(&mut writer)?;
+        self.data_offset = writer.stream_position()?;
         Ok(())
     }
+
+    pub fn save_frame<S>(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    where S: SampleType {
+        let typeid_u8: TypeId = self.typeid_u8;
+        let typeid_s16: TypeId = self.typeid_s16;
+        let typeid_s24: TypeId = self.typeid_s24;
+        let typeid_s32: TypeId = self.typeid_s32;
+        let typeid_f32: TypeId = self.typeid_f32;
+        let typeid_f64: TypeId = self.typeid_f64;
+        match TypeId::of::<S>() {
+            typeid_u8  => self.packer_u8 .save_sample(&mut self.writer, frame)?,
+            typeid_s16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
+            typeid_s24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
+            typeid_s32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
+            typeid_f32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
+            typeid_f64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
+            _ => return Err(AudioWriteError::UnsupportedFormat.into()),
+        }
+
+        self.num_frames += 1;
+    }
+
+    // 一旦调用，WaveWriter 就失去了对 DynWriter 的所有权
+    pub fn get_writer(&self) -> DynWriter {
+        self.writer
+    }
+    pub fn spec(&self) -> &Spec{
+        &self.spec
+    }
+    pub fn get_num_frames(&self) -> u32 {
+        self.num_frames
+    }
+    pub fn get_frame_size(&self) -> u16 {
+        self.frame_size
+    }
+    pub fn get_data_offset(&self) -> u64 {
+        self.data_offset
+    }
+
+    pub fn update_header(&mut self) -> Result<(), Box<dyn Error>>
+    {
+        const header_size: u32 = 44;
+        let mut writer = self.writer;
+        let all_sample_size = self.num_frames * self.frame_size as u32;
+        writer.seek(SeekFrom::Start(self.riff_offset))?;
+        (header_size + all_sample_size - 8).write_le(&mut writer)?;
+        writer.seek(SeekFrom::Start(self.datalen_offset))?;
+        all_sample_size.write_le(&mut writer)?;
+        Ok(())
+    }
+
+    pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
+        self.update_header()
+    }
 }
 
-struct Packer<S: SampleType> {
-    save_sample_func: fn(&mut dyn Writer, &Vec<S>) -> Result<(), io::Error>,
+struct Packer<W, S>
+where W: Writer,
+      S: SampleType {
+    save_sample_func: fn(&mut W, &Vec<S>) -> Result<(), io::Error>,
 }
 
-impl<S> Packer<S>
-where S: SampleType {
+impl<W, S> Packer<W, S>
+where W: Writer,
+      S: SampleType {
 
     // 根据自己的音频格式，挑选合适的函数指针来写入正确的样本类型。
-    pub fn new(writer_spec: &Spec) -> Result<Self, AudioWriteError> {
+    pub fn new(writer_spec: &Spec) -> Result<Self, Box<dyn Error>> {
+        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
         Ok(Self {
-            save_sample_func: match (writer_spec.bits_per_sample, writer_spec.sample_format){
-                (8, UInt) => Self::save_u8,
-                (16, Int) => Self::save_i16,
-                (24, Int) => Self::save_i24,
-                (32, Int) => Self::save_i32,
-                (32, Float) => Self::save_f32,
-                (64, Float) => Self::save_f64,
-                _ => return Err(AudioWriteError::InvalidArguments),
+            save_sample_func: match get_sample_type(writer_spec.bits_per_sample, writer_spec.sample_format)? {
+                U8 => Self::save_u8,
+                S16 => Self::save_i16,
+                S24 => Self::save_i24,
+                S32 => Self::save_i32,
+                F32 => Self::save_f32,
+                F64 => Self::save_f64,
             }
         })
     }
 
-    pub fn save_sample(&self, writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    pub fn save_sample(&self, writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         (self.save_sample_func)(writer, frame)
     }
 
-    fn save_u8(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_u8(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_u8().write_le(writer)?;
+            sample.to_u8().write_le(&mut writer)?;
         }
         Ok(())
     }
 
-    fn save_i16(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_i16(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_i16().write_le(writer)?;
+            sample.to_i16().write_le(&mut writer)?;
         }
         Ok(())
     }
 
-    fn save_i24(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_i24(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_i24().write_le(writer)?;
+            sample.to_i24().write_le(&mut writer)?;
         }
         Ok(())
     }
 
-    fn save_i32(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_i32(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_i32().write_le(writer)?;
+            sample.to_i32().write_le(&mut writer)?;
         }
         Ok(())
     }
 
-    fn save_f32(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_f32(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_f32().write_le(writer)?;
+            sample.to_f32().write_le(&mut writer)?;
         }
         Ok(())
     }
 
-    fn save_f64(writer: &mut Writer, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save_f64(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
-            sample.to_f64().write_le(writer)?;
+            sample.to_f64().write_le(&mut writer)?;
         }
         Ok(())
-    }
-}
-
-impl<W> AudioWriter for WaveWriter<W>
-where W: Writer {
-    fn spec(&self) -> &Spec {
-        &self.spec
-    }
-
-    fn write(&mut self, frame: &Vec<f64>) -> Result<(), Box<dyn Error>> {
-        self.check_channels(frame)?;
-        self.packer.save_sample(&mut self.writer, frame)?;
-        self.num_frames += 1;
-        Ok(())
-    }
-
-    fn finalize(&mut self) -> Result<(), Box<dyn Error>>
-    {
-        self.update_header()
     }
 }
