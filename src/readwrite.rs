@@ -6,6 +6,7 @@ impl<T> Reader for T where T: Read + Seek {}
 pub trait Writer: Write + Seek{}
 impl<T> Writer for T where T: Write + Seek{}
 
+#[allow(non_camel_case_types)]
 pub struct ReaderS_Over_D {
 	reader: Box<dyn Reader>,
 }
@@ -30,6 +31,7 @@ impl Seek for ReaderS_Over_D {
 	}
 }
 
+#[allow(non_camel_case_types)]
 pub struct WriterS_Over_D {
 	writer: Box<dyn Writer>,
 }
