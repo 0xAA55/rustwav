@@ -80,7 +80,7 @@ impl u24 {
     }
 }
 
-pub trait SampleType: Sized {
+pub trait SampleType: Sized + 'static {
     fn clampf(&self) -> f32 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
