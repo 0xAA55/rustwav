@@ -1,6 +1,7 @@
 
 #[derive(Debug)]
 pub enum AudioReadError {
+    InvalidArguments, // 错误的参数
     IOError(String), // 读写错误，应停止处理
     FormatError, // 格式错误，说明可以尝试使用别的格式的读取器来读取
     DataCorrupted, // 格式也许是正确的，但是数据是错误的
@@ -13,6 +14,7 @@ impl std::error::Error for AudioReadError {}
 impl std::fmt::Display for AudioReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
+           AudioReadError::InvalidArguments => write!(f, "Invalid arguments."),
            AudioReadError::IOError(error) => write!(f, "IOError {error}"),
            AudioReadError::FormatError => write!(f, "Invalid audio file format"),
            AudioReadError::DataCorrupted => write!(f, "Audio file data corrupted"),
