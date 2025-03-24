@@ -11,11 +11,13 @@ use crate::sampleutils::SampleType;
 pub trait AudioReader {
     fn spec(&self) -> &Spec;
 
-    fn iter<T>(&mut self) -> Result<Iterator<Item = Vec<T>>>, Box<dyn Error>>
-    where Self: Sized,
-          T: SampleType;
+    fn iter<T>(&mut self) -> Result<Box<dyn AudioIterator<T>>, Box<dyn Error>>
+    where T: SampleType;
 }
 
-pub trait AudioIterator<T>: Iterator {
+pub trait AudioIterator<T>: Iterator<Item = Vec<T>>
+where T: SampleType {
+
+    fn next(&mut self) -> Option<Self::Item>;
 
 }
