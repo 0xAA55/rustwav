@@ -154,7 +154,7 @@ fn main() -> ExitCode {
     if args.len() < 2 {return ExitCode::from(1);}
 
     let wavereader = WaveReader::open(&args[1]).unwrap();
-    println!("{}", wavereader.ToString());
+    println!("{}", wavereader.to_string());
 
     ExitCode::from(0)
 }
