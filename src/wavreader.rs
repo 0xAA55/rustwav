@@ -383,21 +383,23 @@ where S: SampleType {
     data_offset: u64, // 数据的位置
     spec: Spec,
     frame_pos: u64, // 当前帧位置
-    max_frames: u64, // 最大帧数量
+    num_frames: u64, // 最大帧数量
     unpacker: fn(&mut BufReader<File>) -> Result<S, io::Error>,
+    frame_size: u16,
 }
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, max_frames: u64) -> Result<Self, AudioError> {
+    fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, AudioError> {
         use WaveSampleType::{U8, S16, S24, S32, F32, F64};
+        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         let mut ret = Self {
             reader,
             data_offset,
             spec,
             frame_pos: 0,
-            max_frames,
-            unpacker: match get_sample_type(spec.bits_per_sample, spec.sample_format)? {
+            num_frames,
+            unpacker: match sample_type {
                 U8 =>  Self::unpack_to::<u8 >,
                 S16 => Self::unpack_to::<i16>,
                 S24 => Self::unpack_to::<i24>,
@@ -405,9 +407,21 @@ where S: SampleType {
                 F32 => Self::unpack_to::<f32>,
                 F64 => Self::unpack_to::<f64>,
             },
+            frame_size: match sample_type {
+                U8 =>  1,
+                S16 => 2,
+                S24 => 3,
+                S32 => 4,
+                F32 => 4,
+                F64 => 8,
+            } * spec.channels,
         };
         ret.reader.seek(SeekFrom::Start(data_offset));
         Ok(ret)
+    }
+
+    fn seek_to_sample(&mut self, sample_pos: u64) -> Result<u64, io::Error> {
+        self.reader.seek(SeekFrom::Start(self.data_offset + sample_pos * self.frame_size as u64))
     }
 
     fn unpack(&mut self) -> Result<S, io::Error> {
@@ -425,8 +439,7 @@ where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.frame_pos >= self.max_frames {return None;}
-        self.frame_pos += 1;
+        if self.frame_pos >= self.num_frames {return None;}
 
         let mut ret = Vec::<S>::with_capacity(self.spec.channels as usize);
         for _ in 0..self.spec.channels {
@@ -435,7 +448,14 @@ where S: SampleType {
                 Err(_) => return None,
             }
         }
+        self.frame_pos += 1;
         Some(ret)
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.frame_pos += n as u64;
+        self.seek_to_sample(self.frame_pos);
+        self.next()
     }
 }
 
