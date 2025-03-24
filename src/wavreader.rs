@@ -150,7 +150,7 @@ impl WaveReader {
                     ixml_chunk = Some(data);
                 },
                 b"LIST" => {
-                    list_chunk = Some(LISTChunk::read(&mut reader)?);
+                    list_chunk = Some(LISTChunk::read(&mut reader, chunk.size as u64)?);
                 }
                 other => {
                     println!("Unknown chunk in RIFF or RF64 chunk: {:?}", other);
@@ -776,13 +776,14 @@ struct LISTChunk { // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-f
 }
 
 impl LISTChunk {
-    fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
+    fn read<R>(reader: &mut R, chunk_size: u64) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let mut info: Option<HashMap<[u8; 4], String>> = None;
         let mut adtl: Option<AdtlChunk> = None;
-        let sub_chunk = Chunk::read(reader)?;
-        let end_of_chunk = sub_chunk.next_chunk_pos();
-        match &sub_chunk.flag {
+        let end_of_chunk = Chunk::align(reader.stream_position()? + chunk_size);
+        let mut flag = [0u8; 4];
+        reader.read_exact(&mut flag)?;
+        match &flag {
             b"info" | b"INFO" => {
                 // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
                 let mut dict = HashMap::<[u8; 4], String>::new();
@@ -827,7 +828,6 @@ impl LISTChunk {
                 println!("Unknown chunk in LIST chunk: {:?}", other);
             },
         }
-        sub_chunk.seek_to_next_chunk(reader)?;
         Ok(Self{
             info,
             adtl,
