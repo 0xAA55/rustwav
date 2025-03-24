@@ -20,18 +20,12 @@ pub struct WaveWriter {
     riff_offset: u64,
     datalen_offset: u64,
     data_offset: u64,
-    packer_u8 : Packer<DynWriter, u8 >,
+    packer__u8: Packer<DynWriter,  u8>,
     packer_s16: Packer<DynWriter, i16>,
     packer_s24: Packer<DynWriter, i24>,
     packer_s32: Packer<DynWriter, i32>,
     packer_f32: Packer<DynWriter, f32>,
     packer_f64: Packer<DynWriter, f64>,
-    typeid_u8 : TypeId,
-    typeid_s16: TypeId,
-    typeid_s24: TypeId,
-    typeid_s32: TypeId,
-    typeid_f32: TypeId,
-    typeid_f64: TypeId,
 }
 
 impl WaveWriter {
@@ -52,18 +46,12 @@ impl WaveWriter {
             riff_offset: 0,
             datalen_offset: 0,
             data_offset: 0,
-            packer_u8:  Packer::<DynWriter, u8 >::new(&spec)?,
+            packer__u8: Packer::<DynWriter,  u8>::new(&spec)?,
             packer_s16: Packer::<DynWriter, i16>::new(&spec)?,
             packer_s24: Packer::<DynWriter, i24>::new(&spec)?,
             packer_s32: Packer::<DynWriter, i32>::new(&spec)?,
             packer_f32: Packer::<DynWriter, f32>::new(&spec)?,
             packer_f64: Packer::<DynWriter, f64>::new(&spec)?,
-            typeid_u8:  TypeId::of::<u8 >(),
-            typeid_s16: TypeId::of::<i16>(),
-            typeid_s24: TypeId::of::<i24>(),
-            typeid_s32: TypeId::of::<i32>(),
-            typeid_f32: TypeId::of::<f32>(),
-            typeid_f64: TypeId::of::<f64>(),
         };
         ret.write_header()?;
         Ok(ret)
@@ -142,33 +130,31 @@ impl WaveWriter {
         Ok(())
     }
 
-    pub fn save_frame<S>(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    pub fn save_frame<S>(&self, frame: &Vec<S>, sample_type: WaveSampleType) -> Result<(), Box<dyn Error>>
     where S: SampleType {
 
-        let typeid_u8: TypeId = self.typeid_u8;
-        let typeid_s16: TypeId = self.typeid_s16;
-        let typeid_s24: TypeId = self.typeid_s24;
-        let typeid_s32: TypeId = self.typeid_s32;
-        let typeid_f32: TypeId = self.typeid_f32;
-        let typeid_f64: TypeId = self.typeid_f64;
+        // 用户输入的样本格式是 S，而我们要存储的格式则是由我们的 spec 决定的。
+        // 根据 spec 要求，我们需要转换为我们自己的格式，再保存到文件里。
+        // 在这里，我们的不同类型的 packer 能把 S 转换为各自的类型再存储。
+        // 但似乎光从泛型参数 S 来判断输入的格式不太合理，因为 Rust 编译器的能力有限，它会很轴，认为 S 一定不等于 u8，我是服了。
+        //     if TypeId::of::<S>() == TypeId::of::<u8 >() { self.packer_u8 .save_sample(&mut self.writer, frame)?;}
+        //else if TypeId::of::<S>() == TypeId::of::<i16>() { self.packer_s16.save_sample(&mut self.writer, frame)?;}
+        //else if TypeId::of::<S>() == TypeId::of::<i24>() { self.packer_s24.save_sample(&mut self.writer, frame)?;}
+        //else if TypeId::of::<S>() == TypeId::of::<i32>() { self.packer_s32.save_sample(&mut self.writer, frame)?;}
+        //else if TypeId::of::<S>() == TypeId::of::<f32>() { self.packer_f32.save_sample(&mut self.writer, frame)?;}
+        //else if TypeId::of::<S>() == TypeId::of::<f64>() { self.packer_f64.save_sample(&mut self.writer, frame)?;}
+        //else { return Err(AudioWriteError::UnsupportedFormat.into);}
 
-        if TypeId::of::<S>() == typeid_u8 {       self.packer_u8 .save_sample(&mut self.writer, frame)?;}
-        else if TypeId::of::<S>() == typeid_s16 { self.packer_s16.save_sample(&mut self.writer, frame)?;}
-        else if TypeId::of::<S>() == typeid_s24 { self.packer_s24.save_sample(&mut self.writer, frame)?;}
-        else if TypeId::of::<S>() == typeid_s32 { self.packer_s32.save_sample(&mut self.writer, frame)?;}
-        else if TypeId::of::<S>() == typeid_f32 { self.packer_f32.save_sample(&mut self.writer, frame)?;}
-        else if TypeId::of::<S>() == typeid_f64 { self.packer_f64.save_sample(&mut self.writer, frame)?;}
-        else { return Err(AudioWriteError::UnsupportedFormat.into);}
-
-        // match TypeId::of::<S>() {
-        //     typeid_u8  => self.packer_u8 .save_sample(&mut self.writer, frame)?,
-        //     typeid_s16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
-        //     typeid_s24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
-        //     typeid_s32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
-        //     typeid_f32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
-        //     typeid_f64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
-        //     _ => return Err(AudioWriteError::UnsupportedFormat.into()),
-        // }
+        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
+        match sample_type {
+            U8  => self.packer__u8.save_sample(&mut self.writer, frame)?,
+            S16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
+            S24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
+            S32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
+            F32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
+            F64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
+            _ => return Err(AudioWriteError::UnsupportedFormat.into),
+        }
 
         self.num_frames += 1;
     }
@@ -222,7 +208,7 @@ where W: Writer,
         use WaveSampleType::{U8, S16, S24, S32, F32, F64};
         Ok(Self {
             save_sample_func: match get_sample_type(writer_spec.bits_per_sample, writer_spec.sample_format)? {
-                U8 => Self::save_u8,
+                U8  => Self::save__u8,
                 S16 => Self::save_i16,
                 S24 => Self::save_i24,
                 S32 => Self::save_i32,
@@ -236,7 +222,7 @@ where W: Writer,
         (self.save_sample_func)(writer, frame)
     }
 
-    fn save_u8(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
+    fn save__u8(writer: &mut W, frame: &Vec<S>) -> Result<(), io::Error> {
         for sample in frame.iter() {
             sample.to_u8().write_le(&mut writer)?;
         }
