@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, io::{self, Read, Write, Seek, SeekFrom, BufReader}, error::Error, collections::HashMap};
+use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, error::Error, collections::HashMap};
 
 use tempfile::TempDir;
 
@@ -11,22 +11,18 @@ pub use crate::wavcore::*;
 use crate::sampleutils::*;
 use crate::filehasher::FileHasher;
 use crate::audiocore::{SampleFormat, Spec};
-use crate::audioreader::{AudioReader};
 
 pub trait Reader: Read + Seek {}
 impl<T> Reader for T
 where T: Read + Seek {}
 
-#[derive(Debug)]
-pub enum FileSource {
+pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
     Filename(String),
     Unknown,
 }
 
-#[derive(Debug)]
-pub struct WaveData {
-    filesrc: FileSource,
+pub struct WaveReader {
     riff_len: u64,
     spec: Spec,
     fmt_chunk: fmt_Chunk, // fmt 块，这个块一定会有
@@ -46,37 +42,26 @@ pub struct WaveData {
     data_chunk: WaveDataReader,
 }
 
-trait WaveReader {
-    pub fn open(file_source: &str) -> Result<Self, Box<dyn Error>>;
-    pub fn new(file_source: FileSource) -> Result<Self, Box<dyn Error>>;
-    pub fn parse<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
-    where R: Reader;
-}
-
-impl WaveReader for WaveData {
+impl WaveReader {
     // 从文件路径打开
     pub fn open(file_source: &str) -> Result<Self, Box<dyn Error>> {
-        Self::new(FileSource::Filename(file_source.to_string()))
+        Self::new(WaveDataSource::Filename(file_source.to_string()))
     }
 
     // 从读取器打开
-    pub fn new(file_source: FileSource) -> Result<Self, Box<dyn Error>> {
+    pub fn new(file_source: WaveDataSource) -> Result<Self, Box<dyn Error>> {
+        let mut filesrc: Option<String> = None;
         let mut reader = match file_source {
-            FileSource::Reader(reader) => {
+            WaveDataSource::Reader(reader) => {
                 reader
             },
-            FileSource::Filename(filename) => {
-                BufReader::new(File::open(filename)?)
+            WaveDataSource::Filename(filename) => {
+                filesrc = Some(filename.clone());
+                Box::new(BufReader::new(File::open(&filename)?))
             },
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
         };
 
-        let mut ret = self.parse(reader)?;
-        ret.filesrc = file_source;
-        ret
-    }
-
-    pub fn parse<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
-        where R: Reader {
         let mut riff_len = 0u64;
         let mut riff_end = 0u64;
         let mut isRF64 = false;
@@ -201,9 +186,12 @@ impl WaveReader for WaveData {
             bits_per_sample: fmt_chunk.bits_per_sample,
             sample_format: fmt_chunk.get_sample_format()?,
         };
-        let data_chunk = WaveDataReader::new(file_source, data_offset, data_size, data_hash)?;
+        let new_data_source = match filesrc {
+            Some(filename) => WaveDataSource::Filename(filename),
+            None => WaveDataSource::Reader(reader),
+        };
+        let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size, data_hash)?;
         Ok(Self {
-            filesrc: file_source,
             riff_len,
             spec,
             fmt_chunk,
@@ -224,77 +212,162 @@ impl WaveReader for WaveData {
         })
     }
 
+    pub fn spec(&self) -> &Spec{
+        &self.spec
+    }
 
 
     // 创建迭代器。
     // 迭代器的作用是读取每个音频帧。
-    // 但是嘞，这里有个问题： WaveData 的创建方式有两种，一种是从 Read 创建，另一种是从文件创建。
-    // 为了使迭代器的运行效率不至于太差，迭代器如果通过直接从 WaveData 读取 body 的话，一旦迭代器太多，
+    // 但是嘞，这里有个问题： WaveReader 的创建方式有两种，一种是从 Read 创建，另一种是从文件创建。
+    // 为了使迭代器的运行效率不至于太差，迭代器如果通过直接从 WaveReader 读取 body 的话，一旦迭代器太多，
     // 它就会疯狂 seek 然后读取，如果多个迭代器在多线程的情况下使用，绝对会乱套。
-    // 因此，当 WaveData 是从文件创建的，那可以给迭代器重新打开文件，让迭代器自己去 seek 和读取。
-    // 而如果 WaveData 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
-    pub fn CreateIter<S>(&mut self) -> Result<IterData<S>, Box<dyn Error>>
-    where S: SampleConv {
+    // 因此，当 WaveReader 是从文件创建的，那可以给迭代器重新打开文件，让迭代器自己去 seek 和读取。
+    // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
+    pub fn Iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
+    where S: SampleType {
+        Ok(WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec.clone(), self.num_frames)?)
+    }
 
-        Ok(IterData::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec.clone(), self.num_frames)?)
+    pub fn Dbg(&self) {
+        dbg!(&self.riff_len);
+        dbg!(&self.spec);
+        dbg!(&self.fmt_chunk);
+        dbg!(&self.fact_data);
+        dbg!(&self.data_offset);
+        dbg!(&self.data_size);
+        dbg!(&self.data_hash);
+        dbg!(&self.frame_size);
+        dbg!(&self.num_frames);
+        dbg!(&self.bwav_chunk);
+        dbg!(&self.smpl_chunk);
+        dbg!(&self.inst_chunk);
+        dbg!(&self.cue__chunk);
+        dbg!(&self.axml_chunk);
+        dbg!(&self.ixml_chunk);
+        dbg!(&self.list_chunk);
+        println!("{}", &self.data_chunk.ToString());
+    }
+
+    pub fn ToString(&self) -> String {
+        let mut ret = String::new();
+        ret.push_str(&format!("riff_len   is {:?}\n", self.riff_len));
+        ret.push_str(&format!("spec       is {:?}\n", self.spec));
+        ret.push_str(&format!("fmt_chunk  is {:?}\n", self.fmt_chunk));
+        ret.push_str(&format!("fact_data  is {:?}\n", self.fact_data));
+        ret.push_str(&format!("data_offse is {:?}\n", self.data_offset));
+        ret.push_str(&format!("data_size  is {:?}\n", self.data_size));
+        ret.push_str(&format!("data_hash  is {:?}\n", self.data_hash));
+        ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
+        ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
+        ret.push_str(&format!("bwav_chunk is {:?}\n", self.bwav_chunk));
+        ret.push_str(&format!("smpl_chunk is {:?}\n", self.smpl_chunk));
+        ret.push_str(&format!("inst_chunk is {:?}\n", self.inst_chunk));
+        ret.push_str(&format!("cue__chunk is {:?}\n", self.cue__chunk));
+        ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
+        ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
+        ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
+        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.ToString()));
+        ret
     }
 }
 
-#[derive(Debug)]
+// 莽夫式 PathBuf 转换为字符串
+fn savage_path_buf_to_string(filepath: &Path) -> String {
+    match filepath.to_str() {
+        Some(pathstr) => pathstr.to_string(),
+        None => format!("{:?}", filepath), // 要是不能转换成 UTF-8 字符串，那就爱怎么样怎么样吧
+    }
+}
+
 pub struct WaveDataReader {
+    reader: Option<Box<dyn Reader>>,
     temp_dir: Option<TempDir>,
-    filepath: Box<Path>,
+    filepath: PathBuf,
     offset: u64,
 }
 
 impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
-    fn new(file_source: FileSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, io::Error> {
+    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, Box<dyn Error>> {
+        let reader: Option<Box<dyn Reader>>;
         let mut temp_dir: Option<TempDir> = None;
-        let (reader, filepath, offset) = match file_source {
-
-            // 有读取器的情况，生成临时文件存储它的 data
-            FileSource::Reader(reader) => {
-                temp_dir = match TempDir::new() {
-                    Ok(temp_dir) => Some(temp_dir),
-                    Err(err) => return Err(err),
-                };
-                (reader, temp_dir.unwrap().path().join(format!("{:x}.tmp", data_hash)), 0u64)
+        let filepath: Option<PathBuf>;
+        let mut offset: u64 = 0;
+        match file_source {
+            WaveDataSource::Reader(r) => {
+                reader = Some(r);
+                let new_temp_dir = TempDir::new()?; // 该它出手了
+                filepath = Some(new_temp_dir.path().join(format!("{:x}.tmp", data_hash)));
+                temp_dir = Some(new_temp_dir); // 存起来
             },
-
-            // 没有临时文件的情况，直接读取这个文件本身
-            FileSource::Filename(filepath) => {
-                let filepath = Path::new(&filepath);
-                (BufReader::new(File::open(filepath)?), filepath, data_offset)
+            WaveDataSource::Filename(path) => {
+                let path = PathBuf::from(path);
+                reader = Some(Box::new(BufReader::new(File::open(&path)?)));
+                filepath = Some(path);
+                offset = data_offset;
             },
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
         };
 
+        // 读完了。翻身。
+        let mut reader = reader.unwrap();
+        let filepath = filepath.unwrap();
+
+        // 这个用来存储最原始的 Reader，如果最开始没有给 Reader 而是给了文件名，则存 None。
+        let mut orig_reader: Option<Box<dyn Reader>> = None;
+
+        // 没有原始文件名，只有一个 Reader，那就从 Reader 那里把 WAV 文件肚子里的 data chunk 复制到一个临时文件里。
         if let Some(_) = temp_dir {
+            // 分段复制文件到临时文件里
             const BUFFER_SIZE: u64 = 81920;
             let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
-            let mut file = File::create(filepath)?;
-            reader.seek(SeekFrom::Start(data_offset))?;
+            let mut file = File::create(&filepath)?;
+            reader.seek(SeekFrom::Start(offset))?;
 
+            // 按 BUFFER_SIZE 不断复制
             let mut to_move = data_size;
             while to_move >= BUFFER_SIZE {
                 reader.read_exact(&mut buf)?;
                 file.write_all(&buf)?;
                 to_move -= BUFFER_SIZE;
             }
+            // 复制最后剩下的
             if to_move != 0 {
                 buf.resize(to_move as usize, 0);
                 reader.read_exact(&mut buf)?;
                 file.write_all(&buf)?;
             }
+
+            // 保存最原始的那个 Reader
+            orig_reader = Some(reader);
+            #[cfg(debug_assertions)]
+            println!("Temp file created: {}", savage_path_buf_to_string(&filepath));
         }
 
         Ok(Self {
+            reader: orig_reader,
             temp_dir,
             filepath: filepath.into(),
             offset
         })
+    }
+
+    fn ToString(&self) -> String {
+        let mut ret = String::from("WaveDataReader {");
+        ret.push_str(&format!("    reader: {},\n", match self.reader{
+            Some(_) => "Some(Box<dyn Reader>)",
+            None => "None"
+        }));
+        ret.push_str(&format!("    temp_dir: {},\n", match self.temp_dir{
+            Some(_) => "Some(TempDir)",
+            None => "None"
+        }));
+        ret.push_str(&format!("    filepath: {},\n", savage_path_buf_to_string(&self.filepath)));
+        ret.push_str(&format!("    offset: 0x{:x},\n", self.offset));
+        ret
     }
 
     fn open(&self) -> Result<File, io::Error> {
@@ -304,74 +377,51 @@ impl WaveDataReader {
     }
 }
 
-struct IterData<'a, S>
-where S: SampleConv {
+struct WaveIter<S>
+where S: SampleType {
     reader: BufReader<File>, // 数据读取器
     data_offset: u64, // 数据的位置
     spec: Spec,
     frame_pos: u64, // 当前帧位置
     max_frames: u64, // 最大帧数量
-    unpacker: Vec<Unpacker<'a, S>>,
+    unpacker: fn(&mut BufReader<File>) -> Result<S, io::Error>,
 }
 
-impl<'a, S> for IterData<'a, S>
-where S: SampleConv {
+impl<S> WaveIter<S>
+where S: SampleType {
     fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, max_frames: u64) -> Result<Self, AudioError> {
-        let ret = Self {
+        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
+        let mut ret = Self {
             reader,
             data_offset,
             spec,
             frame_pos: 0,
             max_frames,
-            unpacker: Vec::<Unpacker<'a, S>>::new(),
+            unpacker: match get_sample_type(spec.bits_per_sample, spec.sample_format)? {
+                U8 =>  Self::unpack_to::<u8 >,
+                S16 => Self::unpack_to::<i16>,
+                S24 => Self::unpack_to::<i24>,
+                S32 => Self::unpack_to::<i32>,
+                F32 => Self::unpack_to::<f32>,
+                F64 => Self::unpack_to::<f64>,
+            },
         };
+        ret.reader.seek(SeekFrom::Start(data_offset));
         Ok(ret)
     }
 
-    fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.unpacker = Vec::<Unpacker<'a, S>>::new();
-        self.unpacker.push(Unpacker::<'a, S>::new(&self.reader, get_sample_type(self.spec.bits_per_sample, self.spec.sample_format)?)?);
-        Ok(())
-    }
-}
-
-struct Unpacker<'a, S>
-where S: SampleConv {
-    reader: &'a BufReader<File>,
-    get_sample_func: fn(&mut BufReader<File>) -> Result<S, io::Error>,
-}
-
-impl<'a, S> Unpacker<'a, S>
-where S: SampleConv {
-    fn new(reader: &'a BufReader<File>, sample_type: WaveSampleType) -> Result<Self, AudioError> {
-        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
-        Ok(Self {
-            reader,
-            get_sample_func: {
-                match sample_type {
-                    U8 =>  Self::get_sample_var::<u8 >,
-                    S16 => Self::get_sample_var::<i16>,
-                    S24 => Self::get_sample_var::<i24>,
-                    S32 => Self::get_sample_var::<i32>,
-                    F32 => Self::get_sample_var::<f32>,
-                    F64 => Self::get_sample_var::<f64>,
-                }
-            },
-        })
+    fn unpack(&mut self) -> Result<S, io::Error> {
+        (self.unpacker)(&mut self.reader)
     }
 
-    fn get_sample(&mut self) -> Result<S, io::Error> {
-        (self.get_sample_func)(&mut self.reader)
-    }
-
-    fn get_sample_var<T>(r: &mut BufReader<File>) -> Result<S, io::Error>
-    where T: SampleConv {
+    fn unpack_to<T>(r: &mut BufReader<File>) -> Result<S, io::Error>
+    where T: SampleType {
         Ok(S::from(T::read_le(r)?))
     }
 }
 
-impl<S> Iterator for IterData<'_, S>
-where S: SampleConv {
+impl<S> Iterator for WaveIter<S>
+where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -380,7 +430,7 @@ where S: SampleConv {
 
         let mut ret = Vec::<S>::with_capacity(self.spec.channels as usize);
         for _ in 0..self.spec.channels {
-            match self.unpacker[0].get_sample() {
+            match self.unpack() {
                 Ok(sample) => ret.push(sample),
                 Err(_) => return None,
             }
@@ -388,18 +438,6 @@ where S: SampleConv {
         Some(ret)
     }
 }
-
-// impl AudioReader for WaveData where Self: Sized {
-//     fn spec(&self) -> &Spec{
-//         return &self.spec;
-//     }
-// 
-//     fn iter<T>(&mut self) -> Result<Box::<WaveIter<T>>, Box<dyn Error>>
-//     where Self: Sized,
-//           T: SampleConv {
-//         Ok(self.CreateIter::<T>()?.into())
-//     }
-// }
 
 #[derive(Clone, Copy, Debug)]
 struct Chunk {
