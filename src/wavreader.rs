@@ -86,18 +86,6 @@ impl WaveReader {
         // 读完头部后，这里必须是 WAVE 否则不是音频文件。
         expect_flag(&mut reader, b"WAVE", AudioReadError::FormatError.into())?;
 
-        // 如果是 RF64 头，此处有 ds64 节
-        let chunk = Chunk::read(&mut reader)?;
-        if isRF64 {
-            if &chunk.flag != b"ds64" || chunk.size < 28 {
-                return Err(AudioReadError::DataCorrupted.into());
-            }
-            riff_len = u64::read_le(&mut reader)?;
-            data_size = u64::read_le(&mut reader)?;
-            riff_end = start_of_riff + riff_len;
-            chunk.seek_to_next_chunk(&mut reader)?;
-        }
-
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data = 0;
@@ -120,6 +108,14 @@ impl WaveReader {
                 b"fact" => {
                     fact_data = u32::read_le(&mut reader)?;
                 },
+                b"ds64" => {
+                    if chunk.size < 28 {
+                        return Err(AudioReadError::DataCorrupted.into())
+                    }
+                    riff_len = u64::read_le(&mut reader)?;
+                    data_size = u64::read_le(&mut reader)?;
+                    riff_end = start_of_riff + riff_len;
+                }
                 b"data" => {
                     data_offset = chunk.chunk_start_pos;
                     if !isRF64 {
@@ -224,12 +220,12 @@ impl WaveReader {
     // 它就会疯狂 seek 然后读取，如果多个迭代器在多线程的情况下使用，绝对会乱套。
     // 因此，当 WaveReader 是从文件创建的，那可以给迭代器重新打开文件，让迭代器自己去 seek 和读取。
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
-    pub fn Iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
+    pub fn iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
     where S: SampleType {
         Ok(WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec.clone(), self.num_frames)?)
     }
 
-    pub fn Dbg(&self) {
+    pub fn dbg(&self) {
         dbg!(&self.riff_len);
         dbg!(&self.spec);
         dbg!(&self.fmt_chunk);
@@ -246,10 +242,10 @@ impl WaveReader {
         dbg!(&self.axml_chunk);
         dbg!(&self.ixml_chunk);
         dbg!(&self.list_chunk);
-        println!("{}", &self.data_chunk.ToString());
+        println!("{}", &self.data_chunk.to_string());
     }
 
-    pub fn ToString(&self) -> String {
+    pub fn to_string(&self) -> String {
         let mut ret = String::new();
         ret.push_str(&format!("riff_len   is {:?}\n", self.riff_len));
         ret.push_str(&format!("spec       is {:?}\n", self.spec));
@@ -267,7 +263,7 @@ impl WaveReader {
         ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
         ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
         ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
-        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.ToString()));
+        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.to_string()));
         ret
     }
 }
@@ -291,9 +287,9 @@ impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
     fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, Box<dyn Error>> {
-        let reader: Option<Box<dyn Reader>> = None;
+        let mut reader: Option<Box<dyn Reader>>;
         let mut temp_dir: Option<TempDir> = None;
-        let filepath: Option<PathBuf>;
+        let mut filepath: Option<PathBuf>;
         let mut offset: u64 = 0;
         let mut is_from_file = false;
         match file_source {
@@ -314,7 +310,7 @@ impl WaveDataReader {
         };
 
         // 这个用来存储最原始的 Reader，如果最开始没有给 Reader 而是给了文件名，则存 None。
-        let mut orig_reader: Option<Reader> = None;
+        let mut orig_reader: Option<Box<dyn Reader>> = None;
 
         // 把之前读到的东西都展开
         let mut reader = reader.unwrap();
@@ -358,7 +354,7 @@ impl WaveDataReader {
         })
     }
 
-    fn ToString(&self) -> String {
+    fn to_string(&self) -> String {
         let mut ret = String::from("WaveDataReader {");
         ret.push_str(&format!("    reader: {},\n", match self.reader{
             Some(_) => "Some(Box<dyn Reader>)",
@@ -380,7 +376,7 @@ impl WaveDataReader {
     }
 }
 
-struct WaveIter<S>
+pub struct WaveIter<S>
 where S: SampleType {
     reader: BufReader<File>, // 数据读取器
     data_offset: u64, // 数据的位置
@@ -393,7 +389,7 @@ where S: SampleType {
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, AudioError> {
+    fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
         use WaveSampleType::{U8, S16, S24, S32, F32, F64};
         let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         let mut ret = Self {
@@ -419,7 +415,7 @@ where S: SampleType {
                 F64 => 8,
             } * spec.channels,
         };
-        ret.reader.seek(SeekFrom::Start(data_offset));
+        ret.reader.seek(SeekFrom::Start(data_offset))?;
         Ok(ret)
     }
 
@@ -457,7 +453,10 @@ where S: SampleType {
 
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.frame_pos += n as u64;
-        self.seek_to_sample(self.frame_pos);
+        match self.seek_to_sample(self.frame_pos) {
+            Ok(_) => (),
+            Err(_) => return None,
+        }
         self.next()
     }
 }
@@ -541,6 +540,7 @@ impl fmt_Chunk {
             extension: None,
         };
         match ret.format_tag {
+            1 | 3 => (),
             0xFFFE => {
                 if chunk_size >= 40 {
                     ret.extension = Some(fmt_Chunk_Extension::read(reader)?);
@@ -565,8 +565,8 @@ impl fmt_Chunk {
                 match self.extension {
                     Some(extension) => {
                         match extension.sub_format {
-                            guid_pcm_format => Ok(Int),
-                            guid_ieee_float_format => Ok(Float),
+                            GUID_PCM_FORMAT => Ok(Int),
+                            GUID_IEEE_FLOAT_FORMAT => Ok(Float),
                             _ => Err(AudioError::Unimplemented),
                         }
                     },
