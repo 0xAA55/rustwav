@@ -1,4 +1,4 @@
-use std::{io::{Read, Write, Error}};
+use std::{io::{Read, Write, Error}, mem::size_of};
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
@@ -80,7 +80,7 @@ impl u24 {
     }
 }
 
-pub trait SampleType {
+pub trait SampleType: Sized {
     fn clampf(&self) -> f32 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
@@ -147,23 +147,23 @@ impl SampleType for i8{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 1];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 1];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -209,23 +209,23 @@ impl SampleType for i16{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 2];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 2];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -271,23 +271,23 @@ impl SampleType for i24 {
         self.to_i64().to_f64()
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 3];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 3];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -334,23 +334,23 @@ impl SampleType for i32{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -396,23 +396,23 @@ impl SampleType for i64{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -461,23 +461,23 @@ impl SampleType for u8{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 1];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 1];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -525,23 +525,23 @@ impl SampleType for u16{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 2];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 2];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -588,23 +588,23 @@ impl SampleType for u32{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -650,23 +650,23 @@ impl SampleType for u64{
         (*self as f64) / (Self::MAX as f64)
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -723,23 +723,23 @@ impl SampleType for f32{
         *self as f64
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 4];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
@@ -796,23 +796,23 @@ impl SampleType for f64{
         *self
     }
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_le_bytes(buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
-    where T: Read, Self: Sized {
-        let mut buf = [0u8; 8];
+    where T: Read {
+        let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_le_bytes())
     }
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error>
-    where T: Write, Self: Sized {
+    where T: Write {
         w.write_all(&self.to_be_bytes())
     }
 }
