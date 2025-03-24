@@ -1,8 +1,6 @@
-use std::{hash::{Hasher, DefaultHasher}, io::{Read, Seek, SeekFrom, Error}};
+use std::{hash::{Hasher, DefaultHasher}, io::{SeekFrom, Error}};
 
-trait Reader: Read + Seek {}
-impl<T> Reader for T
-where T: Read + Seek{}
+use crate::readwrite::Reader;
 
 pub struct FileHasher {
 	hasher: DefaultHasher,
