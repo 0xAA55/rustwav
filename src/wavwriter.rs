@@ -144,21 +144,31 @@ impl WaveWriter {
 
     pub fn save_frame<S>(&self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType {
+
         let typeid_u8: TypeId = self.typeid_u8;
         let typeid_s16: TypeId = self.typeid_s16;
         let typeid_s24: TypeId = self.typeid_s24;
         let typeid_s32: TypeId = self.typeid_s32;
         let typeid_f32: TypeId = self.typeid_f32;
         let typeid_f64: TypeId = self.typeid_f64;
-        match TypeId::of::<S>() {
-            typeid_u8  => self.packer_u8 .save_sample(&mut self.writer, frame)?,
-            typeid_s16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
-            typeid_s24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
-            typeid_s32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
-            typeid_f32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
-            typeid_f64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
-            _ => return Err(AudioWriteError::UnsupportedFormat.into()),
-        }
+
+        if TypeId::of::<S>() == typeid_u8 {       self.packer_u8 .save_sample(&mut self.writer, frame)?;}
+        else if TypeId::of::<S>() == typeid_s16 { self.packer_s16.save_sample(&mut self.writer, frame)?;}
+        else if TypeId::of::<S>() == typeid_s24 { self.packer_s24.save_sample(&mut self.writer, frame)?;}
+        else if TypeId::of::<S>() == typeid_s32 { self.packer_s32.save_sample(&mut self.writer, frame)?;}
+        else if TypeId::of::<S>() == typeid_f32 { self.packer_f32.save_sample(&mut self.writer, frame)?;}
+        else if TypeId::of::<S>() == typeid_f64 { self.packer_f64.save_sample(&mut self.writer, frame)?;}
+        else { return Err(AudioWriteError::UnsupportedFormat.into);}
+
+        // match TypeId::of::<S>() {
+        //     typeid_u8  => self.packer_u8 .save_sample(&mut self.writer, frame)?,
+        //     typeid_s16 => self.packer_s16.save_sample(&mut self.writer, frame)?,
+        //     typeid_s24 => self.packer_s24.save_sample(&mut self.writer, frame)?,
+        //     typeid_s32 => self.packer_s32.save_sample(&mut self.writer, frame)?,
+        //     typeid_f32 => self.packer_f32.save_sample(&mut self.writer, frame)?,
+        //     typeid_f64 => self.packer_f64.save_sample(&mut self.writer, frame)?,
+        //     _ => return Err(AudioWriteError::UnsupportedFormat.into()),
+        // }
 
         self.num_frames += 1;
     }
