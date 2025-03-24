@@ -8,14 +8,16 @@ pub use crate::errors::*;
 #[allow(unused_imports)]
 pub use crate::wavcore::*;
 
-use crate::readwrite::*;
 use crate::sampleutils::*;
 use crate::filehasher::FileHasher;
 use crate::audiocore::{SampleFormat, Spec};
 
+pub trait Reader: Read + Seek {}
+impl<T> Reader for T
+where T: Read + Seek {}
+
 pub enum WaveDataSource {
-    Reader(Reader),
-    DynReader(Box<dyn Reader>),
+    Reader(Box<dyn Reader>),
     Filename(String),
     Unknown,
 }
@@ -49,18 +51,11 @@ impl WaveReader {
     // 从读取器打开
     pub fn new(file_source: WaveDataSource) -> Result<Self, Box<dyn Error>> {
         let mut filesrc: Option<String> = None;
-        let mut reader_is_dyn;
         let mut reader = match file_source {
             WaveDataSource::Reader(reader) => {
-                reader_is_dyn = false;
-                Box::new(reader)
-            },
-            WaveDataSource::DynReader(reader) => {
-                reader_is_dyn = true;
                 reader
             },
             WaveDataSource::Filename(filename) => {
-                reader_is_dyn = false;
                 filesrc = Some(filename.clone());
                 Box::new(BufReader::new(File::open(&filename)?))
             },
@@ -193,10 +188,7 @@ impl WaveReader {
         };
         let new_data_source = match filesrc {
             Some(filename) => WaveDataSource::Filename(filename),
-            None => match reader_is_dyn{
-                true => WaveDataSource::DynReader(reader),
-                false => WaveDataSource::Reader(reader),
-            }
+            None => WaveDataSource::Reader(reader),
         };
         let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size, data_hash)?;
         Ok(Self {
@@ -289,8 +281,7 @@ fn savage_path_buf_to_string(filepath: &Path) -> String {
 }
 
 pub struct WaveDataReader {
-    reader: Option<Reader>,
-    dyn_reader: Option<Box<dyn Reader>>,
+    reader: Option<Box<dyn Reader>>,
     temp_dir: Option<TempDir>,
     filepath: PathBuf,
     offset: u64,
@@ -300,8 +291,7 @@ impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
     fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, Box<dyn Error>> {
-        let reader: Option<Reader> = None;
-        let dyn_reader: Option<Box<dyn Reader>> = None;
+        let reader: Option<Box<dyn Reader>> = None;
         let mut temp_dir: Option<TempDir> = None;
         let filepath: Option<PathBuf>;
         let mut offset: u64 = 0;
@@ -309,9 +299,9 @@ impl WaveDataReader {
         match file_source {
             WaveDataSource::Reader(r) => {
                 reader = Some(r);
-            },
-            WaveDataSource::DynReader(r) => {
-                dyn_reader = Some(r);
+                let new_temp_dir = TempDir::new()?; // 该它出手了
+                filepath = Some(new_temp_dir.path().join(format!("{:x}.tmp", data_hash)));
+                temp_dir = Some(new_temp_dir); // 存起来
             },
             WaveDataSource::Filename(path) => {
                 let path = PathBuf::from(path);
@@ -323,27 +313,11 @@ impl WaveDataReader {
             WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
         };
 
-        if !is_from_file {
-            let new_temp_dir = TempDir::new()?; // 该它出手了
-            filepath = Some(new_temp_dir.path().join(format!("{:x}.tmp", data_hash)));
-            temp_dir = Some(new_temp_dir); // 存起来
-        }
-
         // 这个用来存储最原始的 Reader，如果最开始没有给 Reader 而是给了文件名，则存 None。
         let mut orig_reader: Option<Reader> = None;
-        let mut orig_dyn_reader: Option<Box<dyn Reader>> = None;
-
-        // 此时可以根据情况，如果提供的是静态的 reader 则使用静态的 reader
-        // 如果使用的是动态类型的 reader 则使用动态类型的 reader
-        let mut src_reader = if let Some(reader) = reader {
-            reader
-        } else if let Some(dyn_reader) = dyn_reader {
-            dyn_reader
-        } else {
-            reader.unwrap()
-        };
 
         // 把之前读到的东西都展开
+        let mut reader = reader.unwrap();
         let filepath = filepath.unwrap();
 
         // 没有原始文件名，只有一个 Reader，那就从 Reader 那里把 WAV 文件肚子里的 data chunk 复制到一个临时文件里。
@@ -353,29 +327,24 @@ impl WaveDataReader {
             let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
             let mut file = File::create(&filepath)?;
-            src_reader.seek(SeekFrom::Start(offset))?;
+            reader.seek(SeekFrom::Start(offset))?;
 
             // 按 BUFFER_SIZE 不断复制
             let mut to_move = data_size;
             while to_move >= BUFFER_SIZE {
-                src_reader.read_exact(&mut buf)?;
+                reader.read_exact(&mut buf)?;
                 file.write_all(&buf)?;
                 to_move -= BUFFER_SIZE;
             }
             // 复制最后剩下的
             if to_move != 0 {
                 buf.resize(to_move as usize, 0);
-                src_reader.read_exact(&mut buf)?;
+                reader.read_exact(&mut buf)?;
                 file.write_all(&buf)?;
             }
 
             // 这个时候，我们再把原始提供下来的 reader 收集起来存到结构体里
-            if let Some(reader) = reader {
-                orig_reader = Some(reader);
-            }
-            if let Some(dyn_reader) = dyn_reader {
-                orig_dyn_reader = Some(dyn_reader);
-            }
+            orig_reader = Some(reader);
 
             #[cfg(debug_assertions)]
             println!("Temp file created: {}", savage_path_buf_to_string(&filepath));
@@ -383,7 +352,6 @@ impl WaveDataReader {
 
         Ok(Self {
             reader: orig_reader,
-            dyn_reader: orig_dyn_reader,
             temp_dir,
             filepath: filepath.into(),
             offset
