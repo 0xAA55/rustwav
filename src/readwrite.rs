@@ -6,15 +6,23 @@ impl<T> Reader for T where T: Read + Seek {}
 pub trait Writer: Write + Seek{}
 impl<T> Writer for T where T: Write + Seek {}
 
-struct DynWriter {
+pub struct DynWriter {
     writer: Box<dyn Writer>,
 }
 
 impl DynWriter {
-    fn new(writer: Box<dyn Writer>) -> Self {
+    pub fn new(writer: Box<dyn Writer>) -> Self {
         Self {
             writer,
         }
+    }
+
+    pub fn get_inside(&self) -> Box<dyn Writer> {
+    	self.writer
+    }
+
+    pub fn borrow_inside(&self) -> &Box<dyn Writer> {
+    	&self.writer
     }
 }
 
