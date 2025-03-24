@@ -17,10 +17,6 @@ impl DynWriter {
         }
     }
 
-    pub fn get_inside(&self) -> Box<dyn Writer> {
-    	self.writer
-    }
-
     pub fn borrow_inside(&self) -> &Box<dyn Writer> {
     	&self.writer
     }
