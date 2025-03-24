@@ -821,7 +821,8 @@ pub fn read_str<T: Read>(r: &mut T, size: usize) -> Result<String, Box<dyn std::
     let mut buf = Vec::<u8>::new();
     buf.resize(size, 0);
     r.read_exact(&mut buf)?;
-    Ok(std::str::from_utf8(&buf)?.to_string())
+    let buf =String::from_utf8_lossy(&buf);
+    Ok(format!("{}",buf))
 }
 
 pub fn read_sz<T: Read>(w: &mut T) -> Result<String, Box<dyn std::error::Error>> {
@@ -834,7 +835,8 @@ pub fn read_sz<T: Read>(w: &mut T) -> Result<String, Box<dyn std::error::Error>>
             break;
         }
     }
-    Ok(std::str::from_utf8(&buf)?.to_string())
+    let buf = String::from_utf8_lossy(&buf);
+    Ok(format!("{}",buf))
 }
 
 pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], err: Box<dyn std::error::Error>) -> Result<(), Box<dyn std::error::Error>> {
