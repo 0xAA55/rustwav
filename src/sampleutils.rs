@@ -1,4 +1,4 @@
-use std::{io::{Read, Write, Error}, mem::size_of};
+use std::{io::{Read, Write, Error}, mem::size_of, clone::Clone};
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
@@ -80,7 +80,7 @@ impl u24 {
     }
 }
 
-pub trait SampleType: Sized + 'static {
+pub trait SampleType: Sized + Clone + 'static {
     fn clampf(&self) -> f32 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
