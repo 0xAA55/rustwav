@@ -1,4 +1,4 @@
-#[!allow(dead_code)]
+#![allow(dead_code)]
 
 use std::{io::{Read, Write, Error}, mem::size_of, clone::Clone};
 

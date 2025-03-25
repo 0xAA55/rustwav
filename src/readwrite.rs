@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::io::{self, Read, Write, Seek, SeekFrom};
 
 pub trait Reader: Read + Seek {}
