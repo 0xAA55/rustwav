@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
-pub use std::io::{self, Read, Write, Seek, SeekFrom};
+pub use std::{io::{self, Read, Write, Seek, SeekFrom}, fmt::Debug};
 
-pub trait Reader: Read + Seek {}
-impl<T> Reader for T where T: Read + Seek {}
+pub trait Reader: Read + Seek + Debug{}
+impl<T> Reader for T where T: Read + Seek + Debug{}
 
-pub trait Writer: Write + Seek{}
-impl<T> Writer for T where T: Write + Seek {}
+pub trait Writer: Write + Seek+ Debug{}
+impl<T> Writer for T where T: Write + Seek + Debug{}
 
+#[derive(Debug)]
 pub struct DynWriter {
     writer: Box<dyn Writer>,
 }
