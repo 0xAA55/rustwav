@@ -1,6 +1,5 @@
 
 mod errors;
-mod filehasher;
 mod savagestr;
 mod readwrite;
 mod sampleutils;
