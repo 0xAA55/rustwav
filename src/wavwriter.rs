@@ -1,18 +1,10 @@
 #![allow(dead_code)]
+#![allow(non_snake_case)]
 
 use std::{any::TypeId, fs::File, {path::Path}, io::{self, Write, Seek, SeekFrom, BufWriter}, error::Error};
 
-#[allow(unused_imports)]
-pub use crate::errors::*;
-
-#[allow(unused_imports)]
-pub use crate::wavcore::*;
-
-#[allow(unused_imports)]
-pub use crate::audiocore::*;
-
-use crate::readwrite::*;
-use crate::sampleutils::*;
+use crate::errors::{AudioWriteError};
+use crate::wavcore::*;
 
 pub struct WaveWriter {
     writer: DynWriter,
@@ -189,10 +181,10 @@ impl WaveWriter {
 
     pub fn update_header(&mut self) -> Result<(), Box<dyn Error>>
     {
-        const header_size: u32 = 44;
+        const HEADER_SIZE: u32 = 44;
         let all_sample_size = self.num_frames * self.frame_size as u32;
         self.writer.seek(SeekFrom::Start(self.riff_offset))?;
-        (header_size + all_sample_size - 8).write_le(&mut self.writer)?;
+        (HEADER_SIZE + all_sample_size - 8).write_le(&mut self.writer)?;
         self.writer.seek(SeekFrom::Start(self.datalen_offset))?;
         all_sample_size.write_le(&mut self.writer)?;
         Ok(())
