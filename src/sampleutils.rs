@@ -850,3 +850,17 @@ pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], err: Box<dyn std::error::
         Ok(())
     }
 }
+
+pub fn write_str_sized<T: Write>(w: &mut T, data: &String, size: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let mut buf = data.as_bytes();
+    buf.resize(size, 0);
+    w.write_all(&buf);
+}
+
+pub fn write_str<T: Write>(w: &mut T, data: &String) -> Result<(), Box<dyn std::error::Error>> {
+    let mut buf = data.as_bytes();
+    w.write_all(&buf);
+    w.write_all(&0u8);
+}
+
+
