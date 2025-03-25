@@ -861,7 +861,6 @@ pub fn write_str_sized<T: Write>(w: &mut T, data: &String, size: usize) -> Resul
 pub fn write_str<T: Write>(w: &mut T, data: &String) -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = data.as_bytes();
     w.write_all(&buf);
-    w.write_all(&[0u8; 1]);
     Ok(())
 }
 
