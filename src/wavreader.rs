@@ -770,86 +770,96 @@ impl Cue {
 }
 
 #[derive(Debug, Clone)]
-struct LISTChunk { // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
-    info: Option<HashMap<[u8; 4], String>>,
-    adtl: Option<AdtlChunk>,
+enum LISTChunk {
+    info(HashMap<String, String>),
+    adtl(Vec<ADTLChunk>),
 }
 
 impl LISTChunk {
     fn read<R>(reader: &mut R, chunk_size: u64) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let mut info: Option<HashMap<[u8; 4], String>> = None;
-        let mut adtl: Option<AdtlChunk> = None;
         let end_of_chunk = Chunk::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
         match &flag {
             b"info" | b"INFO" => {
                 // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
-                let mut dict = HashMap::<[u8; 4], String>::new();
+                let mut dict = HashMap::<String, String>::new();
                 while reader.stream_position()? < end_of_chunk {
                     let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
                     let value_str = read_str(reader, key_chunk.size as usize)?;
-                    dict.insert(key_chunk.flag, value_str);
+                    dict.insert(savage_bytes_to_string(key_chunk.flag), value_str);
                     key_chunk.seek_to_next_chunk(reader)?;
                 }
-                info = Some(dict);
+                Ok(Self::info(dict))
             },
             b"adtl" => {
-                let sub_chunk = Chunk::read(reader)?;
-                let mut labl: Option<LABLChunk> = None;
-                let mut ltxt: Option<LTXTChunk> = None;
-                match &sub_chunk.flag {
-                    b"labl" | b"note" => {
-                        labl = Some(LABLChunk{
-                            cue_point_id: u32::read_le(reader)?,
-                            data: read_sz(reader)?,
-                        });
-                    },
-                    b"ltxt" => {
-                        ltxt = Some(LTXTChunk{
-                            cue_point_id: u32::read_le(reader)?,
-                            sample_length: u32::read_le(reader)?,
-                            purpose_id: read_str(reader, 4)?,
-                            country: u16::read_le(reader)?,
-                            language: u16::read_le(reader)?,
-                            dialect: u16::read_le(reader)?,
-                            code_page: u16::read_le(reader)?,
-                            data: read_sz(reader)?,
-                        });
-                    },
-                    other => {
-                        println!("Unknown chunk in adtl chunk: {:?}", other);
-                    },
+                let adtl = Vec::<ADTLChunk>::new();
+                while reader.stream_position()? < end_of_chunk {
+                    let sub_chunk = Chunk::read(reader)?;
+                    match &sub_chunk.flag {
+                        b"labl" => {
+                            adtl.push(ADTLChunk::labl(LABLChunk{
+                                identifier: read_str(reader, 4)?,
+                                data: read_str(reader, sub_chunk.size - 4)?,
+                            }));
+                        },
+                        b"note" => {
+                            adtl.push(ADTLChunk::note(NOTEChunk{
+                                identifier: read_str(reader, 4)?,
+                                data: read_str(reader, sub_chunk.size - 4)?,
+                            }));
+                        },
+                        b"ltxt" => {
+                            adtl.push(ADTLChunk::ltxt(LTXTChunk{
+                                identifier: read_str(reader, 4)?,
+                                sample_length: u32::read_le(reader)?,
+                                purpose_id: read_str(reader, 4)?,
+                                country: u16::read_le(reader)?,
+                                language: u16::read_le(reader)?,
+                                dialect: u16::read_le(reader)?,
+                                code_page: u16::read_le(reader)?,
+                                data: read_str(reader, sub_chunk.size - 20)?,
+                            }));
+                        },
+                        other => {
+                            println!("Unknown sub chunk in adtl chunk: {}", savage_bytes_to_string(other));
+                        },
+                    }
+                    sub_chunk.seek_to_next_chunk(reader)?;
                 }
-                adtl = Some(AdtlChunk{labl, ltxt});
+                Ok(Self::adtl(adtl))
             },
             other => {
-                println!("Unknown chunk in LIST chunk: {:?}", other);
+                println!("Unknown indentifier in LIST chunk: {}", savage_bytes_to_string(other));
+                Err(AudioReadError::Unimplemented.into())
             },
         }
-        Ok(Self{
-            info,
-            adtl,
-        })
     }
 }
 
 #[derive(Debug, Clone)]
-struct AdtlChunk {
-    labl: Option<LABLChunk>,
-    ltxt: Option<LTXTChunk>,
+enum ADTLChunk {
+    labl(LABLChunk),
+    note(NOTEChunk),
+    ltxt(LTXTChunk),
 }
 
 #[derive(Debug, Clone)]
 struct LABLChunk {
-    cue_point_id: u32,
+    identifier: String,
+    data: String,
+}
+
+#[derive(Debug, Clone)]
+struct NOTEChunk {
+    identifier: String,
     data: String,
 }
 
 #[derive(Debug, Clone)]
 struct LTXTChunk {
-    cue_point_id: u32,
+    identifier: String,
     sample_length: u32,
     purpose_id: String,
     country: u16,
