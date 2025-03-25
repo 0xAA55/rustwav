@@ -1,11 +1,16 @@
 [package]
-name = "evoice"
+name = "rustwav"
 version = "0.1.0"
 edition = "2021"
+authors = ["0xAA55 <838816058@qq.com>"]
 
 [dependencies]
-bincode = "2.0.0"
-flac = "0.5.0"
-rayon = "1.10.0"
-rustfft = "6.2.0"
 tempfile = "3.18.0"
+
+[lib]
+name = "rustwav_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rustwav_bin"
+path = "src/test.rs"
