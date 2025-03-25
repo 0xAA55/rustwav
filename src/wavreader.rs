@@ -3,8 +3,6 @@
 
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, error::Error};
 
-use tempfile::TempDir;
-
 use crate::errors::{AudioReadError};
 use crate::wavcore::*;
 use crate::filehasher::FileHasher;
@@ -25,7 +23,6 @@ pub struct WaveReader {
     fact_data: u32, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
-    data_hash: u64, // 音频数据哈希值
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
@@ -180,9 +177,6 @@ impl WaveReader {
             Some(extension) => extension.channel_mask,
         };
 
-        let mut hasher = FileHasher::new();
-        let data_hash = hasher.hash(&mut reader, data_offset, data_size)?;
-
         let frame_size = fmt_chunk.block_align;
         let num_frames = data_size / frame_size as u64;
         let spec = Spec {
@@ -196,7 +190,7 @@ impl WaveReader {
             Some(filename) => WaveDataSource::Filename(filename),
             None => WaveDataSource::Reader(reader),
         };
-        let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size, data_hash)?;
+        let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size)?;
         Ok(Self {
             riff_len,
             spec,
@@ -204,7 +198,6 @@ impl WaveReader {
             fact_data,
             data_offset,
             data_size,
-            data_hash,
             frame_size,
             num_frames,
             data_chunk,
@@ -273,45 +266,45 @@ fn savage_path_buf_to_string(filepath: &Path) -> String {
     }
 }
 
+#[derive(Debug)]
 pub struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
-    temp_dir: Option<TempDir>,
+    tempfile: Option<File>,
     filepath: PathBuf,
     offset: u64,
 }
 
-#[derive(Debug)]
-struct TempDir_;
-impl std::fmt::Debug for WaveDataReader {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let fake_tempdir = match self.temp_dir {
-            Some(_) => Some(TempDir_),
-            None => None,
-        };
-        fmt.debug_struct("WaveDataReader")
-            .field("reader", &self.reader)
-            .field("temp_dir", &fake_tempdir)
-            .field("filepath", &self.filepath)
-            .field("PCM_sample_offset", &self.offset)
-            .finish()
-    }
-}
+// #[derive(Debug)]
+// struct TempDir_;
+// impl std::fmt::Debug for WaveDataReader {
+//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+//         let fake_tempdir = match self.temp_dir {
+//             Some(_) => Some(TempDir_),
+//             None => None,
+//         };
+//         fmt.debug_struct("WaveDataReader")
+//             .field("reader", &self.reader)
+//             .field("temp_dir", &fake_tempdir)
+//             .field("filepath", &self.filepath)
+//             .field("PCM_sample_offset", &self.offset)
+//             .finish()
+//     }
+// }
 
 impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
-    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, Box<dyn Error>> {
+    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, Box<dyn Error>> {
         let reader: Option<Box<dyn Reader>>;
-        let mut temp_dir: Option<TempDir> = None;
-        let filepath: Option<PathBuf>;
+        let mut tempfile: Option<File> = None;
+        let mut filepath: Option<PathBuf> = None;
         let mut offset: u64 = 0;
         let mut is_from_file = false;
         match file_source {
             WaveDataSource::Reader(r) => {
                 reader = Some(r);
-                let new_temp_dir = TempDir::new()?; // 该它出手了
-                filepath = Some(new_temp_dir.path().join(format!("{:x}.tmp", data_hash)));
-                temp_dir = Some(new_temp_dir); // 存起来
+                tempfile = Some(tempfile::tempfile()?);
+                filepath = None;
             },
             WaveDataSource::Filename(path) => {
                 let path = PathBuf::from(path);
@@ -336,7 +329,7 @@ impl WaveDataReader {
             const BUFFER_SIZE: u64 = 81920;
             let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
-            let mut file = File::create(&filepath)?;
+            let mut file = tempfile.unwrap();
             reader.seek(SeekFrom::Start(offset))?;
 
             // 按 BUFFER_SIZE 不断复制
@@ -362,7 +355,7 @@ impl WaveDataReader {
 
         Ok(Self {
             reader: orig_reader,
-            temp_dir,
+            tempfile,
             filepath: filepath.into(),
             offset
         })
