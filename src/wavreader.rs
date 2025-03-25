@@ -359,16 +359,16 @@ impl WaveDataReader {
 
     fn to_string(&self) -> String {
         let mut ret = String::from("WaveDataReader {");
-        ret.push_str(&format!("    reader: {},\n", match self.reader{
+        ret.push_str(&format!("reader: {}, ", match self.reader{
             Some(_) => "Some(Box<dyn Reader>)",
             None => "None"
         }));
-        ret.push_str(&format!("    temp_dir: {},\n", match self.temp_dir{
+        ret.push_str(&format!("temp_dir: {}, ", match self.temp_dir{
             Some(_) => "Some(TempDir)",
             None => "None"
         }));
-        ret.push_str(&format!("    filepath: {},\n", savage_path_buf_to_string(&self.filepath)));
-        ret.push_str(&format!("    offset: 0x{:x},\n", self.offset));
+        ret.push_str(&format!("filepath: {}, ", savage_path_buf_to_string(&self.filepath)));
+        ret.push_str(&format!("PCM sample offset: 0x{:x} }", self.offset));
         ret
     }
 
