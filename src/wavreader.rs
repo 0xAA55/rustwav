@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, error::Error, collections::HashMap};
 
 use tempfile::TempDir;
@@ -37,9 +39,11 @@ pub struct WaveReader {
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
     cue__chunk: Option<Cue_Chunk>,
-    axml_chunk: Option<Vec<u8>>,
-    ixml_chunk: Option<Vec<u8>>,
+    axml_chunk: Option<String>,
+    ixml_chunk: Option<String>,
     list_chunk: Option<ListChunk>,
+    acid_chunk: Option<AcidChunk>,
+    trkn_chunk: Option<String>,
 }
 
 impl WaveReader {
@@ -93,9 +97,11 @@ impl WaveReader {
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
         let mut cue__chunk: Option<Cue_Chunk> = None;
-        let mut axml_chunk: Option<Vec<u8>> = None;
-        let mut ixml_chunk: Option<Vec<u8>> = None;
+        let mut axml_chunk: Option<String> = None;
+        let mut ixml_chunk: Option<String> = None;
         let mut list_chunk: Option<ListChunk> = None;
+        let mut acid_chunk: Option<AcidChunk> = None;
+        let mut trkn_chunk: Option<String> = None;
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
@@ -138,22 +144,22 @@ impl WaveReader {
                     cue__chunk = Some(Cue_Chunk::read(&mut reader)?);
                 },
                 b"axml" => {
-                    let mut data = Vec::<u8>::new();
-                    data.resize(chunk.size as usize, 0);
-                    reader.read_exact(&mut data)?;
-                    axml_chunk = Some(data);
+                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
                 },
                 b"ixml" => {
-                    let mut data = Vec::<u8>::new();
-                    data.resize(chunk.size as usize, 0);
-                    reader.read_exact(&mut data)?;
-                    ixml_chunk = Some(data);
+                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
                 },
                 b"LIST" => {
                     list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64)?);
                 }
+                b"acid" => {
+                    acid_chunk = Some(AcidChunk::read(&mut reader)?);
+                },
+                b"Trkn" => {
+                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
+                }
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: {:?}", other);
+                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_flag_to_string(&other));
                 },
             }
             // 跳到下一个块的开始位置
@@ -205,6 +211,8 @@ impl WaveReader {
             axml_chunk,
             ixml_chunk,
             list_chunk,
+            acid_chunk,
+            trkn_chunk,
         })
     }
 
@@ -243,6 +251,8 @@ impl WaveReader {
         dbg!(&self.axml_chunk);
         dbg!(&self.ixml_chunk);
         dbg!(&self.list_chunk);
+        dbg!(&self.acid_chunk);
+        dbg!(&self.trkn_chunk);
     }
 
     pub fn to_string(&self) -> String {
@@ -264,6 +274,8 @@ impl WaveReader {
         ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
         ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
         ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
+        ret.push_str(&format!("acid_chunk is {:?}\n", self.list_chunk));
+        ret.push_str(&format!("trkn_chunk is {:?}\n", self.list_chunk));
         ret
     }
 }
@@ -287,9 +299,9 @@ impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
     fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64, data_hash: u64) -> Result<Self, Box<dyn Error>> {
-        let mut reader: Option<Box<dyn Reader>>;
+        let reader: Option<Box<dyn Reader>>;
         let mut temp_dir: Option<TempDir> = None;
-        let mut filepath: Option<PathBuf>;
+        let filepath: Option<PathBuf>;
         let mut offset: u64 = 0;
         let mut is_from_file = false;
         match file_source {
@@ -770,6 +782,7 @@ impl Cue {
 }
 
 #[derive(Debug, Clone)]
+#[allow(non_camel_case_types)]
 enum ListChunk {
     info(HashMap<String, String>),
     adtl(Vec<AdtlChunk>),
@@ -788,26 +801,26 @@ impl ListChunk {
                 while reader.stream_position()? < end_of_chunk {
                     let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
                     let value_str = read_str(reader, key_chunk.size as usize)?;
-                    dict.insert(savage_bytes_to_string(key_chunk.flag), value_str);
+                    dict.insert(savage_flag_to_string(&key_chunk.flag), value_str);
                     key_chunk.seek_to_next_chunk(reader)?;
                 }
                 Ok(Self::info(dict))
             },
             b"adtl" => {
-                let adtl = Vec::<AdtlChunk>::new();
+                let mut adtl = Vec::<AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
                     let sub_chunk = Chunk::read(reader)?;
                     match &sub_chunk.flag {
                         b"labl" => {
                             adtl.push(AdtlChunk::labl(LablChunk{
                                 identifier: u32::read_le(reader)?,
-                                data: read_str(reader, sub_chunk.size - 4)?,
+                                data: read_str(reader, (sub_chunk.size - 4) as usize)?,
                             }));
                         },
                         b"note" => {
                             adtl.push(AdtlChunk::note(NoteChunk{
                                 identifier: u32::read_le(reader)?,
-                                data: read_str(reader, sub_chunk.size - 4)?,
+                                data: read_str(reader, (sub_chunk.size - 4) as usize)?,
                             }));
                         },
                         b"ltxt" => {
@@ -819,11 +832,11 @@ impl ListChunk {
                                 language: u16::read_le(reader)?,
                                 dialect: u16::read_le(reader)?,
                                 code_page: u16::read_le(reader)?,
-                                data: read_str(reader, sub_chunk.size - 20)?,
+                                data: read_str(reader, (sub_chunk.size - 20) as usize)?,
                             }));
                         },
                         other => {
-                            println!("Unknown sub chunk in adtl chunk: {}", savage_bytes_to_string(other));
+                            println!("Unknown sub chunk in adtl chunk: {}", savage_flag_to_string(&other));
                         },
                     }
                     sub_chunk.seek_to_next_chunk(reader)?;
@@ -831,7 +844,7 @@ impl ListChunk {
                 Ok(Self::adtl(adtl))
             },
             other => {
-                println!("Unknown indentifier in LIST chunk: {}", savage_bytes_to_string(other));
+                println!("Unknown indentifier in LIST chunk: {}", savage_flag_to_string(&other));
                 Err(AudioReadError::Unimplemented.into())
             },
         }
@@ -839,6 +852,7 @@ impl ListChunk {
 }
 
 #[derive(Debug, Clone)]
+#[allow(non_camel_case_types)]
 enum AdtlChunk {
     labl(LablChunk),
     note(NoteChunk),
@@ -881,3 +895,18 @@ struct AcidChunk {
     tempo: f32,
 }
 
+impl AcidChunk {
+    fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
+    where R: Reader {
+        Ok(Self {
+            flags: u32::read_le(reader)?,
+            root_node: u16::read_le(reader)?,
+            reserved1: u16::read_le(reader)?,
+            reserved2: f32::read_le(reader)?,
+            num_beats: u32::read_le(reader)?,
+            meter_denominator: u16::read_le(reader)?,
+            meter_numerator: u16::read_le(reader)?,
+            tempo: f32::read_le(reader)?,
+        })
+    }
+}
