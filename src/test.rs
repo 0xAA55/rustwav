@@ -1,6 +1,7 @@
 
 mod errors;
 mod filehasher;
+mod savagestr;
 mod readwrite;
 mod sampleutils;
 mod wavcore;
@@ -16,7 +17,7 @@ fn main() -> ExitCode {
     if args.len() < 2 {return ExitCode::from(1);}
 
     let wavereader = WaveReader::open(&args[1]).unwrap();
-    println!("{}", wavereader.to_string());
+    dbg!(wavereader);
 
     ExitCode::from(0)
 }
