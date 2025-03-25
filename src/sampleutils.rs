@@ -825,7 +825,7 @@ pub fn read_str<T: Read>(r: &mut T, size: usize, savage_decoder: &SavageStringDe
     let mut buf = Vec::<u8>::new();
     buf.resize(size, 0);
     r.read_exact(&mut buf)?;
-    Ok(savage_decoder.decode(&buf))
+    Ok(savage_decoder.decode(&buf).trim_matches(char::from(0)))
 }
 
 pub fn read_sz<T: Read>(w: &mut T, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn std::error::Error>> {
@@ -838,7 +838,7 @@ pub fn read_sz<T: Read>(w: &mut T, savage_decoder: &SavageStringDecoder) -> Resu
             break;
         }
     }
-    Ok(savage_decoder.decode(&buf))
+    Ok(savage_decoder.decode(&buf).trim_matches(char::from(0)))
 }
 
 pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], err: Box<dyn std::error::Error>) -> Result<(), Box<dyn std::error::Error>> {
@@ -852,15 +852,17 @@ pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], err: Box<dyn std::error::
 }
 
 pub fn write_str_sized<T: Write>(w: &mut T, data: &String, size: usize) -> Result<(), Box<dyn std::error::Error>> {
-    let mut buf = data.as_bytes();
+    let mut buf = data.as_bytes().to_vec();
     buf.resize(size, 0);
     w.write_all(&buf);
+    Ok(())
 }
 
 pub fn write_str<T: Write>(w: &mut T, data: &String) -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = data.as_bytes();
     w.write_all(&buf);
-    w.write_all(&0u8);
+    w.write_all(&[0u8; 1]);
+    Ok(())
 }
 
 
