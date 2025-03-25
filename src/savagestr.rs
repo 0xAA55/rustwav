@@ -157,10 +157,21 @@ const CODE_PAGE_DATA: [(u32, &str, &str); 140] = [
     (65001, "utf-8", "Unicode (UTF-8)"),
 ];
 
+const CODE_PAGE_ALTNAME: [(&str, &str); 7] = [
+    ("gb2312", "gb18030"),
+    ("gbk", "gb18030"),
+    ("hz-gb-2312", "gb18030"),
+    ("us-ascii", "ascii"),
+    ("x-mac-cyrillic", "mac-cyrillic"),
+    ("x-mac-romanian", "mac-roman"),
+    ("big5", "big5-2003"),
+];
+
 // 莽夫式字符串解析器
 #[derive(Clone)]
 pub struct SavageStringDecoder {
     codepage_map: HashMap<u32, (String, String)>,
+    codename_alt: HashMap<String, String>,
     decoder_map: HashMap<String, EncodingRef>,
 }
 
@@ -169,6 +180,7 @@ impl std::fmt::Debug for SavageStringDecoder {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("SavageStringDecoder")
             .field("codepage_map", &"...")
+            .field("codename_alt", &"...")
             .field("decoder_map", &"...")
             .finish()
     }
@@ -179,8 +191,14 @@ impl SavageStringDecoder {
         // 代码页、编码名称、编码描述
         let mut codepage_map = HashMap::<u32, (String, String)>::new();
         for cpd in CODE_PAGE_DATA {
-            let (cp, name, _desc) = cpd;
-            codepage_map.insert(cp, (name.to_string(), desc.to_string()));
+            let (cp, name, desc) = cpd;
+            let name = name.to_lowercase();
+            codepage_map.insert(cp, (name, desc.to_string()));
+        }
+        // 编码名称替代用、别称
+        let mut codename_alt = HashMap::<String, String>::new();
+        for (orig, alt) in CODE_PAGE_ALTNAME {
+            codename_alt.insert(orig.to_string(), alt.to_string());
         }
         // 编码名称、编解码器
         let mut decoder_map = HashMap::<String, EncodingRef>::new();
@@ -190,6 +208,7 @@ impl SavageStringDecoder {
         }
         Self {
             codepage_map,
+            codename_alt,
             decoder_map,
         }
     }
@@ -199,19 +218,41 @@ impl SavageStringDecoder {
         match String::from_utf8(bytes.clone()) {
             Ok(s) => s,
             Err(_) => {
+                // 根据当前操作系统的代码页来找到对应的编码名称
                 let system_code_page = get_system_code_page();
                 match self.codepage_map.get(&system_code_page) {
-                    Some((name, desc)) => {
+                    Some((name, _desc)) => {
+                        // 找到编码名称，用这个编码名称去查找转码器
                         match self.decoder_map.get(name) {
+                            // 找到转码器，进行转码
                             Some(decoder) => {
                                 match decoder.decode(&bytes, DecoderTrap::Replace) {
                                     Ok(ret) => ret,
                                     Err(_) => Self::savage_decode(&bytes),
                                 }
                             },
-                            None => Self::savage_decode(&bytes),
+                            // 没找到转码器，说明可能编码名称有别名，先查询别名再查询转码器
+                            None => {
+                                match self.codename_alt.get(name) {
+                                    // 找到别名，再次转码
+                                    Some(alt_name) => {
+                                        match self.decoder_map.get(alt_name) {
+                                            Some(decoder) => {
+                                                match decoder.decode(&bytes, DecoderTrap::Replace) {
+                                                    Ok(ret) => ret,
+                                                    Err(_) => Self::savage_decode(&bytes),
+                                                }
+                                            },
+                                            None => return Self::savage_decode(&bytes),
+                                        }
+                                    },
+                                    // 没找到别名，直接莽夫式转码
+                                    None => Self::savage_decode(&bytes),
+                                }
+                            },
                         }
                     },
+                    // 对应代码页找不到编码名称，只能莽夫式转码
                     None => return Self::savage_decode(&bytes),
                 }
             },
