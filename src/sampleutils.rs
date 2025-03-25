@@ -852,7 +852,7 @@ pub fn read_sz<T: Read>(w: &mut T) -> Result<String, Box<dyn std::error::Error>>
 
 pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], err: Box<dyn std::error::Error>) -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = [0u8; 4];
-    r.read_exact(&mut buf);
+    r.read_exact(&mut buf)?;
     if &buf != flag {
         Err(err)
     } else {
