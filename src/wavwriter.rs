@@ -108,7 +108,7 @@ impl WaveWriter {
                     (16, Int) => 1,
                     (32, Float) => 3,
                     (64, Float) => 3,
-                    _ => return Err(AudioWriteError::UnsupportedFormat.into()),
+                    _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag")).into()),
                 }
             }
         } as u16).write_le(&mut self.writer)?;
@@ -126,7 +126,7 @@ impl WaveWriter {
             match self.spec.sample_format {
                 Int => GUID_PCM_FORMAT.write(&mut self.writer)?,
                 Float => GUID_IEEE_FLOAT_FORMAT.write(&mut self.writer)?,
-                _ => return Err(AudioWriteError::InvalidArguments.into()),
+                _ => return Err(AudioWriteError::InvalidArguments(String::from("\"Unknown\" was given for specifying the sample format")).into()),
             }
         };
         self.writer.write_all(b"data")?;
@@ -161,7 +161,7 @@ impl WaveWriter {
         if TypeId::of::<S>() == self.typeid_s32 {self.packer_s32.save_sample(&mut self.writer, &Self::frame_conv(frame))?;} else
         if TypeId::of::<S>() == self.typeid_f32 {self.packer_f32.save_sample(&mut self.writer, &Self::frame_conv(frame))?;} else
         if TypeId::of::<S>() == self.typeid_f64 {self.packer_f64.save_sample(&mut self.writer, &Self::frame_conv(frame))?;} else
-        {return Err(AudioWriteError::UnsupportedFormat.into());}
+        {return Err(AudioWriteError::UnsupportedFormat(String::from("The given generic type to save was unexpected")).into());}
 
         self.num_frames += 1;
         Ok(())
