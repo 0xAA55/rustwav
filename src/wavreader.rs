@@ -100,6 +100,8 @@ impl WaveReader {
 
         junk_chunk = Vec::<Vec<u8>>::new();
 
+        // TODO：做检查，某些块比如 fmt、data 只允许有一个，有多了就报错
+
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
             let chunk = Chunk::read(&mut reader)?;
