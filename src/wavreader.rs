@@ -32,6 +32,7 @@ pub struct WaveReader {
     data_hash: u64, // 音频数据哈希值
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
+    data_chunk: WaveDataReader,
     bwav_chunk: Option<BWAVChunk>,
     smpl_chunk: Option<SMPLChunk>,
     inst_chunk: Option<INSTChunk>,
@@ -39,7 +40,6 @@ pub struct WaveReader {
     axml_chunk: Option<Vec<u8>>,
     ixml_chunk: Option<Vec<u8>>,
     list_chunk: Option<LISTChunk>,
-    data_chunk: WaveDataReader,
 }
 
 impl WaveReader {
@@ -197,6 +197,7 @@ impl WaveReader {
             data_hash,
             frame_size,
             num_frames,
+            data_chunk,
             bwav_chunk,
             smpl_chunk,
             inst_chunk,
@@ -204,7 +205,6 @@ impl WaveReader {
             axml_chunk,
             ixml_chunk,
             list_chunk,
-            data_chunk,
         })
     }
 
@@ -235,6 +235,7 @@ impl WaveReader {
         dbg!(&self.data_hash);
         dbg!(&self.frame_size);
         dbg!(&self.num_frames);
+        println!("{}", &self.data_chunk.to_string());
         dbg!(&self.bwav_chunk);
         dbg!(&self.smpl_chunk);
         dbg!(&self.inst_chunk);
@@ -242,7 +243,6 @@ impl WaveReader {
         dbg!(&self.axml_chunk);
         dbg!(&self.ixml_chunk);
         dbg!(&self.list_chunk);
-        println!("{}", &self.data_chunk.to_string());
     }
 
     pub fn to_string(&self) -> String {
@@ -256,6 +256,7 @@ impl WaveReader {
         ret.push_str(&format!("data_hash  is {:?}\n", self.data_hash));
         ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
         ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
+        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.to_string()));
         ret.push_str(&format!("bwav_chunk is {:?}\n", self.bwav_chunk));
         ret.push_str(&format!("smpl_chunk is {:?}\n", self.smpl_chunk));
         ret.push_str(&format!("inst_chunk is {:?}\n", self.inst_chunk));
@@ -263,7 +264,6 @@ impl WaveReader {
         ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
         ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
         ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
-        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.to_string()));
         ret
     }
 }
