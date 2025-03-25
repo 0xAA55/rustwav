@@ -6,6 +6,7 @@ use std::{error::Error, collections::HashMap};
 pub use crate::errors::*;
 pub use crate::readwrite::*;
 pub use crate::sampleutils::*;
+pub use crate::savagestr::*;
 
 pub enum WaveSampleType {
     U8,
@@ -304,13 +305,13 @@ pub struct BextChunk {
 }
 
 impl BextChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let description = read_str(reader, 256)?;
-        let originator = read_str(reader, 32)?;
-        let originator_ref = read_str(reader, 32)?;
-        let origination_date = read_str(reader, 10)?;
-        let origination_time = read_str(reader, 8)?;
+        let description = read_str(reader, 256, savage_decoder)?;
+        let originator = read_str(reader, 32, savage_decoder)?;
+        let originator_ref = read_str(reader, 32, savage_decoder)?;
+        let origination_date = read_str(reader, 10, savage_decoder)?;
+        let origination_time = read_str(reader, 8, savage_decoder)?;
         let time_ref = u64::read_le(reader)?;
         let version = u16::read_le(reader)?;
         let mut umid = [0u8; 64];
@@ -473,7 +474,7 @@ pub enum ListChunk {
 }
 
 impl ListChunk {
-    pub fn read<R>(reader: &mut R, chunk_size: u64) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, chunk_size: u64, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let end_of_chunk = Chunk::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
@@ -484,8 +485,8 @@ impl ListChunk {
                 let mut dict = HashMap::<String, String>::new();
                 while reader.stream_position()? < end_of_chunk {
                     let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
-                    let value_str = read_str(reader, key_chunk.size as usize)?;
-                    dict.insert(savage_flag_to_string(&key_chunk.flag), value_str);
+                    let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
+                    dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
                     key_chunk.seek_to_next_chunk(reader)?;
                 }
                 Ok(Self::Info(dict))
@@ -498,29 +499,29 @@ impl ListChunk {
                         b"labl" => {
                             adtl.push(AdtlChunk::Labl(LablChunk{
                                 identifier: u32::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 4) as usize)?,
+                                data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
                             }));
                         },
                         b"note" => {
                             adtl.push(AdtlChunk::Note(NoteChunk{
                                 identifier: u32::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 4) as usize)?,
+                                data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
                             }));
                         },
                         b"ltxt" => {
                             adtl.push(AdtlChunk::Ltxt(LtxtChunk{
                                 identifier: u32::read_le(reader)?,
                                 sample_length: u32::read_le(reader)?,
-                                purpose_id: read_str(reader, 4)?,
+                                purpose_id: read_str(reader, 4, savage_decoder)?,
                                 country: u16::read_le(reader)?,
                                 language: u16::read_le(reader)?,
                                 dialect: u16::read_le(reader)?,
                                 code_page: u16::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 20) as usize)?,
+                                data: read_str(reader, (sub_chunk.size - 20) as usize, savage_decoder)?,
                             }));
                         },
                         other => {
-                            println!("Unknown sub chunk in adtl chunk: {}", savage_flag_to_string(&other));
+                            println!("Unknown sub chunk in adtl chunk: {}", savage_decoder.decode_flags(&other));
                         },
                     }
                     sub_chunk.seek_to_next_chunk(reader)?;
@@ -528,7 +529,7 @@ impl ListChunk {
                 Ok(Self::Adtl(adtl))
             },
             other => {
-                println!("Unknown indentifier in LIST chunk: {}", savage_flag_to_string(&other));
+                println!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(&other));
                 Err(AudioReadError::Unimplemented.into())
             },
         }

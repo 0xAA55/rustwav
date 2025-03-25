@@ -8,13 +8,16 @@ use tempfile::TempDir;
 use crate::errors::{AudioReadError};
 use crate::wavcore::*;
 use crate::filehasher::FileHasher;
+use crate::savagestr::SavageStringDecoder;
 
+#[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
     Filename(String),
     Unknown,
 }
 
+#[derive(Debug)]
 pub struct WaveReader {
     riff_len: u64,
     spec: Spec,
@@ -35,6 +38,7 @@ pub struct WaveReader {
     list_chunk: Option<ListChunk>,
     acid_chunk: Option<AcidChunk>,
     trkn_chunk: Option<String>,
+    savage_decoder: SavageStringDecoder,
 }
 
 impl WaveReader {
@@ -56,6 +60,8 @@ impl WaveReader {
             },
             WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
         };
+
+        let savage_decoder = SavageStringDecoder::new();
 
         let mut riff_len = 0u64;
         let mut riff_end = 0u64;
@@ -123,7 +129,7 @@ impl WaveReader {
                     continue;
                 },
                 b"bext" => {
-                    bwav_chunk = Some(BextChunk::read(&mut reader)?);
+                    bwav_chunk = Some(BextChunk::read(&mut reader, &savage_decoder)?);
                 },
                 b"smpl" => {
                     smpl_chunk = Some(SmplChunk::read(&mut reader)?);
@@ -135,22 +141,22 @@ impl WaveReader {
                     cue__chunk = Some(Cue_Chunk::read(&mut reader)?);
                 },
                 b"axml" => {
-                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
+                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 },
                 b"ixml" => {
-                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
+                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 },
                 b"LIST" => {
-                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64)?);
+                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64, &savage_decoder)?);
                 }
                 b"acid" => {
                     acid_chunk = Some(AcidChunk::read(&mut reader)?);
                 },
                 b"Trkn" => {
-                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize)?);
+                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 }
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_flag_to_string(&other));
+                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(&other));
                 },
             }
             // 跳到下一个块的开始位置
@@ -204,6 +210,7 @@ impl WaveReader {
             list_chunk,
             acid_chunk,
             trkn_chunk,
+            savage_decoder,
         })
     }
 
