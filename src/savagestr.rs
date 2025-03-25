@@ -164,6 +164,7 @@ pub struct SavageStringDecoder {
     decoder_map: HashMap<String, EncodingRef>,
 }
 
+// 调试信息霸屏，因此改成显示“...”
 impl std::fmt::Debug for SavageStringDecoder {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("SavageStringDecoder")
@@ -175,11 +176,13 @@ impl std::fmt::Debug for SavageStringDecoder {
 
 impl SavageStringDecoder {
     pub fn new() -> Self {
+        // 代码页、编码名称、编码描述
         let mut codepage_map = HashMap::<u32, (String, String)>::new();
         for cpd in CODE_PAGE_DATA {
-            let (cp, name, desc) = cpd;
+            let (cp, name, _desc) = cpd;
             codepage_map.insert(cp, (name.to_string(), desc.to_string()));
         }
+        // 编码名称、编解码器
         let mut decoder_map = HashMap::<String, EncodingRef>::new();
         for decoder in encodings() {
             println!("{}", decoder.name());
@@ -191,6 +194,7 @@ impl SavageStringDecoder {
         }
     }
 
+    // 尽量理智地尝试各种各样的字符串解码方式
     pub fn decode_bytes(&self, bytes: &Vec<u8>) -> String {
         match String::from_utf8(bytes.clone()) {
             Ok(s) => s,
@@ -214,16 +218,19 @@ impl SavageStringDecoder {
         }
     }
 
+    // 对 slice 进行解码
     pub fn decode(&self, bytes: &[u8]) -> String {
         self.decode_bytes(&bytes.to_vec())
     }
 
+    // 对定长 slice 进行解码
     pub fn decode_flags(&self, bytes: &[u8; 4]) -> String {
         self.decode_bytes(&bytes.to_vec())
     }
 
+    // 无法正常解码，进行莽夫式解码
     pub fn savage_decode(bytes: &[u8]) -> String {
-        format!("<SAVAGE>{}", String::from_utf8_lossy(bytes))
+        format!("<SAVAGE DATA>{}", String::from_utf8_lossy(bytes))
     }
 }
 
