@@ -113,6 +113,7 @@ impl WaveReader {
                     junk_chunk.push(junk);
                 }
                 b"fmt " => {
+                    Self::verify_none(&fmt_chunk, &chunk.flag)?;
                     fmt_chunk = Some(fmt_Chunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
@@ -127,6 +128,9 @@ impl WaveReader {
                     riff_end = start_of_riff + riff_len;
                 }
                 b"data" => {
+                    if data_offset != 0 {
+                        return Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(&chunk.flag))).into());
+                    }
                     data_offset = chunk.chunk_start_pos;
                     if !isRF64 {
                         data_size = chunk.size as u64;
@@ -222,6 +226,13 @@ impl WaveReader {
         &self.spec
     }
 
+    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
+        if o.is_some() {
+            Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
+        } else {
+            Ok(())
+        }
+    }
 
     // 创建迭代器。
     // 迭代器的作用是读取每个音频帧。
