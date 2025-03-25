@@ -286,7 +286,7 @@ impl fmt_Chunk {
                 }
             },
             (3, 32) => Ok(Float),
-            (3, 46) => Ok(Float),
+            (3, 64) => Ok(Float),
             _ => Err(AudioError::Unimplemented),
         }
     }
