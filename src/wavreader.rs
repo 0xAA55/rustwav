@@ -224,28 +224,6 @@ impl WaveReader {
         Ok(WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec.clone(), self.num_frames)?)
     }
 
-    pub fn dbg(&self) {
-        dbg!(&self.riff_len);
-        dbg!(&self.spec);
-        dbg!(&self.fmt_chunk);
-        dbg!(&self.fact_data);
-        dbg!(&self.data_offset);
-        dbg!(&self.data_size);
-        dbg!(&self.data_hash);
-        dbg!(&self.frame_size);
-        dbg!(&self.num_frames);
-        println!("{}", &self.data_chunk.to_string());
-        dbg!(&self.bwav_chunk);
-        dbg!(&self.smpl_chunk);
-        dbg!(&self.inst_chunk);
-        dbg!(&self.cue__chunk);
-        dbg!(&self.axml_chunk);
-        dbg!(&self.ixml_chunk);
-        dbg!(&self.list_chunk);
-        dbg!(&self.acid_chunk);
-        dbg!(&self.trkn_chunk);
-    }
-
     pub fn to_string(&self) -> String {
         let mut ret = String::new();
         ret.push_str(&format!("riff_len   is {:?}\n", self.riff_len));
@@ -257,7 +235,7 @@ impl WaveReader {
         ret.push_str(&format!("data_hash  is {:?}\n", self.data_hash));
         ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
         ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
-        ret.push_str(&format!("data_chunk is {}\n", &self.data_chunk.to_string()));
+        ret.push_str(&format!("data_chunk is {:?}\n", self.data_chunk));
         ret.push_str(&format!("bwav_chunk is {:?}\n", self.bwav_chunk));
         ret.push_str(&format!("smpl_chunk is {:?}\n", self.smpl_chunk));
         ret.push_str(&format!("inst_chunk is {:?}\n", self.inst_chunk));
@@ -284,6 +262,23 @@ pub struct WaveDataReader {
     temp_dir: Option<TempDir>,
     filepath: PathBuf,
     offset: u64,
+}
+
+#[derive(Debug)]
+struct TempDir_;
+impl std::fmt::Debug for WaveDataReader {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let fake_tempdir = match self.temp_dir {
+            Some(_) => Some(TempDir_),
+            None => None,
+        };
+        fmt.debug_struct("WaveDataReader")
+            .field("reader", &self.reader)
+            .field("temp_dir", &fake_tempdir)
+            .field("filepath", &self.filepath)
+            .field("PCM_sample_offset", &self.offset)
+            .finish()
+    }
 }
 
 impl WaveDataReader {
@@ -357,21 +352,6 @@ impl WaveDataReader {
         })
     }
 
-    fn to_string(&self) -> String {
-        let mut ret = String::from("WaveDataReader {");
-        ret.push_str(&format!("reader: {}, ", match self.reader{
-            Some(_) => "Some(Box<dyn Reader>)",
-            None => "None"
-        }));
-        ret.push_str(&format!("temp_dir: {}, ", match self.temp_dir{
-            Some(_) => "Some(TempDir)",
-            None => "None"
-        }));
-        ret.push_str(&format!("filepath: {}, ", savage_path_buf_to_string(&self.filepath)));
-        ret.push_str(&format!("PCM sample offset: 0x{:x} }", self.offset));
-        ret
-    }
-
     fn open(&self) -> Result<File, io::Error> {
         let mut file = File::open(&self.filepath)?;
         file.seek(SeekFrom::Start(self.offset))?;
@@ -379,6 +359,7 @@ impl WaveDataReader {
     }
 }
 
+#[derive(Debug)]
 pub struct WaveIter<S>
 where S: SampleType {
     reader: BufReader<File>, // 数据读取器
