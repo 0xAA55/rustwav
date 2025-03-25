@@ -38,6 +38,7 @@ pub struct WaveReader {
     list_chunk: Option<ListChunk>,
     acid_chunk: Option<AcidChunk>,
     trkn_chunk: Option<String>,
+    junk_chunk: Vec<Vec<u8>>,
     savage_decoder: SavageStringDecoder,
 }
 
@@ -99,12 +100,18 @@ impl WaveReader {
         let mut list_chunk: Option<ListChunk> = None;
         let mut acid_chunk: Option<AcidChunk> = None;
         let mut trkn_chunk: Option<String> = None;
+        let mut junk_chunk: Vec::<Vec<u8>>::new();
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
             let chunk = Chunk::read(&mut reader)?;
             match &chunk.flag {
-                // 注意这里会自动跳过 JUNK 节，因此没办法处理 JUNK 节里面的数据
+                b"JUNK" => {
+                    let mut junk = Vec::<u8>::new();
+                    junk.resize(chunk.size as usize);
+                    reader.read_exact(junk)?;
+                    junk_chunk.push(junk);
+                }
                 b"fmt " => {
                     fmt_chunk = Some(fmt_Chunk::read(&mut reader, chunk.size)?);
                 },
@@ -210,6 +217,7 @@ impl WaveReader {
             list_chunk,
             acid_chunk,
             trkn_chunk,
+            junk_chunk,
             savage_decoder,
         })
     }
@@ -250,8 +258,9 @@ impl WaveReader {
         ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
         ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
         ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
-        ret.push_str(&format!("acid_chunk is {:?}\n", self.list_chunk));
-        ret.push_str(&format!("trkn_chunk is {:?}\n", self.list_chunk));
+        ret.push_str(&format!("acid_chunk is {:?}\n", self.acid_chunk));
+        ret.push_str(&format!("trkn_chunk is {:?}\n", self.trkn_chunk));
+        ret.push_str(&format!("junk_chunk is {:?}\n", self.junk_chunk));
         ret
     }
 }

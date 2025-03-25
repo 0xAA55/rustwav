@@ -169,19 +169,8 @@ impl Chunk {
     pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
         // 读取 WAV 中的每个块
-        // 注意 WAV 中会有 JUNK 块，目前的做法就是跳过所有的 JUNK 块。
-        // 在 AVI 里面，JUNK 块里面会包含重要信息，但是 WAV 我就管它丫的了。
         let mut flag = [0u8; 4];
         let mut size : u32;
-        loop {
-            reader.read_exact(&mut flag)?;
-            size = u32::read_le(reader)?;
-            if &flag == b"JUNK" {
-                reader.seek(SeekFrom::Current(size.into()))?;
-            } else {
-                break;
-            }
-        }
         Ok(Self {
             flag,
             size,
@@ -252,9 +241,30 @@ impl fmt_Chunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    fn write_body<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
+        self.format_tag.write_le(writer)?;
+        self.channels.write_le(writer)?;
+        self.sample_rate.write_le(writer)?;
+        self.byte_rate.write_le(writer)?;
+        self.block_align.write_le(writer)?;
+        self.bits_per_sample.write_le(writer)?;
+    }
 
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
+    where W: Writer {
+        writer.write_all(b"fmt ")?;
+        match self.extension {
+            Some(ext) => {
+                40u32::write_le(writer)?;
+                self.write_body(writer)?;
+                ext.write(writer);
+            },
+            None => {
+                16u32::write_le(writer)?;
+                self.write_body(writer)?;
+            }
+        }
     }
 
     pub fn get_sample_format(&self) -> Result<SampleFormat, AudioError> {
@@ -293,9 +303,12 @@ impl fmt_Chunk_Extension {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        self.ext_len.write_le(writer)?;
+        self.bits_per_sample.write_le(writer)?;
+        self.bits_per_sample.write_le(writer)?;
+        self.sub_format.write(writer)?;
     }
 }
 
@@ -344,7 +357,7 @@ impl BextChunk {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -395,7 +408,7 @@ impl SmplChunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -414,7 +427,7 @@ impl SmplSampleLoop {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -445,7 +458,7 @@ impl InstChunk {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -482,7 +495,7 @@ impl Cue_Chunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -501,7 +514,7 @@ impl Cue {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -575,7 +588,7 @@ impl ListChunk {
         }
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
@@ -639,7 +652,7 @@ impl AcidChunk {
         })
     }
 
-    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
 
     }
