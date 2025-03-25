@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{any::TypeId, fs::File, {path::Path}, io::{self, Write, Seek, SeekFrom, BufWriter}, error::Error};
 
 #[allow(unused_imports)]
