@@ -1,17 +1,12 @@
 use std::collections::HashMap;
 use encoding::{EncodingRef, DecoderTrap, all::*};
 
-#[cfg(target_os="windows")]
-use windows::Win32::Globalization::GetACP;
-
-#[cfg(target_os="windows")]
 fn get_system_code_page() -> u32 {
-    unsafe{ GetACP() }
-}
-
-#[cfg(not(target_os="windows"))]
-fn get_system_code_page() -> u32 {
-    65001
+    if cfg!(target_os = "windows") {
+        unsafe{ windows::Win32::Globalization::GetACP() }
+    } else {
+        65001
+    }
 }
 
 const CODE_PAGE_DATA: [(u32, &str, &str); 140] = [
