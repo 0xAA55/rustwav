@@ -33,13 +33,13 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
-    bwav_chunk: Option<BWAVChunk>,
-    smpl_chunk: Option<SMPLChunk>,
-    inst_chunk: Option<INSTChunk>,
+    bwav_chunk: Option<BextChunk>,
+    smpl_chunk: Option<SmplChunk>,
+    inst_chunk: Option<InstChunk>,
     cue__chunk: Option<Cue_Chunk>,
     axml_chunk: Option<Vec<u8>>,
     ixml_chunk: Option<Vec<u8>>,
-    list_chunk: Option<LISTChunk>,
+    list_chunk: Option<ListChunk>,
 }
 
 impl WaveReader {
@@ -89,13 +89,13 @@ impl WaveReader {
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data = 0;
-        let mut bwav_chunk: Option<BWAVChunk> = None;
-        let mut smpl_chunk: Option<SMPLChunk> = None;
-        let mut inst_chunk: Option<INSTChunk> = None;
+        let mut bwav_chunk: Option<BextChunk> = None;
+        let mut smpl_chunk: Option<SmplChunk> = None;
+        let mut inst_chunk: Option<InstChunk> = None;
         let mut cue__chunk: Option<Cue_Chunk> = None;
         let mut axml_chunk: Option<Vec<u8>> = None;
         let mut ixml_chunk: Option<Vec<u8>> = None;
-        let mut list_chunk: Option<LISTChunk> = None;
+        let mut list_chunk: Option<ListChunk> = None;
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
@@ -126,13 +126,13 @@ impl WaveReader {
                     continue;
                 },
                 b"bext" => {
-                    bwav_chunk = Some(BWAVChunk::read(&mut reader)?);
+                    bwav_chunk = Some(BextChunk::read(&mut reader)?);
                 },
                 b"smpl" => {
-                    smpl_chunk = Some(SMPLChunk::read(&mut reader)?);
+                    smpl_chunk = Some(SmplChunk::read(&mut reader)?);
                 },
                 b"inst" | b"INST" => {
-                    inst_chunk = Some(INSTChunk::read(&mut reader)?);
+                    inst_chunk = Some(InstChunk::read(&mut reader)?);
                 },
                 b"cue " => {
                     cue__chunk = Some(Cue_Chunk::read(&mut reader)?);
@@ -150,7 +150,7 @@ impl WaveReader {
                     ixml_chunk = Some(data);
                 },
                 b"LIST" => {
-                    list_chunk = Some(LISTChunk::read(&mut reader, chunk.size as u64)?);
+                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64)?);
                 }
                 other => {
                     println!("Unknown chunk in RIFF or RF64 chunk: {:?}", other);
@@ -594,7 +594,7 @@ impl fmt_Chunk_Extension {
 
 
 #[derive(Debug, Clone)]
-struct BWAVChunk {
+struct BextChunk {
     description: String,
     originator: String,
     originatorRef: String,
@@ -607,7 +607,7 @@ struct BWAVChunk {
     coding_history: [u8; 1],
 }
 
-impl BWAVChunk {
+impl BextChunk {
     fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let description = read_str(reader, 256)?;
@@ -639,7 +639,7 @@ impl BWAVChunk {
 }
 
 #[derive(Debug, Clone)]
-struct SMPLChunk {
+struct SmplChunk {
     manufacturer: u32,
     product: u32,
     samplePeriod: u32,
@@ -649,11 +649,11 @@ struct SMPLChunk {
     smpteOffset: u32,
     numSampleLoops: u32,
     samplerData: u32,
-    loops: Vec<SMPLSampleLoop>,
+    loops: Vec<SmplSampleLoop>,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SMPLSampleLoop {
+struct SmplSampleLoop {
     identifier: u32,
     type_: u32,
     start: u32,
@@ -662,7 +662,7 @@ struct SMPLSampleLoop {
     playCount: u32,
 }
 
-impl SMPLChunk {
+impl SmplChunk {
     fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
         let mut ret = Self{
@@ -675,16 +675,16 @@ impl SMPLChunk {
             smpteOffset: u32::read_le(reader)?,
             numSampleLoops: u32::read_le(reader)?,
             samplerData: u32::read_le(reader)?,
-            loops: Vec::<SMPLSampleLoop>::new(),
+            loops: Vec::<SmplSampleLoop>::new(),
         };
         for _ in 0..ret.numSampleLoops {
-            ret.loops.push(SMPLSampleLoop::read(reader)?);
+            ret.loops.push(SmplSampleLoop::read(reader)?);
         }
         Ok(ret)
     }
 }
 
-impl SMPLSampleLoop {
+impl SmplSampleLoop {
     fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
         Ok(Self{
@@ -699,7 +699,7 @@ impl SMPLSampleLoop {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct INSTChunk {
+struct InstChunk {
     baseNote: u8,
     detune: u8,
     gain: u8,
@@ -709,7 +709,7 @@ struct INSTChunk {
     highVelocity: u8,
 }
 
-impl INSTChunk {
+impl InstChunk {
     fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
         Ok(Self{
@@ -770,12 +770,12 @@ impl Cue {
 }
 
 #[derive(Debug, Clone)]
-enum LISTChunk {
+enum ListChunk {
     info(HashMap<String, String>),
-    adtl(Vec<ADTLChunk>),
+    adtl(Vec<AdtlChunk>),
 }
 
-impl LISTChunk {
+impl ListChunk {
     fn read<R>(reader: &mut R, chunk_size: u64) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let end_of_chunk = Chunk::align(reader.stream_position()? + chunk_size);
@@ -794,25 +794,25 @@ impl LISTChunk {
                 Ok(Self::info(dict))
             },
             b"adtl" => {
-                let adtl = Vec::<ADTLChunk>::new();
+                let adtl = Vec::<AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
                     let sub_chunk = Chunk::read(reader)?;
                     match &sub_chunk.flag {
                         b"labl" => {
-                            adtl.push(ADTLChunk::labl(LABLChunk{
-                                identifier: read_str(reader, 4)?,
+                            adtl.push(AdtlChunk::labl(LablChunk{
+                                identifier: u32::read_le(reader)?,
                                 data: read_str(reader, sub_chunk.size - 4)?,
                             }));
                         },
                         b"note" => {
-                            adtl.push(ADTLChunk::note(NOTEChunk{
-                                identifier: read_str(reader, 4)?,
+                            adtl.push(AdtlChunk::note(NoteChunk{
+                                identifier: u32::read_le(reader)?,
                                 data: read_str(reader, sub_chunk.size - 4)?,
                             }));
                         },
                         b"ltxt" => {
-                            adtl.push(ADTLChunk::ltxt(LTXTChunk{
-                                identifier: read_str(reader, 4)?,
+                            adtl.push(AdtlChunk::ltxt(LtxtChunk{
+                                identifier: u32::read_le(reader)?,
                                 sample_length: u32::read_le(reader)?,
                                 purpose_id: read_str(reader, 4)?,
                                 country: u16::read_le(reader)?,
@@ -839,27 +839,27 @@ impl LISTChunk {
 }
 
 #[derive(Debug, Clone)]
-enum ADTLChunk {
-    labl(LABLChunk),
-    note(NOTEChunk),
-    ltxt(LTXTChunk),
+enum AdtlChunk {
+    labl(LablChunk),
+    note(NoteChunk),
+    ltxt(LtxtChunk),
 }
 
 #[derive(Debug, Clone)]
-struct LABLChunk {
-    identifier: String,
+struct LablChunk {
+    identifier: u32,
     data: String,
 }
 
 #[derive(Debug, Clone)]
-struct NOTEChunk {
-    identifier: String,
+struct NoteChunk {
+    identifier: u32,
     data: String,
 }
 
 #[derive(Debug, Clone)]
-struct LTXTChunk {
-    identifier: String,
+struct LtxtChunk {
+    identifier: u32,
     sample_length: u32,
     purpose_id: String,
     country: u16,
@@ -868,3 +868,16 @@ struct LTXTChunk {
     code_page: u16,
     data: String,
 }
+
+#[derive(Debug, Clone)]
+struct AcidChunk {
+    flags: u32,
+    root_node: u16,
+    reserved1: u16,
+    reserved2: f32,
+    num_beats: u32,
+    meter_denominator: u16,
+    meter_numerator: u16,
+    tempo: f32,
+}
+
