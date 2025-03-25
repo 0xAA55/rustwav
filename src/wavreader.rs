@@ -5,7 +5,6 @@ use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFro
 
 use crate::errors::{AudioReadError};
 use crate::wavcore::*;
-use crate::filehasher::FileHasher;
 use crate::savagestr::SavageStringDecoder;
 
 #[derive(Debug)]
@@ -26,7 +25,7 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
-    bwav_chunk: Option<BextChunk>,
+    bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
     cue__chunk: Option<Cue_Chunk>,
@@ -88,7 +87,7 @@ impl WaveReader {
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data = 0;
-        let mut bwav_chunk: Option<BextChunk> = None;
+        let mut bext_chunk: Option<BextChunk> = None;
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
         let mut cue__chunk: Option<Cue_Chunk> = None;
@@ -97,7 +96,9 @@ impl WaveReader {
         let mut list_chunk: Option<ListChunk> = None;
         let mut acid_chunk: Option<AcidChunk> = None;
         let mut trkn_chunk: Option<String> = None;
-        let mut junk_chunk: Vec::<Vec<u8>>::new();
+        let mut junk_chunk: Vec<Vec<u8>>;
+
+        junk_chunk = Vec::<Vec<u8>>::new();
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
@@ -133,7 +134,7 @@ impl WaveReader {
                     continue;
                 },
                 b"bext" => {
-                    bwav_chunk = Some(BextChunk::read(&mut reader, &savage_decoder)?);
+                    bext_chunk = Some(BextChunk::read(&mut reader, &savage_decoder)?);
                 },
                 b"smpl" => {
                     smpl_chunk = Some(SmplChunk::read(&mut reader)?);
@@ -201,7 +202,7 @@ impl WaveReader {
             frame_size,
             num_frames,
             data_chunk,
-            bwav_chunk,
+            bext_chunk,
             smpl_chunk,
             inst_chunk,
             cue__chunk,
@@ -244,7 +245,7 @@ impl WaveReader {
         ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
         ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
         ret.push_str(&format!("data_chunk is {:?}\n", self.data_chunk));
-        ret.push_str(&format!("bwav_chunk is {:?}\n", self.bwav_chunk));
+        ret.push_str(&format!("bext_chunk is {:?}\n", self.bext_chunk));
         ret.push_str(&format!("smpl_chunk is {:?}\n", self.smpl_chunk));
         ret.push_str(&format!("inst_chunk is {:?}\n", self.inst_chunk));
         ret.push_str(&format!("cue__chunk is {:?}\n", self.cue__chunk));
