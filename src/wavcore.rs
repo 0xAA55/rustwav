@@ -159,6 +159,38 @@ impl Spec {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct ChunkWriter {
+    pos_of_chunk_len: u64, // 写入 chunk 大小的地方
+    chunk_start: u64, // chunk 数据开始的地方
+}
+
+impl ChunkWriter {
+    fn begin<W>(writer: &mut W, flag: &[u8; 4]) -> Result<Self, io::Error>
+    where W: Writer {
+        writer.write_all(flag)?;
+        let pos_of_chunk_len = writer.stream_position()?;
+        0u32.write_le(writer)?;
+        let chunk_start = writer.stream_position()?;
+        Ok(Self{
+            pos_of_chunk_len,
+            chunk_start,
+        })
+    }
+
+    fn end<W>(self, writer: &mut W) -> Result<(), io::Error>
+    where W: Writer {
+        let end_of_chunk = writer.stream_position()?;
+        writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
+        ((end_of_chunk - self.chunk_start) as u32).write_le(writer)?;
+        writer.seek(SeekFrom::Start(end_of_chunk))?;
+        if end_of_chunk & 1 > 0 {
+            0u8.write_le(writer)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Chunk {
     pub flag: [u8; 4], // 实际存储在文件里的
     pub size: u32, // 实际存储在文件里的
@@ -170,10 +202,10 @@ impl Chunk {
     where R: Reader {
         // 读取 WAV 中的每个块
         let mut flag = [0u8; 4];
-        let mut size : u32;
+        reader.read_exact(&mut flag)?;
         Ok(Self {
             flag,
-            size,
+            size: u32::read_le(reader)?,
             chunk_start_pos: reader.stream_position()?
         })
     }
@@ -234,9 +266,9 @@ impl fmt_Chunk {
             },
             0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => {
                 // Ogg Vorbis 数据
-                return Err(AudioError::Unimplemented.into());
+                return Err(AudioError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")).into());
             },
-            _ => return Err(AudioError::Unimplemented.into()),
+            other => return Err(AudioError::Unimplemented(format!("unknown format tag: {}", other)).into()),
         }
         Ok(ret)
     }
@@ -249,22 +281,23 @@ impl fmt_Chunk {
         self.byte_rate.write_le(writer)?;
         self.block_align.write_le(writer)?;
         self.bits_per_sample.write_le(writer)?;
+        Ok(())
     }
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        writer.write_all(b"fmt ")?;
+        let cw = ChunkWriter::begin(writer, b"fmt ")?;
         match self.extension {
             Some(ext) => {
-                40u32::write_le(writer)?;
                 self.write_body(writer)?;
-                ext.write(writer);
+                ext.write(writer)?;
             },
             None => {
-                16u32::write_le(writer)?;
                 self.write_body(writer)?;
             }
         }
+        cw.end(writer)?;
+        Ok(())
     }
 
     pub fn get_sample_format(&self) -> Result<SampleFormat, AudioError> {
@@ -279,7 +312,7 @@ impl fmt_Chunk {
                         match extension.sub_format {
                             GUID_PCM_FORMAT => Ok(Int),
                             GUID_IEEE_FLOAT_FORMAT => Ok(Float),
-                            _ => Err(AudioError::Unimplemented),
+                            other => Err(AudioError::Unimplemented(format!("Unknown format identifier GUID {:?}", other))),
                         }
                     },
                     None => Ok(Int),
@@ -287,7 +320,7 @@ impl fmt_Chunk {
             },
             (3, 32) => Ok(Float),
             (3, 64) => Ok(Float),
-            _ => Err(AudioError::Unimplemented),
+            (t, b) => Err(AudioError::Unimplemented(format!("Unimplemented for format tag = {} and bits per sample = {}", t, b))),
         }
     }
 }
@@ -309,6 +342,7 @@ impl fmt_Chunk_Extension {
         self.bits_per_sample.write_le(writer)?;
         self.bits_per_sample.write_le(writer)?;
         self.sub_format.write(writer)?;
+        Ok(())
     }
 }
 
@@ -359,7 +393,19 @@ impl BextChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"bext")?;
+        write_str_sized(writer, &self.description, 256)?;
+        write_str_sized(writer, &self.originator, 32)?;
+        write_str_sized(writer, &self.originator_ref, 32)?;
+        write_str_sized(writer, &self.origination_date, 10)?;
+        write_str_sized(writer, &self.origination_time, 8)?;
+        self.time_ref.write_le(writer)?;
+        self.version.write_le(writer)?;
+        writer.write_all(&self.umid)?;
+        writer.write_all(&self.reserved)?;
+        writer.write_all(&self.coding_history)?;
+        cw.end(writer)?;
+        Ok(())
     }
 }
 
@@ -410,7 +456,21 @@ impl SmplChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"smpl")?;
+        self.manufacturer.write_le(writer)?;
+        self.product.write_le(writer)?;
+        self.sample_period.write_le(writer)?;
+        self.midi_unity_note.write_le(writer)?;
+        self.midi_pitch_fraction.write_le(writer)?;
+        self.smpte_format.write_le(writer)?;
+        self.smpte_offset.write_le(writer)?;
+        self.num_sample_loops.write_le(writer)?;
+        self.sampler_data.write_le(writer)?;
+        for l in self.loops.iter() {
+            l.write(writer)?;
+        }
+        cw.end(writer)?;
+        Ok(())
     }
 }
 
@@ -429,7 +489,13 @@ impl SmplSampleLoop {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        self.identifier.write_le(writer)?;
+        self.type_.write_le(writer)?;
+        self.start.write_le(writer)?;
+        self.end.write_le(writer)?;
+        self.fraction.write_le(writer)?;
+        self.play_count.write_le(writer)?;
+        Ok(())
     }
 }
 
@@ -460,7 +526,16 @@ impl InstChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"INST")?;
+        self.base_note.write_le(writer)?;
+        self.detune.write_le(writer)?;
+        self.gain.write_le(writer)?;
+        self.low_note.write_le(writer)?;
+        self.high_note.write_le(writer)?;
+        self.low_velocity.write_le(writer)?;
+        self.high_velocity.write_le(writer)?;
+        cw.end(writer)?;
+        Ok(())
     }
 }
 
@@ -497,7 +572,13 @@ impl Cue_Chunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"cue ")?;
+        self.num_cues.write_le(writer)?;
+        for cue in self.cues.iter() {
+            cue.write(writer)?;
+        }
+        cw.end(writer)?;
+        Ok(())
     }
 }
 
@@ -516,7 +597,13 @@ impl Cue {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        self.identifier.write_le(writer)?;
+        self.order.write_le(writer)?;
+        self.chunk_id.write_le(writer)?;
+        self.chunk_start.write_le(writer)?;
+        self.block_start.write_le(writer)?;
+        self.offset.write_le(writer)?;
+        Ok(())
     }
 }
 
@@ -534,63 +621,70 @@ impl ListChunk {
         reader.read_exact(&mut flag)?;
         match &flag {
             b"info" | b"INFO" => {
-                // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
-                let mut dict = HashMap::<String, String>::new();
-                while reader.stream_position()? < end_of_chunk {
-                    let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
-                    let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
-                    dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
-                    key_chunk.seek_to_next_chunk(reader)?;
-                }
+                let dict = Self::read_dict(reader, end_of_chunk, savage_decoder)?;
                 Ok(Self::Info(dict))
             },
             b"adtl" => {
                 let mut adtl = Vec::<AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
-                    let sub_chunk = Chunk::read(reader)?;
-                    match &sub_chunk.flag {
-                        b"labl" => {
-                            adtl.push(AdtlChunk::Labl(LablChunk{
-                                identifier: u32::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
-                            }));
-                        },
-                        b"note" => {
-                            adtl.push(AdtlChunk::Note(NoteChunk{
-                                identifier: u32::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
-                            }));
-                        },
-                        b"ltxt" => {
-                            adtl.push(AdtlChunk::Ltxt(LtxtChunk{
-                                identifier: u32::read_le(reader)?,
-                                sample_length: u32::read_le(reader)?,
-                                purpose_id: read_str(reader, 4, savage_decoder)?,
-                                country: u16::read_le(reader)?,
-                                language: u16::read_le(reader)?,
-                                dialect: u16::read_le(reader)?,
-                                code_page: u16::read_le(reader)?,
-                                data: read_str(reader, (sub_chunk.size - 20) as usize, savage_decoder)?,
-                            }));
-                        },
-                        other => {
-                            println!("Unknown sub chunk in adtl chunk: {}", savage_decoder.decode_flags(&other));
-                        },
-                    }
-                    sub_chunk.seek_to_next_chunk(reader)?;
+                    adtl.push(AdtlChunk::read(reader, savage_decoder)?);
                 }
                 Ok(Self::Adtl(adtl))
             },
             other => {
-                println!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(&other));
-                Err(AudioReadError::Unimplemented.into())
+                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(&other))).into())
             },
         }
     }
 
+    fn read_dict<R>(reader: &mut R, end_of_chunk: u64, savage_decoder: &SavageStringDecoder) -> Result<HashMap<String, String>, Box<dyn Error>>
+    where R: Reader {
+        // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
+        let mut dict = HashMap::<String, String>::new();
+        while reader.stream_position()? < end_of_chunk {
+            let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
+            let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
+            dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
+            key_chunk.seek_to_next_chunk(reader)?;
+        }
+        Ok(dict)
+    }
+
+    fn write_dict<W>(writer: &mut W, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>>
+    where W: Writer {
+        for (key, val) in dict.iter() {
+            if key.len() != 4 {
+                return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
+            }
+            let mut val = val.clone();
+            val.push_str("\0");
+            write_str(writer, &key)?;
+            (val.len() as u32).write_le(writer)?;
+            write_str(writer, &val)?;
+            if writer.stream_position()? & 1 > 0 {
+                0u8.write_le(writer)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"LIST")?;
+        match self {
+            Self::Info(dict) => {
+                writer.write_all(b"INFO")?;
+                Self::write_dict(writer, dict)?;
+            },
+            Self::Adtl(adtls) => {
+                writer.write_all(b"adtl")?;
+                for adtl in adtls.iter() {
+                    adtl.write(writer)?;
+                }
+            },
+        };
+        cw.end(writer)?;
+        Ok(())
     }
 }
 
@@ -599,6 +693,75 @@ pub enum AdtlChunk {
     Labl(LablChunk),
     Note(NoteChunk),
     Ltxt(LtxtChunk),
+}
+
+impl AdtlChunk {
+    pub fn read<R>(reader: &mut R, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
+    where R: Reader {
+        let sub_chunk = Chunk::read(reader)?;
+        let ret = match &sub_chunk.flag {
+            b"labl" => {
+                Self::Labl(LablChunk{
+                    identifier: u32::read_le(reader)?,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
+                })
+            },
+            b"note" => {
+                Self::Note(NoteChunk{
+                    identifier: u32::read_le(reader)?,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
+                })
+            },
+            b"ltxt" => {
+                Self::Ltxt(LtxtChunk{
+                    identifier: u32::read_le(reader)?,
+                    sample_length: u32::read_le(reader)?,
+                    purpose_id: read_str(reader, 4, savage_decoder)?,
+                    country: u16::read_le(reader)?,
+                    language: u16::read_le(reader)?,
+                    dialect: u16::read_le(reader)?,
+                    code_page: u16::read_le(reader)?,
+                    data: read_str(reader, (sub_chunk.size - 20) as usize, savage_decoder)?,
+                })
+            },
+            other => {
+                return Err(AudioReadError::Unimplemented(format!("Unknown data \"{}\" for the adtl chunk", savage_decoder.decode_flags(&other))).into());
+            },
+        };
+        sub_chunk.seek_to_next_chunk(reader)?;
+        Ok(ret)
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
+    where W: Writer {
+        match self {
+            Self::Labl(labl) => {
+                let cw = ChunkWriter::begin(writer, b"labl")?;
+                labl.identifier.write_le(writer)?;
+                write_str(writer, &labl.data)?;
+                cw.end(writer)?;
+            },
+            Self::Note(note) => {
+                let cw = ChunkWriter::begin(writer, b"note")?;
+                note.identifier.write_le(writer)?;
+                write_str(writer, &note.data)?;
+                cw.end(writer)?;
+            },
+            Self::Ltxt(ltxt) => {
+                let cw = ChunkWriter::begin(writer, b"ltxt")?;
+                ltxt.identifier.write_le(writer)?;
+                ltxt.sample_length.write_le(writer)?;
+                write_str_sized(writer, &ltxt.purpose_id, 4)?;
+                ltxt.country.write_le(writer)?;
+                ltxt.language.write_le(writer)?;
+                ltxt.dialect.write_le(writer)?;
+                ltxt.code_page.write_le(writer)?;
+                write_str(writer, &ltxt.data)?;
+                cw.end(writer)?;
+            },
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -654,7 +817,41 @@ impl AcidChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-
+        let cw = ChunkWriter::begin(writer, b"acid")?;
+        self.flags.write_le(writer)?;
+        self.root_node.write_le(writer)?;
+        self.reserved1.write_le(writer)?;
+        self.reserved2.write_le(writer)?;
+        self.num_beats.write_le(writer)?;
+        self.meter_denominator.write_le(writer)?;
+        self.meter_numerator.write_le(writer)?;
+        self.tempo.write_le(writer)?;
+        cw.end(writer)?;
+        Ok(())
     }
+}
+
+fn axml_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
+where W: Writer {
+    let cw = ChunkWriter::begin(writer, b"axml")?;
+    write_str(writer, data)?;
+    cw.end(writer)?;
+    Ok(())
+}
+
+fn ixml_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
+where W: Writer {
+    let cw = ChunkWriter::begin(writer, b"ixml")?;
+    write_str(writer, data)?;
+    cw.end(writer)?;
+    Ok(())
+}
+
+fn Trkn_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
+where W: Writer {
+    let cw = ChunkWriter::begin(writer, b"Trkn")?;
+    write_str(writer, data)?;
+    cw.end(writer)?;
+    Ok(())
 }
 
