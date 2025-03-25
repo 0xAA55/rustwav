@@ -1,3 +1,5 @@
+#[!allow(dead_code)]
+
 use std::{io::{Read, Write, Error}, mem::size_of, clone::Clone};
 
 #[derive(Debug, Clone, Copy)]
@@ -820,6 +822,11 @@ impl SampleType for f64{
 // 莽夫式字节数组转 UTF-8 字符串，如果字节数组不是 UTF-8 字符串，那爱怎么乱码就怎么乱码吧。
 pub fn savage_bytes_to_string(bytes: &[u8]) -> String {
     let buf = String::from_utf8_lossy(&bytes);
+    format!("{}",buf)
+}
+
+pub fn savage_flag_to_string(flag: &[u8; 4]) -> String {
+    let buf = String::from_utf8_lossy(flag);
     format!("{}",buf)
 }
 
