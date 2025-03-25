@@ -1,4 +1,3 @@
-
 use std::{fs::File, error::Error};
 
 use flac::{StreamReader, ReadStream, stream::Iter, SampleSize, ErrorKind};
