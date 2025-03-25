@@ -100,8 +100,6 @@ impl WaveReader {
 
         junk_chunk = Vec::<Vec<u8>>::new();
 
-        // TODO：做检查，某些块比如 fmt、data 只允许有一个，有多了就报错
-
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
             let chunk = Chunk::read(&mut reader)?;
@@ -140,30 +138,39 @@ impl WaveReader {
                     continue;
                 },
                 b"bext" => {
+                    Self::verify_none(&bext_chunk, &chunk.flag)?;
                     bext_chunk = Some(BextChunk::read(&mut reader, &savage_decoder)?);
                 },
                 b"smpl" => {
+                    Self::verify_none(&smpl_chunk, &chunk.flag)?;
                     smpl_chunk = Some(SmplChunk::read(&mut reader)?);
                 },
                 b"inst" | b"INST" => {
+                    Self::verify_none(&inst_chunk, &chunk.flag)?;
                     inst_chunk = Some(InstChunk::read(&mut reader)?);
                 },
                 b"cue " => {
+                    Self::verify_none(&cue__chunk, &chunk.flag)?;
                     cue__chunk = Some(Cue_Chunk::read(&mut reader)?);
                 },
                 b"axml" => {
+                    Self::verify_none(&axml_chunk, &chunk.flag)?;
                     axml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 },
                 b"ixml" => {
+                    Self::verify_none(&ixml_chunk, &chunk.flag)?;
                     ixml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 },
                 b"LIST" => {
+                    Self::verify_none(&list_chunk, &chunk.flag)?;
                     list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64, &savage_decoder)?);
                 }
                 b"acid" => {
+                    Self::verify_none(&acid_chunk, &chunk.flag)?;
                     acid_chunk = Some(AcidChunk::read(&mut reader)?);
                 },
                 b"Trkn" => {
+                    Self::verify_none(&trkn_chunk, &chunk.flag)?;
                     trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 }
                 other => {
