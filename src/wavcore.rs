@@ -252,6 +252,11 @@ impl fmt_Chunk {
         Ok(ret)
     }
 
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
+    }
+
     pub fn get_sample_format(&self) -> Result<SampleFormat, AudioError> {
         use SampleFormat::{Int, UInt, Float};
         match (self.format_tag, self.bits_per_sample) {
@@ -286,6 +291,11 @@ impl fmt_Chunk_Extension {
             channel_mask: u32::read_le(reader)?,
             sub_format: GUID::read(reader)?,
         })
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
     }
 }
 
@@ -333,6 +343,11 @@ impl BextChunk {
             coding_history,
         })
     }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -379,6 +394,11 @@ impl SmplChunk {
         }
         Ok(ret)
     }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
+    }
 }
 
 impl SmplSampleLoop {
@@ -392,6 +412,11 @@ impl SmplSampleLoop {
             fraction: u32::read_le(reader)?,
             play_count: u32::read_le(reader)?,
         })
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
     }
 }
 
@@ -418,6 +443,11 @@ impl InstChunk {
             low_velocity: u8::read_le(reader)?,
             high_velocity: u8::read_le(reader)?,
         })
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
     }
 }
 
@@ -451,6 +481,11 @@ impl Cue_Chunk {
         }
         Ok(ret)
     }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
+    }
 }
 
 impl Cue {
@@ -464,6 +499,11 @@ impl Cue {
             block_start: u32::read_le(reader)?,
             offset: u32::read_le(reader)?,
         })
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
     }
 }
 
@@ -534,6 +574,11 @@ impl ListChunk {
             },
         }
     }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -592,6 +637,11 @@ impl AcidChunk {
             meter_numerator: u16::read_le(reader)?,
             tempo: f32::read_le(reader)?,
         })
+    }
+
+    pub fn write<W>(&self, writer: &mut W) -> Result<Self, Box<dyn Error>>
+    where W: Writer {
+
     }
 }
 
