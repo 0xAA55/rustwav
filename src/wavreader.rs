@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, error::Error};
+use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
 
 use crate::errors::{AudioReadError};
 use crate::wavcore::*;
@@ -55,7 +55,7 @@ impl WaveReader {
                 filesrc = Some(filename.clone());
                 Box::new(BufReader::new(File::open(&filename)?))
             },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
         };
 
         let savage_decoder = SavageStringDecoder::new();
@@ -76,13 +76,13 @@ impl WaveReader {
                 isRF64 = true;
                 let _rf64_size = u32::read_le(&mut reader)?;
             },
-            _ => return Err(AudioReadError::FormatError.into()), // 根本不是 WAV
+            _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file")).into()), // 根本不是 WAV
         }
 
         let start_of_riff = reader.stream_position()?;
 
         // 读完头部后，这里必须是 WAVE 否则不是音频文件。
-        expect_flag(&mut reader, b"WAVE", AudioReadError::FormatError.into())?;
+        expect_flag(&mut reader, b"WAVE", AudioReadError::FormatError(String::from("not a WAVE file")).into())?;
 
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
@@ -106,8 +106,8 @@ impl WaveReader {
             match &chunk.flag {
                 b"JUNK" => {
                     let mut junk = Vec::<u8>::new();
-                    junk.resize(chunk.size as usize);
-                    reader.read_exact(junk)?;
+                    junk.resize(chunk.size as usize, 0u8);
+                    reader.read_exact(&mut junk)?;
                     junk_chunk.push(junk);
                 }
                 b"fmt " => {
@@ -118,7 +118,7 @@ impl WaveReader {
                 },
                 b"ds64" => {
                     if chunk.size < 28 {
-                        return Err(AudioReadError::DataCorrupted.into())
+                        return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")).into())
                     }
                     riff_len = u64::read_le(&mut reader)?;
                     data_size = u64::read_le(&mut reader)?;
@@ -170,7 +170,7 @@ impl WaveReader {
 
         let fmt_chunk = match fmt_chunk {
             Some(fmt_chunk) => fmt_chunk,
-            None => return Err(AudioReadError::DataCorrupted.into()),
+            None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide any \"data\" chunk")).into()),
         };
 
         let channel_mask = match fmt_chunk.extension {
@@ -241,7 +241,6 @@ impl WaveReader {
         ret.push_str(&format!("fact_data  is {:?}\n", self.fact_data));
         ret.push_str(&format!("data_offse is {:?}\n", self.data_offset));
         ret.push_str(&format!("data_size  is {:?}\n", self.data_size));
-        ret.push_str(&format!("data_hash  is {:?}\n", self.data_hash));
         ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
         ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
         ret.push_str(&format!("data_chunk is {:?}\n", self.data_chunk));
@@ -270,41 +269,23 @@ fn savage_path_buf_to_string(filepath: &Path) -> String {
 #[derive(Debug)]
 pub struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
-    tempfile: Option<File>,
+    tempfile: Arc<File>,
     filepath: PathBuf,
     offset: u64,
 }
-
-// #[derive(Debug)]
-// struct TempDir_;
-// impl std::fmt::Debug for WaveDataReader {
-//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         let fake_tempdir = match self.temp_dir {
-//             Some(_) => Some(TempDir_),
-//             None => None,
-//         };
-//         fmt.debug_struct("WaveDataReader")
-//             .field("reader", &self.reader)
-//             .field("temp_dir", &fake_tempdir)
-//             .field("filepath", &self.filepath)
-//             .field("PCM_sample_offset", &self.offset)
-//             .finish()
-//     }
-// }
 
 impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
     fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, Box<dyn Error>> {
         let reader: Option<Box<dyn Reader>>;
-        let mut tempfile: Option<File> = None;
-        let mut filepath: Option<PathBuf> = None;
+        let tempfile = Arc::new(tempfile::tempfile()?);
+        let filepath: Option<PathBuf>;
         let mut offset: u64 = 0;
-        let mut is_from_file = false;
+        let mut have_source_file = false;
         match file_source {
             WaveDataSource::Reader(r) => {
                 reader = Some(r);
-                tempfile = Some(tempfile::tempfile()?);
                 filepath = None;
             },
             WaveDataSource::Filename(path) => {
@@ -312,9 +293,9 @@ impl WaveDataReader {
                 reader = Some(Box::new(BufReader::new(File::open(&path)?)));
                 filepath = Some(path);
                 offset = data_offset;
-                is_from_file = true;
+                have_source_file = true;
             },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments.into()),
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
         };
 
         // 这个用来存储最原始的 Reader，如果最开始没有给 Reader 而是给了文件名，则存 None。
@@ -325,12 +306,12 @@ impl WaveDataReader {
         let filepath = filepath.unwrap();
 
         // 没有原始文件名，只有一个 Reader，那就从 Reader 那里把 WAV 文件肚子里的 data chunk 复制到一个临时文件里。
-        if !is_from_file {
+        if ! have_source_file {
             // 分段复制文件到临时文件里
             const BUFFER_SIZE: u64 = 81920;
             let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
-            let mut file = tempfile.unwrap();
+            let mut file = tempfile.clone();
             reader.seek(SeekFrom::Start(offset))?;
 
             // 按 BUFFER_SIZE 不断复制
@@ -351,7 +332,7 @@ impl WaveDataReader {
             orig_reader = Some(reader);
 
             #[cfg(debug_assertions)]
-            println!("Temp file created: {}", savage_path_buf_to_string(&filepath));
+            println!("Using tempfile to store \"data\" chunk");
         }
 
         Ok(Self {
