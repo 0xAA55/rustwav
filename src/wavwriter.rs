@@ -6,6 +6,7 @@ use std::{any::TypeId, fs::File, {path::Path}, io::{self, Write, Seek, SeekFrom,
 use crate::errors::{AudioWriteError};
 use crate::wavcore::*;
 
+#[derive(Debug)]
 pub struct WaveWriter {
     writer: DynWriter,
     spec: Spec,
@@ -195,6 +196,7 @@ impl WaveWriter {
     }
 }
 
+#[derive(Debug)]
 struct Packer<W, S>
 where W: Writer,
       S: SampleType {
