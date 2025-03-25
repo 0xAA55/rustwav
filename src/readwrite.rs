@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::io::{self, Read, Write, Seek, SeekFrom};
+pub use std::io::{self, Read, Write, Seek, SeekFrom};
 
 pub trait Reader: Read + Seek {}
 impl<T> Reader for T where T: Read + Seek {}
