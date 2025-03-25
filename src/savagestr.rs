@@ -203,7 +203,6 @@ impl SavageStringDecoder {
         // 编码名称、编解码器
         let mut decoder_map = HashMap::<String, EncodingRef>::new();
         for decoder in encodings() {
-            println!("{}", decoder.name());
             decoder_map.insert(decoder.name().to_string(), *decoder);
         }
         Self {
