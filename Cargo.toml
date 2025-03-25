@@ -5,7 +5,9 @@ edition = "2021"
 authors = ["0xAA55 <838816058@qq.com>"]
 
 [dependencies]
+encoding = "0.2.33"
 tempfile = "3.18.0"
+windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [lib]
 name = "rustwav_lib"
