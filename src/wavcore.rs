@@ -8,6 +8,7 @@ pub use crate::readwrite::*;
 pub use crate::sampleutils::*;
 pub use crate::savagestr::*;
 
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
     U8,
     S16,
@@ -38,7 +39,8 @@ pub const GUID_PCM_FORMAT: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 
 pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
 
 impl GUID {
-    pub fn read<T: Read>(r: &mut T) -> Result<Self, std::io::Error> {
+    pub fn read<T>(r: &mut T) -> Result<Self, std::io::Error>
+    where T: Reader {
         Ok( Self (
             u32::read_le(r)?,
             u16::read_le(r)?,
@@ -56,7 +58,8 @@ impl GUID {
         ))
     }
 
-    pub fn write<T: Write>(&self, w: &mut T) -> Result<(), std::io::Error> {
+    pub fn write<T>(&self, w: &mut T) -> Result<(), std::io::Error>
+    where T: Writer {
         self.0.write_le(w)?;
         self.1.write_le(w)?;
         self.2.write_le(w)?;
@@ -116,6 +119,10 @@ impl Spec {
         }
     }
 
+    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
+        get_sample_type(self.bits_per_sample, self.sample_format)
+    }
+
     pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
         match channels {
             1 => Ok(SpeakerPosition::FrontCenter as u32),
@@ -158,35 +165,47 @@ impl Spec {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct ChunkWriter {
+#[derive(Debug)]
+pub struct ChunkWriter<'a, W>
+where W: Writer {
+    writer: &'a mut W,
     pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     chunk_start: u64, // chunk 数据开始的地方
+    ended: bool, // 是否早已完成 Chunk 的写入
 }
 
-impl ChunkWriter {
-    fn begin<W>(writer: &mut W, flag: &[u8; 4]) -> Result<Self, io::Error>
-    where W: Writer {
+impl<'a, W> ChunkWriter<'a, W>
+where W: Writer {
+    pub fn begin(writer: &'a mut W, flag: &[u8; 4]) -> Result<Self, io::Error> {    
         writer.write_all(flag)?;
         let pos_of_chunk_len = writer.stream_position()?;
         0u32.write_le(writer)?;
         let chunk_start = writer.stream_position()?;
         Ok(Self{
+            writer,
             pos_of_chunk_len,
             chunk_start,
+            ended: false,
         })
     }
 
-    fn end<W>(self, writer: &mut W) -> Result<(), io::Error>
-    where W: Writer {
-        let end_of_chunk = writer.stream_position()?;
-        writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
-        ((end_of_chunk - self.chunk_start) as u32).write_le(writer)?;
-        writer.seek(SeekFrom::Start(end_of_chunk))?;
+    pub fn end(&mut self) -> Result<(), io::Error> {
+        let end_of_chunk = self.writer.stream_position()?;
+        self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
+        ((end_of_chunk - self.chunk_start) as u32).write_le(self.writer)?;
+        self.writer.seek(SeekFrom::Start(end_of_chunk))?;
         if end_of_chunk & 1 > 0 {
-            0u8.write_le(writer)?;
+            0u8.write_le(self.writer)?;
         }
+        self.ended = true;
         Ok(())
+    }
+}
+
+impl<W> Drop for ChunkWriter<'_, W>
+where W: Writer {
+    fn drop(&mut self) {
+        self.end().unwrap();
     }
 }
 
@@ -286,17 +305,17 @@ impl fmt_Chunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"fmt ")?;
+        let mut cw = ChunkWriter::begin(writer, b"fmt ")?;
         match self.extension {
             Some(ext) => {
-                self.write_body(writer)?;
-                ext.write(writer)?;
+                self.write_body(cw.writer)?;
+                ext.write(cw.writer)?;
             },
             None => {
-                self.write_body(writer)?;
+                self.write_body(cw.writer)?;
             }
         }
-        cw.end(writer)?;
+        cw.end()?;
         Ok(())
     }
 
@@ -393,18 +412,18 @@ impl BextChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"bext")?;
-        write_str_sized(writer, &self.description, 256)?;
-        write_str_sized(writer, &self.originator, 32)?;
-        write_str_sized(writer, &self.originator_ref, 32)?;
-        write_str_sized(writer, &self.origination_date, 10)?;
-        write_str_sized(writer, &self.origination_time, 8)?;
-        self.time_ref.write_le(writer)?;
-        self.version.write_le(writer)?;
-        writer.write_all(&self.umid)?;
-        writer.write_all(&self.reserved)?;
-        writer.write_all(&self.coding_history)?;
-        cw.end(writer)?;
+        let mut cw = ChunkWriter::begin(writer, b"bext")?;
+        write_str_sized(cw.writer, &self.description, 256)?;
+        write_str_sized(cw.writer, &self.originator, 32)?;
+        write_str_sized(cw.writer, &self.originator_ref, 32)?;
+        write_str_sized(cw.writer, &self.origination_date, 10)?;
+        write_str_sized(cw.writer, &self.origination_time, 8)?;
+        self.time_ref.write_le(cw.writer)?;
+        self.version.write_le(cw.writer)?;
+        cw.writer.write_all(&self.umid)?;
+        cw.writer.write_all(&self.reserved)?;
+        cw.writer.write_all(&self.coding_history)?;
+        cw.end()?;
         Ok(())
     }
 }
@@ -456,20 +475,20 @@ impl SmplChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"smpl")?;
-        self.manufacturer.write_le(writer)?;
-        self.product.write_le(writer)?;
-        self.sample_period.write_le(writer)?;
-        self.midi_unity_note.write_le(writer)?;
-        self.midi_pitch_fraction.write_le(writer)?;
-        self.smpte_format.write_le(writer)?;
-        self.smpte_offset.write_le(writer)?;
-        self.num_sample_loops.write_le(writer)?;
-        self.sampler_data.write_le(writer)?;
+        let mut cw = ChunkWriter::begin(writer, b"smpl")?;
+        self.manufacturer.write_le(cw.writer)?;
+        self.product.write_le(cw.writer)?;
+        self.sample_period.write_le(cw.writer)?;
+        self.midi_unity_note.write_le(cw.writer)?;
+        self.midi_pitch_fraction.write_le(cw.writer)?;
+        self.smpte_format.write_le(cw.writer)?;
+        self.smpte_offset.write_le(cw.writer)?;
+        self.num_sample_loops.write_le(cw.writer)?;
+        self.sampler_data.write_le(cw.writer)?;
         for l in self.loops.iter() {
-            l.write(writer)?;
+            l.write(cw.writer)?;
         }
-        cw.end(writer)?;
+        cw.end()?;
         Ok(())
     }
 }
@@ -526,15 +545,15 @@ impl InstChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"INST")?;
-        self.base_note.write_le(writer)?;
-        self.detune.write_le(writer)?;
-        self.gain.write_le(writer)?;
-        self.low_note.write_le(writer)?;
-        self.high_note.write_le(writer)?;
-        self.low_velocity.write_le(writer)?;
-        self.high_velocity.write_le(writer)?;
-        cw.end(writer)?;
+        let mut cw = ChunkWriter::begin(writer, b"INST")?;
+        self.base_note.write_le(cw.writer)?;
+        self.detune.write_le(cw.writer)?;
+        self.gain.write_le(cw.writer)?;
+        self.low_note.write_le(cw.writer)?;
+        self.high_note.write_le(cw.writer)?;
+        self.low_velocity.write_le(cw.writer)?;
+        self.high_velocity.write_le(cw.writer)?;
+        cw.end()?;
         Ok(())
     }
 }
@@ -572,12 +591,12 @@ impl Cue_Chunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"cue ")?;
-        self.num_cues.write_le(writer)?;
+        let mut cw = ChunkWriter::begin(writer, b"cue ")?;
+        self.num_cues.write_le(cw.writer)?;
         for cue in self.cues.iter() {
-            cue.write(writer)?;
+            cue.write(cw.writer)?;
         }
-        cw.end(writer)?;
+        cw.end()?;
         Ok(())
     }
 }
@@ -670,20 +689,20 @@ impl ListChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"LIST")?;
+        let mut cw = ChunkWriter::begin(writer, b"LIST")?;
         match self {
             Self::Info(dict) => {
-                writer.write_all(b"INFO")?;
-                Self::write_dict(writer, dict)?;
+                cw.writer.write_all(b"INFO")?;
+                Self::write_dict(cw.writer, dict)?;
             },
             Self::Adtl(adtls) => {
-                writer.write_all(b"adtl")?;
+                cw.writer.write_all(b"adtl")?;
                 for adtl in adtls.iter() {
-                    adtl.write(writer)?;
+                    adtl.write(cw.writer)?;
                 }
             },
         };
-        cw.end(writer)?;
+        cw.end()?;
         Ok(())
     }
 }
@@ -736,28 +755,28 @@ impl AdtlChunk {
     where W: Writer {
         match self {
             Self::Labl(labl) => {
-                let cw = ChunkWriter::begin(writer, b"labl")?;
-                labl.identifier.write_le(writer)?;
-                write_str(writer, &labl.data)?;
-                cw.end(writer)?;
+                let mut cw = ChunkWriter::begin(writer, b"labl")?;
+                labl.identifier.write_le(cw.writer)?;
+                write_str(cw.writer, &labl.data)?;
+                cw.end()?;
             },
             Self::Note(note) => {
-                let cw = ChunkWriter::begin(writer, b"note")?;
-                note.identifier.write_le(writer)?;
-                write_str(writer, &note.data)?;
-                cw.end(writer)?;
+                let mut cw = ChunkWriter::begin(writer, b"note")?;
+                note.identifier.write_le(cw.writer)?;
+                write_str(cw.writer, &note.data)?;
+                cw.end()?;
             },
             Self::Ltxt(ltxt) => {
-                let cw = ChunkWriter::begin(writer, b"ltxt")?;
-                ltxt.identifier.write_le(writer)?;
-                ltxt.sample_length.write_le(writer)?;
-                write_str_sized(writer, &ltxt.purpose_id, 4)?;
-                ltxt.country.write_le(writer)?;
-                ltxt.language.write_le(writer)?;
-                ltxt.dialect.write_le(writer)?;
-                ltxt.code_page.write_le(writer)?;
-                write_str(writer, &ltxt.data)?;
-                cw.end(writer)?;
+                let mut cw = ChunkWriter::begin(writer, b"ltxt")?;
+                ltxt.identifier.write_le(cw.writer)?;
+                ltxt.sample_length.write_le(cw.writer)?;
+                write_str_sized(cw.writer, &ltxt.purpose_id, 4)?;
+                ltxt.country.write_le(cw.writer)?;
+                ltxt.language.write_le(cw.writer)?;
+                ltxt.dialect.write_le(cw.writer)?;
+                ltxt.code_page.write_le(cw.writer)?;
+                write_str(cw.writer, &ltxt.data)?;
+                cw.end()?;
             },
         }
         Ok(())
@@ -817,41 +836,41 @@ impl AcidChunk {
 
     pub fn write<W>(&self, writer: &mut W) -> Result<(), Box<dyn Error>>
     where W: Writer {
-        let cw = ChunkWriter::begin(writer, b"acid")?;
-        self.flags.write_le(writer)?;
-        self.root_node.write_le(writer)?;
-        self.reserved1.write_le(writer)?;
-        self.reserved2.write_le(writer)?;
-        self.num_beats.write_le(writer)?;
-        self.meter_denominator.write_le(writer)?;
-        self.meter_numerator.write_le(writer)?;
-        self.tempo.write_le(writer)?;
-        cw.end(writer)?;
+        let mut cw = ChunkWriter::begin(writer, b"acid")?;
+        self.flags.write_le(cw.writer)?;
+        self.root_node.write_le(cw.writer)?;
+        self.reserved1.write_le(cw.writer)?;
+        self.reserved2.write_le(cw.writer)?;
+        self.num_beats.write_le(cw.writer)?;
+        self.meter_denominator.write_le(cw.writer)?;
+        self.meter_numerator.write_le(cw.writer)?;
+        self.tempo.write_le(cw.writer)?;
+        cw.end()?;
         Ok(())
     }
 }
 
 fn axml_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
 where W: Writer {
-    let cw = ChunkWriter::begin(writer, b"axml")?;
-    write_str(writer, data)?;
-    cw.end(writer)?;
+    let mut cw = ChunkWriter::begin(writer, b"axml")?;
+    write_str(cw.writer, data)?;
+    cw.end()?;
     Ok(())
 }
 
 fn ixml_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
 where W: Writer {
-    let cw = ChunkWriter::begin(writer, b"ixml")?;
-    write_str(writer, data)?;
-    cw.end(writer)?;
+    let mut cw = ChunkWriter::begin(writer, b"ixml")?;
+    write_str(cw.writer, data)?;
+    cw.end()?;
     Ok(())
 }
 
 fn Trkn_write<W>(writer: &mut W, data: &String) -> Result<(), Box<dyn Error>>
 where W: Writer {
-    let cw = ChunkWriter::begin(writer, b"Trkn")?;
-    write_str(writer, data)?;
-    cw.end(writer)?;
+    let mut cw = ChunkWriter::begin(writer, b"Trkn")?;
+    write_str(cw.writer, data)?;
+    cw.end()?;
     Ok(())
 }
 
