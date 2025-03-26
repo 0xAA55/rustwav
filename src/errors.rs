@@ -31,6 +31,7 @@ pub enum AudioWriteError {
     IOError(String), // 读写错误，应停止处理
     UnsupportedFormat(String), // 不支持的写入格式
     ChannelCountNotMatch(String), // 声道数不匹配
+    WrongSampleFormat(String), // 不支持的样本类型
 }
 
 impl std::error::Error for AudioWriteError {}
@@ -42,6 +43,7 @@ impl std::fmt::Display for AudioWriteError {
            AudioWriteError::IOError(reason) => write!(f, "IOError {}", reason),
            AudioWriteError::UnsupportedFormat(reason) => write!(f, "Unsupported PCM format to be saved: {}", reason),
            AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
+           AudioWriteError::WrongSampleFormat(reason) => write!(f, "Sample format \"{}\" not supported", reason),
        }
     }
 }
