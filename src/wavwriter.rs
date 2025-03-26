@@ -287,7 +287,7 @@ impl SamplePacker {
 
     fn save_sample<S>(&mut self, frame: &Vec<S>, to_format: WaveSampleType) -> Result<(), Box<dyn Error>> 
     where S: SampleType {
-        match type_name::<S>() {
+        match type_name::<S>() { // 我打赌取泛型名字并用于匹配的过程不会发生运行时匹配，而是编译器会优化。
             "u8"  => self.sample_packer_from__u8.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
             "i16" => self.sample_packer_from_i16.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
             "i24" => self.sample_packer_from_i24.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
