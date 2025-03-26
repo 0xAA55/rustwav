@@ -15,11 +15,11 @@ impl<T> Writer for T where T: Write + Seek + Debug{}
 // 这个宏会在当前 scope 里面声明两个变量，一个 $guard_name 和一个 $inner_name
 // 这个 $inner_name 就是你的 &mut T。
 #[macro_export]
-macro_rules! make_guarded_writer {
-    ($arc_mutex_dyn_writer:expr, $inner_name:ident, $guard_name:ident) => {
-        let mut $guard_name = $arc_mutex_dyn_writer.lock().unwrap();
+macro_rules! peel_arc_mutex {
+    ($arc_mutex_t:expr, $inner_name:ident, $guard_name:ident) => {
+        let mut $guard_name = $arc_mutex_t.lock().unwrap();
         let mut $inner_name = $guard_name.deref_mut();
     };
 }
 
-pub use crate::make_guarded_writer;
+pub use crate::peel_arc_mutex;
