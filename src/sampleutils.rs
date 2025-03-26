@@ -84,7 +84,7 @@ impl u24 {
     }
 }
 
-pub trait SampleType: Sized + Clone + 'static {
+pub trait SampleType: Sized + Clone + Copy + 'static {
     fn clampf(&self) -> f32 {
         panic!("There shouldn't a `clampf()` call on integers");
     }
@@ -108,6 +108,49 @@ pub trait SampleType: Sized + Clone + 'static {
     fn read_be<T>(r: &mut T) -> Result<Self, Error> where Self: Sized, T: Read;
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error> where Self: Sized, T: Write;
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error> where Self: Sized, T: Write;
+    fn to<T: SampleTo>(&self) -> T {
+        T::to(*self)
+    }
+}
+
+pub trait SampleTo {
+    fn to(s: impl SampleType) -> Self;
+}
+impl SampleTo for i8 {
+    fn to(s: impl SampleType) -> Self { s.to_i8() }
+}
+impl SampleTo for i16 {
+    fn to(s: impl SampleType) -> Self { s.to_i16() }
+}
+impl SampleTo for i24 {
+    fn to(s: impl SampleType) -> Self { s.to_i24() }
+}
+impl SampleTo for i32 {
+    fn to(s: impl SampleType) -> Self { s.to_i32() }
+}
+impl SampleTo for i64 {
+    fn to(s: impl SampleType) -> Self { s.to_i64() }
+}
+impl SampleTo for u8 {
+    fn to(s: impl SampleType) -> Self { s.to_u8() }
+}
+impl SampleTo for u16 {
+    fn to(s: impl SampleType) -> Self { s.to_u16() }
+}
+impl SampleTo for u24 {
+    fn to(s: impl SampleType) -> Self { s.to_u24() }
+}
+impl SampleTo for u32 {
+    fn to(s: impl SampleType) -> Self { s.to_u32() }
+}
+impl SampleTo for u64 {
+    fn to(s: impl SampleType) -> Self { s.to_u64() }
+}
+impl SampleTo for f32 {
+    fn to(s: impl SampleType) -> Self { s.to_f32() }
+}
+impl SampleTo for f64 {
+    fn to(s: impl SampleType) -> Self { s.to_f64() }
 }
 
 impl SampleType for i8{
