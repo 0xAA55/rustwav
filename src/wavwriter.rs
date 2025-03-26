@@ -26,6 +26,12 @@ pub struct WaveWriter {
     sample_packer_from: SamplePacker,
 }
 
+// TODO
+// 使 wavcores 里面的各种 Chunk 都能被写入到 WaveWriter 里面来。
+// 修改接口，先接收用户提供的 Chunk，再使用 “BeginWriteSamples” 开始写入样本数据，写完后再调用 “EndWriteSamples” 。
+// 不接收用户提供的 fmt Chunk，而是自行根据其他条件自己构建。
+// 基本上所有的能允许用户提供的 Chunk 都被追加到 data Chunk 的末尾。
+
 impl WaveWriter {
     pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter, Box<dyn Error>> {
         Self::new(Arc::new(Mutex::new(BufWriter::new(File::create(filename)?))), spec)
