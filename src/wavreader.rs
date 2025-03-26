@@ -34,7 +34,7 @@ pub struct WaveReader {
     list_chunk: Option<ListChunk>,
     acid_chunk: Option<AcidChunk>,
     trkn_chunk: Option<String>,
-    junk_chunk: Vec<Vec<u8>>,
+    junk_chunks: Vec<Vec<u8>>,
     savage_decoder: SavageStringDecoder,
 }
 
@@ -96,9 +96,9 @@ impl WaveReader {
         let mut list_chunk: Option<ListChunk> = None;
         let mut acid_chunk: Option<AcidChunk> = None;
         let mut trkn_chunk: Option<String> = None;
-        let mut junk_chunk: Vec<Vec<u8>>;
+        let mut junk_chunks: Vec<Vec<u8>>;
 
-        junk_chunk = Vec::<Vec<u8>>::new();
+        junk_chunks = Vec::<Vec<u8>>::new();
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
@@ -108,7 +108,7 @@ impl WaveReader {
                     let mut junk = Vec::<u8>::new();
                     junk.resize(chunk.size as usize, 0u8);
                     reader.read_exact(&mut junk)?;
-                    junk_chunk.push(junk);
+                    junk_chunks.push(junk);
                 }
                 b"fmt " => {
                     Self::verify_none(&fmt_chunk, &chunk.flag)?;
@@ -224,7 +224,7 @@ impl WaveReader {
             list_chunk,
             acid_chunk,
             trkn_chunk,
-            junk_chunk,
+            junk_chunks,
             savage_decoder,
         })
     }
@@ -273,7 +273,7 @@ impl WaveReader {
         ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
         ret.push_str(&format!("acid_chunk is {:?}\n", self.acid_chunk));
         ret.push_str(&format!("trkn_chunk is {:?}\n", self.trkn_chunk));
-        ret.push_str(&format!("junk_chunk is {:?}\n", self.junk_chunk));
+        ret.push_str(&format!("junk_chunks is {:?}\n", self.junk_chunks));
         ret
     }
 }
