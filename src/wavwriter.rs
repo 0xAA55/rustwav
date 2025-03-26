@@ -59,7 +59,7 @@ impl WaveWriter {
     fn write_header(&mut self) -> Result<(), Box<dyn Error>>
     {
         use SampleFormat::{Int, UInt, Float};
-        make_guarded_writer!(self.writer, writer, writer_guard);
+        peel_arc_mutex!(self.writer, writer, writer_guard);
         writer.write_all(b"RIFF")?;
         self.riff_offset = writer.stream_position()?;
         0u32.write_le(&mut writer)?;
@@ -151,7 +151,7 @@ impl WaveWriter {
 
     pub fn update_header(&mut self) -> Result<(), Box<dyn Error>>
     {
-        make_guarded_writer!(self.writer, writer, writer_guard);
+        peel_arc_mutex!(self.writer, writer, writer_guard);
         const HEADER_SIZE: u32 = 44;
         let all_sample_size = self.num_frames * self.frame_size as u32;
         writer.seek(SeekFrom::Start(self.riff_offset))?;
@@ -195,7 +195,7 @@ where S : SampleType {
     }
 
     fn save_sample_to__u8(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) -> Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<u8>().write_le(&mut writer)?;
         }
@@ -203,7 +203,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_i16(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i16>().write_le(&mut writer)?;
         }
@@ -211,7 +211,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_i24(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i24>().write_le(&mut writer)?;
         }
@@ -219,7 +219,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_i32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i32>().write_le(&mut writer)?;
         }
@@ -227,7 +227,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_i64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i64>().write_le(&mut writer)?;
         }
@@ -235,7 +235,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_f32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<f32>().write_le(&mut writer)?;
         }
@@ -243,7 +243,7 @@ where S : SampleType {
     }
 
     fn save_sample_to_f64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), io::Error> {
-        make_guarded_writer!(writer, writer, writer_guard);
+        peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<f64>().write_le(&mut writer)?;
         }
