@@ -17,8 +17,9 @@ impl<T> Writer for T where T: Write + Seek + Debug{}
 #[macro_export]
 macro_rules! peel_arc_mutex {
     ($arc_mutex_t:expr, $inner_name:ident, $guard_name:ident) => {
-        let mut $guard_name = $arc_mutex_t.lock().unwrap();
-        let mut $inner_name = $guard_name.deref_mut();
+        let arc_mutex_t = $arc_mutex_t.clone();
+        let mut $guard_name = arc_mutex_t.lock().unwrap();
+        let $inner_name = $guard_name.deref_mut();
     };
 }
 
