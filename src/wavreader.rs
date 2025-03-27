@@ -66,7 +66,7 @@ impl WaveReader {
         let mut data_size = 0u64;
 
         // 先搞定最开始的头部，有 RIFF 头和 RF64 头，需要分开处理
-        let chunk = Chunk::read(&mut reader)?;
+        let chunk = ChunkHeader::read(&mut reader)?;
         match &chunk.flag {
             b"RIFF" => {
                 riff_len = chunk.size as u64;
@@ -102,7 +102,7 @@ impl WaveReader {
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
-            let chunk = Chunk::read(&mut reader)?;
+            let chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
                 b"JUNK" => {
                     let mut junk = Vec::<u8>::new();
@@ -123,6 +123,8 @@ impl WaveReader {
                     }
                     riff_len = u64::read_le(&mut reader)?;
                     data_size = u64::read_le(&mut reader)?;
+                    let _sample_count = u64::read_le(&mut reader)?;
+                    // 后面就是 table 了，用来重新给每个 Chunk 提供 64 位的长度值（data 除外）
                     riff_end = start_of_riff + riff_len;
                 }
                 b"data" => {
@@ -133,7 +135,7 @@ impl WaveReader {
                     if !isRF64 {
                         data_size = chunk.size as u64;
                     }
-                    let chunk_end = Chunk::align(chunk.chunk_start_pos + data_size);
+                    let chunk_end = ChunkHeader::align(chunk.chunk_start_pos + data_size);
                     reader.seek(SeekFrom::Start(chunk_end))?;
                     continue;
                 },
@@ -386,7 +388,7 @@ impl<S> WaveIter<S>
 where S: SampleType {
     fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
         use WaveSampleType::{Unknown, U8, S16, S24, S32, F32, F64};
-        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format);
+        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         let mut ret = Self {
             reader,
             data_offset,
