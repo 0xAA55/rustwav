@@ -11,7 +11,7 @@ use std::error::Error;
 use std::collections::HashMap;
 
 use crate::errors::{AudioWriteError};
-use crate::wavcore::*;
+pub use crate::wavcore::*;
 
 #[derive(Debug, Clone)]
 pub struct WaveWriter {
@@ -130,9 +130,9 @@ impl WaveWriter {
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn save_frame<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    pub fn write_sample<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType + Clone {
-        self.sample_packer_from.save_sample(frame, self.sample_type)?;
+        self.sample_packer_from.write_sample(frame, self.sample_type)?;
         self.num_frames += 1;
         Ok(())
     }
@@ -181,22 +181,22 @@ where S : SampleType {
     fn new(writer: &Arc<Mutex<dyn Writer>>) -> Self {
         use WaveSampleType::{Unknown,U8,S16,S24,S32,F32,F64};
         let mut funcmap = HashMap::<WaveSampleType, fn(writer: &mut Arc<Mutex<dyn Writer>>, &Vec<S>) -> Result<(), Box<dyn Error>>>::new();
-        funcmap.insert(Unknown, Self::save_sample_to__nothing);
-        funcmap.insert(U8,  Self::save_sample_to__u8);
-        funcmap.insert(S16, Self::save_sample_to_i16);
-        funcmap.insert(S24, Self::save_sample_to_i24);
-        funcmap.insert(S32, Self::save_sample_to_i32);
-        funcmap.insert(F32, Self::save_sample_to_f32);
-        funcmap.insert(F64, Self::save_sample_to_f64);
+        funcmap.insert(Unknown, Self::write_sample_to__nothing);
+        funcmap.insert(U8,  Self::write_sample_to__u8);
+        funcmap.insert(S16, Self::write_sample_to_i16);
+        funcmap.insert(S24, Self::write_sample_to_i24);
+        funcmap.insert(S32, Self::write_sample_to_i32);
+        funcmap.insert(F32, Self::write_sample_to_f32);
+        funcmap.insert(F64, Self::write_sample_to_f64);
         Self {
             writer: writer.clone(),
             funcmap,
             last_used_target_format: Unknown,
-            last_used_func: Self::save_sample_to__nothing,
+            last_used_func: Self::write_sample_to__nothing,
         }
     }
 
-    fn save_sample_to(&mut self, frame: &Vec<S>, target_format: WaveSampleType) -> Result<(), Box<dyn Error>> {
+    fn write_sample_to(&mut self, frame: &Vec<S>, target_format: WaveSampleType) -> Result<(), Box<dyn Error>> {
         if self.last_used_target_format != target_format {
             self.last_used_target_format = target_format;
             self.last_used_func = *self.funcmap.get(&target_format).unwrap();
@@ -204,11 +204,11 @@ where S : SampleType {
         (self.last_used_func)(&mut self.writer, frame)
     }
 
-    fn save_sample_to__nothing(_writer: &mut Arc<Mutex<dyn Writer>>, _frame: &Vec<S>) -> Result<(), Box<dyn Error>> {
+    fn write_sample_to__nothing(_writer: &mut Arc<Mutex<dyn Writer>>, _frame: &Vec<S>) -> Result<(), Box<dyn Error>> {
         Err(AudioError::UnknownSampleType.into())
     }
 
-    fn save_sample_to__u8(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) -> Result<(), Box<dyn Error>> {
+    fn write_sample_to__u8(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) -> Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<u8>().write_le(&mut writer)?;
@@ -216,7 +216,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_i16(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_i16(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i16>().write_le(&mut writer)?;
@@ -224,7 +224,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_i24(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_i24(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i24>().write_le(&mut writer)?;
@@ -232,7 +232,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_i32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_i32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i32>().write_le(&mut writer)?;
@@ -240,7 +240,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_i64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_i64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<i64>().write_le(&mut writer)?;
@@ -248,7 +248,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_f32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_f32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<f32>().write_le(&mut writer)?;
@@ -256,7 +256,7 @@ where S : SampleType {
         Ok(())
     }
 
-    fn save_sample_to_f64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
+    fn write_sample_to_f64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
             sample.to::<f64>().write_le(&mut writer)?;
@@ -305,15 +305,15 @@ impl SamplePacker {
         ret
     }
 
-    fn save_sample<S>(&mut self, frame: &Vec<S>, to_format: WaveSampleType) -> Result<(), Box<dyn Error>> 
+    fn write_sample<S>(&mut self, frame: &Vec<S>, to_format: WaveSampleType) -> Result<(), Box<dyn Error>> 
     where S: SampleType {
         match type_name::<S>() { // 我打赌取泛型名字并用于匹配的过程不会发生运行时匹配，而是编译器会优化。
-            "u8"  => self.sample_packer_from__u8.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
-            "i16" => self.sample_packer_from_i16.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
-            "i24" => self.sample_packer_from_i24.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
-            "i32" => self.sample_packer_from_i32.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
-            "f32" => self.sample_packer_from_f32.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
-            "f64" => self.sample_packer_from_f64.save_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "u8"  => self.sample_packer_from__u8.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "i16" => self.sample_packer_from_i16.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "i24" => self.sample_packer_from_i24.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "i32" => self.sample_packer_from_i32.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "f32" => self.sample_packer_from_f32.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
+            "f64" => self.sample_packer_from_f64.write_sample_to(&Self::frame_cvt(&frame), to_format)?,
             other => return Err(AudioWriteError::WrongSampleFormat(other.to_string()).into()),
         }
         Ok(())
