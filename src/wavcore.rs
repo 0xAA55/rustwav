@@ -10,6 +10,7 @@ pub use crate::savagestr::*;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
+    Unknown,
     U8,
     S16,
     S24,
@@ -18,17 +19,17 @@ pub enum WaveSampleType {
     F64,
 }
 
-pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
+pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
     use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{U8,S16,S24,S32,F32,F64};
+    use WaveSampleType::{Unknown,U8,S16,S24,S32,F32,F64};
     match (bits_per_sample, sample_format) {
-        (8, UInt) => Ok(U8),
-        (16, Int) => Ok(S16),
-        (24, Int) => Ok(S24),
-        (32, Int) => Ok(S32),
-        (32, Float) => Ok(F32),
-        (64, Float) => Ok(F64),
-        _ => Err(AudioError::UnknownSampleType),
+        (8, UInt) => U8,
+        (16, Int) => S16,
+        (24, Int) => S24,
+        (32, Int) => S32,
+        (32, Float) => F32,
+        (64, Float) => F64,
+        _ => Unknown,
     }
 }
 
@@ -119,7 +120,7 @@ impl Spec {
         }
     }
 
-    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
+    pub fn get_sample_type(&self) -> WaveSampleType {
         get_sample_type(self.bits_per_sample, self.sample_format)
     }
 

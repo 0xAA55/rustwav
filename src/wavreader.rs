@@ -385,8 +385,8 @@ where S: SampleType {
 impl<S> WaveIter<S>
 where S: SampleType {
     fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
-        use WaveSampleType::{U8, S16, S24, S32, F32, F64};
-        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
+        use WaveSampleType::{Unknown, U8, S16, S24, S32, F32, F64};
+        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format);
         let mut ret = Self {
             reader,
             data_offset,
@@ -394,6 +394,7 @@ where S: SampleType {
             frame_pos: 0,
             num_frames,
             unpacker: match sample_type {
+                Unknown => return Err(AudioError::UnknownSampleType.into()),
                 U8 =>  Self::unpack_to::<u8 >,
                 S16 => Self::unpack_to::<i16>,
                 S24 => Self::unpack_to::<i24>,
@@ -402,6 +403,7 @@ where S: SampleType {
                 F64 => Self::unpack_to::<f64>,
             },
             frame_size: match sample_type {
+                Unknown => 0,
                 U8 =>  1,
                 S16 => 2,
                 S24 => 3,
