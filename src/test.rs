@@ -25,7 +25,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::Int,
     };
 
-    let mut wavewriter = WaveWriter::create(arg2, &spec).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, true).unwrap();
 
     for frame in wavereader.iter::<f32>()? {
         wavewriter.write_sample(&frame)?;
