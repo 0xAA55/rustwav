@@ -17,40 +17,58 @@ pub use crate::wavcore::*;
 pub struct WaveWriter {
     writer: Arc<Mutex<dyn Writer>>,
     spec: Spec,
-    num_frames: u32,
+    allow_larger_than_4gb: bool,
+    num_frames: u64,
     frame_size: u16,
-    riff_offset: u64,
     datalen_offset: u64,
     data_offset: u64,
     sample_type: WaveSampleType,
     sample_packer_from: SamplePacker,
+    riff_chunk: Option<ChunkWriter>,
+    data_chunk: Option<ChunkWriter>,
+    pub bext_chunk: Option<BextChunk>,
+    pub smpl_chunk: Option<SmplChunk>,
+    pub inst_chunk: Option<InstChunk>,
+    pub cue__chunk: Option<Cue_Chunk>,
+    pub axml_chunk: Option<String>,
+    pub ixml_chunk: Option<String>,
+    pub list_chunk: Option<ListChunk>,
+    pub acid_chunk: Option<AcidChunk>,
+    pub trkn_chunk: Option<String>,
+    pub junk_chunks: Vec<Vec<u8>>,
 }
 
-// TODO
-// 使 wavcores 里面的各种 Chunk 都能被写入到 WaveWriter 里面来。
-// 修改接口，先接收用户提供的 Chunk，再使用 “BeginWriteSamples” 开始写入样本数据，写完后再调用 “EndWriteSamples” 。
-// 不接收用户提供的 fmt Chunk，而是自行根据其他条件自己构建。
-// 基本上所有的能允许用户提供的 Chunk 都被追加到 data Chunk 的末尾。
-
 impl WaveWriter {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec) -> Result<WaveWriter, Box<dyn Error>> {
-        Self::new(Arc::new(Mutex::new(BufWriter::new(File::create(filename)?))), spec)
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, allow_larger_than_4gb: bool) -> Result<WaveWriter, Box<dyn Error>> {
+        Self::new(Arc::new(Mutex::new(BufWriter::new(File::create(filename)?))), spec, allow_larger_than_4gb)
     }
 
-    pub fn new(writer: Arc<Mutex<dyn Writer>>, spec: &Spec) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn new(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, allow_larger_than_4gb: bool) -> Result<WaveWriter, Box<dyn Error>> {
         let spec = spec.clone();
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let mut ret = Self{
             writer: writer.clone(),
             spec,
+            allow_larger_than_4gb,
             num_frames: 0,
             frame_size,
-            riff_offset: 0,
             datalen_offset: 0,
             data_offset: 0,
-            sample_type: spec.get_sample_type(),
-            sample_packer_from: SamplePacker::new(&writer),
+            sample_type: spec.get_sample_type()?,
+            sample_packer_from: SamplePacker::new(writer.clone()),
+            riff_chunk: Some(ChunkWriter::begin(writer.clone(), b"RIFF")?),
+            data_chunk: None,
+            bext_chunk: None,
+            smpl_chunk: None,
+            inst_chunk: None,
+            cue__chunk: None,
+            axml_chunk: None,
+            ixml_chunk: None,
+            list_chunk: None,
+            acid_chunk: None,
+            trkn_chunk: None,
+            junk_chunks: Vec::<Vec<u8>>::new(),
         };
         ret.write_header()?;
         Ok(ret)
@@ -60,11 +78,18 @@ impl WaveWriter {
     {
         use SampleFormat::{Int, UInt, Float};
         peel_arc_mutex!(self.writer, writer, writer_guard);
-        writer.write_all(b"RIFF")?;
-        self.riff_offset = writer.stream_position()?;
-        0u32.write_le(writer)?;
+
+        // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
         writer.write_all(b"WAVE")?;
-        writer.write_all(b"fmt ")?;
+
+        // 如果说这个 WAV 文件是允许超过 4GB 的，那需要使用 RF64 格式，在 WAVE 后面留下一个 JUNK 块用来占坑。
+        if self.allow_larger_than_4gb {
+            let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
+            writer.write_all(&[0u8; 28])?;
+            cw.end()?;
+        }
+
+        // 准备写入 fmt 块
         // 如果格式类型是 0xFFFE 则需要单独对待
         let mut ext = match (self.spec.bits_per_sample, self.spec.sample_format) {
             (24, Int) | (32, Int) => true,
@@ -88,82 +113,173 @@ impl WaveWriter {
             },
             _ => true, // 否则就需要额外的数据了
         };
-        // fmt 块的大小
-        (match ext {
-            true => 40,
-            false => 16,
-        } as u32).write_le(writer)?;
-        (match ext {
-            true => 0xFFFE,
-            false => {
-                match (self.spec.bits_per_sample, self.spec.sample_format) {
-                    (8, UInt) => 1,
-                    (16, Int) => 1,
-                    (32, Float) => 3,
-                    (64, Float) => 3,
-                    _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag")).into()),
-                }
-            }
-        } as u16).write_le(writer)?;
-        (self.spec.channels as u16).write_le(writer)?;
-        (self.spec.sample_rate as u32).write_le(writer)?;
-        (self.spec.sample_rate * self.frame_size as u32).write_le(writer)?;
-        (self.frame_size as u16).write_le(writer)?;
-        (self.spec.bits_per_sample as u16).write_le(writer)?;
-        if ext == true {
-            22u16.write_le(writer)?; // 额外数据大小
-            (self.spec.bits_per_sample as u16).write_le(writer)?;
-            (self.spec.channel_mask as u32).write_le(writer)?; // 声道掩码
 
-            // 写入具体格式的 GUID
-            match self.spec.sample_format {
-                Int => GUID_PCM_FORMAT.write(writer)?,
-                Float => GUID_IEEE_FLOAT_FORMAT.write(writer)?,
-                _ => return Err(AudioWriteError::InvalidArguments(String::from("\"Unknown\" was given for specifying the sample format")).into()),
-            }
+        let fmt_chunk = fmt_Chunk {
+            format_tag: match ext {
+                true => 0xFFFE,
+                false => {
+                    match (self.spec.bits_per_sample, self.spec.sample_format) {
+                        (8, UInt) => 1,
+                        (16, Int) => 1,
+                        (32, Float) => 3,
+                        (64, Float) => 3,
+                        _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag")).into()),
+                    }
+                }
+            },
+            channels: self.spec.channels,
+            sample_rate: self.spec.sample_rate,
+            byte_rate: self.spec.sample_rate * self.frame_size as u32,
+            block_align: self.frame_size,
+            bits_per_sample: self.spec.bits_per_sample,
+            extension: match ext {
+                false => None,
+                true => Some(fmt_Chunk_Extension {
+                    ext_len: 22,
+                    bits_per_sample: self.spec.bits_per_sample,
+                    channel_mask: self.spec.channel_mask,
+                    sub_format: match self.spec.sample_format {
+                        Int => GUID_PCM_FORMAT,
+                        Float => GUID_IEEE_FLOAT_FORMAT,
+                        _ => return Err(AudioWriteError::InvalidArguments(String::from("\"Unknown\" was given for specifying the sample format")).into()),
+                    },
+                }),
+            },
         };
-        writer.write_all(b"data")?;
-        self.datalen_offset = writer.stream_position()?;
-        0u32.write_le(writer)?;
-        self.data_offset = writer.stream_position()?;
+
+        fmt_chunk.write(self.writer.clone())?;
+
+        self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
         Ok(())
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
     pub fn write_sample<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType + Clone {
-        self.sample_packer_from.write_sample(frame, self.sample_type)?;
-        self.num_frames += 1;
-        Ok(())
+        if self.data_chunk.is_some() {
+            self.sample_packer_from.write_sample(frame, self.sample_type)?;
+            self.num_frames += 1;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")).into())
+        }
     }
 
     pub fn spec(&self) -> &Spec{
         &self.spec
     }
-    pub fn get_num_frames(&self) -> u32 {
+    pub fn get_num_frames(&self) -> u64 {
         self.num_frames
     }
     pub fn get_frame_size(&self) -> u16 {
         self.frame_size
     }
-    pub fn get_data_offset(&self) -> u64 {
-        self.data_offset
+    pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
+        self.bext_chunk = Some(chunk.clone());
     }
-
-    pub fn update_header(&mut self) -> Result<(), Box<dyn Error>>
-    {
-        peel_arc_mutex!(self.writer, writer, writer_guard);
-        const HEADER_SIZE: u32 = 44;
-        let all_sample_size = self.num_frames * self.frame_size as u32;
-        writer.seek(SeekFrom::Start(self.riff_offset))?;
-        (HEADER_SIZE + all_sample_size - 8).write_le(writer)?;
-        writer.seek(SeekFrom::Start(self.datalen_offset))?;
-        all_sample_size.write_le(writer)?;
-        Ok(())
+    pub fn set_smpl_chunk(&mut self, chunk: &SmplChunk) {
+        self.smpl_chunk = Some(chunk.clone());
+    }
+    pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
+        self.inst_chunk = Some(chunk.clone());
+    }
+    pub fn set_cue__chunk(&mut self, chunk: &Cue_Chunk) {
+        self.cue__chunk = Some(chunk.clone());
+    }
+    pub fn set_axml_chunk(&mut self, chunk: &String) {
+        self.axml_chunk = Some(chunk.clone());
+    }
+    pub fn set_ixml_chunk(&mut self, chunk: &String) {
+        self.ixml_chunk = Some(chunk.clone());
+    }
+    pub fn set_list_chunk(&mut self, chunk: &ListChunk) {
+        self.list_chunk = Some(chunk.clone());
+    }
+    pub fn set_acid_chunk(&mut self, chunk: &AcidChunk) {
+        self.acid_chunk = Some(chunk.clone());
+    }
+    pub fn set_trkn_chunk(&mut self, chunk: &String) {
+        self.trkn_chunk = Some(chunk.clone());
+    }
+    pub fn add_junk_chunk(&mut self, chunk: &Vec<u8>) {
+        self.junk_chunks.push(chunk.clone());
     }
 
     pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
-        self.update_header()
+        // 结束对 data 块的写入
+        self.data_chunk = None;
+
+        peel_arc_mutex!(self.writer, writer, writer_guard);
+
+        // 写入其它全部的结构体块
+        if let Some(chunk) = &self.bext_chunk {
+            chunk.write(self.writer.clone())?;
+        }
+        if let Some(chunk) = &self.smpl_chunk {
+            chunk.write(self.writer.clone())?;
+        }
+        if let Some(chunk) = &self.inst_chunk {
+            chunk.write(self.writer.clone())?;
+        }
+        if let Some(chunk) = &self.cue__chunk {
+            chunk.write(self.writer.clone())?;
+        }
+        if let Some(chunk) = &self.list_chunk {
+            chunk.write(self.writer.clone())?;
+        }
+        if let Some(chunk) = &self.acid_chunk {
+            chunk.write(self.writer.clone())?;
+        }
+
+        // 写入其它全部的字符串块
+        let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
+        if let Some(chunk) = &self.axml_chunk {
+            string_chunks_to_write.push((*b"axml", &chunk));
+        }
+        if let Some(chunk) = &self.ixml_chunk {
+            string_chunks_to_write.push((*b"ixml", &chunk));
+        }
+        if let Some(chunk) = &self.trkn_chunk {
+            string_chunks_to_write.push((*b"Trkn", &chunk));
+        }
+        for (flag, chunk) in string_chunks_to_write.iter() {
+            let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
+            write_str(writer, chunk)?;
+            cw.end()?;
+        }
+
+        // 写入所有的 JUNK 块
+        for junk in self.junk_chunks.iter() {
+            let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
+            writer.write_all(&junk)?;
+            cw.end()?;
+        }
+
+        // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
+        self.riff_chunk = None;
+        let file_end_pos = writer.stream_position()?;
+        if file_end_pos > 0xFFFFFFFFu64 {
+            writer.seek(SeekFrom::Start(0))?;
+            writer.write_all(b"RF64")?;
+            0xFFFFFFFFu32.write_le(writer)?;
+            writer.write_all(b"WAVE")?;
+            let mut cw = ChunkWriter::begin(self.writer.clone(), b"ds64")?;
+            let riff_size = file_end_pos - 8;
+            let data_size = self.num_frames * self.frame_size as u64;
+            let sample_count = self.num_frames / self.spec.channels as u64;
+            riff_size.write_le(writer)?;
+            data_size.write_le(writer)?;
+            sample_count.write_le(writer)?;
+            0u32.write_le(writer)?; // table length
+            cw.end()?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for WaveWriter {
+    fn drop(&mut self) {
+        self.finalize().unwrap();
     }
 }
 
@@ -195,7 +311,7 @@ where S : SampleType {
 
 impl<S> SamplePackerFrom<S>
 where S : SampleType {
-    fn new(writer: &Arc<Mutex<dyn Writer>>) -> Self {
+    fn new(writer: Arc<Mutex<dyn Writer>>) -> Self {
         use WaveSampleType::{Unknown,U8,S16,S24,S32,F32,F64};
         let mut funcmap = HashMap::<WaveSampleType, fn(writer: &mut Arc<Mutex<dyn Writer>>, &Vec<S>) -> Result<(), Box<dyn Error>>>::new();
         funcmap.insert(Unknown, Self::write_sample_to__nothing);
@@ -294,13 +410,13 @@ struct SamplePacker {
 }
 
 impl SamplePacker {
-    fn new(writer: &Arc<Mutex<dyn Writer>>) -> Self {
-        let sample_packer_from__u8 = SamplePackerFrom::< u8>::new(&writer);
-        let sample_packer_from_i16 = SamplePackerFrom::<i16>::new(&writer);
-        let sample_packer_from_i24 = SamplePackerFrom::<i24>::new(&writer);
-        let sample_packer_from_i32 = SamplePackerFrom::<i32>::new(&writer);
-        let sample_packer_from_f32 = SamplePackerFrom::<f32>::new(&writer);
-        let sample_packer_from_f64 = SamplePackerFrom::<f64>::new(&writer);
+    fn new(writer: Arc<Mutex<dyn Writer>>) -> Self {
+        let sample_packer_from__u8 = SamplePackerFrom::< u8>::new(writer.clone());
+        let sample_packer_from_i16 = SamplePackerFrom::<i16>::new(writer.clone());
+        let sample_packer_from_i24 = SamplePackerFrom::<i24>::new(writer.clone());
+        let sample_packer_from_i32 = SamplePackerFrom::<i32>::new(writer.clone());
+        let sample_packer_from_f32 = SamplePackerFrom::<f32>::new(writer.clone());
+        let sample_packer_from_f64 = SamplePackerFrom::<f64>::new(writer.clone());
         Self {
             sample_packer_from__u8,
             sample_packer_from_i16,
