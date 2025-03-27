@@ -62,7 +62,7 @@ impl WaveWriter {
         peel_arc_mutex!(self.writer, writer, writer_guard);
         writer.write_all(b"RIFF")?;
         self.riff_offset = writer.stream_position()?;
-        0u32.write_le(&mut writer)?;
+        0u32.write_le(writer)?;
         writer.write_all(b"WAVE")?;
         writer.write_all(b"fmt ")?;
         // 如果格式类型是 0xFFFE 则需要单独对待
@@ -92,7 +92,7 @@ impl WaveWriter {
         (match ext {
             true => 40,
             false => 16,
-        } as u32).write_le(&mut writer)?;
+        } as u32).write_le(writer)?;
         (match ext {
             true => 0xFFFE,
             false => {
@@ -104,27 +104,27 @@ impl WaveWriter {
                     _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag")).into()),
                 }
             }
-        } as u16).write_le(&mut writer)?;
-        (self.spec.channels as u16).write_le(&mut writer)?;
-        (self.spec.sample_rate as u32).write_le(&mut writer)?;
-        (self.spec.sample_rate * self.frame_size as u32).write_le(&mut writer)?;
-        (self.frame_size as u16).write_le(&mut writer)?;
-        (self.spec.bits_per_sample as u16).write_le(&mut writer)?;
+        } as u16).write_le(writer)?;
+        (self.spec.channels as u16).write_le(writer)?;
+        (self.spec.sample_rate as u32).write_le(writer)?;
+        (self.spec.sample_rate * self.frame_size as u32).write_le(writer)?;
+        (self.frame_size as u16).write_le(writer)?;
+        (self.spec.bits_per_sample as u16).write_le(writer)?;
         if ext == true {
-            22u16.write_le(&mut writer)?; // 额外数据大小
-            (self.spec.bits_per_sample as u16).write_le(&mut writer)?;
-            (self.spec.channel_mask as u32).write_le(&mut writer)?; // 声道掩码
+            22u16.write_le(writer)?; // 额外数据大小
+            (self.spec.bits_per_sample as u16).write_le(writer)?;
+            (self.spec.channel_mask as u32).write_le(writer)?; // 声道掩码
 
             // 写入具体格式的 GUID
             match self.spec.sample_format {
-                Int => GUID_PCM_FORMAT.write(&mut writer)?,
-                Float => GUID_IEEE_FLOAT_FORMAT.write(&mut writer)?,
+                Int => GUID_PCM_FORMAT.write(writer)?,
+                Float => GUID_IEEE_FLOAT_FORMAT.write(writer)?,
                 _ => return Err(AudioWriteError::InvalidArguments(String::from("\"Unknown\" was given for specifying the sample format")).into()),
             }
         };
         writer.write_all(b"data")?;
         self.datalen_offset = writer.stream_position()?;
-        0u32.write_le(&mut writer)?;
+        0u32.write_le(writer)?;
         self.data_offset = writer.stream_position()?;
         Ok(())
     }
@@ -156,9 +156,9 @@ impl WaveWriter {
         const HEADER_SIZE: u32 = 44;
         let all_sample_size = self.num_frames * self.frame_size as u32;
         writer.seek(SeekFrom::Start(self.riff_offset))?;
-        (HEADER_SIZE + all_sample_size - 8).write_le(&mut writer)?;
+        (HEADER_SIZE + all_sample_size - 8).write_le(writer)?;
         writer.seek(SeekFrom::Start(self.datalen_offset))?;
-        all_sample_size.write_le(&mut writer)?;
+        all_sample_size.write_le(writer)?;
         Ok(())
     }
 
@@ -211,7 +211,7 @@ where S : SampleType {
     fn write_sample_to__u8(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) -> Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<u8>().write_le(&mut writer)?;
+            sample.to::<u8>().write_le(writer)?;
         }
         Ok(())
     }
@@ -219,7 +219,7 @@ where S : SampleType {
     fn write_sample_to_i16(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<i16>().write_le(&mut writer)?;
+            sample.to::<i16>().write_le(writer)?;
         }
         Ok(())
     }
@@ -227,7 +227,7 @@ where S : SampleType {
     fn write_sample_to_i24(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<i24>().write_le(&mut writer)?;
+            sample.to::<i24>().write_le(writer)?;
         }
         Ok(())
     }
@@ -235,7 +235,7 @@ where S : SampleType {
     fn write_sample_to_i32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<i32>().write_le(&mut writer)?;
+            sample.to::<i32>().write_le(writer)?;
         }
         Ok(())
     }
@@ -243,7 +243,7 @@ where S : SampleType {
     fn write_sample_to_i64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<i64>().write_le(&mut writer)?;
+            sample.to::<i64>().write_le(writer)?;
         }
         Ok(())
     }
@@ -251,7 +251,7 @@ where S : SampleType {
     fn write_sample_to_f32(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<f32>().write_le(&mut writer)?;
+            sample.to::<f32>().write_le(writer)?;
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ where S : SampleType {
     fn write_sample_to_f64(writer: &mut Arc<Mutex<dyn Writer>>, frame: &Vec<S>) ->Result<(), Box<dyn Error>> {
         peel_arc_mutex!(writer, writer, writer_guard);
         for sample in frame.iter() {
-            sample.to::<f64>().write_le(&mut writer)?;
+            sample.to::<f64>().write_le(writer)?;
         }
         Ok(())
     }
