@@ -19,17 +19,17 @@ pub enum WaveSampleType {
     F64,
 }
 
-pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
+pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
     use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{Unknown,U8,S16,S24,S32,F32,F64};
+    use WaveSampleType::{U8,S16,S24,S32,F32,F64};
     match (bits_per_sample, sample_format) {
-        (8, UInt) => U8,
-        (16, Int) => S16,
-        (24, Int) => S24,
-        (32, Int) => S32,
-        (32, Float) => F32,
-        (64, Float) => F64,
-        _ => Unknown,
+        (8, UInt) => Ok(U8),
+        (16, Int) => Ok(S16),
+        (24, Int) => Ok(S24),
+        (32, Int) => Ok(S32),
+        (32, Float) => Ok(F32),
+        (64, Float) => Ok(F64),
+        _ => Err(AudioError::UnknownSampleType),
     }
 }
 
@@ -120,7 +120,7 @@ impl Spec {
         }
     }
 
-    pub fn get_sample_type(&self) -> WaveSampleType {
+    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
         get_sample_type(self.bits_per_sample, self.sample_format)
     }
 
@@ -166,7 +166,7 @@ impl Spec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChunkWriter{
     writer: Arc<Mutex<dyn Writer>>,
     pos_of_chunk_len: u64, // 写入 chunk 大小的地方
@@ -214,13 +214,13 @@ impl Drop for ChunkWriter {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Chunk {
+pub struct ChunkHeader {
     pub flag: [u8; 4], // 实际存储在文件里的
     pub size: u32, // 实际存储在文件里的
     pub chunk_start_pos: u64, // Chunk 内容在文件中的位置，不包含 Chunk 头
 }
 
-impl Chunk {
+impl ChunkHeader {
     pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
         // 读取 WAV 中的每个块
@@ -338,6 +338,10 @@ impl fmt_Chunk {
             (t, b) => Err(AudioError::Unimplemented(format!("Unimplemented for format tag = {} and bits per sample = {}", t, b))),
         }
     }
+
+    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
+        get_sample_type(self.bits_per_sample, self.get_sample_format()?)
+    }
 }
 
 impl fmt_Chunk_Extension {
@@ -355,7 +359,7 @@ impl fmt_Chunk_Extension {
         peel_arc_mutex!(writer, writer, writer_guard);
         self.ext_len.write_le(writer)?;
         self.bits_per_sample.write_le(writer)?;
-        self.bits_per_sample.write_le(writer)?;
+        self.channel_mask.write_le(writer)?;
         self.sub_format.write(writer)?;
         Ok(())
     }
@@ -631,7 +635,7 @@ pub enum ListChunk {
 impl ListChunk {
     pub fn read<R>(reader: &mut R, chunk_size: u64, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let end_of_chunk = Chunk::align(reader.stream_position()? + chunk_size);
+        let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
         match &flag {
@@ -652,37 +656,6 @@ impl ListChunk {
         }
     }
 
-    fn read_dict<R>(reader: &mut R, end_of_chunk: u64, savage_decoder: &SavageStringDecoder) -> Result<HashMap<String, String>, Box<dyn Error>>
-    where R: Reader {
-        // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
-        let mut dict = HashMap::<String, String>::new();
-        while reader.stream_position()? < end_of_chunk {
-            let key_chunk = Chunk::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
-            let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
-            dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
-            key_chunk.seek_to_next_chunk(reader)?;
-        }
-        Ok(dict)
-    }
-
-    fn write_dict(writer: Arc<Mutex<dyn Writer>>, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
-        peel_arc_mutex!(writer, writer, writer_guard);
-        for (key, val) in dict.iter() {
-            if key.len() != 4 {
-                return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
-            }
-            let mut val = val.clone();
-            val.push_str("\0");
-            write_str(writer, &key)?;
-            (val.len() as u32).write_le(writer)?;
-            write_str(writer, &val)?;
-            if writer.stream_position()? & 1 > 0 {
-                0u8.write_le(writer)?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn write(&self, writer: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
         let mut cw = ChunkWriter::begin(writer, b"LIST")?;
         peel_arc_mutex!(cw.writer, writer, writer_guard);
@@ -701,6 +674,37 @@ impl ListChunk {
         cw.end()?;
         Ok(())
     }
+    
+    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, savage_decoder: &SavageStringDecoder) -> Result<HashMap<String, String>, Box<dyn Error>>
+    where R: Reader {
+        // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
+        let mut dict = HashMap::<String, String>::new();
+        while reader.stream_position()? < end_of_chunk {
+            let key_chunk = ChunkHeader::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
+            let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
+            dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
+            key_chunk.seek_to_next_chunk(reader)?;
+        }
+        Ok(dict)
+    }
+
+    pub fn write_dict(writer: Arc<Mutex<dyn Writer>>, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
+        peel_arc_mutex!(writer, writer, writer_guard);
+        for (key, val) in dict.iter() {
+            if key.len() != 4 {
+                return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
+            }
+            let mut val = val.clone();
+            val.push_str("\0");
+            write_str(writer, &key)?;
+            (val.len() as u32).write_le(writer)?;
+            write_str(writer, &val)?;
+            if writer.stream_position()? & 1 > 0 {
+                0u8.write_le(writer)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -713,7 +717,7 @@ pub enum AdtlChunk {
 impl AdtlChunk {
     pub fn read<R>(reader: &mut R, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let sub_chunk = Chunk::read(reader)?;
+        let sub_chunk = ChunkHeader::read(reader)?;
         let ret = match &sub_chunk.flag {
             b"labl" => {
                 Self::Labl(LablChunk{
