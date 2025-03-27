@@ -167,13 +167,30 @@ impl WaveWriter {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct SamplePackerFrom<S>
 where S : SampleType {
     writer: Arc<Mutex<dyn Writer>>,
     funcmap: HashMap<WaveSampleType, fn(writer: &mut Arc<Mutex<dyn Writer>>, &Vec<S>) -> Result<(), Box<dyn Error>>>,
     last_used_target_format: WaveSampleType,
     last_used_func: fn(writer: &mut Arc<Mutex<dyn Writer>>, &Vec<S>) -> Result<(), Box<dyn Error>>,
+}
+
+impl<S> std::fmt::Debug for SamplePackerFrom<S>
+where S : SampleType {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.last_used_target_format == WaveSampleType::Unknown {
+            fmt.debug_struct(&format!("SamplePackerFrom<{}>", type_name::<S>()))
+                .finish_non_exhaustive()
+        } else {
+            fmt.debug_struct(&format!("SamplePackerFrom<{}>", type_name::<S>()))
+                .field("writer", &self.writer)
+                .field("funcmap", &self.funcmap)
+                .field("last_used_target_format", &self.last_used_target_format)
+                .field("last_used_func", &self.last_used_func)
+                .finish()
+        }
+    }
 }
 
 impl<S> SamplePackerFrom<S>
