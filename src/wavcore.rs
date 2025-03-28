@@ -15,10 +15,12 @@ pub enum WaveSampleType {
     S16,
     S24,
     S32,
+    S64,
     U8,
     U16,
     U24,
     U32,
+    U64,
     F32,
     F64,
 }
@@ -102,6 +104,17 @@ pub enum SampleFormat {
     Float,
     UInt,
     Int,
+}
+
+impl std::fmt::Display for SampleFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+       match self {
+           SampleFormat::Unknown => write!(f, "Unknown"),
+           SampleFormat::Float => write!(f, "Floating Point Number"),
+           SampleFormat::UInt => write!(f, "Unsigned Integer"),
+           SampleFormat::Int => write!(f, "Integer"),
+       }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
