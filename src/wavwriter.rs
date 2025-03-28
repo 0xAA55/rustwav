@@ -161,7 +161,8 @@ impl WaveWriter {
     where S: SampleType {
         if self.data_chunk.is_some() {
             use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                self.sample_packer.pack_sample::<S>(writer, frame);
+                write_sample_to<>();
+                /////////////////////////////////////////////////////////////
             })?;
             self.num_frames += 1;
             Ok(())
@@ -278,6 +279,7 @@ impl WaveWriter {
     }
 }
 
+
 // S：用户给我们的格式
 // T：我们要写入到 WAV 中的格式
 fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
@@ -289,145 +291,162 @@ where S: SampleType + SampleFrom,
     Ok(())
 }
 
-trait SamplePackTo<T>
-where T: SampleType {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>;
-}
+fn write_sample_from__i8_to__i8(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8,  i8>(writer, frame) }
+fn write_sample_from__i8_to_i16(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i16>(writer, frame) }
+fn write_sample_from__i8_to_i24(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i24>(writer, frame) }
+fn write_sample_from__i8_to_i32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i32>(writer, frame) }
+fn write_sample_from__i8_to_i64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i64>(writer, frame) }
+fn write_sample_from__i8_to__u8(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8,  u8>(writer, frame) }
+fn write_sample_from__i8_to_u16(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u16>(writer, frame) }
+fn write_sample_from__i8_to_u24(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u24>(writer, frame) }
+fn write_sample_from__i8_to_u32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u32>(writer, frame) }
+fn write_sample_from__i8_to_u64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u64>(writer, frame) }
+fn write_sample_from__i8_to_f32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, f32>(writer, frame) }
+fn write_sample_from__i8_to_f64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, f64>(writer, frame) }
 
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo__i8;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_i16;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_i24;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_i32;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_i64;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo__u8;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_u16;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_u24;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_u32;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_u64;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_f32;
-#[derive(Debug)]#[allow(non_camel_case_types)] struct SamplePackTo_f64;
+fn write_sample_from_i16_to__i8(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16,  i8>(writer, frame) }
+fn write_sample_from_i16_to_i16(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i16>(writer, frame) }
+fn write_sample_from_i16_to_i24(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i24>(writer, frame) }
+fn write_sample_from_i16_to_i32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i32>(writer, frame) }
+fn write_sample_from_i16_to_i64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i64>(writer, frame) }
+fn write_sample_from_i16_to__u8(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16,  u8>(writer, frame) }
+fn write_sample_from_i16_to_u16(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u16>(writer, frame) }
+fn write_sample_from_i16_to_u24(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u24>(writer, frame) }
+fn write_sample_from_i16_to_u32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u32>(writer, frame) }
+fn write_sample_from_i16_to_u64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u64>(writer, frame) }
+fn write_sample_from_i16_to_f32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, f32>(writer, frame) }
+fn write_sample_from_i16_to_f64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, f64>(writer, frame) }
 
-// TODO
-// 已经很明确 SamplePackTo__i8 是要把任意的输入格式转换为 i8，别的类型同理。
-// 但是任意的输入格式是一个泛型。
+fn write_sample_from_i24_to__i8(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24,  i8>(writer, frame) }
+fn write_sample_from_i24_to_i16(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i16>(writer, frame) }
+fn write_sample_from_i24_to_i24(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i24>(writer, frame) }
+fn write_sample_from_i24_to_i32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i32>(writer, frame) }
+fn write_sample_from_i24_to_i64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i64>(writer, frame) }
+fn write_sample_from_i24_to__u8(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24,  u8>(writer, frame) }
+fn write_sample_from_i24_to_u16(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u16>(writer, frame) }
+fn write_sample_from_i24_to_u24(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u24>(writer, frame) }
+fn write_sample_from_i24_to_u32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u32>(writer, frame) }
+fn write_sample_from_i24_to_u64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u64>(writer, frame) }
+fn write_sample_from_i24_to_f32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, f32>(writer, frame) }
+fn write_sample_from_i24_to_f64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo__i8 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<i8, T>(writer, frame)
-    }
-}
+fn write_sample_from_i32_to__i8(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32,  i8>(writer, frame) }
+fn write_sample_from_i32_to_i16(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i16>(writer, frame) }
+fn write_sample_from_i32_to_i24(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i24>(writer, frame) }
+fn write_sample_from_i32_to_i32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i32>(writer, frame) }
+fn write_sample_from_i32_to_i64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i64>(writer, frame) }
+fn write_sample_from_i32_to__u8(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32,  u8>(writer, frame) }
+fn write_sample_from_i32_to_u16(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u16>(writer, frame) }
+fn write_sample_from_i32_to_u24(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u24>(writer, frame) }
+fn write_sample_from_i32_to_u32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u32>(writer, frame) }
+fn write_sample_from_i32_to_u64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u64>(writer, frame) }
+fn write_sample_from_i32_to_f32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, f32>(writer, frame) }
+fn write_sample_from_i32_to_f64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_i16 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<i16, T>(writer, frame)
-    }
-}
+fn write_sample_from_i64_to__i8(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64,  i8>(writer, frame) }
+fn write_sample_from_i64_to_i16(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i16>(writer, frame) }
+fn write_sample_from_i64_to_i24(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i24>(writer, frame) }
+fn write_sample_from_i64_to_i32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i32>(writer, frame) }
+fn write_sample_from_i64_to_i64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i64>(writer, frame) }
+fn write_sample_from_i64_to__u8(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64,  u8>(writer, frame) }
+fn write_sample_from_i64_to_u16(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u16>(writer, frame) }
+fn write_sample_from_i64_to_u24(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u24>(writer, frame) }
+fn write_sample_from_i64_to_u32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u32>(writer, frame) }
+fn write_sample_from_i64_to_u64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u64>(writer, frame) }
+fn write_sample_from_i64_to_f32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, f32>(writer, frame) }
+fn write_sample_from_i64_to_f64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_i24 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<i24, T>(writer, frame)
-    }
-}
+fn write_sample_from__u8_to__i8(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8,  i8>(writer, frame) }
+fn write_sample_from__u8_to_i16(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i16>(writer, frame) }
+fn write_sample_from__u8_to_i24(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i24>(writer, frame) }
+fn write_sample_from__u8_to_i32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i32>(writer, frame) }
+fn write_sample_from__u8_to_i64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i64>(writer, frame) }
+fn write_sample_from__u8_to__u8(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8,  u8>(writer, frame) }
+fn write_sample_from__u8_to_u16(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u16>(writer, frame) }
+fn write_sample_from__u8_to_u24(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u24>(writer, frame) }
+fn write_sample_from__u8_to_u32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u32>(writer, frame) }
+fn write_sample_from__u8_to_u64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u64>(writer, frame) }
+fn write_sample_from__u8_to_f32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, f32>(writer, frame) }
+fn write_sample_from__u8_to_f64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_i32 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<i32, T>(writer, frame)
-    }
-}
+fn write_sample_from_u16_to__i8(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16,  i8>(writer, frame) }
+fn write_sample_from_u16_to_i16(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i16>(writer, frame) }
+fn write_sample_from_u16_to_i24(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i24>(writer, frame) }
+fn write_sample_from_u16_to_i32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i32>(writer, frame) }
+fn write_sample_from_u16_to_i64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i64>(writer, frame) }
+fn write_sample_from_u16_to__u8(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16,  u8>(writer, frame) }
+fn write_sample_from_u16_to_u16(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u16>(writer, frame) }
+fn write_sample_from_u16_to_u24(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u24>(writer, frame) }
+fn write_sample_from_u16_to_u32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u32>(writer, frame) }
+fn write_sample_from_u16_to_u64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u64>(writer, frame) }
+fn write_sample_from_u16_to_f32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, f32>(writer, frame) }
+fn write_sample_from_u16_to_f64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_i64 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<i64, T>(writer, frame)
-    }
-}
+fn write_sample_from_u24_to__i8(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24,  i8>(writer, frame) }
+fn write_sample_from_u24_to_i16(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i16>(writer, frame) }
+fn write_sample_from_u24_to_i24(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i24>(writer, frame) }
+fn write_sample_from_u24_to_i32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i32>(writer, frame) }
+fn write_sample_from_u24_to_i64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i64>(writer, frame) }
+fn write_sample_from_u24_to__u8(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24,  u8>(writer, frame) }
+fn write_sample_from_u24_to_u16(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u16>(writer, frame) }
+fn write_sample_from_u24_to_u24(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u24>(writer, frame) }
+fn write_sample_from_u24_to_u32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u32>(writer, frame) }
+fn write_sample_from_u24_to_u64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u64>(writer, frame) }
+fn write_sample_from_u24_to_f32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, f32>(writer, frame) }
+fn write_sample_from_u24_to_f64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo__u8 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<u8, T>(writer, frame)
-    }
-}
+fn write_sample_from_u32_to__i8(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32,  i8>(writer, frame) }
+fn write_sample_from_u32_to_i16(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i16>(writer, frame) }
+fn write_sample_from_u32_to_i24(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i24>(writer, frame) }
+fn write_sample_from_u32_to_i32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i32>(writer, frame) }
+fn write_sample_from_u32_to_i64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i64>(writer, frame) }
+fn write_sample_from_u32_to__u8(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32,  u8>(writer, frame) }
+fn write_sample_from_u32_to_u16(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u16>(writer, frame) }
+fn write_sample_from_u32_to_u24(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u24>(writer, frame) }
+fn write_sample_from_u32_to_u32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u32>(writer, frame) }
+fn write_sample_from_u32_to_u64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u64>(writer, frame) }
+fn write_sample_from_u32_to_f32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, f32>(writer, frame) }
+fn write_sample_from_u32_to_f64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_u16 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<u16, T>(writer, frame)
-    }
-}
+fn write_sample_from_u64_to__i8(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64,  i8>(writer, frame) }
+fn write_sample_from_u64_to_i16(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i16>(writer, frame) }
+fn write_sample_from_u64_to_i24(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i24>(writer, frame) }
+fn write_sample_from_u64_to_i32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i32>(writer, frame) }
+fn write_sample_from_u64_to_i64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i64>(writer, frame) }
+fn write_sample_from_u64_to__u8(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64,  u8>(writer, frame) }
+fn write_sample_from_u64_to_u16(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u16>(writer, frame) }
+fn write_sample_from_u64_to_u24(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u24>(writer, frame) }
+fn write_sample_from_u64_to_u32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u32>(writer, frame) }
+fn write_sample_from_u64_to_u64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u64>(writer, frame) }
+fn write_sample_from_u64_to_f32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, f32>(writer, frame) }
+fn write_sample_from_u64_to_f64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_u24 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<u24, T>(writer, frame)
-    }
-}
+fn write_sample_from_f32_to__i8(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32,  i8>(writer, frame) }
+fn write_sample_from_f32_to_i16(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i16>(writer, frame) }
+fn write_sample_from_f32_to_i24(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i24>(writer, frame) }
+fn write_sample_from_f32_to_i32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i32>(writer, frame) }
+fn write_sample_from_f32_to_i64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i64>(writer, frame) }
+fn write_sample_from_f32_to__u8(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32,  u8>(writer, frame) }
+fn write_sample_from_f32_to_u16(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u16>(writer, frame) }
+fn write_sample_from_f32_to_u24(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u24>(writer, frame) }
+fn write_sample_from_f32_to_u32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u32>(writer, frame) }
+fn write_sample_from_f32_to_u64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u64>(writer, frame) }
+fn write_sample_from_f32_to_f32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, f32>(writer, frame) }
+fn write_sample_from_f32_to_f64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_u32 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<u32, T>(writer, frame)
-    }
-}
+fn write_sample_from_f64_to__i8(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64,  i8>(writer, frame) }
+fn write_sample_from_f64_to_i16(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i16>(writer, frame) }
+fn write_sample_from_f64_to_i24(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i24>(writer, frame) }
+fn write_sample_from_f64_to_i32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i32>(writer, frame) }
+fn write_sample_from_f64_to_i64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i64>(writer, frame) }
+fn write_sample_from_f64_to__u8(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64,  u8>(writer, frame) }
+fn write_sample_from_f64_to_u16(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u16>(writer, frame) }
+fn write_sample_from_f64_to_u24(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u24>(writer, frame) }
+fn write_sample_from_f64_to_u32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u32>(writer, frame) }
+fn write_sample_from_f64_to_u64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u64>(writer, frame) }
+fn write_sample_from_f64_to_f32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, f32>(writer, frame) }
+fn write_sample_from_f64_to_f64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, f64>(writer, frame) }
 
-impl<T> SamplePackTo<T> for SamplePackTo_u64 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<u64, T>(writer, frame)
-    }
-}
-
-impl<T> SamplePackTo<T> for SamplePackTo_f32 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<f32, T>(writer, frame)
-    }
-}
-
-impl<T> SamplePackTo<T> for SamplePackTo_f64 {
-    fn pack_from(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        write_sample_to::<f64, T>(writer, frame)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct WaveSamplePacker<T>
-    where T: SampleType {
-    packer: Box<dyn SamplePackTo<T>>,
-}
-
-impl<T> WaveSamplePacker<T> {
-    fn new(to_type: WaveSampleType) -> Self {
-        use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
-        Self {
-            packer: match to_type {
-                S8  => Box::new(SamplePackTo__i8::<i8 >{}),
-                S16 => Box::new(SamplePackTo_i16::<i16>{}),
-                S24 => Box::new(SamplePackTo_i24::<i24>{}),
-                S32 => Box::new(SamplePackTo_i32::<i32>{}),
-                S64 => Box::new(SamplePackTo_i64::<i64>{}),
-                U8  => Box::new(SamplePackTo__u8::<u8 >{}),
-                U16 => Box::new(SamplePackTo_u16::<u16>{}),
-                U24 => Box::new(SamplePackTo_u24::<u24>{}),
-                U32 => Box::new(SamplePackTo_u32::<u32>{}),
-                U64 => Box::new(SamplePackTo_u64::<u64>{}),
-                F32 => Box::new(SamplePackTo_f32::<f32>{}),
-                F64 => Box::new(SamplePackTo_f64::<f64>{}),
-                other => panic!("Don't know how to convert to \"{:?}\"", to_type),
-            },
-        }
-    }
-
-    fn pack_sample(&self, writer: &mut dyn Writer, frame: &Vec<T>) -> Result<(), Box<dyn Error>>
-    where T: SampleType {
-        self.packer.pack_sample::<T>(writer, frame)
-    }
-}
 
 impl Drop for WaveWriter {
     fn drop(&mut self) {
