@@ -13,6 +13,12 @@ impl i24{
     fn from_be_bytes(bytes: [u8; 3]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
+    fn to_le_bytes(&self) -> [u8; 3] {
+        [self.0, self.1, self.2]
+    }
+    fn to_be_bytes(&self) -> [u8; 3] {
+        [self.2, self.1, self.0]
+    }
     fn get_highest_i8(&self) -> i8 {
         self.2 as i8
     }
@@ -29,6 +35,12 @@ impl u24{
     fn from_be_bytes(bytes: [u8; 3]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
+    fn to_le_bytes(&self) -> [u8; 3] {
+        [self.0, self.1, self.2]
+    }
+    fn to_be_bytes(&self) -> [u8; 3] {
+        [self.2, self.1, self.0]
+    }
     fn get_highest_u8(&self) -> u8 {
         self.2
     }
@@ -42,11 +54,11 @@ pub trait SampleType: Sized + Clone + Copy + 'static {
         panic!("There shouldn't a `clampf()` call on integers");
     }
     fn from(v: impl SampleType) -> Self;
-    fn to_i8(&self) -> i8;
+    fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
     fn to_i32(&self) -> i32;
     fn to_i64(&self) -> i64;
-    fn to_u8(&self) -> u8;
+    fn to_u8 (&self) -> u8;
     fn to_u16(&self) -> u16;
     fn to_u32(&self) -> u32;
     fn to_u64(&self) -> u64;
@@ -58,48 +70,45 @@ pub trait SampleType: Sized + Clone + Copy + 'static {
     fn read_be<T>(r: &mut T) -> Result<Self, Error> where T: Read + ?Sized;
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error> where T: Write + ?Sized;
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error> where T: Write + ?Sized;
-    fn to<T: SampleTo>(&self) -> T {
-        T::to(*self)
-    }
 }
 
-pub trait SampleTo {
+pub trait SampleFrom {
     fn to(s: impl SampleType) -> Self;
 }
-impl SampleTo for i8 {
+impl SampleFrom for i8 {
     fn to(s: impl SampleType) -> Self { s.to_i8() }
 }
-impl SampleTo for i16 {
+impl SampleFrom for i16 {
     fn to(s: impl SampleType) -> Self { s.to_i16() }
 }
-impl SampleTo for i24 {
+impl SampleFrom for i24 {
     fn to(s: impl SampleType) -> Self { s.to_i24() }
 }
-impl SampleTo for i32 {
+impl SampleFrom for i32 {
     fn to(s: impl SampleType) -> Self { s.to_i32() }
 }
-impl SampleTo for i64 {
+impl SampleFrom for i64 {
     fn to(s: impl SampleType) -> Self { s.to_i64() }
 }
-impl SampleTo for u8 {
+impl SampleFrom for u8 {
     fn to(s: impl SampleType) -> Self { s.to_u8() }
 }
-impl SampleTo for u16 {
+impl SampleFrom for u16 {
     fn to(s: impl SampleType) -> Self { s.to_u16() }
 }
-impl SampleTo for u24 {
+impl SampleFrom for u24 {
     fn to(s: impl SampleType) -> Self { s.to_u24() }
 }
-impl SampleTo for u32 {
+impl SampleFrom for u32 {
     fn to(s: impl SampleType) -> Self { s.to_u32() }
 }
-impl SampleTo for u64 {
+impl SampleFrom for u64 {
     fn to(s: impl SampleType) -> Self { s.to_u64() }
 }
-impl SampleTo for f32 {
+impl SampleFrom for f32 {
     fn to(s: impl SampleType) -> Self { s.to_f32() }
 }
-impl SampleTo for f64 {
+impl SampleFrom for f64 {
     fn to(s: impl SampleType) -> Self { s.to_f64() }
 }
 
@@ -133,11 +142,11 @@ impl SampleType for i8{
     }
     fn to_i24(&self) -> i24{
         let lo = self.to_u8();
-        i24.from_le_bytes([lo, lo, *self])
+        i24::from_le_bytes([lo, lo, (*self) as u8])
     }
     fn to_u24(&self) -> u24{
         let lo = self.to_u8();
-        u24.from_le_bytes([lo, lo, lo])
+        u24::from_le_bytes([lo, lo, lo])
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -245,29 +254,29 @@ impl SampleType for i24 {
     }
     fn to_i64(&self) -> i64{
         let hi = self.get_highest_i8().to_u8();
-        i32::from_le_bytes([self.1, hi, self.0, self.1, hi, self.0, self.1, self.2])
+        i64::from_le_bytes([self.1, hi, self.0, self.1, hi, self.0, self.1, self.2])
     }
     fn to_u8(&self) -> u8{
         self.get_highest_i8().to_u8()
     }
     fn to_u16(&self) -> u16{
         let hi = self.get_highest_i8().to_u8();
-        i16::from_le_bytes([self.1, hi])
+        u16::from_le_bytes([self.1, hi])
     }
     fn to_u32(&self) -> u32{
         let hi = self.get_highest_i8().to_u8();
-        i32::from_le_bytes([hi, self.0, self.1, hi])
+        u32::from_le_bytes([hi, self.0, self.1, hi])
     }
     fn to_u64(&self) -> u64{
         let hi = self.get_highest_i8().to_u8();
-        i32::from_le_bytes([self.1, hi, self.0, self.1, hi, self.0, self.1, hi])
+        u64::from_le_bytes([self.1, hi, self.0, self.1, hi, self.0, self.1, hi])
     }
     fn to_i24(&self) -> i24{
         *self
     }
     fn to_u24(&self) -> u24{
         let hi = self.get_highest_i8().to_u8();
-        u24.from_le_bytes([self.0, self.1, hi])
+        u24::from_le_bytes([self.0, self.1, hi])
     }
     fn to_f32(&self) -> f32{
         self.to_i32().to_f32()
@@ -327,7 +336,7 @@ impl SampleType for i32{
     }
     fn to_i24(&self) -> i24{
         let b = self.to_le_bytes();
-        i24.from_le_bytes([b[1], b[2], b[3]])
+        i24::from_le_bytes([b[1], b[2], b[3]])
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
@@ -390,7 +399,7 @@ impl SampleType for i64{
     }
     fn to_i24(&self) -> i24{
         let b = self.to_le_bytes();
-        i24.from_le_bytes([b[5], b[6], b[7]])
+        i24::from_le_bytes([b[5], b[6], b[7]])
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
@@ -453,11 +462,11 @@ impl SampleType for u8{
         self.to_u32().to_u64()
     }
     fn to_i24(&self) -> i24{
-        let hi = self.to_i8();
-        i24.from_le_bytes([*self, *self, hi])
+        let hi = self.to_i8() as u8;
+        i24::from_le_bytes([*self, *self, hi])
     }
     fn to_u24(&self) -> u24{
-        i24.from_le_bytes([*self, *self, *self])
+        u24::from_le_bytes([*self, *self, *self])
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -558,10 +567,10 @@ impl SampleType for u24 {
         self.0.to_i8()
     }
     fn to_i16(&self) -> i16{
-        self.to_i32().to_i16();
+        self.to_i32().to_i16()
     }
     fn to_i32(&self) -> i32{
-        self.to_i32()
+        i32::from_le_bytes([self.2, self.0, self.1, self.2.to_i8() as u8])
     }
     fn to_i64(&self) -> i64{
         self.to_i32().to_i64()
@@ -576,10 +585,10 @@ impl SampleType for u24 {
         u32::from_le_bytes([self.2, self.0, self.1, self.2])
     }
     fn to_u64(&self) -> u64{
-        u32::from_le_bytes([,self.1, self.2, self.0, self.1, self.2, self.0, self.1, self.2])
+        u64::from_le_bytes([self.1, self.2, self.0, self.1, self.2, self.0, self.1, self.2])
     }
     fn to_i24(&self) -> i24{
-        i24.from_le_bytes([self.0, self.1, self.2.to_i8() as u8])
+        i24::from_le_bytes([self.0, self.1, self.2.to_i8() as u8])
     }
     fn to_u24(&self) -> u24{
         *self
@@ -882,4 +891,6 @@ impl SampleType for f64{
         w.write_all(&self.to_be_bytes())
     }
 }
+
+
 
