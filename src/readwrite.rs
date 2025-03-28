@@ -32,10 +32,12 @@ pub fn read_str<T: Read>(r: &mut T, size: usize, savage_decoder: &SavageStringDe
     Ok(savage_decoder.decode(&buf).trim_matches(char::from(0)).to_string())
 }
 
-pub fn read_sz<T: Read>(w: &mut T, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn std::error::Error>> {
+pub fn read_sz<T: Read>(r: &mut T, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn std::error::Error>> {
     let mut buf = Vec::<u8>::new();
     loop {
-        let b = u8::read_le(w)?;
+        let b = [0u8; 1];
+        r.read_exact(&mut buf)?;
+        let b = b[0];
         if b != 0 {
             buf.push(b);
         } else {
