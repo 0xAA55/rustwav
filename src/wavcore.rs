@@ -25,6 +25,26 @@ pub enum WaveSampleType {
     F64,
 }
 
+impl std::fmt::Display for WaveSampleType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            WaveSampleType::Unknown => write!(f, "Unknown"),
+            WaveSampleType::S8  => write!(f, "i8"),
+            WaveSampleType::S16 => write!(f, "i16"),
+            WaveSampleType::S24 => write!(f, "i24"),
+            WaveSampleType::S32 => write!(f, "i32"),
+            WaveSampleType::S64 => write!(f, "i64"),
+            WaveSampleType::U8  => write!(f, "u8"),
+            WaveSampleType::U16 => write!(f, "u16"),
+            WaveSampleType::U24 => write!(f, "u24"),
+            WaveSampleType::U32 => write!(f, "u32"),
+            WaveSampleType::U64 => write!(f, "u64"),
+            WaveSampleType::F32 => write!(f, "f32"),
+            WaveSampleType::F64 => write!(f, "f64"),
+       }
+    }
+}
+
 pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
     use SampleFormat::{UInt, Int, Float};
     use WaveSampleType::{U8,S16,S24,S32,F32,F64};
@@ -108,11 +128,11 @@ pub enum SampleFormat {
 
 impl std::fmt::Display for SampleFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           SampleFormat::Unknown => write!(f, "Unknown"),
-           SampleFormat::Float => write!(f, "Floating Point Number"),
-           SampleFormat::UInt => write!(f, "Unsigned Integer"),
-           SampleFormat::Int => write!(f, "Integer"),
+        match self {
+            SampleFormat::Unknown => write!(f, "Unknown"),
+            SampleFormat::Float => write!(f, "Floating Point Number"),
+            SampleFormat::UInt => write!(f, "Unsigned Integer"),
+            SampleFormat::Int => write!(f, "Integer"),
        }
     }
 }
