@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{sync::{Arc, Mutex}, ops::{DerefMut}, error::Error, collections::HashMap};
+use std::{error::Error, collections::HashMap};
 
 pub use crate::errors::*;
 pub use crate::readwrite::*;
@@ -171,28 +171,26 @@ impl Spec {
 }
 
 #[derive(Debug)]
-pub struct ChunkWriter<W>
-where W: Writer{
-    writer_shared: Arc<Mutex<W>>,
+pub struct ChunkWriter {
+    writer_shared: Arc<Mutex<dyn Writer>>,
     pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     chunk_start: u64, // chunk 数据开始的地方
     ended: bool, // 是否早已完成 Chunk 的写入
 }
 
-impl<W> ChunkWriter<W>
-where W: Writer{
-    pub fn begin(writer_shared: Arc<Mutex<W>>, flag: &[u8; 4]) -> Result<Self, Box<dyn Error>> {
+impl ChunkWriter {
+    pub fn begin(writer_shared: Arc<Mutex<dyn Writer>>, flag: &[u8; 4]) -> Result<Self, Box<dyn Error>> {
         let mut pos_of_chunk_len = 0u64;
         let mut chunk_start = 0u64;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             writer.write_all(flag)?;
             pos_of_chunk_len = writer.stream_position()?;
-            0u32.write_le(&mut writer)?;
+            0u32.write_le(writer)?;
             chunk_start = writer.stream_position()?;
             Ok(())
         })?;
         Ok(Self{
-            writer_shared,
+            writer_shared: writer_shared.clone(),
             pos_of_chunk_len,
             chunk_start,
             ended: false,
@@ -200,7 +198,7 @@ where W: Writer{
     }
 
     pub fn end(&mut self) -> Result<(), Box<dyn Error>> {
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+        use_writer(self.writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             let end_of_chunk = writer.stream_position()?;
             writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
             ((end_of_chunk - self.chunk_start) as u32).write_le(writer)?;
@@ -214,8 +212,7 @@ where W: Writer{
     }
 }
 
-impl<W> Drop for ChunkWriter<W>
-where W: Writer {
+impl Drop for ChunkWriter {
     fn drop(&mut self) {
         self.end().unwrap();
     }
@@ -304,10 +301,9 @@ impl fmt_Chunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"fmt ")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"fmt ")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             self.format_tag.write_le(writer)?;
             self.channels.write_le(writer)?;
             self.sample_rate.write_le(writer)?;
@@ -316,7 +312,7 @@ impl fmt_Chunk {
             self.bits_per_sample.write_le(writer)?;
             match self.extension {
                 Some(ext) => {
-                    ext.write(writer_shared)?;
+                    ext.write(writer)?;
                 },
                 None => (),
             }
@@ -366,15 +362,12 @@ impl fmt_Chunk_Extension {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
-            self.ext_len.write_le(&mut writer)?;
-            self.bits_per_sample.write_le(&mut writer)?;
-            self.channel_mask.write_le(&mut writer)?;
-            self.sub_format.write(&mut writer)?;
-            Ok(())
-        })
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+        self.ext_len.write_le(writer)?;
+        self.bits_per_sample.write_le(writer)?;
+        self.channel_mask.write_le(writer)?;
+        self.sub_format.write(writer)?;
+        Ok(())
     }
 }
 
@@ -423,10 +416,9 @@ impl BextChunk {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"bext")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"bext")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             write_str_sized(writer, &self.description, 256)?;
             write_str_sized(writer, &self.originator, 32)?;
             write_str_sized(writer, &self.originator_ref, 32)?;
@@ -489,10 +481,9 @@ impl SmplChunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"smpl")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"smpl")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             self.manufacturer.write_le(writer)?;
             self.product.write_le(writer)?;
             self.sample_period.write_le(writer)?;
@@ -503,7 +494,7 @@ impl SmplChunk {
             self.num_sample_loops.write_le(writer)?;
             self.sampler_data.write_le(writer)?;
             for l in self.loops.iter() {
-                l.write(writer_shared)?;
+                l.write(writer)?;
             }
             Ok(())
         })?;
@@ -525,17 +516,14 @@ impl SmplSampleLoop {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
-            self.identifier.write_le(writer)?;
-            self.type_.write_le(writer)?;
-            self.start.write_le(writer)?;
-            self.end.write_le(writer)?;
-            self.fraction.write_le(writer)?;
-            self.play_count.write_le(writer)?;
-            Ok(())
-        })
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+        self.identifier.write_le(writer)?;
+        self.type_.write_le(writer)?;
+        self.start.write_le(writer)?;
+        self.end.write_le(writer)?;
+        self.fraction.write_le(writer)?;
+        self.play_count.write_le(writer)?;
+        Ok(())
     }
 }
 
@@ -564,10 +552,9 @@ impl InstChunk {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"INST")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"INST")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             self.base_note.write_le(writer)?;
             self.detune.write_le(writer)?;
             self.gain.write_le(writer)?;
@@ -613,16 +600,15 @@ impl Cue_Chunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"cue ")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"cue ")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             self.num_cues.write_le(writer)?;
+            for cue in self.cues.iter() {
+                cue.write(writer)?;
+            }
             Ok(())
         })?;
-        for cue in self.cues.iter() {
-            cue.write(writer_shared)?;
-        }
         cw.end()?;
         Ok(())
     }
@@ -641,17 +627,14 @@ impl Cue {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
-            self.identifier.write_le(writer)?;
-            self.order.write_le(writer)?;
-            self.chunk_id.write_le(writer)?;
-            self.chunk_start.write_le(writer)?;
-            self.block_start.write_le(writer)?;
-            self.offset.write_le(writer)?;
-            Ok(())
-        })
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+        self.identifier.write_le(writer)?;
+        self.order.write_le(writer)?;
+        self.chunk_id.write_le(writer)?;
+        self.chunk_start.write_le(writer)?;
+        self.block_start.write_le(writer)?;
+        self.offset.write_le(writer)?;
+        Ok(())
     }
 }
 
@@ -685,24 +668,23 @@ impl ListChunk {
         }
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"LIST")?;
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"LIST")?;
         match self {
             Self::Info(dict) => {
-                use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+                use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     writer.write_all(b"INFO")?;
                     Ok(())
                 })?;
-                Self::write_dict(writer_shared, dict)?;
+                Self::write_dict(writer_shared.clone(), dict)?;
             },
             Self::Adtl(adtls) => {
-                use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+                use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     writer.write_all(b"adtl")?;
                     Ok(())
                 })?;
                 for adtl in adtls.iter() {
-                    adtl.write(writer_shared)?;
+                    adtl.write(writer_shared.clone())?;
                 }
             },
         };
@@ -723,9 +705,8 @@ impl ListChunk {
         Ok(dict)
     }
 
-    pub fn write_dict<W>(writer_shared: Arc<Mutex<W>>, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write_dict(writer_shared: Arc<Mutex<dyn Writer>>, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             for (key, val) in dict.iter() {
                 if key.len() != 4 {
                     return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
@@ -788,12 +769,11 @@ impl AdtlChunk {
         Ok(ret)
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
         match self {
             Self::Labl(labl) => {
-                let mut cw = ChunkWriter::begin(writer_shared, b"labl")?;
-                use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+                let mut cw = ChunkWriter::begin(writer_shared.clone(), b"labl")?;
+                use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     labl.identifier.write_le(writer)?;
                     write_str(writer, &labl.data)?;
                     Ok(())
@@ -801,8 +781,8 @@ impl AdtlChunk {
                 cw.end()?;
             },
             Self::Note(note) => {
-                let mut cw = ChunkWriter::begin(writer_shared, b"note")?;
-                use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+                let mut cw = ChunkWriter::begin(writer_shared.clone(), b"note")?;
+                use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     note.identifier.write_le(writer)?;
                     write_str(writer, &note.data)?;
                     Ok(())
@@ -810,8 +790,8 @@ impl AdtlChunk {
                 cw.end()?;
             },
             Self::Ltxt(ltxt) => {
-                let mut cw = ChunkWriter::begin(writer_shared, b"ltxt")?;
-                use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+                let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ltxt")?;
+                use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     ltxt.identifier.write_le(writer)?;
                     ltxt.sample_length.write_le(writer)?;
                     write_str_sized(writer, &ltxt.purpose_id, 4)?;
@@ -880,10 +860,9 @@ impl AcidChunk {
         })
     }
 
-    pub fn write<W>(&self, writer_shared: Arc<Mutex<W>>) -> Result<(), Box<dyn Error>>
-    where W: Writer {
-        let mut cw = ChunkWriter::begin(writer_shared, b"acid")?;
-        use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"acid")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             self.flags.write_le(writer)?;
             self.root_node.write_le(writer)?;
             self.reserved1.write_le(writer)?;
@@ -899,10 +878,9 @@ impl AcidChunk {
     }
 }
 
-fn axml_write<W>(writer_shared: Arc<Mutex<W>>, data: &String) -> Result<(), Box<dyn Error>>
-where W: Writer {
-    let mut cw = ChunkWriter::begin(writer_shared, b"axml")?;
-    use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+fn axml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"axml")?;
+    use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
         write_str(writer, data)?;
         Ok(())
     })?;
@@ -910,10 +888,9 @@ where W: Writer {
     Ok(())
 }
 
-fn ixml_write<W>(writer_shared: Arc<Mutex<W>>, data: &String) -> Result<(), Box<dyn Error>>
-where W: Writer {
-    let mut cw = ChunkWriter::begin(writer_shared, b"ixml")?;
-    use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+fn ixml_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ixml")?;
+    use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
         write_str(writer, data)?;
         Ok(())
     })?;
@@ -921,10 +898,9 @@ where W: Writer {
     Ok(())
 }
 
-fn Trkn_write<W>(writer_shared: Arc<Mutex<W>>, data: &String) -> Result<(), Box<dyn Error>>
-where W: Writer {
-    let mut cw = ChunkWriter::begin(writer_shared, b"Trkn")?;
-    use_writer(writer_shared, |writer| -> Result<(), Box<dyn Error>> {
+fn Trkn_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"Trkn")?;
+    use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
         write_str(writer, data)?;
         Ok(())
     })?;
