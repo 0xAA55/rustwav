@@ -387,7 +387,7 @@ where S: SampleType {
 impl<S> WaveIter<S>
 where S: SampleType {
     fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
-        use WaveSampleType::{Unknown, U8, S16, S24, S32, F32, F64};
+        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         let mut ret = Self {
             reader,
@@ -401,10 +401,12 @@ where S: SampleType {
                 S16 => Self::unpack_to::<i16>,
                 S24 => Self::unpack_to::<i24>,
                 S32 => Self::unpack_to::<i32>,
+                S64 => Self::unpack_to::<i64>,
                 U8 =>  Self::unpack_to::<u8 >,
                 U16 => Self::unpack_to::<u16>,
                 U24 => Self::unpack_to::<u24>,
                 U32 => Self::unpack_to::<u32>,
+                U64 => Self::unpack_to::<u64>,
                 F32 => Self::unpack_to::<f32>,
                 F64 => Self::unpack_to::<f64>,
             },
@@ -414,10 +416,12 @@ where S: SampleType {
                 S16 => 2,
                 S24 => 3,
                 S32 => 4,
+                S64 => 8,
                 U8 =>  1,
                 U16 => 2,
                 U24 => 3,
                 U32 => 4,
+                U64 => 8,
                 F32 => 4,
                 F64 => 8,
             } * spec.channels,
