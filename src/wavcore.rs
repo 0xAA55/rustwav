@@ -11,10 +11,14 @@ pub use crate::savagestr::*;
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
     Unknown,
-    U8,
+    S8,
     S16,
     S24,
     S32,
+    U8,
+    U16,
+    U24,
+    U32,
     F32,
     F64,
 }
