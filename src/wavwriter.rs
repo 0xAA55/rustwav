@@ -163,6 +163,16 @@ impl WaveWriter {
         }
         Ok(())
     }
+    fn write_multiple_sample_to<S, T>(writer: &mut dyn Writer, frames: &Vec<Vec<S>>) -> Result<(), Box<dyn Error>>
+    where S: SampleType,
+          T: SampleType {
+        for frame in frames.iter() {
+            for sample in frame.iter() {
+                T::from(*sample).write_le(writer)?;
+            }
+        }
+        Ok(())
+    }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
     pub fn write_sample<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
@@ -187,6 +197,35 @@ impl WaveWriter {
                 }
             })?;
             self.num_frames += 1;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")).into())
+        }
+    }
+
+    // 保存多个样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
+    pub fn write_multiple_sample<S>(&mut self, frames: &Vec<Vec<S>>) -> Result<(), Box<dyn Error>>
+    where S: SampleType {
+        use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        if self.data_chunk.is_some() {
+            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+                match self.sample_type {
+                    S8  => Self::write_multiple_sample_to::<S, i8 >(writer, frames),
+                    S16 => Self::write_multiple_sample_to::<S, i16>(writer, frames),
+                    S24 => Self::write_multiple_sample_to::<S, i24>(writer, frames),
+                    S32 => Self::write_multiple_sample_to::<S, i32>(writer, frames),
+                    S64 => Self::write_multiple_sample_to::<S, i64>(writer, frames),
+                    U8  => Self::write_multiple_sample_to::<S, u8 >(writer, frames),
+                    U16 => Self::write_multiple_sample_to::<S, u16>(writer, frames),
+                    U24 => Self::write_multiple_sample_to::<S, u24>(writer, frames),
+                    U32 => Self::write_multiple_sample_to::<S, u32>(writer, frames),
+                    U64 => Self::write_multiple_sample_to::<S, u64>(writer, frames),
+                    F32 => Self::write_multiple_sample_to::<S, f32>(writer, frames),
+                    F64 => Self::write_multiple_sample_to::<S, f64>(writer, frames),
+                    other => Err(AudioWriteError::WrongSampleFormat(format!("{}", other)).into()),
+                }
+            })?;
+            self.num_frames += frames.len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")).into())
