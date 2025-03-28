@@ -2,8 +2,6 @@
 
 use std::{io::{Read, Write, Error}, mem::size_of, clone::Clone};
 
-use crate::savagestr::SavageStringDecoder;
-
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub struct i24(pub u8, pub u8, pub u8); // 低中高
