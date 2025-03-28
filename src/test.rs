@@ -21,8 +21,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         channels: 2,
         channel_mask: Spec::guess_channel_mask(2)?,
         sample_rate: wavereader.spec().sample_rate,
-        bits_per_sample: 16,
-        sample_format: SampleFormat::Int,
+        bits_per_sample: 8,
+        sample_format: SampleFormat::UInt,
     };
 
     let mut wavewriter = WaveWriter::create(arg2, &spec, true).unwrap();
