@@ -19,7 +19,6 @@ pub struct WaveWriter {
     frame_size: u16,
     data_offset: u64,
     sample_type: WaveSampleType,
-    sample_packer: WaveSamplePacker,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
     pub bext_chunk: Option<BextChunk>,
@@ -53,7 +52,6 @@ impl WaveWriter {
             frame_size,
             data_offset: 0,
             sample_type,
-            sample_packer: WaveSamplePacker::new(sample_type),
             riff_chunk: None,
             data_chunk: None,
             bext_chunk: None,
@@ -156,13 +154,37 @@ impl WaveWriter {
         Ok(())
     }
 
+    // T：我们要写入到 WAV 中的格式
+    fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    where S: SampleType,
+          T: SampleType {
+        for sample in frame.iter() {
+            T::from(*sample).write_le(writer)?;
+        }
+        Ok(())
+    }
+
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
     pub fn write_sample<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
     where S: SampleType {
+        use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         if self.data_chunk.is_some() {
             use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                write_sample_to<>();
-                /////////////////////////////////////////////////////////////
+                match self.sample_type {
+                    S8  => Self::write_sample_to::<S, i8 >(writer, frame),
+                    S16 => Self::write_sample_to::<S, i16>(writer, frame),
+                    S24 => Self::write_sample_to::<S, i24>(writer, frame),
+                    S32 => Self::write_sample_to::<S, i32>(writer, frame),
+                    S64 => Self::write_sample_to::<S, i64>(writer, frame),
+                    U8  => Self::write_sample_to::<S, u8 >(writer, frame),
+                    U16 => Self::write_sample_to::<S, u16>(writer, frame),
+                    U24 => Self::write_sample_to::<S, u24>(writer, frame),
+                    U32 => Self::write_sample_to::<S, u32>(writer, frame),
+                    U64 => Self::write_sample_to::<S, u64>(writer, frame),
+                    F32 => Self::write_sample_to::<S, f32>(writer, frame),
+                    F64 => Self::write_sample_to::<S, f64>(writer, frame),
+                    other => Err(AudioWriteError::WrongSampleFormat(format!("{}", other)).into()),
+                }
             })?;
             self.num_frames += 1;
             Ok(())
@@ -278,175 +300,6 @@ impl WaveWriter {
         Ok(())
     }
 }
-
-
-// S：用户给我们的格式
-// T：我们要写入到 WAV 中的格式
-fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
-where S: SampleType + SampleFrom,
-      T: SampleType {
-    for sample in frame.iter() {
-        <S as SampleFrom>::to::<T>(sample).write_le(writer)?;
-    }
-    Ok(())
-}
-
-fn write_sample_from__i8_to__i8(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8,  i8>(writer, frame) }
-fn write_sample_from__i8_to_i16(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i16>(writer, frame) }
-fn write_sample_from__i8_to_i24(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i24>(writer, frame) }
-fn write_sample_from__i8_to_i32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i32>(writer, frame) }
-fn write_sample_from__i8_to_i64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, i64>(writer, frame) }
-fn write_sample_from__i8_to__u8(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8,  u8>(writer, frame) }
-fn write_sample_from__i8_to_u16(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u16>(writer, frame) }
-fn write_sample_from__i8_to_u24(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u24>(writer, frame) }
-fn write_sample_from__i8_to_u32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u32>(writer, frame) }
-fn write_sample_from__i8_to_u64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, u64>(writer, frame) }
-fn write_sample_from__i8_to_f32(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, f32>(writer, frame) }
-fn write_sample_from__i8_to_f64(writer: &mut dyn Writer, frame: &Vec<i8>) -> Result<(), Box<dyn Error>>{ write_sample_to<i8, f64>(writer, frame) }
-
-fn write_sample_from_i16_to__i8(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16,  i8>(writer, frame) }
-fn write_sample_from_i16_to_i16(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i16>(writer, frame) }
-fn write_sample_from_i16_to_i24(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i24>(writer, frame) }
-fn write_sample_from_i16_to_i32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i32>(writer, frame) }
-fn write_sample_from_i16_to_i64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, i64>(writer, frame) }
-fn write_sample_from_i16_to__u8(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16,  u8>(writer, frame) }
-fn write_sample_from_i16_to_u16(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u16>(writer, frame) }
-fn write_sample_from_i16_to_u24(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u24>(writer, frame) }
-fn write_sample_from_i16_to_u32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u32>(writer, frame) }
-fn write_sample_from_i16_to_u64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, u64>(writer, frame) }
-fn write_sample_from_i16_to_f32(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, f32>(writer, frame) }
-fn write_sample_from_i16_to_f64(writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>{ write_sample_to<i16, f64>(writer, frame) }
-
-fn write_sample_from_i24_to__i8(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24,  i8>(writer, frame) }
-fn write_sample_from_i24_to_i16(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i16>(writer, frame) }
-fn write_sample_from_i24_to_i24(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i24>(writer, frame) }
-fn write_sample_from_i24_to_i32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i32>(writer, frame) }
-fn write_sample_from_i24_to_i64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, i64>(writer, frame) }
-fn write_sample_from_i24_to__u8(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24,  u8>(writer, frame) }
-fn write_sample_from_i24_to_u16(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u16>(writer, frame) }
-fn write_sample_from_i24_to_u24(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u24>(writer, frame) }
-fn write_sample_from_i24_to_u32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u32>(writer, frame) }
-fn write_sample_from_i24_to_u64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, u64>(writer, frame) }
-fn write_sample_from_i24_to_f32(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, f32>(writer, frame) }
-fn write_sample_from_i24_to_f64(writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>{ write_sample_to<i24, f64>(writer, frame) }
-
-fn write_sample_from_i32_to__i8(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32,  i8>(writer, frame) }
-fn write_sample_from_i32_to_i16(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i16>(writer, frame) }
-fn write_sample_from_i32_to_i24(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i24>(writer, frame) }
-fn write_sample_from_i32_to_i32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i32>(writer, frame) }
-fn write_sample_from_i32_to_i64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, i64>(writer, frame) }
-fn write_sample_from_i32_to__u8(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32,  u8>(writer, frame) }
-fn write_sample_from_i32_to_u16(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u16>(writer, frame) }
-fn write_sample_from_i32_to_u24(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u24>(writer, frame) }
-fn write_sample_from_i32_to_u32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u32>(writer, frame) }
-fn write_sample_from_i32_to_u64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, u64>(writer, frame) }
-fn write_sample_from_i32_to_f32(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, f32>(writer, frame) }
-fn write_sample_from_i32_to_f64(writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>{ write_sample_to<i32, f64>(writer, frame) }
-
-fn write_sample_from_i64_to__i8(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64,  i8>(writer, frame) }
-fn write_sample_from_i64_to_i16(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i16>(writer, frame) }
-fn write_sample_from_i64_to_i24(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i24>(writer, frame) }
-fn write_sample_from_i64_to_i32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i32>(writer, frame) }
-fn write_sample_from_i64_to_i64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, i64>(writer, frame) }
-fn write_sample_from_i64_to__u8(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64,  u8>(writer, frame) }
-fn write_sample_from_i64_to_u16(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u16>(writer, frame) }
-fn write_sample_from_i64_to_u24(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u24>(writer, frame) }
-fn write_sample_from_i64_to_u32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u32>(writer, frame) }
-fn write_sample_from_i64_to_u64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, u64>(writer, frame) }
-fn write_sample_from_i64_to_f32(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, f32>(writer, frame) }
-fn write_sample_from_i64_to_f64(writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>{ write_sample_to<i64, f64>(writer, frame) }
-
-fn write_sample_from__u8_to__i8(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8,  i8>(writer, frame) }
-fn write_sample_from__u8_to_i16(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i16>(writer, frame) }
-fn write_sample_from__u8_to_i24(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i24>(writer, frame) }
-fn write_sample_from__u8_to_i32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i32>(writer, frame) }
-fn write_sample_from__u8_to_i64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, i64>(writer, frame) }
-fn write_sample_from__u8_to__u8(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8,  u8>(writer, frame) }
-fn write_sample_from__u8_to_u16(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u16>(writer, frame) }
-fn write_sample_from__u8_to_u24(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u24>(writer, frame) }
-fn write_sample_from__u8_to_u32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u32>(writer, frame) }
-fn write_sample_from__u8_to_u64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, u64>(writer, frame) }
-fn write_sample_from__u8_to_f32(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, f32>(writer, frame) }
-fn write_sample_from__u8_to_f64(writer: &mut dyn Writer, frame: &Vec<u8>) -> Result<(), Box<dyn Error>>{ write_sample_to<u8, f64>(writer, frame) }
-
-fn write_sample_from_u16_to__i8(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16,  i8>(writer, frame) }
-fn write_sample_from_u16_to_i16(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i16>(writer, frame) }
-fn write_sample_from_u16_to_i24(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i24>(writer, frame) }
-fn write_sample_from_u16_to_i32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i32>(writer, frame) }
-fn write_sample_from_u16_to_i64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, i64>(writer, frame) }
-fn write_sample_from_u16_to__u8(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16,  u8>(writer, frame) }
-fn write_sample_from_u16_to_u16(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u16>(writer, frame) }
-fn write_sample_from_u16_to_u24(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u24>(writer, frame) }
-fn write_sample_from_u16_to_u32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u32>(writer, frame) }
-fn write_sample_from_u16_to_u64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, u64>(writer, frame) }
-fn write_sample_from_u16_to_f32(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, f32>(writer, frame) }
-fn write_sample_from_u16_to_f64(writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>{ write_sample_to<u16, f64>(writer, frame) }
-
-fn write_sample_from_u24_to__i8(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24,  i8>(writer, frame) }
-fn write_sample_from_u24_to_i16(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i16>(writer, frame) }
-fn write_sample_from_u24_to_i24(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i24>(writer, frame) }
-fn write_sample_from_u24_to_i32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i32>(writer, frame) }
-fn write_sample_from_u24_to_i64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, i64>(writer, frame) }
-fn write_sample_from_u24_to__u8(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24,  u8>(writer, frame) }
-fn write_sample_from_u24_to_u16(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u16>(writer, frame) }
-fn write_sample_from_u24_to_u24(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u24>(writer, frame) }
-fn write_sample_from_u24_to_u32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u32>(writer, frame) }
-fn write_sample_from_u24_to_u64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, u64>(writer, frame) }
-fn write_sample_from_u24_to_f32(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, f32>(writer, frame) }
-fn write_sample_from_u24_to_f64(writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>{ write_sample_to<u24, f64>(writer, frame) }
-
-fn write_sample_from_u32_to__i8(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32,  i8>(writer, frame) }
-fn write_sample_from_u32_to_i16(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i16>(writer, frame) }
-fn write_sample_from_u32_to_i24(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i24>(writer, frame) }
-fn write_sample_from_u32_to_i32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i32>(writer, frame) }
-fn write_sample_from_u32_to_i64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, i64>(writer, frame) }
-fn write_sample_from_u32_to__u8(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32,  u8>(writer, frame) }
-fn write_sample_from_u32_to_u16(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u16>(writer, frame) }
-fn write_sample_from_u32_to_u24(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u24>(writer, frame) }
-fn write_sample_from_u32_to_u32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u32>(writer, frame) }
-fn write_sample_from_u32_to_u64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, u64>(writer, frame) }
-fn write_sample_from_u32_to_f32(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, f32>(writer, frame) }
-fn write_sample_from_u32_to_f64(writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>{ write_sample_to<u32, f64>(writer, frame) }
-
-fn write_sample_from_u64_to__i8(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64,  i8>(writer, frame) }
-fn write_sample_from_u64_to_i16(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i16>(writer, frame) }
-fn write_sample_from_u64_to_i24(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i24>(writer, frame) }
-fn write_sample_from_u64_to_i32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i32>(writer, frame) }
-fn write_sample_from_u64_to_i64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, i64>(writer, frame) }
-fn write_sample_from_u64_to__u8(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64,  u8>(writer, frame) }
-fn write_sample_from_u64_to_u16(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u16>(writer, frame) }
-fn write_sample_from_u64_to_u24(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u24>(writer, frame) }
-fn write_sample_from_u64_to_u32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u32>(writer, frame) }
-fn write_sample_from_u64_to_u64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, u64>(writer, frame) }
-fn write_sample_from_u64_to_f32(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, f32>(writer, frame) }
-fn write_sample_from_u64_to_f64(writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>{ write_sample_to<u64, f64>(writer, frame) }
-
-fn write_sample_from_f32_to__i8(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32,  i8>(writer, frame) }
-fn write_sample_from_f32_to_i16(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i16>(writer, frame) }
-fn write_sample_from_f32_to_i24(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i24>(writer, frame) }
-fn write_sample_from_f32_to_i32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i32>(writer, frame) }
-fn write_sample_from_f32_to_i64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, i64>(writer, frame) }
-fn write_sample_from_f32_to__u8(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32,  u8>(writer, frame) }
-fn write_sample_from_f32_to_u16(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u16>(writer, frame) }
-fn write_sample_from_f32_to_u24(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u24>(writer, frame) }
-fn write_sample_from_f32_to_u32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u32>(writer, frame) }
-fn write_sample_from_f32_to_u64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, u64>(writer, frame) }
-fn write_sample_from_f32_to_f32(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, f32>(writer, frame) }
-fn write_sample_from_f32_to_f64(writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>{ write_sample_to<f32, f64>(writer, frame) }
-
-fn write_sample_from_f64_to__i8(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64,  i8>(writer, frame) }
-fn write_sample_from_f64_to_i16(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i16>(writer, frame) }
-fn write_sample_from_f64_to_i24(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i24>(writer, frame) }
-fn write_sample_from_f64_to_i32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i32>(writer, frame) }
-fn write_sample_from_f64_to_i64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, i64>(writer, frame) }
-fn write_sample_from_f64_to__u8(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64,  u8>(writer, frame) }
-fn write_sample_from_f64_to_u16(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u16>(writer, frame) }
-fn write_sample_from_f64_to_u24(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u24>(writer, frame) }
-fn write_sample_from_f64_to_u32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u32>(writer, frame) }
-fn write_sample_from_f64_to_u64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, u64>(writer, frame) }
-fn write_sample_from_f64_to_f32(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, f32>(writer, frame) }
-fn write_sample_from_f64_to_f64(writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>{ write_sample_to<f64, f64>(writer, frame) }
-
 
 impl Drop for WaveWriter {
     fn drop(&mut self) {
