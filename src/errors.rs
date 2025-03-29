@@ -8,6 +8,7 @@ pub enum AudioReadError {
     DataCorrupted(String), // 格式也许是正确的，但是数据是错误的
     Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
     EndOfFile(String), // 超出文件结尾
+    IncompleteFile, // 文件内容不完整
 }
 
 impl std::error::Error for AudioReadError {}
@@ -21,6 +22,7 @@ impl std::fmt::Display for AudioReadError {
            AudioReadError::DataCorrupted(reason) => write!(f, "Audio file data corrupted: {}", reason),
            AudioReadError::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
            AudioReadError::EndOfFile(reason) => write!(f, "Read to the end of the file: {}", reason),
+           AudioReadError::IncompleteFile => write!(f, "The wave file is not complete."),
        }
     }
 }
