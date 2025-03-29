@@ -75,6 +75,7 @@ impl WaveReader {
             b"RF64" => {
                 isRF64 = true;
                 let _rf64_size = u32::read_le(&mut reader)?;
+                // _rf64_size 的值按要求要写入 0xFFFFFFFF，但是它并不重要。
             },
             _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file")).into()), // 根本不是 WAV
         }
@@ -279,6 +280,7 @@ impl WaveReader {
         ret.push_str(&format!("acid_chunk is {:?}\n", self.acid_chunk));
         ret.push_str(&format!("trkn_chunk is {:?}\n", self.trkn_chunk));
         ret.push_str(&format!("junk_chunks is {:?}\n", self.junk_chunks));
+        ret.push_str(&format!("savage_decoder is {:?}\n", self.savage_decoder));
         ret
     }
 }
