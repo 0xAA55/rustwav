@@ -36,20 +36,22 @@ pub enum AudioWriteError {
     WrongSampleFormat(String), // 不支持的样本类型
     AlreadyFinished(String), // 早就停止写入了
     NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
+    ChunkSizeTooBig(String), // 块大小太大
 }
 
 impl std::error::Error for AudioWriteError {}
 
 impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           AudioWriteError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
-           AudioWriteError::IOError(reason) => write!(f, "IOError {}", reason),
-           AudioWriteError::UnsupportedFormat(reason) => write!(f, "Unsupported PCM format to be saved: {}", reason),
-           AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
-           AudioWriteError::WrongSampleFormat(reason) => write!(f, "Sample format \"{}\" not supported", reason),
-           AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
-           AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
+        match self {
+            AudioWriteError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            AudioWriteError::IOError(reason) => write!(f, "IOError {}", reason),
+            AudioWriteError::UnsupportedFormat(reason) => write!(f, "Unsupported PCM format to be saved: {}", reason),
+            AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
+            AudioWriteError::WrongSampleFormat(reason) => write!(f, "Sample format \"{}\" not supported", reason),
+            AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
+            AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
+            AudioWriteError::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
        }
     }
 }
