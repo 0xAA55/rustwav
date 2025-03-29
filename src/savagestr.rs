@@ -181,6 +181,12 @@ impl std::fmt::Debug for SavageStringDecoder {
     }
 }
 
+impl Default for SavageStringDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SavageStringDecoder {
     pub fn new() -> Self {
         // 代码页、编码名称、编码描述
@@ -208,8 +214,8 @@ impl SavageStringDecoder {
     }
 
     // 尽量理智地尝试各种各样的字符串解码方式
-    pub fn decode_bytes(&self, bytes: &Vec<u8>) -> String {
-        match String::from_utf8(bytes.clone()) {
+    pub fn decode_bytes(&self, bytes: &[u8]) -> String {
+        match String::from_utf8(bytes.to_owned()) {
             Ok(s) => s,
             Err(_) => {
                 // 根据当前操作系统的代码页来找到对应的编码名称
@@ -220,9 +226,9 @@ impl SavageStringDecoder {
                         match self.decoder_map.get(name) {
                             // 找到转码器，进行转码
                             Some(decoder) => {
-                                match decoder.decode(&bytes, DecoderTrap::Replace) {
+                                match decoder.decode(bytes, DecoderTrap::Replace) {
                                     Ok(ret) => ret,
-                                    Err(_) => Self::savage_decode(&bytes),
+                                    Err(_) => Self::savage_decode(bytes),
                                 }
                             },
                             // 没找到转码器，说明可能编码名称有别名，先查询别名再查询转码器
@@ -232,22 +238,22 @@ impl SavageStringDecoder {
                                     Some(alt_name) => {
                                         match self.decoder_map.get(alt_name) {
                                             Some(decoder) => {
-                                                match decoder.decode(&bytes, DecoderTrap::Replace) {
+                                                match decoder.decode(bytes, DecoderTrap::Replace) {
                                                     Ok(ret) => ret,
-                                                    Err(_) => Self::savage_decode(&bytes),
+                                                    Err(_) => Self::savage_decode(bytes),
                                                 }
                                             },
-                                            None => return Self::savage_decode(&bytes),
+                                            None => Self::savage_decode(bytes),
                                         }
                                     },
                                     // 没找到别名，直接莽夫式转码
-                                    None => Self::savage_decode(&bytes),
+                                    None => Self::savage_decode(bytes),
                                 }
                             },
                         }
                     },
                     // 对应代码页找不到编码名称，只能莽夫式转码
-                    None => return Self::savage_decode(&bytes),
+                    None => Self::savage_decode(bytes),
                 }
             },
         }
@@ -255,12 +261,12 @@ impl SavageStringDecoder {
 
     // 对 slice 进行解码
     pub fn decode(&self, bytes: &[u8]) -> String {
-        self.decode_bytes(&bytes.to_vec())
+        self.decode_bytes(bytes)
     }
 
     // 对定长 slice 进行解码
     pub fn decode_flags(&self, bytes: &[u8; 4]) -> String {
-        self.decode_bytes(&bytes.to_vec())
+        self.decode_bytes(bytes)
     }
 
     // 无法正常解码，进行莽夫式解码

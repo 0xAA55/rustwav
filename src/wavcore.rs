@@ -8,6 +8,25 @@ pub use crate::readwrite::*;
 pub use crate::sampleutils::*;
 pub use crate::savagestr::*;
 
+#[derive(Clone, Copy, Debug)]
+pub enum SampleFormat {
+    Unknown,
+    Float,
+    UInt,
+    Int,
+}
+
+impl std::fmt::Display for SampleFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SampleFormat::Unknown => write!(f, "Unknown"),
+            SampleFormat::Float => write!(f, "Floating Point Number"),
+            SampleFormat::UInt => write!(f, "Unsigned Integer"),
+            SampleFormat::Int => write!(f, "Integer"),
+       }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
     Unknown,
@@ -60,6 +79,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Res
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
 pub const GUID_PCM_FORMAT: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
@@ -119,31 +139,18 @@ pub enum SpeakerPosition {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum SampleFormat {
-    Unknown,
-    Float,
-    UInt,
-    Int,
-}
-
-impl std::fmt::Display for SampleFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SampleFormat::Unknown => write!(f, "Unknown"),
-            SampleFormat::Float => write!(f, "Floating Point Number"),
-            SampleFormat::UInt => write!(f, "Unsigned Integer"),
-            SampleFormat::Int => write!(f, "Integer"),
-       }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
 pub struct Spec {
     pub channels: u16,
     pub channel_mask: u32,
     pub sample_rate: u32,
     pub bits_per_sample: u16,
     pub sample_format: SampleFormat,
+}
+
+impl Default for Spec {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Spec {
@@ -199,7 +206,7 @@ impl Spec {
             let m = *m as u32;
             if self.channel_mask & m == m {ret.push(enums[i]);}
         }
-        return if ret.len() == self.channels.into() {
+        if ret.len() == self.channels.into() {
             Ok(ret)
         } else {
             Err(AudioError::ChannelNotMatchMask)
@@ -229,7 +236,7 @@ impl ChunkWriter {
             Ok(())
         })?;
         Ok(Self{
-            flag: flag.clone(),
+            flag: *flag,
             writer_shared: writer_shared.clone(),
             pos_of_chunk_len,
             chunk_start,
@@ -399,11 +406,8 @@ impl fmt_Chunk {
             self.byte_rate.write_le(writer)?;
             self.block_align.write_le(writer)?;
             self.bits_per_sample.write_le(writer)?;
-            match self.extension {
-                Some(ext) => {
-                    ext.write(writer)?;
-                },
-                None => (),
+            if let Some(ext) = self.extension {
+                ext.write(writer)?;
             }
             Ok(())
         })?;
@@ -752,7 +756,7 @@ impl ListChunk {
                 Ok(Self::Adtl(adtl))
             },
             other => {
-                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(&other))).into())
+                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(other))).into())
             },
         }
     }
@@ -801,8 +805,8 @@ impl ListChunk {
                     return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
                 }
                 let mut val = val.clone();
-                val.push_str("\0");
-                write_str(writer, &key)?;
+                val.push('\0');
+                write_str(writer, key)?;
                 (val.len() as u32).write_le(writer)?;
                 write_str(writer, &val)?;
                 if writer.stream_position()? & 1 > 0 {
@@ -851,7 +855,7 @@ impl AdtlChunk {
                 })
             },
             other => {
-                return Err(AudioReadError::Unimplemented(format!("Unknown data \"{}\" for the adtl chunk", savage_decoder.decode_flags(&other))).into());
+                return Err(AudioReadError::Unimplemented(format!("Unknown data \"{}\" for the adtl chunk", savage_decoder.decode_flags(other))).into());
             },
         };
         sub_chunk.seek_to_next_chunk(reader)?;
@@ -1024,7 +1028,7 @@ impl JunkChunk {
         use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             match self {
                 Self::FullZero(size) => writer.write_all(&vec![0u8; *size as usize])?,
-                Self::SomeData(data) => writer.write_all(&data)?,
+                Self::SomeData(data) => writer.write_all(data)?,
             }
             Ok(())
         })?;

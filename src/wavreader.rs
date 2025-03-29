@@ -106,8 +106,7 @@ impl WaveReader {
             let chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
                 b"JUNK" => {
-                    let mut junk = Vec::<u8>::new();
-                    junk.resize(chunk.size as usize, 0u8);
+                    let mut junk = vec![0; chunk.size as usize];
                     reader.read_exact(&mut junk)?;
                     junk_chunks.push(JunkChunk::from(junk));
                 }
@@ -180,7 +179,7 @@ impl WaveReader {
                     return Err(AudioReadError::IncompleteFile.into());
                 },
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(&other));
+                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(other));
                 },
             }
             // 跳到下一个块的开始位置
@@ -256,32 +255,7 @@ impl WaveReader {
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
     pub fn iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
     where S: SampleType {
-        Ok(WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec.clone(), self.num_frames)?)
-    }
-
-    pub fn to_string(&self) -> String {
-        let mut ret = String::new();
-        ret.push_str(&format!("riff_len   is {:?}\n", self.riff_len));
-        ret.push_str(&format!("spec       is {:?}\n", self.spec));
-        ret.push_str(&format!("fmt_chunk  is {:?}\n", self.fmt_chunk));
-        ret.push_str(&format!("fact_data  is {:?}\n", self.fact_data));
-        ret.push_str(&format!("data_offse is {:?}\n", self.data_offset));
-        ret.push_str(&format!("data_size  is {:?}\n", self.data_size));
-        ret.push_str(&format!("frame_size is {:?}\n", self.frame_size));
-        ret.push_str(&format!("num_frames is {:?}\n", self.num_frames));
-        ret.push_str(&format!("data_chunk is {:?}\n", self.data_chunk));
-        ret.push_str(&format!("bext_chunk is {:?}\n", self.bext_chunk));
-        ret.push_str(&format!("smpl_chunk is {:?}\n", self.smpl_chunk));
-        ret.push_str(&format!("inst_chunk is {:?}\n", self.inst_chunk));
-        ret.push_str(&format!("cue__chunk is {:?}\n", self.cue__chunk));
-        ret.push_str(&format!("axml_chunk is {:?}\n", self.axml_chunk));
-        ret.push_str(&format!("ixml_chunk is {:?}\n", self.ixml_chunk));
-        ret.push_str(&format!("list_chunk is {:?}\n", self.list_chunk));
-        ret.push_str(&format!("acid_chunk is {:?}\n", self.acid_chunk));
-        ret.push_str(&format!("trkn_chunk is {:?}\n", self.trkn_chunk));
-        ret.push_str(&format!("junk_chunks is {:?}\n", self.junk_chunks));
-        ret.push_str(&format!("savage_decoder is {:?}\n", self.savage_decoder));
-        ret
+        WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec, self.num_frames)
     }
 }
 
@@ -365,7 +339,7 @@ impl WaveDataReader {
         Ok(Self {
             reader: orig_reader,
             tempfile,
-            filepath: filepath.into(),
+            filepath,
             offset
         })
     }
