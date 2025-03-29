@@ -9,6 +9,7 @@ pub enum AudioReadError {
     Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
     EndOfFile(String), // 超出文件结尾
     IncompleteFile, // 文件内容不完整
+    UnexpectedFlag(String, String), // 没有预料到的符号
 }
 
 impl std::error::Error for AudioReadError {}
@@ -23,6 +24,7 @@ impl std::fmt::Display for AudioReadError {
            AudioReadError::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
            AudioReadError::EndOfFile(reason) => write!(f, "Read to the end of the file: {}", reason),
            AudioReadError::IncompleteFile => write!(f, "The wave file is not complete."),
+           AudioReadError::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
        }
     }
 }
