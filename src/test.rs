@@ -12,7 +12,7 @@ use std::process::ExitCode;
 use std::error::Error;
 
 use wavreader::WaveReader;
-use wavwriter::{WaveWriter, Spec, SampleFormat};
+use wavwriter::{WaveWriter, Spec, FileSizeOption, SampleFormat};
 
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavereader = WaveReader::open(arg1).unwrap();
@@ -25,7 +25,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::UInt,
     };
 
-    let mut wavewriter = WaveWriter::create(arg2, &spec, true).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, FileSizeOption::ForceUse4GBFormat).unwrap();
 
     for frame in wavereader.iter::<f32>()? {
         wavewriter.write_sample(&frame)?;
