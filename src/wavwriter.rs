@@ -147,7 +147,7 @@ impl WaveWriter {
                 false => None,
                 true => Some(fmt_Chunk_Extension {
                     ext_len: 22,
-                    bits_per_sample: self.spec.bits_per_sample,
+                    valid_bits_per_sample: self.spec.bits_per_sample,
                     channel_mask: self.spec.channel_mask,
                     sub_format: match self.spec.sample_format {
                         Int => GUID_PCM_FORMAT,
