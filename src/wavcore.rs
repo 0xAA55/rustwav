@@ -207,15 +207,17 @@ impl Spec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChunkWriter {
     writer_shared: Arc<Mutex<dyn Writer>>,
+    flag: [u8; 4],
     pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     chunk_start: u64, // chunk 数据开始的地方
     ended: bool, // 是否早已完成 Chunk 的写入
 }
 
 impl ChunkWriter {
+    // 开始写入 Chunk，此时写入 Chunk Flag，然后记录 Chunk Size 的位置，以及 Chunk 数据的位置。
     pub fn begin(writer_shared: Arc<Mutex<dyn Writer>>, flag: &[u8; 4]) -> Result<Self, Box<dyn Error>> {
         let mut pos_of_chunk_len = 0u64;
         let mut chunk_start = 0u64;
@@ -227,6 +229,7 @@ impl ChunkWriter {
             Ok(())
         })?;
         Ok(Self{
+            flag: flag.clone(),
             writer_shared: writer_shared.clone(),
             pos_of_chunk_len,
             chunk_start,
@@ -234,18 +237,67 @@ impl ChunkWriter {
         })
     }
 
+    // 结束写入 Chunk，更新 Chunk Size
     pub fn end(&mut self) -> Result<(), Box<dyn Error>> {
-        use_writer(self.writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
-            let end_of_chunk = writer.stream_position()?;
-            writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
-            ((end_of_chunk - self.chunk_start) as u32).write_le(writer)?;
-            writer.seek(SeekFrom::Start(end_of_chunk))?;
-            if end_of_chunk & 1 > 0 {
-                0u8.write_le(writer)?;
-            }
-            self.ended = true;
+        if self.ended {
             Ok(())
-        })
+        } else {
+            // 此处存在一个情况：块的大小是 u32 类型，但是如果实际写入的块的大小超过这个大小就会存不下。
+            // 对于 RIFF 和 data 段，因为 ds64 段里专门留了字段用于存储 u64 的块大小，所以这里写入 0xFFFFFFFF。
+            // 对于其它段，其实 ds64 的 table 字段就是专门为其它段提供 u64 的块大小的存储的，但是你要增加 table 的数量，就会增加 ds64 段的长度
+            // 目前不考虑预留长度给 ds64 用于存储长度过长的段。非 RIFF、RF64、data 的段不允许超过 0xFFFFFFFF 大小，否则报错。
+            let mut chunk_size = self.get_chunk_data_size()?;
+            if chunk_size >= 0xFFFFFFFFu64 {
+                match &self.flag {
+                    b"RIFF" | b"data" => {
+                        chunk_size = 0xFFFFFFFF;
+                    },
+                    other => {
+                        let chunk_flag = String::from_utf8_lossy(other);
+                        return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)).into());
+                    },
+                }
+            }
+            Ok(self.end_and_write_size(chunk_size as u32)?)
+        }
+    }
+
+    // 放弃写入 Chunk，写一个假的 Chunk 大小
+    pub fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), Box<dyn Error>> {
+        if self.ended {
+            Ok(())
+        } else {
+            use_writer(self.writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
+                let end_of_chunk = writer.stream_position()?;
+                writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
+                chunk_size_to_write.write_le(writer)?;
+                writer.seek(SeekFrom::Start(end_of_chunk))?;
+                if end_of_chunk & 1 > 0 {
+                    0u8.write_le(writer)?;
+                }
+                self.ended = true;
+                Ok(())
+            })
+        }
+    }
+
+    // 取得 Chunk 的数据部分的开始位置
+    pub fn get_chunk_start_pos(&self) -> u64 {
+        self.chunk_start
+    }
+
+    // 取得 Chunk 数据当前写入的大小
+    pub fn get_chunk_data_size(&mut self) -> Result<u64, Box<dyn Error>> {
+        let mut ret = 0u64;
+        use_writer(self.writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            ret = self.get_chunk_data_size_priv(writer)?;
+            Ok(())
+        })?;
+        Ok(ret)
+    }
+
+    fn get_chunk_data_size_priv(&mut self, writer: &mut dyn Writer) -> Result<u64, Box<dyn Error>> {
+        Ok(writer.stream_position()? - self.get_chunk_start_pos())
     }
 }
 
