@@ -175,6 +175,9 @@ impl WaveReader {
                     Self::verify_none(&trkn_chunk, &chunk.flag)?;
                     trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 }
+                b"\0\0\0\0" => { // 空的 flag
+                    return Err(AudioReadError::IncompleteFile.into());
+                },
                 other => {
                     println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(&other));
                 },
