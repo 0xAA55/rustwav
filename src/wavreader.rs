@@ -19,7 +19,7 @@ pub struct WaveReader {
     riff_len: u64,
     spec: Spec,
     fmt_chunk: fmt_Chunk, // fmt 块，这个块一定会有
-    fact_data: u32, // fact 块的参数
+    fact_data: Option<u32>, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
     frame_size: u16, // 每一帧音频的字节数
@@ -85,7 +85,7 @@ impl WaveReader {
 
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
-        let mut fact_data = 0;
+        let mut fact_data: Option<u32> = None;
         let mut bext_chunk: Option<BextChunk> = None;
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
@@ -113,7 +113,7 @@ impl WaveReader {
                     fmt_chunk = Some(fmt_Chunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
-                    fact_data = u32::read_le(&mut reader)?;
+                    fact_data = Some(u32::read_le(&mut reader)?);
                 },
                 b"ds64" => {
                     if chunk.size < 28 {
