@@ -11,10 +11,17 @@ use crate::errors::{AudioWriteError};
 pub use crate::wavcore::*;
 
 #[derive(Debug)]
+pub enum FileSizeOption{
+    NeverLargerThan4GB,
+    AllowLargerThan4GB,
+    ForceUse4GBFormat,
+}
+
+#[derive(Debug)]
 pub struct WaveWriter {
     writer: Arc<Mutex<dyn Writer>>,
     spec: Spec,
-    allow_larger_than_4gb: bool,
+    file_size_option: FileSizeOption,
     num_frames: u64,
     frame_size: u16,
     data_offset: u64,
@@ -34,20 +41,20 @@ pub struct WaveWriter {
 }
 
 impl WaveWriter {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, allow_larger_than_4gb: bool) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         let file_reader = BufWriter::new(File::create(filename)?);
-        let wave_writer = WaveWriter::from(Arc::new(Mutex::new(file_reader)), spec, allow_larger_than_4gb)?;
+        let wave_writer = WaveWriter::from(Arc::new(Mutex::new(file_reader)), spec, file_size_option)?;
         Ok(wave_writer)
     }
 
-    pub fn from(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, allow_larger_than_4gb: bool) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn from(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type()?;
         let mut ret = Self{
             writer: writer.clone(),
             spec: spec.clone(),
-            allow_larger_than_4gb,
+            file_size_option,
             num_frames: 0,
             frame_size,
             data_offset: 0,
@@ -81,13 +88,16 @@ impl WaveWriter {
         })?;
 
         // 如果说这个 WAV 文件是允许超过 4GB 的，那需要使用 RF64 格式，在 WAVE 后面留下一个 JUNK 块用来占坑。
-        if self.allow_larger_than_4gb {
-            let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                writer.write_all(&[0u8; 28])?;
-                Ok(())
-            })?;
-            cw.end()?;
+        match self.file_size_option {
+            FileSizeOption::NeverLargerThan4GB => (),
+            FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
+                let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
+                use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+                    writer.write_all(&[0u8; 28])?;
+                    Ok(())
+                })?;
+                cw.end()?;
+            },
         }
 
         // 准备写入 fmt 块
@@ -319,7 +329,7 @@ impl WaveWriter {
 
         use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
             let file_end_pos = writer.stream_position()?;
-            if file_end_pos > 0xFFFFFFFFu64 {
+            let mut change_to_4gb_hreader = || -> Result<(), Box<dyn Error>> {
                 writer.seek(SeekFrom::Start(0))?;
                 writer.write_all(b"RF64")?;
                 0xFFFFFFFFu32.write_le(writer)?;
@@ -333,8 +343,27 @@ impl WaveWriter {
                 data_size.write_le(writer)?;
                 sample_count.write_le(writer)?;
                 0u32.write_le(writer)?; // table length
+                Ok(())
+            };
+            match self.file_size_option {
+                FileSizeOption::NeverLargerThan4GB => {
+                    if file_end_pos > 0xFFFFFFFFu64 {
+                        Err(AudioWriteError::NotPreparedFor4GBFile.into())
+                    } else {
+                        Ok(())
+                    }
+                },
+                FileSizeOption::AllowLargerThan4GB => {
+                    if file_end_pos > 0xFFFFFFFFu64 {
+                        change_to_4gb_hreader()
+                    } else {
+                        Ok(())
+                    }
+                },
+                FileSizeOption::ForceUse4GBFormat => {
+                    change_to_4gb_hreader()
+                },
             }
-            Ok(())
         })?;
         Ok(())
     }

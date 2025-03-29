@@ -33,6 +33,7 @@ pub enum AudioWriteError {
     ChannelCountNotMatch(String), // 声道数不匹配
     WrongSampleFormat(String), // 不支持的样本类型
     AlreadyFinished(String), // 早就停止写入了
+    NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
 }
 
 impl std::error::Error for AudioWriteError {}
@@ -46,6 +47,7 @@ impl std::fmt::Display for AudioWriteError {
            AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
            AudioWriteError::WrongSampleFormat(reason) => write!(f, "Sample format \"{}\" not supported", reason),
            AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
+           AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
        }
     }
 }
