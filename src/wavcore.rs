@@ -855,7 +855,7 @@ impl AdtlChunk {
                 })
             },
             other => {
-                return Err(AudioReadError::Unimplemented(format!("Unknown data \"{}\" for the adtl chunk", savage_decoder.decode_flags(other))).into());
+                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()).into());
             },
         };
         sub_chunk.seek_to_next_chunk(reader)?;
