@@ -977,7 +977,7 @@ fn axml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<()
     Ok(())
 }
 
-fn ixml_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+fn ixml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
     let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ixml")?;
     use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
         write_str(writer, data)?;
@@ -987,7 +987,7 @@ fn ixml_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result
     Ok(())
 }
 
-fn Trkn_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+fn Trkn_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
     let mut cw = ChunkWriter::begin(writer_shared.clone(), b"Trkn")?;
     use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
         write_str(writer, data)?;
@@ -997,3 +997,38 @@ fn Trkn_write<W>(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub enum JunkChunk{
+    FullZero(u64), // 全零
+    SomeData(Vec<u8>), // 有些数据
+}
+
+impl JunkChunk {
+    pub fn from(data: Vec<u8>) -> Self {
+        let mut is_all_zero = true;
+        for i in data.iter() {
+            if *i != 0 {
+                is_all_zero = false;
+                break;
+            }
+        }
+        if is_all_zero {
+            Self::FullZero(data.len() as u64)
+        } else {
+            Self::SomeData(data)
+        }
+    }
+
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"JUNK")?;
+        use_writer(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            match self {
+                Self::FullZero(size) => writer.write_all(&vec![0u8; *size as usize])?,
+                Self::SomeData(data) => writer.write_all(&data)?,
+            }
+            Ok(())
+        })?;
+        cw.end()?;
+        Ok(())
+    }
+}
