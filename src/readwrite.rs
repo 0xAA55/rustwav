@@ -17,13 +17,13 @@ where F: FnMut(&mut dyn Writer) -> Result<(), Box<dyn Error>> {
     (action)(&mut writer)
 }
 
-pub fn read_str<T: Read>(r: &mut T, size: usize, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn std::error::Error>> {
+pub fn read_str<T: Read>(r: &mut T, size: usize, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn Error>> {
     let mut buf = vec![0; size];
     r.read_exact(&mut buf)?;
     Ok(savage_decoder.decode(&buf).trim_matches(char::from(0)).to_string())
 }
 
-pub fn read_sz<T: Read>(r: &mut T, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn std::error::Error>> {
+pub fn read_sz<T: Read>(r: &mut T, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn Error>> {
     let mut buf = Vec::<u8>::new();
     loop {
         let b = [0u8; 1];
@@ -38,14 +38,14 @@ pub fn read_sz<T: Read>(r: &mut T, savage_decoder: &SavageStringDecoder) -> Resu
     Ok(savage_decoder.decode(&buf).trim_matches(char::from(0)).to_string())
 }
 
-pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &String, size: usize) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &String, size: usize) -> Result<(), Box<dyn Error>> {
     let mut buf = data.as_bytes().to_vec();
     buf.resize(size, 0);
     w.write_all(&buf)?;
     Ok(())
 }
 
-pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &String) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &String) -> Result<(), Box<dyn Error>> {
     let buf = data.as_bytes();
     w.write_all(buf)?;
     Ok(())
