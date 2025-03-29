@@ -325,7 +325,6 @@ impl Drop for WaveWriter {
     }
 }
 
-
 // S：别人给我们的格式
 // T：我们要写入到 WAV 中的格式
 fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
