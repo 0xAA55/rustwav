@@ -61,7 +61,7 @@ impl WaveReader {
         let savage_decoder = SavageStringDecoder::new();
 
         let mut riff_len = 0u64;
-        let mut riff_end = 0u64;
+        let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。
         let mut isRF64 = false;
         let mut data_size = 0u64;
 
@@ -74,8 +74,6 @@ impl WaveReader {
             },
             b"RF64" => {
                 isRF64 = true;
-                let _rf64_size = u32::read_le(&mut reader)?;
-                // _rf64_size 的值按要求要写入 0xFFFFFFFF，但是它并不重要。
             },
             _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file")).into()), // 根本不是 WAV
         }
@@ -83,7 +81,7 @@ impl WaveReader {
         let start_of_riff = reader.stream_position()?;
 
         // 读完头部后，这里必须是 WAVE 否则不是音频文件。
-        expect_flag(&mut reader, b"WAVE", AudioReadError::FormatError(String::from("not a WAVE file")).into())?;
+        expect_flag(&mut reader, b"WAVE")?;
 
         let mut fmt_chunk: Option<fmt_Chunk> = None;
         let mut data_offset = 0u64;
