@@ -232,10 +232,22 @@ impl WaveReader {
         })
     }
 
+    // 提供音频参数信息
     pub fn spec(&self) -> &Spec{
         &self.spec
     }
 
+    // 提供乐曲信息元数据
+    pub fn get_bext_chunk(&self) -> &Option<bext_chunk> { &self.bext_chunk }
+    pub fn get_smpl_chunk(&self) -> &Option<smpl_chunk> { &self.smpl_chunk }
+    pub fn get_inst_chunk(&self) -> &Option<inst_chunk> { &self.inst_chunk }
+    pub fn get_cue__chunk(&self) -> &Option<cue__chunk> { &self.cue__chunk }
+    pub fn get_axml_chunk(&self) -> &Option<String> { &self.axml_chunk }
+    pub fn get_ixml_chunk(&self) -> &Option<String> { &self.ixml_chunk }
+    pub fn get_list_chunk(&self) -> &Option<list_chunk> { &self.list_chunk }
+    pub fn get_acid_chunk(&self) -> &Option<acid_chunk> { &self.acid_chunk }
+    pub fn get_trkn_chunk(&self) -> &Option<String> { &self.trkn_chunk }
+    pub fn get_junk_chunks(&self) -> &Vec<JunkChunk> { &self.junk_chunks }
 
     // 创建迭代器。
     // 迭代器的作用是读取每个音频帧。
