@@ -37,7 +37,7 @@ pub struct WaveWriter {
     pub list_chunk: Option<ListChunk>,
     pub acid_chunk: Option<AcidChunk>,
     pub trkn_chunk: Option<String>,
-    pub junk_chunks: Vec<Vec<u8>>,
+    pub junk_chunks: Vec<JunkChunk>,
 }
 
 impl WaveWriter {
@@ -70,7 +70,7 @@ impl WaveWriter {
             list_chunk: None,
             acid_chunk: None,
             trkn_chunk: None,
-            junk_chunks: Vec::<Vec<u8>>::new(),
+            junk_chunks: Vec::<JunkChunk>::new(),
         };
         ret.write_header()?;
         Ok(ret)
@@ -278,14 +278,14 @@ impl WaveWriter {
     pub fn set_trkn_chunk(&mut self, chunk: &String) {
         self.trkn_chunk = Some(chunk.clone());
     }
-    pub fn add_junk_chunk(&mut self, chunk: &Vec<u8>) {
+    pub fn add_junk_chunk(&mut self, chunk: &JunkChunk) {
         self.junk_chunks.push(chunk.clone());
     }
 
     pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
         // 结束对 data 块的写入
         self.data_chunk = None;
-
+        
         // 写入其它全部的结构体块
         if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone())?; }
         if let Some(chunk) = &self.smpl_chunk { chunk.write(self.writer.clone())?; }
@@ -316,12 +316,7 @@ impl WaveWriter {
 
         // 写入所有的 JUNK 块
         for junk in self.junk_chunks.iter() {
-            let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                writer.write_all(&junk)?;
-                Ok(())
-            })?;
-            cw.end()?;
+            junk.write(self.writer.clone())?;
         }
 
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
