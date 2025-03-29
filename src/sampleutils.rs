@@ -13,10 +13,10 @@ impl i24{
     fn from_be_bytes(bytes: [u8; 3]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
-    fn to_le_bytes(&self) -> [u8; 3] {
+    fn to_le_bytes(self) -> [u8; 3] {
         [self.0, self.1, self.2]
     }
-    fn to_be_bytes(&self) -> [u8; 3] {
+    fn to_be_bytes(self) -> [u8; 3] {
         [self.2, self.1, self.0]
     }
     fn get_highest_i8(&self) -> i8 {
@@ -35,10 +35,10 @@ impl u24{
     fn from_be_bytes(bytes: [u8; 3]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
-    fn to_le_bytes(&self) -> [u8; 3] {
+    fn to_le_bytes(self) -> [u8; 3] {
         [self.0, self.1, self.2]
     }
-    fn to_be_bytes(&self) -> [u8; 3] {
+    fn to_be_bytes(self) -> [u8; 3] {
         [self.2, self.1, self.0]
     }
     fn get_highest_u8(&self) -> u8 {
@@ -747,31 +747,20 @@ impl SampleType for u64{
 }
 
 impl SampleType for f32{
-    fn clampf(&self) -> f32 {
-        let v = *self;
-        if v > 1.0 {
-            1.0
-        } else if v < -1.0 {
-            -1.0
-        } else {
-            v
-        }
-    }
-
     fn from(v: impl SampleType) -> f32{
         v.to_f32()
     }
     fn to_i8(&self) -> i8{
-        (self.clampf() * (i8::MAX as f32)) as i8
+        (self.clamp(-1.0, 1.0) * (i8::MAX as f32)) as i8
     } 
     fn to_i16(&self) -> i16{
-        (self.clampf() * (i16::MAX as f32)) as i16
+        (self.clamp(-1.0, 1.0) * (i16::MAX as f32)) as i16
     }
     fn to_i32(&self) -> i32{
-        (self.clampf() * (i32::MAX as f32)) as i32
+        (self.clamp(-1.0, 1.0) * (i32::MAX as f32)) as i32
     }
     fn to_i64(&self) -> i64{
-        (self.clampf() * (i64::MAX as f32)) as i64
+        (self.clamp(-1.0, 1.0) * (i64::MAX as f32)) as i64
     }
     fn to_u8(&self) -> u8{
         self.to_i8().to_u8()
@@ -820,31 +809,20 @@ impl SampleType for f32{
 }
 
 impl SampleType for f64{
-    fn clampd(&self) -> f64 {
-        let v = *self;
-        if v > 1.0 {
-            1.0
-        } else if v < -1.0 {
-            -1.0
-        } else {
-            v
-        }
-    }
-
     fn from(v: impl SampleType) -> f64{
         v.to_f64()
     }
     fn to_i8(&self) -> i8{
-        (self.clampd() * (i8::MAX as f64)) as i8
+        (self.clamp(-1.0, 1.0) * (i8::MAX as f64)) as i8
     } 
     fn to_i16(&self) -> i16{
-        (self.clampd() * (i16::MAX) as f64) as i16
+        (self.clamp(-1.0, 1.0) * (i16::MAX) as f64) as i16
     }
     fn to_i32(&self) -> i32{
-        (self.clampd() * (i32::MAX) as f64) as i32
+        (self.clamp(-1.0, 1.0) * (i32::MAX) as f64) as i32
     }
     fn to_i64(&self) -> i64{
-        (self.clampd() * (i64::MAX) as f64) as i64
+        (self.clamp(-1.0, 1.0) * (i64::MAX) as f64) as i64
     }
     fn to_u8(&self) -> u8{
         self.to_i8().to_u8()

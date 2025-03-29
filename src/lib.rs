@@ -8,4 +8,4 @@ mod wavreader;
 mod wavwriter;
 
 pub use wavreader::WaveReader;
-pub use wavwriter::WaveWriter;
+pub use wavwriter::{WaveWriter, Spec, FileSizeOption, SampleFormat};

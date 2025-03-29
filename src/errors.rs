@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AudioReadError {
     InvalidArguments(String), // 错误的参数
     IOError(String), // 读写错误，应停止处理
@@ -27,7 +27,7 @@ impl std::fmt::Display for AudioReadError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AudioWriteError {
     InvalidArguments(String), // 输入了错误的参数
     IOError(String), // 读写错误，应停止处理
@@ -56,7 +56,7 @@ impl std::fmt::Display for AudioWriteError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AudioError {
     CantGuessChannelMask(u16), // 无法猜出声道掩码
     ChannelNotMatchMask, // 声道数不和声道掩码匹配
@@ -73,21 +73,6 @@ impl std::fmt::Display for AudioError {
            AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
            AudioError::Unimplemented(reason) => write!(f, "Unimplemented behavior: {}", reason),
            AudioError::UnknownSampleType => write!(f, "Unknown sample type we got from the spec"),
-       }
-    }
-}
-
-#[derive(Debug)]
-pub enum MatchError {
-    NotMatch(String),
-}
-
-impl std::error::Error for MatchError {}
-
-impl std::fmt::Display for MatchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           MatchError::NotMatch(flag) => write!(f, "File flag {flag} not match."),
        }
     }
 }

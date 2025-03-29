@@ -3,11 +3,9 @@
 
 use std::fs::File;
 use std::path::Path;
-use std::io::{SeekFrom, BufWriter};
-use std::sync::{Arc, Mutex};
+use std::io::BufWriter;
 use std::error::Error;
 
-use crate::errors::{AudioWriteError};
 pub use crate::wavcore::*;
 
 #[derive(Debug)]
@@ -53,7 +51,7 @@ impl WaveWriter {
         let sample_type = spec.get_sample_type()?;
         let mut ret = Self{
             writer: writer.clone(),
-            spec: spec.clone(),
+            spec: *spec,
             file_size_option,
             num_frames: 0,
             frame_size,
@@ -102,25 +100,15 @@ impl WaveWriter {
 
         // 准备写入 fmt 块
         // 如果格式类型是 0xFFFE 则需要单独对待
-        let mut ext = match (self.spec.bits_per_sample, self.spec.sample_format) {
-            (24, Int) | (32, Int) => true,
-            _ => false
-        };
+        let mut ext = matches!((self.spec.bits_per_sample, self.spec.sample_format), (24, Int) | (32, Int));
+
         // 如果有针对声道的特殊要求，则需要扩展数据
         ext |= match self.spec.channels {
             1 => {
-                if self.spec.channel_mask != SpeakerPosition::FrontCenter as u32 {
-                    true
-                } else {
-                    false
-                }
+                self.spec.channel_mask != SpeakerPosition::FrontCenter as u32
             },
             2 => {
-                if self.spec.channel_mask != SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32 {
-                    true
-                } else {
-                    false
-                }
+                self.spec.channel_mask != SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32
             },
             _ => true, // 否则就需要额外的数据了
         };
@@ -134,7 +122,7 @@ impl WaveWriter {
                         (16, Int) => 1,
                         (32, Float) => 3,
                         (64, Float) => 3,
-                        _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag")).into()),
+                        _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag for {} bit \"{:?}\" format.", self.spec.bits_per_sample, self.spec.sample_format)).into()),
                     }
                 }
             },
@@ -165,7 +153,7 @@ impl WaveWriter {
     }
 
     // T：我们要写入到 WAV 中的格式
-    fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType,
           T: SampleType {
         for sample in frame.iter() {
@@ -173,7 +161,7 @@ impl WaveWriter {
         }
         Ok(())
     }
-    fn write_multiple_sample_to<S, T>(writer: &mut dyn Writer, frames: &Vec<Vec<S>>) -> Result<(), Box<dyn Error>>
+    fn write_multiple_sample_to<S, T>(writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType,
           T: SampleType {
         for frame in frames.iter() {
@@ -185,7 +173,7 @@ impl WaveWriter {
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_sample<S>(&mut self, frame: &Vec<S>) -> Result<(), Box<dyn Error>>
+    pub fn write_sample<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         if self.data_chunk.is_some() {
@@ -214,7 +202,7 @@ impl WaveWriter {
     }
 
     // 保存多个样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_multiple_sample<S>(&mut self, frames: &Vec<Vec<S>>) -> Result<(), Box<dyn Error>>
+    pub fn write_multiple_sample<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         if self.data_chunk.is_some() {
@@ -258,16 +246,16 @@ impl WaveWriter {
         self.smpl_chunk = Some(chunk.clone());
     }
     pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
-        self.inst_chunk = Some(chunk.clone());
+        self.inst_chunk = Some(*chunk);
     }
     pub fn set_cue__chunk(&mut self, chunk: &Cue_Chunk) {
         self.cue__chunk = Some(chunk.clone());
     }
     pub fn set_axml_chunk(&mut self, chunk: &String) {
-        self.axml_chunk = Some(chunk.clone());
+        self.axml_chunk = Some(chunk.to_owned());
     }
     pub fn set_ixml_chunk(&mut self, chunk: &String) {
-        self.ixml_chunk = Some(chunk.clone());
+        self.ixml_chunk = Some(chunk.to_owned());
     }
     pub fn set_list_chunk(&mut self, chunk: &ListChunk) {
         self.list_chunk = Some(chunk.clone());
@@ -276,7 +264,7 @@ impl WaveWriter {
         self.acid_chunk = Some(chunk.clone());
     }
     pub fn set_trkn_chunk(&mut self, chunk: &String) {
-        self.trkn_chunk = Some(chunk.clone());
+        self.trkn_chunk = Some(chunk.to_owned());
     }
     pub fn add_junk_chunk(&mut self, chunk: &JunkChunk) {
         self.junk_chunks.push(chunk.clone());
@@ -297,18 +285,18 @@ impl WaveWriter {
         // 写入其它全部的字符串块
         let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
         if let Some(chunk) = &self.axml_chunk {
-            string_chunks_to_write.push((*b"axml", &chunk));
+            string_chunks_to_write.push((*b"axml", chunk));
         }
         if let Some(chunk) = &self.ixml_chunk {
-            string_chunks_to_write.push((*b"ixml", &chunk));
+            string_chunks_to_write.push((*b"ixml", chunk));
         }
         if let Some(chunk) = &self.trkn_chunk {
-            string_chunks_to_write.push((*b"Trkn", &chunk));
+            string_chunks_to_write.push((*b"Trkn", chunk));
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
             use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                write_str(writer, &chunk)?;
+                write_str(writer, chunk)?;
                 Ok(())
             })?;
             cw.end()?;
