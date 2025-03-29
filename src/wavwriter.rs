@@ -157,11 +157,11 @@ impl WaveWriter {
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_sample<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
+    pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
             use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                self.sample_packer.pack_sample::<S>(writer, frame, self.sample_type)
+                self.sample_packer.pack_frame::<S>(writer, frame, self.sample_type)
             })?;
             self.num_frames += 1;
             Ok(())
@@ -171,11 +171,11 @@ impl WaveWriter {
     }
 
     // 保存多个样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_multiple_sample<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
+    pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
             use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                self.sample_packer.pack_multiple_sample::<S>(writer, frames, self.sample_type)
+                self.sample_packer.pack_multiple_frames::<S>(writer, frames, self.sample_type)
             })?;
             self.num_frames += frames.len() as u64;
             Ok(())
@@ -339,7 +339,7 @@ where S: SampleType,
 
 // S：别人给我们的格式
 // T：我们要写入到 WAV 中的格式
-fn write_multiple_sample_to<S, T>(writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
+fn write_multiple_frames_to<S, T>(writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
 where S: SampleType,
       T: SampleType {
     for frame in frames.iter() {
@@ -408,12 +408,12 @@ where S: SampleType {
 
 impl<S> SamplePackerFrom<S>
 where S: SampleType {
-    fn pack_sample(&mut self, writer: &mut dyn Writer, frame: &[S], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>> {
+    fn pack_frame(&mut self, writer: &mut dyn Writer, frame: &[S], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>> {
         self.switch_to_target_sample(target_sample)?;
         (self.packer)(writer, frame)
     }
 
-    fn pack_multiple_sample(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>> {
+    fn pack_multiple_frames(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>> {
         self.switch_to_target_sample(target_sample)?;
         for frame in frames.iter() {
             (self.packer)(writer, frame)?;
@@ -483,40 +483,40 @@ impl SamplePacker {
         ret
     }
 
-    pub fn pack_sample<S>(&mut self, writer: &mut dyn Writer, frame: &[S], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
+    pub fn pack_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.packer_from__i8.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i16" => self.packer_from_i16.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i24" => self.packer_from_i24.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i32" => self.packer_from_i32.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i64" => self.packer_from_i64.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u8"  => self.packer_from__u8.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u16" => self.packer_from_u16.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u24" => self.packer_from_u24.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u32" => self.packer_from_u32.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u64" => self.packer_from_u64.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "f32" => self.packer_from_f32.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "f64" => self.packer_from_f64.pack_sample(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i8"  => self.packer_from__i8.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i16" => self.packer_from_i16.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i24" => self.packer_from_i24.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i32" => self.packer_from_i32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i64" => self.packer_from_i64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "u8"  => self.packer_from__u8.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "u16" => self.packer_from_u16.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "u24" => self.packer_from_u24.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "u32" => self.packer_from_u32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "u64" => self.packer_from_u64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "f32" => self.packer_from_f32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "f64" => self.packer_from_f64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
 
-    pub fn pack_multiple_sample<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
+    pub fn pack_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.packer_from__i8.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i16" => self.packer_from_i16.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i24" => self.packer_from_i24.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i32" => self.packer_from_i32.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i64" => self.packer_from_i64.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u8"  => self.packer_from__u8.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u16" => self.packer_from_u16.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u24" => self.packer_from_u24.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u32" => self.packer_from_u32.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u64" => self.packer_from_u64.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "f32" => self.packer_from_f32.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "f64" => self.packer_from_f64.pack_multiple_sample(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i8"  => self.packer_from__i8.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i16" => self.packer_from_i16.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i24" => self.packer_from_i24.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i32" => self.packer_from_i32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i64" => self.packer_from_i64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "u8"  => self.packer_from__u8.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "u16" => self.packer_from_u16.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "u24" => self.packer_from_u24.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "u32" => self.packer_from_u32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "u64" => self.packer_from_u64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "f32" => self.packer_from_f32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "f64" => self.packer_from_f64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
