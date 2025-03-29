@@ -353,12 +353,34 @@ where S: SampleType,
 // S：别人给我们的格式
 // 这个结构体存储函数把别人给我们的格式转换为我们需要的格式 T
 
-#[derive(Debug)]
 struct SamplePackerFrom<S>
 where S: SampleType {
     packers: HashMap<WaveSampleType, fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>>,
     packer: fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>,
     last_sample: WaveSampleType,
+}
+
+// 调试信息部分，音频样本打包器的调试信息会霸屏，对于没用过的打包器让它少说点。
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct HashMap_for_packers;
+impl<S> std::fmt::Debug for SamplePackerFrom<S>
+where S: SampleType {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.last_sample {
+            WaveSampleType::Unknown => {
+                fmt.debug_struct(&format!("SamplePackerFrom<{}>", std::any::type_name::<S>()))
+                    .finish_non_exhaustive()
+                },
+            _ => {
+                fmt.debug_struct(&format!("SamplePackerFrom<{}>", std::any::type_name::<S>()))
+                    .field("packers", &HashMap_for_packers{})
+                    .field("packer", &self.packer)
+                    .field("last_sample", &self.last_sample)
+                    .finish()
+            },
+        }
+    }
 }
 
 fn dummy_fn<S>(_writer: &mut dyn Writer, _frame: &[S]) -> Result<(), Box<dyn Error>>
