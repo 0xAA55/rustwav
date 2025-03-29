@@ -236,13 +236,6 @@ impl WaveReader {
         &self.spec
     }
 
-    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
-        if o.is_some() {
-            Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
-        } else {
-            Ok(())
-        }
-    }
 
     // 创建迭代器。
     // 迭代器的作用是读取每个音频帧。
@@ -254,6 +247,15 @@ impl WaveReader {
     pub fn iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
     where S: SampleType {
         WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec, self.num_frames)
+    }
+
+    // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
+    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
+        if o.is_some() {
+            Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
+        } else {
+            Ok(())
+        }
     }
 }
 
