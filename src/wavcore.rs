@@ -305,7 +305,7 @@ pub struct fmt_Chunk {
 #[allow(non_camel_case_types)]
 pub struct fmt_Chunk_Extension {
     pub ext_len: u16,
-    pub bits_per_sample: u16,
+    pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
     pub sub_format: GUID,
 }
@@ -393,7 +393,7 @@ impl fmt_Chunk_Extension {
     where R: Reader {
         Ok(Self{
             ext_len: u16::read_le(reader)?,
-            bits_per_sample: u16::read_le(reader)?,
+            valid_bits_per_sample: u16::read_le(reader)?,
             channel_mask: u32::read_le(reader)?,
             sub_format: GUID::read(reader)?,
         })
@@ -401,7 +401,7 @@ impl fmt_Chunk_Extension {
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
         self.ext_len.write_le(writer)?;
-        self.bits_per_sample.write_le(writer)?;
+        self.valid_bits_per_sample.write_le(writer)?;
         self.channel_mask.write_le(writer)?;
         self.sub_format.write(writer)?;
         Ok(())
