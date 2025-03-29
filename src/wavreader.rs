@@ -267,6 +267,16 @@ fn savage_path_buf_to_string(filepath: &Path) -> String {
     }
 }
 
+pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut buf = [0u8; 4];
+    r.read_exact(&mut buf)?;
+    if &buf != flag {
+        Err(AudioReadError::UnexpectedFlag(String::from_utf8_lossy(flag).to_string(), String::from_utf8_lossy(&buf).to_string()).into())
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
