@@ -21,8 +21,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         channels: 2,
         channel_mask: Spec::guess_channel_mask(2)?,
         sample_rate: wavereader.spec().sample_rate,
-        bits_per_sample: 8,
-        sample_format: SampleFormat::UInt,
+        bits_per_sample: 24,
+        sample_format: SampleFormat::Int,
     };
 
     let mut wavewriter = WaveWriter::create(arg2, &spec, FileSizeOption::ForceUse4GBFormat).unwrap();
@@ -30,6 +30,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     for frame in wavereader.iter::<f32>()? {
         wavewriter.write_sample(&frame)?;
     }
+
+    wavewriter.migrate_metadata_from_reader(&wavereader);
 
     dbg!(&wavereader);
     dbg!(&wavewriter);
