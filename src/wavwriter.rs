@@ -86,7 +86,7 @@ impl WaveWriter {
         self.riff_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
-        use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+        escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
             writer.write_all(b"WAVE")?;
             Ok(())
         })?;
@@ -96,7 +96,7 @@ impl WaveWriter {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-                use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+                escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     writer.write_all(&[0u8; 28])?;
                     Ok(())
                 })?;
@@ -162,7 +162,7 @@ impl WaveWriter {
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
                 self.sample_packer.pack_frame::<S>(writer, frame, self.sample_type)
             })?;
             self.num_frames += 1;
@@ -176,7 +176,7 @@ impl WaveWriter {
     pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
                 self.sample_packer.pack_multiple_frames::<S>(writer, frames, self.sample_type)
             })?;
             self.num_frames += frames.len() as u64;
@@ -265,7 +265,7 @@ impl WaveWriter {
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
-            use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
                 write_str(writer, chunk)?;
                 Ok(())
             })?;
@@ -280,7 +280,7 @@ impl WaveWriter {
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
         self.riff_chunk = None;
 
-        use_writer(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+        escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
             let file_end_pos = writer.stream_position()?;
             let mut change_to_4gb_hreader = || -> Result<(), Box<dyn Error>> {
                 writer.seek(SeekFrom::Start(0))?;

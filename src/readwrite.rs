@@ -10,7 +10,7 @@ impl<T> Reader for T where T: Read + Seek + Debug {}
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
-pub fn use_writer<F>(writer_shared: Arc<Mutex<dyn Writer>>, mut action: F) -> Result<(), Box<dyn Error>>
+pub fn escorted_write<F>(writer_shared: Arc<Mutex<dyn Writer>>, mut action: F) -> Result<(), Box<dyn Error>>
 where F: FnMut(&mut dyn Writer) -> Result<(), Box<dyn Error>> {
     let mut guard = writer_shared.lock().unwrap();
     let mut writer = guard.deref_mut();
