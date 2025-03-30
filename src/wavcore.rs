@@ -138,6 +138,53 @@ pub enum SpeakerPosition {
     TopBackRight = 0x20000,
 }
 
+impl SpeakerPosition {
+    pub fn channel_mask_to_speaker_positions(channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
+        let enums = [
+            SpeakerPosition::FrontLeft,
+            SpeakerPosition::FrontRight,
+            SpeakerPosition::FrontCenter,
+            SpeakerPosition::LowFreq,
+            SpeakerPosition::BackLeft,
+            SpeakerPosition::BackRight,
+            SpeakerPosition::FrontLeftOfCenter,
+            SpeakerPosition::FrontRightOfCenter,
+            SpeakerPosition::BackCenter,
+            SpeakerPosition::SideLeft,
+            SpeakerPosition::SideRight,
+            SpeakerPosition::TopCenter,
+            SpeakerPosition::TopFrontLeft,
+            SpeakerPosition::TopFrontCenter,
+            SpeakerPosition::TopFrontRight,
+            SpeakerPosition::TopBackLeft,
+            SpeakerPosition::TopBackCenter,
+            SpeakerPosition::TopBackRight,
+        ];
+        let mut ret = Vec::<SpeakerPosition>::new();
+        for (i, m) in enums.iter().enumerate() {
+            let m = *m as u32;
+            if channel_mask & m == m {ret.push(enums[i]);}
+        }
+        if ret.len() == self.channels.into() {
+            Ok(ret)
+        } else {
+            Err(AudioError::ChannelNotMatchMask)
+        }
+    }
+    
+    pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
+        let mut mask = 0;
+        for i in 0..channels {
+            let bit = 1 << i;
+            if bit > 0x20000 {
+                return Err(AudioError::CantGuessChannelMask(channels));
+            }
+            mask |= bit;
+        }
+        Ok(mask)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Spec {
     pub channels: u16,
@@ -166,51 +213,6 @@ impl Spec {
 
     pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
         get_sample_type(self.bits_per_sample, self.sample_format)
-    }
-
-    pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
-        let mut mask = 0;
-        for i in 0..channels {
-            let bit = 1 << i;
-            if bit > 0x20000 {
-                return Err(AudioError::CantGuessChannelMask(channels));
-            }
-            mask |= bit;
-        }
-        Ok(mask)
-    }
-
-    pub fn which_channel_which_speaker(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
-        let enums = [
-            SpeakerPosition::FrontLeft,
-            SpeakerPosition::FrontRight,
-            SpeakerPosition::FrontCenter,
-            SpeakerPosition::LowFreq,
-            SpeakerPosition::BackLeft,
-            SpeakerPosition::BackRight,
-            SpeakerPosition::FrontLeftOfCenter,
-            SpeakerPosition::FrontRightOfCenter,
-            SpeakerPosition::BackCenter,
-            SpeakerPosition::SideLeft,
-            SpeakerPosition::SideRight,
-            SpeakerPosition::TopCenter,
-            SpeakerPosition::TopFrontLeft,
-            SpeakerPosition::TopFrontCenter,
-            SpeakerPosition::TopFrontRight,
-            SpeakerPosition::TopBackLeft,
-            SpeakerPosition::TopBackCenter,
-            SpeakerPosition::TopBackRight,
-        ];
-        let mut ret = Vec::<SpeakerPosition>::new();
-        for (i, m) in enums.iter().enumerate() {
-            let m = *m as u32;
-            if self.channel_mask & m == m {ret.push(enums[i]);}
-        }
-        if ret.len() == self.channels.into() {
-            Ok(ret)
-        } else {
-            Err(AudioError::ChannelNotMatchMask)
-        }
     }
 }
 
