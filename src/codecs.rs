@@ -36,7 +36,7 @@ where S: SampleType {
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
     fn get_name(&self) -> &'static str {
-        "PCM reader"
+        Self::get_name()
     }
     fn get_reader(&self) -> &BufReader<File> {
         &self.reader
@@ -50,6 +50,10 @@ impl<S> Decoder<S> for PcmDecoder<S>
 impl<S> PcmDecoder<S>
 where S: SampleType {
     pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &fmt__Chunk) -> Result<Self, Box<dyn Error>> {
+        match fmt.format_tag {
+            1 | 0xFFFE | 3 => (),
+            other => return Err(AudioReadError::Unimplemented(format!("{} can't handle format_tag 0x{:x}", Self::get_name(), other)).into()),
+        }
         let wave_sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         Ok(Self {
             reader,
@@ -59,6 +63,10 @@ where S: SampleType {
             spec: spec.clone(),
             unpacker: Self::get_unpacker(wave_sample_type)?,
         })
+    }
+
+    pub fn get_name() -> &'static str {
+        "PCM reader"
     }
 
     pub fn unpack(&mut self) -> Result<S, io::Error> {
