@@ -420,8 +420,11 @@ impl fmt__Chunk {
         match (self.format_tag, self.bits_per_sample) {
             (1, 8) => Ok(UInt),
             (1, 16) => Ok(Int),
+            (1, 24) => Ok(Int),
+            (1, 32) => Ok(Int),
+            (1, 64) => Ok(Int),
             (0xFFFE, 24) => Ok(Int),
-            (0xFFFE, 32) => {
+            (0xFFFE, 32) | (0xFFFE, 64) => {
                 match self.extension {
                     Some(extension) => {
                         match extension.sub_format {
