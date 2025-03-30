@@ -38,6 +38,7 @@ pub struct WaveWriter {
     pub list_chunk: Option<ListChunk>,
     pub acid_chunk: Option<AcidChunk>,
     pub trkn_chunk: Option<String>,
+    pub id3__chunk: Option<Id3::Tag>,
     pub junk_chunks: Vec<JunkChunk>,
 }
 
@@ -72,6 +73,7 @@ impl WaveWriter {
             list_chunk: None,
             acid_chunk: None,
             trkn_chunk: None,
+            id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
         };
         ret.write_header()?;
@@ -235,6 +237,7 @@ impl WaveWriter {
         if reader.get_list_chunk().is_some() {self.list_chunk = reader.get_list_chunk().clone();}
         if reader.get_acid_chunk().is_some() {self.acid_chunk = reader.get_acid_chunk().clone();}
         if reader.get_trkn_chunk().is_some() {self.trkn_chunk = reader.get_trkn_chunk().clone();}
+        if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
     }
 
     pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
