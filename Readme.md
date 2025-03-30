@@ -20,6 +20,7 @@ English | [简体中文](Readme-CN.md)
 * Reads music metadata:
   * Windows-specific handling: Uses `GetACP()` to detect code page (e.g., GB2312 code page 936), then converts to UTF-8 via `encoding` crate
   * Writers always use UTF-8 for metadata
+  * Decodes id3 metadata
 * Accepts any `Read + Seek` input, creating temporary files with OS-managed deletion on handle close
 * No panics unless caused by obvious parameter errors
 
@@ -101,26 +102,3 @@ fn main() -> ExitCode {
     }
 }
 ```
-
-## Code Structure
-
-### Audio Reader WaveReader
-* wavreader.rs
-
-### Audio Writer WaveWriter
-* wavwriter.rs
-
-### WAV Chunk Implementations
-* wavcore.rs: Chunk structures and read/write implementations
-
-### Sample Conversion Library
-* sampleutils.rs: Automatic scaling conversion between sample formats
-
-### String Transcoding *Note:* Named "savage" (brutal converter). Falls back to UTF-8 lossy encoding on failure.
-* savagestr.rs: Windows code page detection and UTF-8 conversion
-
-### Error Handling
-* errors.rs: Comprehensive error types
-
-### Testing
-* test.rs: Contains main() for tests
