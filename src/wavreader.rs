@@ -176,6 +176,8 @@ impl WaveReader {
                 b"\0\0\0\0" => { // 空的 flag
                     return Err(AudioReadError::IncompleteFile.into());
                 },
+                // 曾经发现 BFDi 块，结果发现它是 BFD Player 生成的字符串块，里面大约是软件序列号之类的内容。
+                // 所以此处就不记载 BFDi 块的信息了。
                 other => {
                     println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(other));
                 },
