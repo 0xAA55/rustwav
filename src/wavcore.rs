@@ -84,6 +84,9 @@ pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
 pub const GUID_PCM_FORMAT: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
 pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
+// TODO
+// 其实还有：GUID_DRM、GUID_LAW、GUID_MULAW、GUID_ADPCM
+// 视情况实现
 
 impl GUID {
     pub fn read<T>(r: &mut T) -> Result<Self, std::io::Error>
@@ -171,7 +174,7 @@ impl SpeakerPosition {
             Err(AudioError::ChannelNotMatchMask)
         }
     }
-    
+
     pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
         let mut mask = 0;
         for i in 0..channels {
@@ -425,6 +428,8 @@ impl fmt__Chunk {
             (1, 24) => Ok(Int),
             (1, 32) => Ok(Int),
             (1, 64) => Ok(Int),
+            (0xFFFE, 8) => Ok(UInt),
+            (0xFFFE, 16) => Ok(Int),
             (0xFFFE, 24) => Ok(Int),
             (0xFFFE, 32) | (0xFFFE, 64) => {
                 match self.extension {
@@ -440,6 +445,9 @@ impl fmt__Chunk {
             },
             (3, 32) => Ok(Float),
             (3, 64) => Ok(Float),
+            // TODO
+            // 其实可以实现一个插件系统，给插件系统提供 fmt__chunk 的数据，看它认不认
+            // 如果插件系统认，那么在生成迭代器的时候，让插件系统提供音频帧
             (t, b) => Err(AudioError::Unimplemented(format!("Unimplemented for format tag = {} and bits per sample = {}", t, b))),
         }
     }
