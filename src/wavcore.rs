@@ -14,7 +14,7 @@ pub mod Id3{
     use std::error::Error;
     pub type Tag = id3::Tag;
     pub fn read<R: Reader>(reader: &mut R, _size: usize) -> Result<Tag, Box<dyn Error>> {
-        Id3Tag::read_from2(reader)
+        Ok(Tag::read_from2(reader)?)
     }
 }
 
