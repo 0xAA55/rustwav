@@ -477,11 +477,15 @@ impl SamplePacker {
         }
     }
 
+    // 注意 frame_type_conv 和 frames_type_conv 这两个函数
+    // 其实在实际调用的时候，S 和 D 是完全一样的类型。
+    // 只是编译器不知道。
+    // 所以要忽悠一下编译器。
+
     fn frame_type_conv<S, D>(frame: &[S]) -> Vec<D>
     where S: SampleType,
           D: SampleType {
 
-        // 其实 S 和 D 是完全一样的类型
         assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
         let mut ret = Vec::<D>::with_capacity(frame.len());
         for f in frame.iter() {
@@ -493,8 +497,7 @@ impl SamplePacker {
     fn frames_type_conv<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
     where S: SampleType,
           D: SampleType {
-            
-        // 其实 S 和 D 是完全一样的类型
+
         assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
         let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
         for f in frames.iter() {
