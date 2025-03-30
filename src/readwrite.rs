@@ -17,6 +17,12 @@ where F: FnMut(&mut dyn Writer) -> Result<(), Box<dyn Error>> {
     (action)(&mut writer)
 }
 
+pub fn read_bytes<T: Read>(r: &mut T, size: usize) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut buf = vec![0; size];
+    r.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
 pub fn read_str<T: Read>(r: &mut T, size: usize, savage_decoder: &SavageStringDecoder) -> Result<String, Box<dyn Error>> {
     let mut buf = vec![0; size];
     r.read_exact(&mut buf)?;
