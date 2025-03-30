@@ -15,6 +15,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
+name = "bitstream-io"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "614aa3f2bac03707e62a84d18a48dd3d9ea6171313fd5e6a53b5054d8ae74601"
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,6 +191,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "puremp3"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b7efbb39e373af70c139e0611375fa6cad751fb93d528a610b55302710d883"
+dependencies = [
+ "bitstream-io",
+ "byteorder",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -212,6 +228,7 @@ version = "0.1.0"
 dependencies = [
  "encoding",
  "id3",
+ "puremp3",
  "tempfile",
  "windows",
 ]
