@@ -13,6 +13,7 @@ tempfile = "3.18.0"
 windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [features]
+default = ["id3", "encoding"]
 id3 = ["dep:id3"]
 encoding = ["dep:encoding"]
 
