@@ -141,51 +141,57 @@ pub enum SpeakerPosition {
     TopBackRight = 0x20000,
 }
 
-impl SpeakerPosition {
-    pub fn channel_mask_to_speaker_positions(channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
-        let enums = [
-            SpeakerPosition::FrontLeft,
-            SpeakerPosition::FrontRight,
-            SpeakerPosition::FrontCenter,
-            SpeakerPosition::LowFreq,
-            SpeakerPosition::BackLeft,
-            SpeakerPosition::BackRight,
-            SpeakerPosition::FrontLeftOfCenter,
-            SpeakerPosition::FrontRightOfCenter,
-            SpeakerPosition::BackCenter,
-            SpeakerPosition::SideLeft,
-            SpeakerPosition::SideRight,
-            SpeakerPosition::TopCenter,
-            SpeakerPosition::TopFrontLeft,
-            SpeakerPosition::TopFrontCenter,
-            SpeakerPosition::TopFrontRight,
-            SpeakerPosition::TopBackLeft,
-            SpeakerPosition::TopBackCenter,
-            SpeakerPosition::TopBackRight,
-        ];
-        let mut ret = Vec::<SpeakerPosition>::new();
-        for (i, m) in enums.iter().enumerate() {
-            let m = *m as u32;
-            if channel_mask & m == m {ret.push(enums[i]);}
-        }
-        if ret.len() == self.channels.into() {
-            Ok(ret)
-        } else {
-            Err(AudioError::ChannelNotMatchMask)
-        }
-    }
+// TODO
+// 设计算法
+// 对每一个声道来源设计一个向量值，相当于从人耳到声道来源的方向
+// 每个声道值对每个声道值互相之间做点乘计算。
+// 背对人耳的音源乘以一个衰减值（或者干脆听不见？）
+// 全部声道加权混音，确保不会改变总音量。
+// 这样就能实现任意的声道组合互相转换。
 
-    pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
-        let mut mask = 0;
-        for i in 0..channels {
-            let bit = 1 << i;
-            if bit > 0x20000 {
-                return Err(AudioError::CantGuessChannelMask(channels));
-            }
-            mask |= bit;
-        }
-        Ok(mask)
+pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
+    let enums = [
+        SpeakerPosition::FrontLeft,
+        SpeakerPosition::FrontRight,
+        SpeakerPosition::FrontCenter,
+        SpeakerPosition::LowFreq,
+        SpeakerPosition::BackLeft,
+        SpeakerPosition::BackRight,
+        SpeakerPosition::FrontLeftOfCenter,
+        SpeakerPosition::FrontRightOfCenter,
+        SpeakerPosition::BackCenter,
+        SpeakerPosition::SideLeft,
+        SpeakerPosition::SideRight,
+        SpeakerPosition::TopCenter,
+        SpeakerPosition::TopFrontLeft,
+        SpeakerPosition::TopFrontCenter,
+        SpeakerPosition::TopFrontRight,
+        SpeakerPosition::TopBackLeft,
+        SpeakerPosition::TopBackCenter,
+        SpeakerPosition::TopBackRight,
+    ];
+    let mut ret = Vec::<SpeakerPosition>::new();
+    for (i, m) in enums.iter().enumerate() {
+        let m = *m as u32;
+        if channel_mask & m == m {ret.push(enums[i]);}
     }
+    if ret.len() == channels.into() {
+        Ok(ret)
+    } else {
+        Err(AudioError::ChannelNotMatchMask)
+    }
+}
+
+pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
+    let mut mask = 0;
+    for i in 0..channels {
+        let bit = 1 << i;
+        if bit > 0x20000 {
+            return Err(AudioError::CantGuessChannelMask(channels));
+        }
+        mask |= bit;
+    }
+    Ok(mask)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -216,6 +222,14 @@ impl Spec {
 
     pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
         get_sample_type(self.bits_per_sample, self.sample_format)
+    }
+
+    pub fn guess_channel_mask(&self) -> Result<u32, AudioError> {
+        guess_channel_mask(self.channels)
+    }
+
+    pub fn channel_mask_to_speaker_positions(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
+        channel_mask_to_speaker_positions(self.channels, self.channel_mask)
     }
 }
 
