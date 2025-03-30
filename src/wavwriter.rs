@@ -477,13 +477,11 @@ impl SamplePacker {
         }
     }
 
-    // S 和 D 其实是完全相同的类型，可是 Rust 比较笨，即使 S 是 i8，你把 i8 的变量传递到 S 的参数上也编译不通过
-    // 这就做一个函数，专门忽悠编译器。哼。
-    fn pseudo_frame_conv<S, D>(frame: &[S]) -> Vec<D>
+    fn frame_type_conv<S, D>(frame: &[S]) -> Vec<D>
     where S: SampleType,
           D: SampleType {
 
-        // 你看这行 assert 你就知道，这根本就是一样的类型，这编译器咋就非要你转换一下呢？
+        // 其实 S 和 D 是完全一样的类型
         assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
         let mut ret = Vec::<D>::with_capacity(frame.len());
         for f in frame.iter() {
@@ -492,14 +490,15 @@ impl SamplePacker {
         ret
     }
 
-    // 上述忽悠的批量版
-    fn pseudo_frames_conv<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
+    fn frames_type_conv<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
     where S: SampleType,
           D: SampleType {
+            
+        // 其实 S 和 D 是完全一样的类型
         assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
         let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
         for f in frames.iter() {
-            ret.push(Self::pseudo_frame_conv::<S, D>(f));
+            ret.push(Self::frame_type_conv::<S, D>(f));
         }
         ret
     }
@@ -507,18 +506,18 @@ impl SamplePacker {
     pub fn pack_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.packer_from__i8.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i16" => self.packer_from_i16.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i24" => self.packer_from_i24.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i32" => self.packer_from_i32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "i64" => self.packer_from_i64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u8"  => self.packer_from__u8.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u16" => self.packer_from_u16.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u24" => self.packer_from_u24.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u32" => self.packer_from_u32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "u64" => self.packer_from_u64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "f32" => self.packer_from_f32.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
-            "f64" => self.packer_from_f64.pack_frame(writer, &Self::pseudo_frame_conv(frame), target_sample),
+            "i8"  => self.packer_from__i8.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "i16" => self.packer_from_i16.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "i24" => self.packer_from_i24.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "i32" => self.packer_from_i32.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "i64" => self.packer_from_i64.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "u8"  => self.packer_from__u8.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "u16" => self.packer_from_u16.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "u24" => self.packer_from_u24.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "u32" => self.packer_from_u32.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "u64" => self.packer_from_u64.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "f32" => self.packer_from_f32.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
+            "f64" => self.packer_from_f64.pack_frame(writer, &Self::frame_type_conv(frame), target_sample),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
@@ -526,18 +525,18 @@ impl SamplePacker {
     pub fn pack_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], target_sample: WaveSampleType) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.packer_from__i8.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i16" => self.packer_from_i16.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i24" => self.packer_from_i24.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i32" => self.packer_from_i32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "i64" => self.packer_from_i64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u8"  => self.packer_from__u8.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u16" => self.packer_from_u16.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u24" => self.packer_from_u24.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u32" => self.packer_from_u32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "u64" => self.packer_from_u64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "f32" => self.packer_from_f32.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
-            "f64" => self.packer_from_f64.pack_multiple_frames(writer, &Self::pseudo_frames_conv(frames), target_sample),
+            "i8"  => self.packer_from__i8.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "i16" => self.packer_from_i16.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "i24" => self.packer_from_i24.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "i32" => self.packer_from_i32.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "i64" => self.packer_from_i64.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "u8"  => self.packer_from__u8.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "u16" => self.packer_from_u16.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "u24" => self.packer_from_u24.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "u32" => self.packer_from_u32.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "u64" => self.packer_from_u64.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "f32" => self.packer_from_f32.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
+            "f64" => self.packer_from_f64.pack_multiple_frames(writer, &Self::frames_type_conv(frames), target_sample),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
