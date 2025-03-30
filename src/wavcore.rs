@@ -35,7 +35,8 @@ pub mod Id3{
         }
     }
     pub fn read<R: Read>(reader: &mut R, size: usize) -> Result<Tag, Box<dyn Error>> {
-        println!("Crate \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
+        #[cfg(debug_assertions)]
+        println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
         Ok(Tag::new(super::read_bytes(reader, size)?))
     }
 
