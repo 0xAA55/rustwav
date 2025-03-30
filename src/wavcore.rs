@@ -464,17 +464,12 @@ impl fmt__Chunk {
             extension: None,
         };
         match ret.format_tag {
-            1 | 3 => (),
             0xFFFE => {
                 if chunk_size >= 40 {
                     ret.extension = Some(fmt__Chunk_Extension::read(reader)?);
                 }
             },
-            0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => {
-                // Ogg Vorbis 数据
-                return Err(AudioError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")).into());
-            },
-            other => return Err(AudioError::Unimplemented(format!("unknown format tag: {}", other)).into()),
+            _ => (),
         }
         Ok(ret)
     }
