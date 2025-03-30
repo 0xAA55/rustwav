@@ -86,23 +86,46 @@ pub enum WaveSampleType {
 
 impl std::fmt::Display for WaveSampleType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match self {
-            WaveSampleType::Unknown => write!(f, "Unknown"),
-            WaveSampleType::S8  => write!(f, "i8"),
-            WaveSampleType::S16 => write!(f, "i16"),
-            WaveSampleType::S24 => write!(f, "i24"),
-            WaveSampleType::S32 => write!(f, "i32"),
-            WaveSampleType::S64 => write!(f, "i64"),
-            WaveSampleType::U8  => write!(f, "u8"),
-            WaveSampleType::U16 => write!(f, "u16"),
-            WaveSampleType::U24 => write!(f, "u24"),
-            WaveSampleType::U32 => write!(f, "u32"),
-            WaveSampleType::U64 => write!(f, "u64"),
-            WaveSampleType::F32 => write!(f, "f32"),
-            WaveSampleType::F64 => write!(f, "f64"),
+            Unknown => write!(f, "Unknown"),
+            S8  => write!(f, "i8"),
+            S16 => write!(f, "i16"),
+            S24 => write!(f, "i24"),
+            S32 => write!(f, "i32"),
+            S64 => write!(f, "i64"),
+            U8  => write!(f, "u8"),
+            U16 => write!(f, "u16"),
+            U24 => write!(f, "u24"),
+            U32 => write!(f, "u32"),
+            U64 => write!(f, "u64"),
+            F32 => write!(f, "f32"),
+            F64 => write!(f, "f64"),
        }
     }
 }
+
+impl WaveSampleType {
+    pub fn sizeof(&self) -> u16 {
+        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        match self {
+            S8 =>  1,
+            S16 => 2,
+            S24 => 3,
+            S32 => 4,
+            S64 => 8,
+            U8 =>  1,
+            U16 => 2,
+            U24 => 3,
+            U32 => 4,
+            U64 => 8,
+            F32 => 4,
+            F64 => 8,
+            Unknown => 0,
+        }
+    }
+}
+
 
 pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
     use SampleFormat::{UInt, Int, Float};
