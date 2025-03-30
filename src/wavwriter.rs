@@ -328,33 +328,6 @@ impl Drop for WaveWriter {
     }
 }
 
-// S：别人给我们的格式
-// T：我们要写入到 WAV 中的格式
-fn write_sample_to<S, T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
-where S: SampleType,
-      T: SampleType {
-    for sample in frame.iter() {
-        T::from(*sample).write_le(writer)?;
-    }
-    Ok(())
-}
-
-// S：别人给我们的格式
-// T：我们要写入到 WAV 中的格式
-fn write_multiple_frames_to<S, T>(writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
-where S: SampleType,
-      T: SampleType {
-    for frame in frames.iter() {
-        for sample in frame.iter() {
-            T::from(*sample).write_le(writer)?;
-        }
-    }
-    Ok(())
-}
-
-// S：别人给我们的格式
-// 这个结构体存储函数把别人给我们的格式转换为我们需要的格式 T
-
 struct SamplePackerFrom<S>
 where S: SampleType {
     packers: HashMap<WaveSampleType, fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>>,
@@ -396,23 +369,33 @@ where S: SampleType {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         let mut packers = HashMap::<WaveSampleType, fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>>::new();
         packers.insert(Unknown, dummy_fn::<S>);
-        packers.insert(S8 , write_sample_to::<S, i8 >);
-        packers.insert(S16, write_sample_to::<S, i16>);
-        packers.insert(S24, write_sample_to::<S, i24>);
-        packers.insert(S32, write_sample_to::<S, i32>);
-        packers.insert(S64, write_sample_to::<S, i64>);
-        packers.insert(U8,  write_sample_to::<S, u8 >);
-        packers.insert(U16, write_sample_to::<S, u16>);
-        packers.insert(U24, write_sample_to::<S, u24>);
-        packers.insert(U32, write_sample_to::<S, u32>);
-        packers.insert(U64, write_sample_to::<S, u64>);
-        packers.insert(F32, write_sample_to::<S, f32>);
-        packers.insert(F64, write_sample_to::<S, f64>);
+        packers.insert(S8 , Self::write_sample_to::<i8 >);
+        packers.insert(S16, Self::write_sample_to::<i16>);
+        packers.insert(S24, Self::write_sample_to::<i24>);
+        packers.insert(S32, Self::write_sample_to::<i32>);
+        packers.insert(S64, Self::write_sample_to::<i64>);
+        packers.insert(U8,  Self::write_sample_to::<u8 >);
+        packers.insert(U16, Self::write_sample_to::<u16>);
+        packers.insert(U24, Self::write_sample_to::<u24>);
+        packers.insert(U32, Self::write_sample_to::<u32>);
+        packers.insert(U64, Self::write_sample_to::<u64>);
+        packers.insert(F32, Self::write_sample_to::<f32>);
+        packers.insert(F64, Self::write_sample_to::<f64>);
         Self {
             packers,
             packer: dummy_fn::<S>,
             last_sample: Unknown,
         }
+    }
+
+    // S：别人给我们的格式
+    // T：我们要写入到 WAV 中的格式
+    fn write_sample_to<T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
+    where T: SampleType {
+        for sample in frame.iter() {
+            T::from(*sample).write_le(writer)?;
+        }
+        Ok(())
     }
 
     pub fn switch_to_target_sample(&mut self, target_sample: WaveSampleType) -> Result<(), Box<dyn Error>> {
