@@ -296,13 +296,25 @@ impl Spec {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChunkWriter {
     writer_shared: Arc<Mutex<dyn Writer>>,
     flag: [u8; 4],
     pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     chunk_start: u64, // chunk 数据开始的地方
     ended: bool, // 是否早已完成 Chunk 的写入
+}
+
+impl std::fmt::Debug for ChunkWriter {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("ChunkWriter")
+            .field("writer_shared", &self.writer_shared)
+            .field("flag", &format!("{}", String::from_utf8_lossy(&self.flag)))
+            .field("pos_of_chunk_len", &self.pos_of_chunk_len)
+            .field("chunk_start", &self.chunk_start)
+            .field("ended", &self.ended)
+            .finish()
+    }
 }
 
 impl ChunkWriter {
