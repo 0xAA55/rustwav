@@ -3,6 +3,7 @@ mod errors;
 mod savagestr;
 mod readwrite;
 mod sampleutils;
+mod codecs;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
