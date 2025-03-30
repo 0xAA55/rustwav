@@ -3,8 +3,8 @@
 
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
 
-use crate::errors::{AudioReadError};
 use crate::wavcore::*;
+use crate::errors::{AudioReadError};
 use crate::savagestr::SavageStringDecoder;
 
 #[derive(Debug)]
@@ -25,6 +25,7 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
+    savage_decoder: SavageStringDecoder,
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
@@ -34,8 +35,8 @@ pub struct WaveReader {
     list_chunk: Option<ListChunk>,
     acid_chunk: Option<AcidChunk>,
     trkn_chunk: Option<String>,
+    id3__chunk: Option<Id3::Tag>,
     junk_chunks: Vec<JunkChunk>,
-    savage_decoder: SavageStringDecoder,
 }
 
 impl WaveReader {
@@ -95,6 +96,7 @@ impl WaveReader {
         let mut list_chunk: Option<ListChunk> = None;
         let mut acid_chunk: Option<AcidChunk> = None;
         let mut trkn_chunk: Option<String> = None;
+        let mut id3__chunk: Option<Id3::Tag> = None;
         let mut junk_chunks: Vec<JunkChunk>;
 
         junk_chunks = Vec::<JunkChunk>::new();
@@ -173,6 +175,10 @@ impl WaveReader {
                     Self::verify_none(&trkn_chunk, &chunk.flag)?;
                     trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
                 }
+                b"id3 " => {
+                    Self::verify_none(&id3__chunk, &chunk.flag)?;
+                    id3__chunk = Some(Id3::read(&mut reader, chunk.size as usize)?);
+                },
                 b"\0\0\0\0" => { // 空的 flag
                     return Err(AudioReadError::IncompleteFile.into());
                 },
@@ -192,7 +198,7 @@ impl WaveReader {
         };
 
         let channel_mask = match fmt__chunk.extension {
-            None => Spec::guess_channel_mask(fmt__chunk.channels)?,
+            None => guess_channel_mask(fmt__chunk.channels)?,
             Some(extension) => extension.channel_mask,
         };
 
@@ -220,6 +226,7 @@ impl WaveReader {
             frame_size,
             num_frames,
             data_chunk,
+            savage_decoder,
             bext_chunk,
             smpl_chunk,
             inst_chunk,
@@ -229,8 +236,8 @@ impl WaveReader {
             list_chunk,
             acid_chunk,
             trkn_chunk,
+            id3__chunk,
             junk_chunks,
-            savage_decoder,
         })
     }
 
@@ -250,6 +257,7 @@ impl WaveReader {
     pub fn get_list_chunk(&self) -> &Option<ListChunk> { &self.list_chunk }
     pub fn get_acid_chunk(&self) -> &Option<AcidChunk> { &self.acid_chunk }
     pub fn get_trkn_chunk(&self) -> &Option<String> { &self.trkn_chunk }
+    pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> { &self.id3__chunk }
     pub fn get_junk_chunks(&self) -> &Vec<JunkChunk> { &self.junk_chunks }
 
     // 创建迭代器。
