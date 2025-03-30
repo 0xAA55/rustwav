@@ -4,6 +4,7 @@
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
 
 use crate::wavcore::*;
+use crate::codecs::*;
 use crate::errors::{AudioReadError};
 use crate::savagestr::SavageStringDecoder;
 
@@ -269,7 +270,10 @@ impl WaveReader {
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
     pub fn iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
     where S: SampleType {
-        WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.spec, self.num_frames)
+        WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, match self.fact_data {
+            None => 0,
+            Some(fact) => fact,
+        })
     }
 
     // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
@@ -306,6 +310,7 @@ pub struct WaveDataReader {
     tempfile: Arc<File>,
     filepath: PathBuf,
     offset: u64,
+    length: u64,
 }
 
 impl WaveDataReader {
@@ -373,7 +378,8 @@ impl WaveDataReader {
             reader: orig_reader,
             tempfile,
             filepath,
-            offset
+            offset,
+            length: data_size,
         })
     }
 
@@ -387,64 +393,29 @@ impl WaveDataReader {
 #[derive(Debug)]
 pub struct WaveIter<S>
 where S: SampleType {
-    reader: BufReader<File>, // 数据读取器
     data_offset: u64, // 音频数据在文件中的位置
+    data_length: u64, // 音频数据的总大小
     spec: Spec,
+    fact: u32, // fact 数据，部分解码器需要
     frame_pos: u64, // 当前帧位置
-    num_frames: u64, // 最大帧数量
-    frame_size: u16,
-
-    // unpacker：将文件中存储的样本格式转换为用户请求的格式的函数指针
-    unpacker: fn(&mut BufReader<File>) -> Result<S, io::Error>,
+    decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
-        let wave_sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
-        let mut ret = Self {
-            reader,
+    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &fmt__Chunk, fact: u32) -> Result<Self, Box<dyn Error>> {
+        reader.seek(SeekFrom::Start(data_offset))?;
+        Ok(Self {
             data_offset,
-            spec,
+            data_length,
+            spec: spec.clone(),
+            fact,
             frame_pos: 0,
-            num_frames,
-            unpacker: Self::get_unpacker(wave_sample_type)?,
-            frame_size: wave_sample_type.sizeof() * spec.channels,
-        };
-        ret.reader.seek(SeekFrom::Start(data_offset))?;
-        Ok(ret)
-    }
-
-    fn seek_to_sample(&mut self, sample_pos: u64) -> Result<u64, io::Error> {
-        self.reader.seek(SeekFrom::Start(self.data_offset + sample_pos * self.frame_size as u64))
-    }
-
-    fn unpack(&mut self) -> Result<S, io::Error> {
-        (self.unpacker)(&mut self.reader)
-    }
-
-    fn unpack_to<T>(r: &mut BufReader<File>) -> Result<S, io::Error>
-    where T: SampleType {
-        Ok(S::from(T::read_le(r)?))
-    }
-
-    fn get_unpacker(wave_sample_type: WaveSampleType) -> Result<fn(&mut BufReader<File>) -> Result<S, io::Error>, Box<dyn Error>> {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
-        match wave_sample_type {
-            S8 =>  Ok(Self::unpack_to::<i8 >),
-            S16 => Ok(Self::unpack_to::<i16>),
-            S24 => Ok(Self::unpack_to::<i24>),
-            S32 => Ok(Self::unpack_to::<i32>),
-            S64 => Ok(Self::unpack_to::<i64>),
-            U8 =>  Ok(Self::unpack_to::<u8 >),
-            U16 => Ok(Self::unpack_to::<u16>),
-            U24 => Ok(Self::unpack_to::<u24>),
-            U32 => Ok(Self::unpack_to::<u32>),
-            U64 => Ok(Self::unpack_to::<u64>),
-            F32 => Ok(Self::unpack_to::<f32>),
-            F64 => Ok(Self::unpack_to::<f64>),
-            Unknown => return Err(AudioError::UnknownSampleType.into()),
-        }
+            decoder: match fmt.format_tag {
+                1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
+                other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other)).into()),
+            },
+        })
     }
 }
 
@@ -453,25 +424,15 @@ where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.frame_pos >= self.num_frames {return None;}
 
         let mut ret = Vec::<S>::with_capacity(self.spec.channels as usize);
         for _ in 0..self.spec.channels {
-            match self.unpack() {
+            match self.decoder.decode() {
                 Ok(sample) => ret.push(sample),
                 Err(_) => return None,
             }
         }
         self.frame_pos += 1;
         Some(ret)
-    }
-
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        self.frame_pos += n as u64;
-        match self.seek_to_sample(self.frame_pos) {
-            Ok(_) => (),
-            Err(_) => return None,
-        }
-        self.next()
     }
 }
