@@ -388,55 +388,28 @@ impl WaveDataReader {
 pub struct WaveIter<S>
 where S: SampleType {
     reader: BufReader<File>, // 数据读取器
-    data_offset: u64, // 数据的位置
+    data_offset: u64, // 音频数据在文件中的位置
     spec: Spec,
     frame_pos: u64, // 当前帧位置
     num_frames: u64, // 最大帧数量
-    unpacker: fn(&mut BufReader<File>) -> Result<S, io::Error>,
     frame_size: u16,
+
+    // unpacker：将文件中存储的样本格式转换为用户请求的格式的函数指针
+    unpacker: fn(&mut BufReader<File>) -> Result<S, io::Error>,
 }
 
 impl<S> WaveIter<S>
 where S: SampleType {
     fn new(reader: BufReader<File>, data_offset: u64, spec: Spec, num_frames: u64) -> Result<Self, Box<dyn Error>> {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
-        let sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
+        let wave_sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format)?;
         let mut ret = Self {
             reader,
             data_offset,
             spec,
             frame_pos: 0,
             num_frames,
-            unpacker: match sample_type {
-                Unknown => return Err(AudioError::UnknownSampleType.into()),
-                S8 =>  Self::unpack_to::<i8 >,
-                S16 => Self::unpack_to::<i16>,
-                S24 => Self::unpack_to::<i24>,
-                S32 => Self::unpack_to::<i32>,
-                S64 => Self::unpack_to::<i64>,
-                U8 =>  Self::unpack_to::<u8 >,
-                U16 => Self::unpack_to::<u16>,
-                U24 => Self::unpack_to::<u24>,
-                U32 => Self::unpack_to::<u32>,
-                U64 => Self::unpack_to::<u64>,
-                F32 => Self::unpack_to::<f32>,
-                F64 => Self::unpack_to::<f64>,
-            },
-            frame_size: match sample_type {
-                Unknown => 0,
-                S8 =>  1,
-                S16 => 2,
-                S24 => 3,
-                S32 => 4,
-                S64 => 8,
-                U8 =>  1,
-                U16 => 2,
-                U24 => 3,
-                U32 => 4,
-                U64 => 8,
-                F32 => 4,
-                F64 => 8,
-            } * spec.channels,
+            unpacker: Self::get_unpacker(wave_sample_type)?,
+            frame_size: wave_sample_type.sizeof() * spec.channels,
         };
         ret.reader.seek(SeekFrom::Start(data_offset))?;
         Ok(ret)
@@ -453,6 +426,25 @@ where S: SampleType {
     fn unpack_to<T>(r: &mut BufReader<File>) -> Result<S, io::Error>
     where T: SampleType {
         Ok(S::from(T::read_le(r)?))
+    }
+
+    fn get_unpacker(wave_sample_type: WaveSampleType) -> Result<fn(&mut BufReader<File>) -> Result<S, io::Error>, Box<dyn Error>> {
+        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        match wave_sample_type {
+            S8 =>  Ok(Self::unpack_to::<i8 >),
+            S16 => Ok(Self::unpack_to::<i16>),
+            S24 => Ok(Self::unpack_to::<i24>),
+            S32 => Ok(Self::unpack_to::<i32>),
+            S64 => Ok(Self::unpack_to::<i64>),
+            U8 =>  Ok(Self::unpack_to::<u8 >),
+            U16 => Ok(Self::unpack_to::<u16>),
+            U24 => Ok(Self::unpack_to::<u24>),
+            U32 => Ok(Self::unpack_to::<u32>),
+            U64 => Ok(Self::unpack_to::<u64>),
+            F32 => Ok(Self::unpack_to::<f32>),
+            F64 => Ok(Self::unpack_to::<f64>),
+            Unknown => return Err(AudioError::UnknownSampleType.into()),
+        }
     }
 }
 
