@@ -433,7 +433,7 @@ impl ChunkHeader {
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub struct fmt__Chunk {
-    pub format_tag: u16,
+    pub format_tag: u16, // https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h
     pub channels: u16,
     pub sample_rate: u32,
     pub byte_rate: u32,
