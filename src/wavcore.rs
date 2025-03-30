@@ -350,29 +350,29 @@ impl ChunkHeader {
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub struct fmt_Chunk {
+pub struct fmt__Chunk {
     pub format_tag: u16,
     pub channels: u16,
     pub sample_rate: u32,
     pub byte_rate: u32,
     pub block_align: u16,
     pub bits_per_sample: u16,
-    pub extension: Option<fmt_Chunk_Extension>,
+    pub extension: Option<fmt__Chunk_Extension>,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub struct fmt_Chunk_Extension {
+pub struct fmt__Chunk_Extension {
     pub ext_len: u16,
     pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
     pub sub_format: GUID,
 }
 
-impl fmt_Chunk {
+impl fmt__Chunk {
     pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let mut ret = fmt_Chunk{
+        let mut ret = fmt__Chunk{
             format_tag: u16::read_le(reader)?,
             channels: u16::read_le(reader)?,
             sample_rate: u32::read_le(reader)?,
@@ -385,7 +385,7 @@ impl fmt_Chunk {
             1 | 3 => (),
             0xFFFE => {
                 if chunk_size >= 40 {
-                    ret.extension = Some(fmt_Chunk_Extension::read(reader)?);
+                    ret.extension = Some(fmt__Chunk_Extension::read(reader)?);
                 }
             },
             0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => {
@@ -444,7 +444,7 @@ impl fmt_Chunk {
     }
 }
 
-impl fmt_Chunk_Extension {
+impl fmt__Chunk_Extension {
     pub fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         Ok(Self{

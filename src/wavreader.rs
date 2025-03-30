@@ -18,7 +18,7 @@ pub enum WaveDataSource {
 pub struct WaveReader {
     riff_len: u64,
     spec: Spec,
-    fmt_chunk: fmt_Chunk, // fmt 块，这个块一定会有
+    fmt__chunk: fmt__Chunk, // fmt 块，这个块一定会有
     fact_data: Option<u32>, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
@@ -83,7 +83,7 @@ impl WaveReader {
         // 读完头部后，这里必须是 WAVE 否则不是音频文件。
         expect_flag(&mut reader, b"WAVE")?;
 
-        let mut fmt_chunk: Option<fmt_Chunk> = None;
+        let mut fmt__chunk: Option<fmt__Chunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data: Option<u32> = None;
         let mut bext_chunk: Option<BextChunk> = None;
@@ -109,8 +109,8 @@ impl WaveReader {
                     junk_chunks.push(JunkChunk::from(junk));
                 }
                 b"fmt " => {
-                    Self::verify_none(&fmt_chunk, &chunk.flag)?;
-                    fmt_chunk = Some(fmt_Chunk::read(&mut reader, chunk.size)?);
+                    Self::verify_none(&fmt__chunk, &chunk.flag)?;
+                    fmt__chunk = Some(fmt__Chunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
                     fact_data = Some(u32::read_le(&mut reader)?);
@@ -184,24 +184,24 @@ impl WaveReader {
             chunk.seek_to_next_chunk(&mut reader)?;
         }
 
-        let fmt_chunk = match fmt_chunk {
-            Some(fmt_chunk) => fmt_chunk,
+        let fmt__chunk = match fmt__chunk {
+            Some(fmt__chunk) => fmt__chunk,
             None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide any \"data\" chunk")).into()),
         };
 
-        let channel_mask = match fmt_chunk.extension {
-            None => Spec::guess_channel_mask(fmt_chunk.channels)?,
+        let channel_mask = match fmt__chunk.extension {
+            None => Spec::guess_channel_mask(fmt__chunk.channels)?,
             Some(extension) => extension.channel_mask,
         };
 
-        let frame_size = fmt_chunk.block_align;
+        let frame_size = fmt__chunk.block_align;
         let num_frames = data_size / frame_size as u64;
         let spec = Spec {
-            channels: fmt_chunk.channels,
+            channels: fmt__chunk.channels,
             channel_mask,
-            sample_rate: fmt_chunk.sample_rate,
-            bits_per_sample: fmt_chunk.bits_per_sample,
-            sample_format: fmt_chunk.get_sample_format()?,
+            sample_rate: fmt__chunk.sample_rate,
+            bits_per_sample: fmt__chunk.bits_per_sample,
+            sample_format: fmt__chunk.get_sample_format()?,
         };
         let new_data_source = match filesrc {
             Some(filename) => WaveDataSource::Filename(filename),
@@ -211,7 +211,7 @@ impl WaveReader {
         Ok(Self {
             riff_len,
             spec,
-            fmt_chunk,
+            fmt__chunk,
             fact_data,
             data_offset,
             data_size,
@@ -238,6 +238,7 @@ impl WaveReader {
     }
 
     // 提供乐曲信息元数据
+    pub fn get_fmt__chunk(&self) -> &fmt__Chunk { &self.fmt__chunk }
     pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
     pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
     pub fn get_inst_chunk(&self) -> &Option<InstChunk> { &self.inst_chunk }

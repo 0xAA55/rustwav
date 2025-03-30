@@ -117,7 +117,7 @@ impl WaveWriter {
             _ => true, // 否则就需要额外的数据了
         };
 
-        let fmt_chunk = fmt_Chunk {
+        let fmt__chunk = fmt__Chunk {
             format_tag: match ext {
                 true => 0xFFFE,
                 false => {
@@ -137,7 +137,7 @@ impl WaveWriter {
             bits_per_sample: self.spec.bits_per_sample,
             extension: match ext {
                 false => None,
-                true => Some(fmt_Chunk_Extension {
+                true => Some(fmt__Chunk_Extension {
                     ext_len: 22,
                     valid_bits_per_sample: self.spec.bits_per_sample,
                     channel_mask: self.spec.channel_mask,
@@ -150,7 +150,7 @@ impl WaveWriter {
             },
         };
 
-        fmt_chunk.write(self.writer.clone())?;
+        fmt__chunk.write(self.writer.clone())?;
 
         self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
         Ok(())
