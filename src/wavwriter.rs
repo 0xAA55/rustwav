@@ -18,9 +18,18 @@ pub enum FileSizeOption{
 }
 
 #[derive(Debug)]
+pub enum DataFormat{
+    PCM_Int,
+    PCM_Float,
+    Mp3,
+    OggVorbis,
+}
+
+#[derive(Debug)]
 pub struct WaveWriter {
     writer: Arc<Mutex<dyn Writer>>,
     spec: Spec,
+    data_format: DataFormat,
     file_size_option: FileSizeOption,
     num_frames: u64,
     frame_size: u16,
@@ -43,19 +52,20 @@ pub struct WaveWriter {
 }
 
 impl WaveWriter {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         let file_reader = BufWriter::new(File::create(filename)?);
-        let wave_writer = WaveWriter::from(Arc::new(Mutex::new(file_reader)), spec, file_size_option)?;
+        let wave_writer = WaveWriter::from(Arc::new(Mutex::new(file_reader)), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
-    pub fn from(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn from(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type()?;
         let mut ret = Self{
             writer: writer.clone(),
             spec: *spec,
+            data_format,
             file_size_option,
             num_frames: 0,
             frame_size,
@@ -105,32 +115,28 @@ impl WaveWriter {
         }
 
         // 准备写入 fmt 块
-        // 如果格式类型是 0xFFFE 则需要单独对待
-        let mut ext = matches!((self.spec.bits_per_sample, self.spec.sample_format), (24, Int) | (32, Int));
+        if self.spec.channel_mask == 0 {
+            self.spec.guess_channel_mask();
+        }
 
-        // 如果有针对声道的特殊要求，则需要扩展数据
-        ext |= match self.spec.channels {
-            1 => {
-                self.spec.channel_mask != SpeakerPosition::FrontCenter as u32
-            },
-            2 => {
-                self.spec.channel_mask != SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32
-            },
-            _ => true, // 否则就需要额外的数据了
-        };
+        // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
+        let mut ext = self.spec.channel_mask != guess_channel_mask(self.spec.channels);
 
         let fmt__chunk = fmt__Chunk {
-            format_tag: match ext {
-                true => 0xFFFE,
-                false => {
-                    match (self.spec.bits_per_sample, self.spec.sample_format) {
-                        (8, UInt) => 1,
-                        (16, Int) => 1,
-                        (32, Float) => 3,
-                        (64, Float) => 3,
-                        _ => return Err(AudioWriteError::UnsupportedFormat(format!("Don't know how to specify format tag for {} bit \"{:?}\" format.", self.spec.bits_per_sample, self.spec.sample_format)).into()),
+            format_tag: match data_format {
+                PCM_Int => {
+                    match ext {
+                        false => 1,
+                        true => 0xFFFE,
                     }
-                }
+                },
+                PCM_Float => 3,
+                Mp3 => {
+                    ext = false;
+                },
+                OggVorbis => {
+                    ext = false;
+                },
             },
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
