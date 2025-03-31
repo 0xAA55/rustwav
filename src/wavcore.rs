@@ -215,6 +215,31 @@ pub enum SpeakerPosition {
     TopBackRight = 0x20000,
 }
 
+impl std::fmt::Display for SpeakerPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SpeakerPosition::FrontLeft           => write!(f, "front_left"),
+            SpeakerPosition::FrontRight          => write!(f, "front_right"),
+            SpeakerPosition::FrontCenter         => write!(f, "front_center"),
+            SpeakerPosition::LowFreq             => write!(f, "low_freq"),
+            SpeakerPosition::BackLeft            => write!(f, "back_left"),
+            SpeakerPosition::BackRight           => write!(f, "back_right"),
+            SpeakerPosition::FrontLeftOfCenter   => write!(f, "front_left_of_center"),
+            SpeakerPosition::FrontRightOfCenter  => write!(f, "front_right_of_center"),
+            SpeakerPosition::BackCenter          => write!(f, "back_center"),
+            SpeakerPosition::SideLeft            => write!(f, "side_left"),
+            SpeakerPosition::SideRight           => write!(f, "side_right"),
+            SpeakerPosition::TopCenter           => write!(f, "top_center"),
+            SpeakerPosition::TopFrontLeft        => write!(f, "top_front_left"),
+            SpeakerPosition::TopFrontCenter      => write!(f, "top_front_center"),
+            SpeakerPosition::TopFrontRight       => write!(f, "top_front_right"),
+            SpeakerPosition::TopBackLeft         => write!(f, "top_back_left"),
+            SpeakerPosition::TopBackCenter       => write!(f, "top_back_center"),
+            SpeakerPosition::TopBackRight        => write!(f, "top_back_right"),
+        }
+    }
+}
+
 // TODO
 // 设计算法
 // 对每一个声道来源设计一个向量值，相当于从人耳到声道来源的方向
@@ -253,6 +278,19 @@ pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Re
         Ok(ret)
     } else {
         Err(AudioError::ChannelNotMatchMask)
+    }
+}
+
+pub fn channel_mask_to_speaker_positions_desc(channels: u16, channel_mask: u32) -> Result<Vec<String>, AudioError> {
+    match channel_mask_to_speaker_positions(channels, channel_mask) {
+        Ok(v) => {
+            let mut ret = Vec::with_capacity(v.len());
+            for e in v.iter() {
+                ret.push(format!("{:?}", e));
+            }
+            Ok(ret)
+        },
+        Err(e) => Err(e),
     }
 }
 
@@ -304,6 +342,10 @@ impl Spec {
 
     pub fn channel_mask_to_speaker_positions(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
         channel_mask_to_speaker_positions(self.channels, self.channel_mask)
+    }
+
+    pub fn channel_mask_to_speaker_positions_desc(&self) -> Result<Vec<String>, AudioError> {
+        channel_mask_to_speaker_positions_desc(self.channels, self.channel_mask)
     }
 }
 
