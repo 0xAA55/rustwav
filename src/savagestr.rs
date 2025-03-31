@@ -9,7 +9,7 @@ fn get_system_code_page() -> u32 {
 }
 
 // 莽夫式解码
-pub fn savage_decode(bytes: &[u8]) -> String {
+fn savage_decode(bytes: &[u8]) -> String {
     format!("{}", String::from_utf8_lossy(bytes))
 }
 

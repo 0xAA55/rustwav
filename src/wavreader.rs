@@ -305,7 +305,7 @@ pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), Box<dyn std
 }
 
 #[derive(Debug)]
-pub struct WaveDataReader {
+struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
     tempfile: Arc<File>,
     filepath: PathBuf,

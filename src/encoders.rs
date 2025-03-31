@@ -182,7 +182,7 @@ impl EncoderBasic for PcmEncoder {
 
 // PcmEncoderFrom<S>：样本从 S 类型打包到目标类型
 #[derive(Debug)]
-pub struct PcmEncoderFrom<S>
+struct PcmEncoderFrom<S>
 where S: SampleType {
     writer: fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>,
 }
