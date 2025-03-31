@@ -84,7 +84,7 @@ impl EncoderBasic for () {
 }
 
 #[derive(Debug)]
-pub struct Encoder {
+pub struct Encoder { // 它就只是负责帮存储一个 `EncoderBasic`，然后提供具有泛型参数的函数便于调用者使用。
     encoder: Box<dyn EncoderBasic>,
 }
 
@@ -97,7 +97,7 @@ impl Encoder {
 
     pub fn write_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
-        match std::any::type_name::<S>() {
+        match std::any::type_name::<S>() { // 希望编译器能做到优化，省区字符串比对的过程。
             "i8"  => self.encoder.write_frame__i8(writer, &sample_conv(frame)),
             "i16" => self.encoder.write_frame_i16(writer, &sample_conv(frame)),
             "i24" => self.encoder.write_frame_i24(writer, &sample_conv(frame)),
@@ -116,7 +116,7 @@ impl Encoder {
 
     pub fn write_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
-        match std::any::type_name::<S>() {
+        match std::any::type_name::<S>() { // 希望编译器能做到优化，省区字符串比对的过程。
             "i8"  => self.encoder.write_multiple_frames__i8(writer, &sample_conv_batch(frames)),
             "i16" => self.encoder.write_multiple_frames_i16(writer, &sample_conv_batch(frames)),
             "i24" => self.encoder.write_multiple_frames_i24(writer, &sample_conv_batch(frames)),
@@ -134,6 +134,8 @@ impl Encoder {
     }
 }
 
+// 样本类型缩放转换
+// 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
 fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
 where S: SampleType,
       D: SampleType {
@@ -144,7 +146,7 @@ where S: SampleType,
     }
     ret
 }
-
+// 样本类型缩放转换批量版
 fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
 where S: SampleType,
       D: SampleType {
