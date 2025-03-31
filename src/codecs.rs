@@ -1,25 +1,17 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, fmt::Debug};
 
 use crate::wavcore::*;
 use crate::readwrite::*;
+use crate::adpcm::*;
 
-pub trait Decoder<S>
+pub trait Decoder<S>: Debug
     where S: SampleType {
     fn get_name(&self) -> &'static str;
     fn get_reader(&self) -> &BufReader<File>;
     fn decode(&mut self) -> Result<S, io::Error>;
-}
-
-impl<S> std::fmt::Debug for dyn Decoder<S>
-where S: SampleType {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct(&format!("Decoder<{}>", std::any::type_name::<S>()))
-            .field("name", &self.get_name())
-            .finish_non_exhaustive()
-    }
 }
 
 #[derive(Debug)]
@@ -97,3 +89,15 @@ where S: SampleType {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
