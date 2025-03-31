@@ -36,7 +36,7 @@ where S: SampleType {
 
 impl<S> PcmDecoder<S>
 where S: SampleType {
-    pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &fmt__Chunk) -> Result<Self, Box<dyn Error>> {
+    pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, Box<dyn Error>> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
             other => return Err(AudioReadError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other)).into()),
