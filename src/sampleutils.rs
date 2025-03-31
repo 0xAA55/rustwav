@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{Read, Write, Error}, mem::size_of, clone::Clone};
+use std::{io::{Read, Write, Error}, mem::size_of, fmt::Debug, clone::Clone};
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
@@ -66,45 +66,21 @@ pub trait SampleType: Debug + Sized + Clone + Copy + 'static {
     fn write_be<T>(&self, w: &mut T) -> Result<(), Error> where T: Write + ?Sized;
 }
 
-pub trait SampleFrom {
+pub trait SampleFrom: Debug + Sized + Clone + Copy + 'static {
     fn to(s: impl SampleType) -> Self;
 }
-impl SampleFrom for i8 {
-    fn to(s: impl SampleType) -> Self { s.to_i8() }
-}
-impl SampleFrom for i16 {
-    fn to(s: impl SampleType) -> Self { s.to_i16() }
-}
-impl SampleFrom for i24 {
-    fn to(s: impl SampleType) -> Self { s.to_i24() }
-}
-impl SampleFrom for i32 {
-    fn to(s: impl SampleType) -> Self { s.to_i32() }
-}
-impl SampleFrom for i64 {
-    fn to(s: impl SampleType) -> Self { s.to_i64() }
-}
-impl SampleFrom for u8 {
-    fn to(s: impl SampleType) -> Self { s.to_u8() }
-}
-impl SampleFrom for u16 {
-    fn to(s: impl SampleType) -> Self { s.to_u16() }
-}
-impl SampleFrom for u24 {
-    fn to(s: impl SampleType) -> Self { s.to_u24() }
-}
-impl SampleFrom for u32 {
-    fn to(s: impl SampleType) -> Self { s.to_u32() }
-}
-impl SampleFrom for u64 {
-    fn to(s: impl SampleType) -> Self { s.to_u64() }
-}
-impl SampleFrom for f32 {
-    fn to(s: impl SampleType) -> Self { s.to_f32() }
-}
-impl SampleFrom for f64 {
-    fn to(s: impl SampleType) -> Self { s.to_f64() }
-}
+impl SampleFrom for i8  {fn to(s: impl SampleType) -> Self { s.to_i8()  }}
+impl SampleFrom for i16 {fn to(s: impl SampleType) -> Self { s.to_i16() }}
+impl SampleFrom for i24 {fn to(s: impl SampleType) -> Self { s.to_i24() }}
+impl SampleFrom for i32 {fn to(s: impl SampleType) -> Self { s.to_i32() }}
+impl SampleFrom for i64 {fn to(s: impl SampleType) -> Self { s.to_i64() }}
+impl SampleFrom for u8  {fn to(s: impl SampleType) -> Self { s.to_u8()  }}
+impl SampleFrom for u16 {fn to(s: impl SampleType) -> Self { s.to_u16() }}
+impl SampleFrom for u24 {fn to(s: impl SampleType) -> Self { s.to_u24() }}
+impl SampleFrom for u32 {fn to(s: impl SampleType) -> Self { s.to_u32() }}
+impl SampleFrom for u64 {fn to(s: impl SampleType) -> Self { s.to_u64() }}
+impl SampleFrom for f32 {fn to(s: impl SampleType) -> Self { s.to_f32() }}
+impl SampleFrom for f64 {fn to(s: impl SampleType) -> Self { s.to_f64() }}
 
 impl SampleType for i8{
     fn from(v: impl SampleType) -> i8{
