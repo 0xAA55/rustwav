@@ -120,7 +120,7 @@ impl WaveWriter {
         }
 
         // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
-        let mut ext = self.spec.channel_mask != guess_channel_mask(self.spec.channels)?;
+        let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
 
         let fmt__chunk = FmtChunk {
             format_tag: match &self.data_format {
