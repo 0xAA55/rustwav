@@ -16,18 +16,18 @@ pub trait Decoder<S>: Debug
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
 pub trait EncoderBasic: Debug {
-    fn write_frame__i8(&mut self, writer: &mut dyn Writer, frames: &Vec<i8 >) -> Result<(), Box<dyn Error>>;
-    fn write_frame_i16(&mut self, writer: &mut dyn Writer, frames: &Vec<i16>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_i24(&mut self, writer: &mut dyn Writer, frames: &Vec<i24>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_i32(&mut self, writer: &mut dyn Writer, frames: &Vec<i32>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_i64(&mut self, writer: &mut dyn Writer, frames: &Vec<i64>) -> Result<(), Box<dyn Error>>;
-    fn write_frame__u8(&mut self, writer: &mut dyn Writer, frames: &Vec<u8 >) -> Result<(), Box<dyn Error>>;
-    fn write_frame_u16(&mut self, writer: &mut dyn Writer, frames: &Vec<u16>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_u24(&mut self, writer: &mut dyn Writer, frames: &Vec<u24>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_u32(&mut self, writer: &mut dyn Writer, frames: &Vec<u32>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_u64(&mut self, writer: &mut dyn Writer, frames: &Vec<u64>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_f32(&mut self, writer: &mut dyn Writer, frames: &Vec<f32>) -> Result<(), Box<dyn Error>>;
-    fn write_frame_f64(&mut self, writer: &mut dyn Writer, frames: &Vec<f64>) -> Result<(), Box<dyn Error>>;
+    fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), Box<dyn Error>>;
+    fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_i32(&mut self, writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_i64(&mut self, writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>>;
+    fn write_frame__u8(&mut self, writer: &mut dyn Writer, frame: &Vec<u8 >) -> Result<(), Box<dyn Error>>;
+    fn write_frame_u16(&mut self, writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_u24(&mut self, writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_u32(&mut self, writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_u64(&mut self, writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_f32(&mut self, writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), Box<dyn Error>>;
+    fn write_frame_f64(&mut self, writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>>;
 
     fn write_multiple_frames__i8(&mut self, writer: &mut dyn Writer, frames: &[Vec<i8 >]) -> Result<(), Box<dyn Error>>;
     fn write_multiple_frames_i16(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), Box<dyn Error>>;
@@ -58,18 +58,18 @@ impl Encoder {
     pub fn write_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_frame__i8(writer, &Self::generic_type_conv(frame)),
-            "i16" => self.encoder.write_frame_i16(writer, &Self::generic_type_conv(frame)),
-            "i24" => self.encoder.write_frame_i24(writer, &Self::generic_type_conv(frame)),
-            "i32" => self.encoder.write_frame_i32(writer, &Self::generic_type_conv(frame)),
-            "i64" => self.encoder.write_frame_i64(writer, &Self::generic_type_conv(frame)),
-            "u8"  => self.encoder.write_frame__u8(writer, &Self::generic_type_conv(frame)),
-            "u16" => self.encoder.write_frame_u16(writer, &Self::generic_type_conv(frame)),
-            "u24" => self.encoder.write_frame_u24(writer, &Self::generic_type_conv(frame)),
-            "u32" => self.encoder.write_frame_u32(writer, &Self::generic_type_conv(frame)),
-            "u64" => self.encoder.write_frame_u64(writer, &Self::generic_type_conv(frame)),
-            "f32" => self.encoder.write_frame_f32(writer, &Self::generic_type_conv(frame)),
-            "f64" => self.encoder.write_frame_f64(writer, &Self::generic_type_conv(frame)),
+            "i8"  => self.encoder.write_frame__i8(writer, &sample_conv(frame)),
+            "i16" => self.encoder.write_frame_i16(writer, &sample_conv(frame)),
+            "i24" => self.encoder.write_frame_i24(writer, &sample_conv(frame)),
+            "i32" => self.encoder.write_frame_i32(writer, &sample_conv(frame)),
+            "i64" => self.encoder.write_frame_i64(writer, &sample_conv(frame)),
+            "u8"  => self.encoder.write_frame__u8(writer, &sample_conv(frame)),
+            "u16" => self.encoder.write_frame_u16(writer, &sample_conv(frame)),
+            "u24" => self.encoder.write_frame_u24(writer, &sample_conv(frame)),
+            "u32" => self.encoder.write_frame_u32(writer, &sample_conv(frame)),
+            "u64" => self.encoder.write_frame_u64(writer, &sample_conv(frame)),
+            "f32" => self.encoder.write_frame_f32(writer, &sample_conv(frame)),
+            "f64" => self.encoder.write_frame_f64(writer, &sample_conv(frame)),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
@@ -77,18 +77,18 @@ impl Encoder {
     pub fn write_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_multiple_frames__i8(writer, &Self::generics_type_conv(frames)),
-            "i16" => self.encoder.write_multiple_frames_i16(writer, &Self::generics_type_conv(frames)),
-            "i24" => self.encoder.write_multiple_frames_i24(writer, &Self::generics_type_conv(frames)),
-            "i32" => self.encoder.write_multiple_frames_i32(writer, &Self::generics_type_conv(frames)),
-            "i64" => self.encoder.write_multiple_frames_i64(writer, &Self::generics_type_conv(frames)),
-            "u8"  => self.encoder.write_multiple_frames__u8(writer, &Self::generics_type_conv(frames)),
-            "u16" => self.encoder.write_multiple_frames_u16(writer, &Self::generics_type_conv(frames)),
-            "u24" => self.encoder.write_multiple_frames_u24(writer, &Self::generics_type_conv(frames)),
-            "u32" => self.encoder.write_multiple_frames_u32(writer, &Self::generics_type_conv(frames)),
-            "u64" => self.encoder.write_multiple_frames_u64(writer, &Self::generics_type_conv(frames)),
-            "f32" => self.encoder.write_multiple_frames_f32(writer, &Self::generics_type_conv(frames)),
-            "f64" => self.encoder.write_multiple_frames_f64(writer, &Self::generics_type_conv(frames)),
+            "i8"  => self.encoder.write_multiple_frames__i8(writer, &sample_conv_batch(frames)),
+            "i16" => self.encoder.write_multiple_frames_i16(writer, &sample_conv_batch(frames)),
+            "i24" => self.encoder.write_multiple_frames_i24(writer, &sample_conv_batch(frames)),
+            "i32" => self.encoder.write_multiple_frames_i32(writer, &sample_conv_batch(frames)),
+            "i64" => self.encoder.write_multiple_frames_i64(writer, &sample_conv_batch(frames)),
+            "u8"  => self.encoder.write_multiple_frames__u8(writer, &sample_conv_batch(frames)),
+            "u16" => self.encoder.write_multiple_frames_u16(writer, &sample_conv_batch(frames)),
+            "u24" => self.encoder.write_multiple_frames_u24(writer, &sample_conv_batch(frames)),
+            "u32" => self.encoder.write_multiple_frames_u32(writer, &sample_conv_batch(frames)),
+            "u64" => self.encoder.write_multiple_frames_u64(writer, &sample_conv_batch(frames)),
+            "f32" => self.encoder.write_multiple_frames_f32(writer, &sample_conv_batch(frames)),
+            "f64" => self.encoder.write_multiple_frames_f64(writer, &sample_conv_batch(frames)),
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
