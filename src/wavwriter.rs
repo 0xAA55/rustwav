@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub use crate::wavcore::*;
 use crate::wavreader::WaveReader;
 
+// 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]
 pub enum FileSizeOption{
     NeverLargerThan4GB,
@@ -17,12 +18,14 @@ pub enum FileSizeOption{
     ForceUse4GBFormat,
 }
 
+// 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug)]
 pub enum DataFormat{
     PCM_Int,
     PCM_Float,
     Mp3,
     OggVorbis,
+    Flac,
 }
 
 #[derive(Debug)]
