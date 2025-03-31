@@ -436,15 +436,11 @@ where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-
-        let mut ret = Vec::<S>::with_capacity(self.spec.channels as usize);
-        for _ in 0..self.spec.channels {
-            match self.decoder.decode() {
-                Ok(sample) => ret.push(sample),
-                Err(_) => return None,
-            }
-        }
+        let ret = match self.decoder.decode() {
+            Ok(sample) => Some(sample),
+            Err(_) => None,
+        };
         self.frame_pos += 1;
-        Some(ret)
+        ret
     }
 }
