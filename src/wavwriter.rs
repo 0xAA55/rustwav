@@ -29,7 +29,7 @@ pub struct WaveWriter {
     data_offset: u64,
     sample_type: WaveSampleType,
     sample_packer: Encoder,
-    text_encoding: Box<dyn SavageStringCodec>,
+    text_encoding: Box<dyn SavageStringCodecs>,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
     pub bext_chunk: Option<BextChunk>,
