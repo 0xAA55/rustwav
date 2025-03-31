@@ -15,6 +15,14 @@ pub trait Decoder<S>: Debug
     fn decode(&mut self) -> Result<S, std::io::Error>;
 }
 
+impl<S> Decoder<S> for PcmDecoder<S>
+    where S: SampleType {
+    fn decode(&mut self) -> Result<S, std::io::Error>
+    where S: SampleType {
+        self.decode()
+    }
+}
+
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
@@ -24,14 +32,6 @@ where S: SampleType {
     frame_size: u16,
     spec: Spec,
     decoder: fn(&mut dyn Reader) -> Result<S, std::io::Error>,
-}
-
-impl<S> Decoder<S> for PcmDecoder<S>
-    where S: SampleType {
-    fn decode(&mut self) -> Result<S, io::Error>
-    where S: SampleType {
-        self.decode()
-    }
 }
 
 impl<S> PcmDecoder<S>
