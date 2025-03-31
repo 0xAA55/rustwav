@@ -22,6 +22,14 @@ impl<S> Decoder<S> for PcmDecoder<S>
     }
 }
 
+#[cfg(feature = "mp3")]
+impl<S> Decoder<S> for MP3::Mp3Decoder
+    where S: SampleType {
+    fn decode(&mut self) -> Result<Vec<S>, io::Error> {
+        self.decode::<S>()
+    }
+}
+
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
@@ -92,19 +100,63 @@ where S: SampleType {
 }
 
 #[cfg(feature = "mp3")]
-mod MP3 {
-    use std::{fs::File, io::{self, BufReader}};
-    use puremp3::*;
-    use crate::sampleutils::SampleType;
+pub mod MP3 {
+    use std::{fs::File, io::{self, BufReader}, fmt::Debug, error::{Error}};
+    use puremp3::{read_mp3, FrameHeader, Channels};
+    use crate::errors::AudioError;
+    use crate::wavcore::FmtChunk;
+    use crate::sampleutils::{SampleType};
 
-    #[derive(Debug)]
-    pub struct Mp3Decoder<S>
-    where S: SampleType {
-        reader: BufReader<File>, // 数据读取器
+    pub struct Mp3Decoder {
         data_offset: u64,
         data_length: u64,
-        frame_size: u16,
-        
+        frame_header: FrameHeader,
+        iterator: Box<dyn Iterator<Item = (f32, f32)>>,
+    }
+
+    impl Mp3Decoder {
+        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, Box<dyn Error>> {
+            match fmt.format_tag {
+                0x0055 => (),
+                other => return Err(AudioError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other)).into()),
+            }
+            let (frame_header, iterator) = read_mp3(reader)?;
+            Ok(Self {
+                data_offset,
+                data_length,
+                frame_header,
+                iterator: Box::new(iterator),
+            })
+        }
+
+        pub fn decode<S>(&mut self) -> Result<Vec<S>, io::Error>
+        where S: SampleType {
+            match self.iterator.next() {
+                Some((l, r)) => {
+                    let m = S::from((l + r) * 0.5);
+                    let l = S::from(l);
+                    let r = S::from(r);
+                    match self.frame_header.channels {
+                        Channels::Mono => Ok(vec![m]),
+                        Channels::DualMono => Ok(vec![l, r]),
+                        Channels::Stereo => Ok(vec![l, r]),
+                        Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ }  => Ok(vec![l, r]), 
+                    }
+                },
+                None => Err(io::Error::new(io::ErrorKind::Other, "Finished reading MP3 file.")),
+            }
+        }
+    }
+
+    impl Debug for Mp3Decoder{
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Mp3Decoder")
+                .field("data_offset", &self.data_offset)
+                .field("data_length", &self.data_length)
+                .field("frame_header", &self.frame_header)
+                .field("iterator", &format_args!("Iterator<Item = (f32, f32)>"))
+                .finish()
+        }
     }
 }
 
