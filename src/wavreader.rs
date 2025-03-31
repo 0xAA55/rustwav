@@ -3,10 +3,15 @@
 
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
 
-use crate::wavcore::*;
-use crate::decoders::*;
-use crate::errors::{AudioReadError};
-use crate::savagestr::SavageStringCodec;
+use crate::errors::{AudioError, AudioReadError};
+use crate::wavcore::{Spec};
+use crate::wavcore::{ChunkHeader};
+use crate::wavcore::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::{guess_channel_mask};
+use crate::decoders::{Decoder, PcmDecoder};
+use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+use crate::sampleutils::{SampleType};
+use crate::readwrite::{Reader, StringIO::*};
 
 #[derive(Debug)]
 pub enum WaveDataSource {

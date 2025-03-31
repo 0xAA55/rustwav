@@ -1,13 +1,17 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::fs::File;
-use std::path::Path;
-use std::io::BufWriter;
-use std::error::Error;
+use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, error::Error};
 
-pub use crate::wavcore::*;
-use crate::encoders::*;
+use crate::errors::AudioWriteError;
+use crate::wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType};
+use crate::wavcore::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
+use crate::wavcore::{ChunkWriter};
+use crate::wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::encoders::{Encoder, PcmEncoder};
+use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+use crate::sampleutils::{SampleType};
+use crate::readwrite::{SharedWriter, StringIO::*};
 use crate::wavreader::WaveReader;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？

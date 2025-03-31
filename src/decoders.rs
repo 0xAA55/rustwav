@@ -1,11 +1,13 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, io::BufReader, fmt::Debug};
+use std::{fs::File, io::{BufReader}, fmt::Debug, error::Error};
 
-use crate::wavcore::*;
-use crate::readwrite::*;
-use crate::adpcm::*;
+// use crate::adpcm::*;
+use crate::errors::AudioError;
+use crate::wavcore::{Spec, WaveSampleType, FmtChunk};
+use crate::sampleutils::{SampleType, i24, u24};
+use crate::readwrite::{Reader};
 
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
