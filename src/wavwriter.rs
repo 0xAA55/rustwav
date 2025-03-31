@@ -18,16 +18,6 @@ pub enum FileSizeOption{
     ForceUse4GBFormat,
 }
 
-// 你以为 WAV 就是用来存 PCM 的吗？
-#[derive(Debug)]
-pub enum DataFormat{
-    PCM_Int,
-    PCM_Float,
-    Mp3,
-    OggVorbis,
-    Flac,
-}
-
 #[derive(Debug)]
 pub struct WaveWriter {
     writer: Arc<Mutex<dyn Writer>>,
@@ -121,27 +111,43 @@ impl WaveWriter {
 
         // 准备写入 fmt 块
         if self.spec.channel_mask == 0 {
-            self.spec.guess_channel_mask();
+            self.spec.guess_channel_mask()?;
         }
 
         // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
-        let mut ext = self.spec.channel_mask != guess_channel_mask(self.spec.channels);
+        let mut ext = self.spec.channel_mask != guess_channel_mask(self.spec.channels)?;
 
         let fmt__chunk = fmt__Chunk {
-            format_tag: match data_format {
-                PCM_Int => {
+            format_tag: match &self.data_format {
+                DataFormat::PCM_Int => {
                     match ext {
                         false => 1,
                         true => 0xFFFE,
                     }
                 },
-                PCM_Float => 3,
-                Mp3 => {
-                    ext = false;
+                DataFormat::PCM_Float => {
+                    match ext {
+                        false => 3,
+                        true => {
+                            match self.spec.bits_per_sample {
+                                32 | 64 => 0xFFFE,
+                                other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other)).into()),
+                            }
+                        }
+                    }
                 },
-                OggVorbis => {
+                DataFormat::Mp3 => {
                     ext = false;
+                    0x00FF
                 },
+                DataFormat::OggVorbis => {
+                    ext = false;
+                    0x674f
+                },
+                DataFormat::Flac => {
+                    ext = false;
+                    0xF1AC
+                }
             },
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
@@ -155,7 +161,7 @@ impl WaveWriter {
                     valid_bits_per_sample: self.spec.bits_per_sample,
                     channel_mask: self.spec.channel_mask,
                     sub_format: match self.spec.sample_format {
-                        Int => GUID_PCM_FORMAT,
+                        Int | UInt => GUID_PCM_FORMAT,
                         Float => GUID_IEEE_FLOAT_FORMAT,
                         other => return Err(AudioWriteError::InvalidArguments(format!("\"{}\" was given for specifying the sample format", other)).into()),
                     },
