@@ -41,7 +41,7 @@ where S: SampleType {
             1 | 0xFFFE | 3 => (),
             other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other)).into()),
         }
-        let wave_sample_type = get_sample_type(spec.bits_per_sample, spec.sample_format);
+        let wave_sample_type = spec.get_sample_type();
         Ok(Self {
             reader,
             data_offset,
