@@ -1075,36 +1075,6 @@ impl AcidChunk {
     }
 }
 
-fn axml_write(writer_shared: SharedWriter, data: &String, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
-    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"axml")?;
-    writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data, text_encoding)?;
-        Ok(())
-    })?;
-    cw.end()?;
-    Ok(())
-}
-
-fn ixml_write(writer_shared: SharedWriter, data: &String, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
-    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ixml")?;
-    writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data, text_encoding)?;
-        Ok(())
-    })?;
-    cw.end()?;
-    Ok(())
-}
-
-fn Trkn_write(writer_shared: SharedWriter, data: &String, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
-    let mut cw = ChunkWriter::begin(writer_shared.clone(), b"Trkn")?;
-    writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data, text_encoding)?;
-        Ok(())
-    })?;
-    cw.end()?;
-    Ok(())
-}
-
 #[derive(Debug, Clone)]
 pub enum JunkChunk{
     FullZero(u64), // 全零
