@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(non_snake_case)]
 
 use std::{io::{self, Read, Write, SeekFrom}, error::Error, collections::HashMap};
 
@@ -458,29 +457,29 @@ impl ChunkHeader {
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub struct fmt__Chunk {
+pub struct FmtChunk {
     pub format_tag: u16, // https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h
     pub channels: u16,
     pub sample_rate: u32,
     pub byte_rate: u32,
     pub block_align: u16,
     pub bits_per_sample: u16,
-    pub extension: Option<fmt__Chunk_Extension>,
+    pub extension: Option<FmtChunkExtension>,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub struct fmt__Chunk_Extension {
+pub struct FmtChunkExtension {
     pub ext_len: u16,
     pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
     pub sub_format: GUID,
 }
 
-impl fmt__Chunk {
+impl FmtChunk {
     pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let mut ret = fmt__Chunk{
+        let mut ret = FmtChunk{
             format_tag: u16::read_le(reader)?,
             channels: u16::read_le(reader)?,
             sample_rate: u32::read_le(reader)?,
@@ -492,7 +491,7 @@ impl fmt__Chunk {
         match ret.format_tag {
             0xFFFE => {
                 if chunk_size >= 40 {
-                    ret.extension = Some(fmt__Chunk_Extension::read(reader)?);
+                    ret.extension = Some(FmtChunkExtension::read(reader)?);
                 }
             },
             _ => (),
@@ -552,7 +551,7 @@ impl fmt__Chunk {
     }
 }
 
-impl fmt__Chunk_Extension {
+impl FmtChunkExtension {
     pub fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         Ok(Self{
@@ -772,7 +771,7 @@ impl InstChunk {
 
 #[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
-pub struct Cue_Chunk {
+pub struct CueChunk {
     pub num_cues: u32,
     pub cues: Vec<Cue>,
 }
@@ -788,10 +787,10 @@ pub struct Cue {
     pub offset: u32,
 }
 
-impl Cue_Chunk {
+impl CueChunk {
     pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
     where R: Reader {
-        let mut ret = Cue_Chunk {
+        let mut ret = CueChunk {
             num_cues: u32::read_le(reader)?,
             cues: Vec::<Cue>::new(),
         };
