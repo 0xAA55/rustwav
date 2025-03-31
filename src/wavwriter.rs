@@ -39,6 +39,7 @@ pub struct WaveWriter {
     data_offset: u64,
     sample_type: WaveSampleType,
     sample_packer: SamplePacker,
+    text_encoding: Box<dyn SavageStringCodec>,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
     pub bext_chunk: Option<BextChunk>,
@@ -75,6 +76,7 @@ impl WaveWriter {
             data_offset: 0,
             sample_type,
             sample_packer: SamplePacker::new(),
+            text_encoding: Box::new(StringCodecMaps::new()),
             riff_chunk: None,
             data_chunk: None,
             bext_chunk: None,
@@ -254,11 +256,11 @@ impl WaveWriter {
         self.data_chunk = None;
         
         // 写入其它全部的结构体块
-        if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone())?; }
+        if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone(), &*self.text_encoding)?; }
         if let Some(chunk) = &self.smpl_chunk { chunk.write(self.writer.clone())?; }
         if let Some(chunk) = &self.inst_chunk { chunk.write(self.writer.clone())?; }
         if let Some(chunk) = &self.cue__chunk { chunk.write(self.writer.clone())?; }
-        if let Some(chunk) = &self.list_chunk { chunk.write(self.writer.clone())?; }
+        if let Some(chunk) = &self.list_chunk { chunk.write(self.writer.clone(), &*self.text_encoding)?; }
         if let Some(chunk) = &self.acid_chunk { chunk.write(self.writer.clone())?; }
 
         // 写入其它全部的字符串块
@@ -275,7 +277,7 @@ impl WaveWriter {
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
             escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
-                write_str(writer, chunk)?;
+                write_str(writer, chunk, &*self.text_encoding)?;
                 Ok(())
             })?;
             cw.end()?;
