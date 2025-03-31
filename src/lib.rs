@@ -9,5 +9,6 @@ mod wavcore;
 mod wavreader;
 mod wavwriter;
 
+pub use wavcore::DataFormat;
 pub use wavreader::WaveReader;
 pub use wavwriter::{WaveWriter, Spec, FileSizeOption, SampleFormat};
