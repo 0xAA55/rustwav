@@ -2,11 +2,10 @@ use std::fmt::Debug;
 
 // 取得操作系统代码页
 fn get_system_code_page() -> u32 {
-    if cfg!(target_os = "windows") {
-        unsafe{ windows::Win32::Globalization::GetACP() }
-    } else {
-        65001
-    }
+    #[cfg(target_os = "windows")]
+    unsafe{ windows::Win32::Globalization::GetACP() }
+    #[cfg(not(target_os = "windows"))]
+    65001
 }
 
 // 莽夫式解码
