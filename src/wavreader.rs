@@ -19,7 +19,7 @@ pub enum WaveDataSource {
 pub struct WaveReader {
     riff_len: u64,
     spec: Spec,
-    fmt__chunk: fmt__Chunk, // fmt 块，这个块一定会有
+    fmt__chunk: FmtChunk, // fmt 块，这个块一定会有
     fact_data: Option<u32>, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
@@ -30,7 +30,7 @@ pub struct WaveReader {
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
-    cue__chunk: Option<Cue_Chunk>,
+    cue__chunk: Option<CueChunk>,
     axml_chunk: Option<String>,
     ixml_chunk: Option<String>,
     list_chunk: Option<ListChunk>,
@@ -85,13 +85,13 @@ impl WaveReader {
         // 读完头部后，这里必须是 WAVE 否则不是音频文件。
         expect_flag(&mut reader, b"WAVE")?;
 
-        let mut fmt__chunk: Option<fmt__Chunk> = None;
+        let mut fmt__chunk: Option<FmtChunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data: Option<u32> = None;
         let mut bext_chunk: Option<BextChunk> = None;
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
-        let mut cue__chunk: Option<Cue_Chunk> = None;
+        let mut cue__chunk: Option<CueChunk> = None;
         let mut axml_chunk: Option<String> = None;
         let mut ixml_chunk: Option<String> = None;
         let mut list_chunk: Option<ListChunk> = None;
@@ -113,7 +113,7 @@ impl WaveReader {
                 }
                 b"fmt " => {
                     Self::verify_none(&fmt__chunk, &chunk.flag)?;
-                    fmt__chunk = Some(fmt__Chunk::read(&mut reader, chunk.size)?);
+                    fmt__chunk = Some(FmtChunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
                     fact_data = Some(u32::read_le(&mut reader)?);
@@ -154,7 +154,7 @@ impl WaveReader {
                 },
                 b"cue " => {
                     Self::verify_none(&cue__chunk, &chunk.flag)?;
-                    cue__chunk = Some(Cue_Chunk::read(&mut reader)?);
+                    cue__chunk = Some(CueChunk::read(&mut reader)?);
                 },
                 b"axml" => {
                     Self::verify_none(&axml_chunk, &chunk.flag)?;
@@ -248,11 +248,11 @@ impl WaveReader {
     }
 
     // 提供乐曲信息元数据
-    pub fn get_fmt__chunk(&self) -> &fmt__Chunk { &self.fmt__chunk }
+    pub fn get_fmt__chunk(&self) -> &FmtChunk { &self.fmt__chunk }
     pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
     pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
     pub fn get_inst_chunk(&self) -> &Option<InstChunk> { &self.inst_chunk }
-    pub fn get_cue__chunk(&self) -> &Option<Cue_Chunk> { &self.cue__chunk }
+    pub fn get_cue__chunk(&self) -> &Option<CueChunk> { &self.cue__chunk }
     pub fn get_axml_chunk(&self) -> &Option<String> { &self.axml_chunk }
     pub fn get_ixml_chunk(&self) -> &Option<String> { &self.ixml_chunk }
     pub fn get_list_chunk(&self) -> &Option<ListChunk> { &self.list_chunk }
@@ -403,7 +403,7 @@ where S: SampleType {
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &fmt__Chunk, fact: u32) -> Result<Self, Box<dyn Error>> {
+    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, Box<dyn Error>> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,

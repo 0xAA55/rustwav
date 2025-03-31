@@ -35,7 +35,7 @@ pub struct WaveWriter {
     pub bext_chunk: Option<BextChunk>,
     pub smpl_chunk: Option<SmplChunk>,
     pub inst_chunk: Option<InstChunk>,
-    pub cue__chunk: Option<Cue_Chunk>,
+    pub cue__chunk: Option<CueChunk>,
     pub axml_chunk: Option<String>,
     pub ixml_chunk: Option<String>,
     pub list_chunk: Option<ListChunk>,
@@ -122,7 +122,7 @@ impl WaveWriter {
         // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
         let mut ext = self.spec.channel_mask != guess_channel_mask(self.spec.channels)?;
 
-        let fmt__chunk = fmt__Chunk {
+        let fmt__chunk = FmtChunk {
             format_tag: match &self.data_format {
                 DataFormat::PCM_Int => {
                     match ext {
@@ -161,7 +161,7 @@ impl WaveWriter {
             bits_per_sample: self.spec.bits_per_sample,
             extension: match ext {
                 false => None,
-                true => Some(fmt__Chunk_Extension {
+                true => Some(FmtChunkExtension {
                     ext_len: 22,
                     valid_bits_per_sample: self.spec.bits_per_sample,
                     channel_mask: self.spec.channel_mask,
@@ -226,7 +226,7 @@ impl WaveWriter {
     pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
         self.inst_chunk = Some(*chunk);
     }
-    pub fn set_cue__chunk(&mut self, chunk: &Cue_Chunk) {
+    pub fn set_cue__chunk(&mut self, chunk: &CueChunk) {
         self.cue__chunk = Some(chunk.clone());
     }
     pub fn set_axml_chunk(&mut self, chunk: &String) {
