@@ -14,9 +14,18 @@ use std::env::args;
 use std::process::ExitCode;
 use std::error::Error;
 
-use wavcore::DataFormat;
-use wavreader::WaveReader;
-use wavwriter::{WaveWriter, Spec, FileSizeOption, SampleFormat};
+pub use errors::{AudioError, AudioReadError, AudioWriteError};
+pub use savagestr::{StringCodecMaps, SavageStringCodecs};
+pub use readwrite::{Reader, Writer, SharedWriter, StringIO};
+pub use sampleutils::{SampleType, SampleFrom, i24, u24};
+pub use encoders::{EncoderBasic, Encoder, PcmEncoder};
+pub use decoders::{Decoder, PcmDecoder};
+pub use wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
+pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
+pub use wavcore::{ChunkWriter, ChunkHeader};
+pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
+pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
+pub use wavwriter::{FileSizeOption, WaveWriter};
 
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
