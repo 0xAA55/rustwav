@@ -43,6 +43,46 @@ pub trait EncoderBasic: Debug {
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), Box<dyn Error>>;
 }
 
+// 提供默认实现。无论用户输入的是什么格式，默认用 f32 传递给编码器。
+impl EncoderBasic for () {
+    // 这个方法用户必须实现
+    fn write_frame_f32(&mut self, _writer: &mut dyn Writer, _frame: &Vec<f32>) -> Result<(), Box<dyn Error>> {
+        panic!("Must implement `write_frame_f32()` for your encoder to get samples.");
+    }
+
+    fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_i32(&mut self, writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_i64(&mut self, writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame__u8(&mut self, writer: &mut dyn Writer, frame: &Vec<u8 >) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_u16(&mut self, writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_u24(&mut self, writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_u32(&mut self, writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_u64(&mut self, writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+    fn write_frame_f64(&mut self, writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), Box<dyn Error>> {self.write_frame_f32(writer, &sample_conv(frame))}
+
+    fn write_multiple_frames__i8(&mut self, writer: &mut dyn Writer, frames: &[Vec<i8 >]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i16(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i24(&mut self, writer: &mut dyn Writer, frames: &[Vec<i24>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i32(&mut self, writer: &mut dyn Writer, frames: &[Vec<i32>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i64(&mut self, writer: &mut dyn Writer, frames: &[Vec<i64>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames__u8(&mut self, writer: &mut dyn Writer, frames: &[Vec<u8 >]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u16(&mut self, writer: &mut dyn Writer, frames: &[Vec<u16>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u24(&mut self, writer: &mut dyn Writer, frames: &[Vec<u24>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u32(&mut self, writer: &mut dyn Writer, frames: &[Vec<u32>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u64(&mut self, writer: &mut dyn Writer, frames: &[Vec<u64>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), Box<dyn Error>> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
+
+    // 这个东西也可以帮用户实现
+    fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), Box<dyn Error>> {
+        for frame in frames.iter() {
+            self.write_frame_f32(writer, frame)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct Encoder {
     encoder: Box<dyn EncoderBasic>,
