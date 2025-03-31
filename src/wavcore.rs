@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{error::Error, collections::HashMap};
+use std::{io::{self, Read, Write, SeekFrom}, error::Error, collections::HashMap};
 
-pub use crate::errors::*;
-pub use crate::readwrite::*;
-pub use crate::sampleutils::*;
-pub use crate::savagestr::*;
+use crate::errors::{AudioError, AudioReadError, AudioWriteError};
+use crate::readwrite::{Reader, Writer, SharedWriter, StringIO::*};
+use crate::sampleutils::SampleType;
+use crate::savagestr::SavageStringCodecs;
 
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug)]
