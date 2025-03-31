@@ -8,6 +8,17 @@ pub use crate::readwrite::*;
 pub use crate::sampleutils::*;
 pub use crate::savagestr::*;
 
+// 你以为 WAV 就是用来存 PCM 的吗？
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub enum DataFormat{
+    PCM_Int,
+    PCM_Float,
+    Mp3,
+    OggVorbis,
+    Flac,
+}
+
 #[cfg(feature = "id3")]
 pub mod Id3{
     use super::Reader;
@@ -577,13 +588,13 @@ pub struct BextChunk {
 }
 
 impl BextChunk {
-    pub fn read<R>(reader: &mut R, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodec) -> Result<Self, Box<dyn Error>>
     where R: Reader {
-        let description = read_str(reader, 256, savage_decoder)?;
-        let originator = read_str(reader, 32, savage_decoder)?;
-        let originator_ref = read_str(reader, 32, savage_decoder)?;
-        let origination_date = read_str(reader, 10, savage_decoder)?;
-        let origination_time = read_str(reader, 8, savage_decoder)?;
+        let description = read_str(reader, 256, text_encoding)?;
+        let originator = read_str(reader, 32, text_encoding)?;
+        let originator_ref = read_str(reader, 32, text_encoding)?;
+        let origination_date = read_str(reader, 10, text_encoding)?;
+        let origination_time = read_str(reader, 8, text_encoding)?;
         let time_ref = u64::read_le(reader)?;
         let version = u16::read_le(reader)?;
         let mut umid = [0u8; 64];
@@ -606,14 +617,14 @@ impl BextChunk {
         })
     }
 
-    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"bext")?;
         escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
-            write_str_sized(writer, &self.description, 256)?;
-            write_str_sized(writer, &self.originator, 32)?;
-            write_str_sized(writer, &self.originator_ref, 32)?;
-            write_str_sized(writer, &self.origination_date, 10)?;
-            write_str_sized(writer, &self.origination_time, 8)?;
+            write_str_sized(writer, &self.description, 256, text_encoding)?;
+            write_str_sized(writer, &self.originator, 32, text_encoding)?;
+            write_str_sized(writer, &self.originator_ref, 32, text_encoding)?;
+            write_str_sized(writer, &self.origination_date, 10, text_encoding)?;
+            write_str_sized(writer, &self.origination_time, 8, text_encoding)?;
             self.time_ref.write_le(writer)?;
             self.version.write_le(writer)?;
             writer.write_all(&self.umid)?;
@@ -835,30 +846,30 @@ pub enum ListChunk {
 }
 
 impl ListChunk {
-    pub fn read<R>(reader: &mut R, chunk_size: u64, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, chunk_size: u64, text_encoding: &dyn SavageStringCodec) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
         match &flag {
             b"info" | b"INFO" => {
-                let dict = Self::read_dict(reader, end_of_chunk, savage_decoder)?;
+                let dict = Self::read_dict(reader, end_of_chunk, text_encoding)?;
                 Ok(Self::Info(dict))
             },
             b"adtl" => {
                 let mut adtl = Vec::<AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
-                    adtl.push(AdtlChunk::read(reader, savage_decoder)?);
+                    adtl.push(AdtlChunk::read(reader, text_encoding)?);
                 }
                 Ok(Self::Adtl(adtl))
             },
             other => {
-                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", savage_decoder.decode_flags(other))).into())
+                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", text_encoding.decode_flags(other))).into())
             },
         }
     }
 
-    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"LIST")?;
         match self {
             Self::Info(dict) => {
@@ -866,7 +877,7 @@ impl ListChunk {
                     writer.write_all(b"INFO")?;
                     Ok(())
                 })?;
-                Self::write_dict(writer_shared.clone(), dict)?;
+                Self::write_dict(writer_shared.clone(), dict, text_encoding)?;
             },
             Self::Adtl(adtls) => {
                 escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
@@ -874,7 +885,7 @@ impl ListChunk {
                     Ok(())
                 })?;
                 for adtl in adtls.iter() {
-                    adtl.write(writer_shared.clone())?;
+                    adtl.write(writer_shared.clone(), text_encoding)?;
                 }
             },
         };
@@ -882,20 +893,20 @@ impl ListChunk {
         Ok(())
     }
 
-    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, savage_decoder: &SavageStringDecoder) -> Result<HashMap<String, String>, Box<dyn Error>>
+    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, text_encoding: &dyn SavageStringCodec) -> Result<HashMap<String, String>, Box<dyn Error>>
     where R: Reader {
         // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
         let mut dict = HashMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
             let key_chunk = ChunkHeader::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
-            let value_str = read_str(reader, key_chunk.size as usize, savage_decoder)?;
-            dict.insert(savage_decoder.decode(&key_chunk.flag), value_str);
+            let value_str = read_str(reader, key_chunk.size as usize, text_encoding)?;
+            dict.insert(text_encoding.decode(&key_chunk.flag), value_str);
             key_chunk.seek_to_next_chunk(reader)?;
         }
         Ok(dict)
     }
 
-    pub fn write_dict(writer_shared: Arc<Mutex<dyn Writer>>, dict: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
+    pub fn write_dict(writer_shared: Arc<Mutex<dyn Writer>>, dict: &HashMap<String, String>, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
         escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
             for (key, val) in dict.iter() {
                 if key.len() != 4 {
@@ -903,9 +914,9 @@ impl ListChunk {
                 }
                 let mut val = val.clone();
                 val.push('\0');
-                write_str(writer, key)?;
+                write_str(writer, key, text_encoding)?;
                 (val.len() as u32).write_le(writer)?;
-                write_str(writer, &val)?;
+                write_str(writer, &val, text_encoding)?;
                 if writer.stream_position()? & 1 > 0 {
                     0u8.write_le(writer)?;
                 }
@@ -923,32 +934,32 @@ pub enum AdtlChunk {
 }
 
 impl AdtlChunk {
-    pub fn read<R>(reader: &mut R, savage_decoder: &SavageStringDecoder) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodec) -> Result<Self, Box<dyn Error>>
     where R: Reader {
         let sub_chunk = ChunkHeader::read(reader)?;
         let ret = match &sub_chunk.flag {
             b"labl" => {
                 Self::Labl(LablChunk{
                     identifier: u32::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
                 })
             },
             b"note" => {
                 Self::Note(NoteChunk{
                     identifier: u32::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, savage_decoder)?,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
                 })
             },
             b"ltxt" => {
                 Self::Ltxt(LtxtChunk{
                     identifier: u32::read_le(reader)?,
                     sample_length: u32::read_le(reader)?,
-                    purpose_id: read_str(reader, 4, savage_decoder)?,
+                    purpose_id: read_str(reader, 4, text_encoding)?,
                     country: u16::read_le(reader)?,
                     language: u16::read_le(reader)?,
                     dialect: u16::read_le(reader)?,
                     code_page: u16::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 20) as usize, savage_decoder)?,
+                    data: read_str(reader, (sub_chunk.size - 20) as usize, text_encoding)?,
                 })
             },
             other => {
@@ -959,13 +970,13 @@ impl AdtlChunk {
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: Arc<Mutex<dyn Writer>>, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
         match self {
             Self::Labl(labl) => {
                 let mut cw = ChunkWriter::begin(writer_shared.clone(), b"labl")?;
                 escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     labl.identifier.write_le(writer)?;
-                    write_str(writer, &labl.data)?;
+                    write_str(writer, &labl.data, text_encoding)?;
                     Ok(())
                 })?;
                 cw.end()?;
@@ -974,7 +985,7 @@ impl AdtlChunk {
                 let mut cw = ChunkWriter::begin(writer_shared.clone(), b"note")?;
                 escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     note.identifier.write_le(writer)?;
-                    write_str(writer, &note.data)?;
+                    write_str(writer, &note.data, text_encoding)?;
                     Ok(())
                 })?;
                 cw.end()?;
@@ -984,12 +995,12 @@ impl AdtlChunk {
                 escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
                     ltxt.identifier.write_le(writer)?;
                     ltxt.sample_length.write_le(writer)?;
-                    write_str_sized(writer, &ltxt.purpose_id, 4)?;
+                    write_str_sized(writer, &ltxt.purpose_id, 4, text_encoding)?;
                     ltxt.country.write_le(writer)?;
                     ltxt.language.write_le(writer)?;
                     ltxt.dialect.write_le(writer)?;
                     ltxt.code_page.write_le(writer)?;
-                    write_str(writer, &ltxt.data)?;
+                    write_str(writer, &ltxt.data, text_encoding)?;
                     Ok(())
                 })?;
                 cw.end()?;
@@ -1068,30 +1079,30 @@ impl AcidChunk {
     }
 }
 
-fn axml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+fn axml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
     let mut cw = ChunkWriter::begin(writer_shared.clone(), b"axml")?;
     escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data)?;
+        write_str(writer, data, text_encoding)?;
         Ok(())
     })?;
     cw.end()?;
     Ok(())
 }
 
-fn ixml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+fn ixml_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
     let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ixml")?;
     escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data)?;
+        write_str(writer, data, text_encoding)?;
         Ok(())
     })?;
     cw.end()?;
     Ok(())
 }
 
-fn Trkn_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String) -> Result<(), Box<dyn Error>> {
+fn Trkn_write(writer_shared: Arc<Mutex<dyn Writer>>, data: &String, text_encoding: &dyn SavageStringCodec) -> Result<(), Box<dyn Error>> {
     let mut cw = ChunkWriter::begin(writer_shared.clone(), b"Trkn")?;
     escorted_write(writer_shared.clone(), |writer| -> Result<(), Box<dyn Error>> {
-        write_str(writer, data)?;
+        write_str(writer, data, text_encoding)?;
         Ok(())
     })?;
     cw.end()?;

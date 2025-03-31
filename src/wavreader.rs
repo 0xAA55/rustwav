@@ -6,7 +6,7 @@ use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFro
 use crate::wavcore::*;
 use crate::codecs::*;
 use crate::errors::{AudioReadError};
-use crate::savagestr::SavageStringDecoder;
+use crate::savagestr::SavageStringCodec;
 
 #[derive(Debug)]
 pub enum WaveDataSource {
@@ -26,7 +26,7 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
-    savage_decoder: SavageStringDecoder,
+    text_encoding: Box<dyn SavageStringCodec>,
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
@@ -60,7 +60,7 @@ impl WaveReader {
             WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
         };
 
-        let savage_decoder = SavageStringDecoder::new();
+        let text_encoding: Box<dyn SavageStringCodec> = Box::new(StringCodecMaps::new());
 
         let mut riff_len = 0u64;
         let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。
@@ -142,7 +142,7 @@ impl WaveReader {
                 },
                 b"bext" => {
                     Self::verify_none(&bext_chunk, &chunk.flag)?;
-                    bext_chunk = Some(BextChunk::read(&mut reader, &savage_decoder)?);
+                    bext_chunk = Some(BextChunk::read(&mut reader, &*text_encoding)?);
                 },
                 b"smpl" => {
                     Self::verify_none(&smpl_chunk, &chunk.flag)?;
@@ -158,15 +158,15 @@ impl WaveReader {
                 },
                 b"axml" => {
                     Self::verify_none(&axml_chunk, &chunk.flag)?;
-                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
+                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
                 },
                 b"ixml" => {
                     Self::verify_none(&ixml_chunk, &chunk.flag)?;
-                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
+                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
                 },
                 b"LIST" => {
                     Self::verify_none(&list_chunk, &chunk.flag)?;
-                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64, &savage_decoder)?);
+                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64, &*text_encoding)?);
                 }
                 b"acid" => {
                     Self::verify_none(&acid_chunk, &chunk.flag)?;
@@ -174,7 +174,7 @@ impl WaveReader {
                 },
                 b"Trkn" => {
                     Self::verify_none(&trkn_chunk, &chunk.flag)?;
-                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &savage_decoder)?);
+                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
                 }
                 b"id3 " => {
                     Self::verify_none(&id3__chunk, &chunk.flag)?;
@@ -186,7 +186,7 @@ impl WaveReader {
                 // 曾经发现 BFDi 块，结果发现它是 BFD Player 生成的字符串块，里面大约是软件序列号之类的内容。
                 // 所以此处就不记载 BFDi 块的信息了。
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: {}", savage_decoder.decode_flags(other));
+                    println!("Unknown chunk in RIFF or RF64 chunk: {}", text_encoding.decode_flags(other));
                 },
             }
             // 跳到下一个块的开始位置
@@ -227,7 +227,7 @@ impl WaveReader {
             frame_size,
             num_frames,
             data_chunk,
-            savage_decoder,
+            text_encoding,
             bext_chunk,
             smpl_chunk,
             inst_chunk,
@@ -416,6 +416,9 @@ where S: SampleType {
                 0x0055 => return Err(AudioError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")).into()),
                 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
                     return Err(AudioError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")).into());
+                },
+                0xF1AC => { // FLAG
+                    return Err(AudioError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")).into());
                 },
                 other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other)).into()),
             },
