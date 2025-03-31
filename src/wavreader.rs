@@ -4,7 +4,7 @@
 use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
 
 use crate::wavcore::*;
-use crate::codecs::*;
+use crate::decoders::*;
 use crate::errors::{AudioReadError};
 use crate::savagestr::SavageStringCodec;
 
@@ -210,7 +210,7 @@ impl WaveReader {
             channel_mask,
             sample_rate: fmt__chunk.sample_rate,
             bits_per_sample: fmt__chunk.bits_per_sample,
-            sample_format: fmt__chunk.get_sample_format()?,
+            sample_format: fmt__chunk.get_sample_format(),
         };
         let new_data_source = match filesrc {
             Some(filename) => WaveDataSource::Filename(filename),
