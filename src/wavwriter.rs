@@ -20,7 +20,7 @@ pub enum FileSizeOption{
 
 #[derive(Debug)]
 pub struct WaveWriter {
-    writer: Arc<Mutex<dyn Writer>>,
+    writer: SharedWriter,
     spec: Spec,
     data_format: DataFormat,
     file_size_option: FileSizeOption,
@@ -48,11 +48,11 @@ pub struct WaveWriter {
 impl WaveWriter {
     pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         let file_reader = BufWriter::new(File::create(filename)?);
-        let wave_writer = WaveWriter::from(Arc::new(Mutex::new(file_reader)), spec, data_format, file_size_option)?;
+        let wave_writer = WaveWriter::from(SharedWriter::new(file_reader), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
-    pub fn from(writer: Arc<Mutex<dyn Writer>>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
         use DataFormat::{ PCM_Int, PCM_Float, Mp3, OggVorbis, Flac };
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
@@ -96,7 +96,7 @@ impl WaveWriter {
         self.riff_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
-        escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+        self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
             writer.write_all(b"WAVE")?;
             Ok(())
         })?;
@@ -106,7 +106,7 @@ impl WaveWriter {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-                escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+                self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
                     writer.write_all(&[0u8; 28])?;
                     Ok(())
                 })?;
@@ -184,7 +184,7 @@ impl WaveWriter {
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
                 self.sample_packer.write_frame::<S>(writer, frame)
             })?;
             self.num_frames += 1;
@@ -198,7 +198,7 @@ impl WaveWriter {
     pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
                 self.sample_packer.write_multiple_frames::<S>(writer, frames)
             })?;
             self.num_frames += frames.len() as u64;
@@ -287,7 +287,7 @@ impl WaveWriter {
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
-            escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
                 write_str(writer, chunk, &*self.text_encoding)?;
                 Ok(())
             })?;
@@ -302,7 +302,7 @@ impl WaveWriter {
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
         self.riff_chunk = None;
 
-        escorted_write(self.writer.clone(), |writer| -> Result<(), Box<dyn Error>> {
+        self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
             let file_end_pos = writer.stream_position()?;
             let mut change_to_4gb_hreader = || -> Result<(), Box<dyn Error>> {
                 writer.seek(SeekFrom::Start(0))?;
