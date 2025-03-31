@@ -3,6 +3,7 @@ mod errors;
 mod savagestr;
 mod readwrite;
 mod sampleutils;
+mod adpcm;
 mod codecs;
 mod wavcore;
 mod wavreader;
@@ -12,6 +13,7 @@ use std::env::args;
 use std::process::ExitCode;
 use std::error::Error;
 
+use wavcore::DataFormat;
 use wavreader::WaveReader;
 use wavwriter::{WaveWriter, Spec, FileSizeOption, SampleFormat};
 
@@ -35,7 +37,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     };
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, FileSizeOption::ForceUse4GBFormat).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::PCM_Int, FileSizeOption::ForceUse4GBFormat).unwrap();
 
     // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
     // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
