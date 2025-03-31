@@ -2,7 +2,7 @@
 
 pub use std::{io::{self, Read, Write, Seek, SeekFrom}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug, error::Error};
 
-pub use crate::savagestr::SavageStringDecoder;
+pub use crate::savagestr::SavageStringCodec;
 
 pub trait Reader: Read + Seek + Debug {}
 impl<T> Reader for T where T: Read + Seek + Debug {}
