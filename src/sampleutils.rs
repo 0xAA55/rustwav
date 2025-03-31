@@ -46,6 +46,7 @@ impl u24{
     }
 }
 
+pub trait SampleType: Debug + Sized + Clone + Copy + 'static {
     fn from(v: impl SampleType) -> Self;
     fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
