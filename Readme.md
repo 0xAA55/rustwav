@@ -10,6 +10,7 @@ English | [简体中文](Readme-CN.md)
 
 ### Audio Reader:
 * Supports reading WAV files larger than 4GB
+* Supports reading WAV files with MP3 as it's content rather than PCM
 * Supports reading WAV files with randomly distributed chunks
 * Generates iterators for audio frames through **generic parameters**, with samples strictly converted to specified types within their numerical ranges:
   * Generic parameter support: `i8` `i16` `i24` `i32` `i64` `u8` `u16` `u24` `u32` `u64` `f32` `f64`
