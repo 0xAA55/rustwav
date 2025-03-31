@@ -1179,7 +1179,7 @@ pub mod Id3{
 
     impl std::fmt::Debug for Tag {
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct(&format!("Tag"))
+            fmt.debug_struct("Tag")
                 .finish_non_exhaustive()
         }
     }
