@@ -1143,6 +1143,7 @@ impl JunkChunk {
 
 // 如果有 id3 则使用它来读取 id3 数据
 #[cfg(feature = "id3")]
+#[allow(non_snake_case)]
 pub mod Id3{
     use super::Reader;
     use std::error::Error;
@@ -1154,6 +1155,7 @@ pub mod Id3{
 
 // 如果没有 id3 则读取原始字节数组
 #[cfg(not(feature = "id3"))]
+#[allow(non_snake_case)]
 pub mod Id3{
     use std::io::Read;
     use std::vec::Vec;
