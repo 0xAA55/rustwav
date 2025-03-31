@@ -12,7 +12,7 @@ use crate::readwrite::{Reader};
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
-    fn decode(&mut self) -> Result<S, io::Error>;
+    fn decode(&mut self) -> Result<S, std::io::Error>;
 }
 
 #[derive(Debug)]
@@ -23,7 +23,7 @@ where S: SampleType {
     data_length: u64,
     frame_size: u16,
     spec: Spec,
-    decoder: fn(&mut dyn Reader) -> Result<S, io::Error>,
+    decoder: fn(&mut dyn Reader) -> Result<S, std::io::Error>,
 }
 
 impl<S> Decoder<S> for PcmDecoder<S>
@@ -52,16 +52,16 @@ where S: SampleType {
         })
     }
 
-    pub fn decode(&mut self) -> Result<S, io::Error> {
+    pub fn decode(&mut self) -> Result<S, std::io::Error> {
         (self.decoder)(&mut self.reader)
     }
 
-    fn decode_to<T>(r: &mut dyn Reader) -> Result<S, io::Error>
+    fn decode_to<T>(r: &mut dyn Reader) -> Result<S, std::io::Error>
     where T: SampleType {
         Ok(S::from(T::read_le(r)?))
     }
 
-    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, io::Error>, Box<dyn Error>> {
+    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, std::io::Error>, Box<dyn Error>> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_to::<i8 >),
