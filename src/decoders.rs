@@ -46,7 +46,8 @@ where S: SampleType {
             reader,
             data_offset,
             data_length,
-            frame_size: wave_sample_type.sizeof() * spec.channels,
+            cur_frames: 0,
+            num_frames: data_length / fmt.block_align as u64,
             spec: spec.clone(),
             decoder: Self::get_decoder(wave_sample_type)?,
         })
