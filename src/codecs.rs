@@ -55,30 +55,6 @@ impl Encoder {
         }
     }
 
-    fn generic_type_conv<S, D>(frame: &[S]) -> Vec<D>
-    where S: SampleType,
-          D: SampleType {
-
-        assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
-        let mut ret = Vec::<D>::with_capacity(frame.len());
-        for f in frame.iter() {
-            ret.push(D::from(*f));
-        }
-        ret
-    }
-
-    fn generics_type_conv<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
-    where S: SampleType,
-          D: SampleType {
-
-        assert_eq!(std::any::TypeId::of::<S>(), std::any::TypeId::of::<D>());
-        let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
-        for f in frames.iter() {
-            ret.push(Self::generic_type_conv::<S, D>(f));
-        }
-        ret
-    }
-
     pub fn write_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -116,6 +92,28 @@ impl Encoder {
             other => Err(AudioWriteError::WrongSampleFormat(other.to_owned()).into()),
         }
     }
+}
+
+fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
+where S: SampleType,
+      D: SampleType {
+
+    let mut ret = Vec::<D>::with_capacity(frame.len());
+    for f in frame.iter() {
+        ret.push(D::from(*f));
+    }
+    ret
+}
+
+fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
+where S: SampleType,
+      D: SampleType {
+
+    let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
+    for f in frames.iter() {
+        ret.push(sample_conv::<S, D>(f));
+    }
+    ret
 }
 
 impl EncoderBasic for PcmEncoder {
