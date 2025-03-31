@@ -256,7 +256,6 @@ where S: SampleType {
 #[derive(Debug)]
 pub struct PcmEncoderFrom<S>
 where S: SampleType {
-    target_sample: WaveSampleType,
     writer: fn(&mut dyn Writer, frame: &[S]) -> Result<(), Box<dyn Error>>,
 }
 
@@ -265,7 +264,6 @@ where S: SampleType {
     pub fn new(target_sample: WaveSampleType) -> Self {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         Self {
-            target_sample,
             writer: match target_sample{
                 S8  => Self::write_sample_to::<i8 >,
                 S16 => Self::write_sample_to::<i16>,
@@ -282,10 +280,6 @@ where S: SampleType {
                 _ => Self::fake_write_sample,
             },
         }
-    }
-
-    pub fn get_target_sample(&self) -> WaveSampleType {
-        self.target_sample
     }
 
     // S：别人给我们的格式
