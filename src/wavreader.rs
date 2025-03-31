@@ -13,6 +13,9 @@ use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::sampleutils::{SampleType};
 use crate::readwrite::{Reader, StringIO::*};
 
+#[cfg(feature = "mp3")]
+use crate::decoders::MP3::Mp3Decoder;
+
 #[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
@@ -418,7 +421,14 @@ where S: SampleType {
             frame_pos: 0,
             decoder: match fmt.format_tag {
                 1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
-                0x0055 => return Err(AudioError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")).into()),
+                0x0055 => {
+                    #[cfg(not(feature = "mp3"))]
+                    return Err(AudioError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")).into());
+                    #[cfg(feature = "mp3")]
+                    {
+                        Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt)?)
+                    }
+                },
                 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
                     return Err(AudioError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")).into());
                 },
