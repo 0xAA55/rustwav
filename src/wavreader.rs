@@ -26,7 +26,7 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
-    text_encoding: Box<dyn SavageStringCodec>,
+    text_encoding: Box<dyn SavageStringCodecs>,
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
@@ -60,7 +60,7 @@ impl WaveReader {
             WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
         };
 
-        let text_encoding: Box<dyn SavageStringCodec> = Box::new(StringCodecMaps::new());
+        let text_encoding: Box<dyn SavageStringCodecs> = Box::new(StringCodecMaps::new());
 
         let mut riff_len = 0u64;
         let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。

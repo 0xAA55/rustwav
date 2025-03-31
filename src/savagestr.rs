@@ -21,7 +21,7 @@ impl Default for StringCodecMaps {
     }
 }
 
-pub trait SavageStringCodec: Debug {
+pub trait SavageStringCodecs: Debug {
     // 编码和解码
     fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String;
     fn decode_bytes_by_code_page(&self, bytes: &[u8], code_page: u32) -> String;
@@ -60,7 +60,7 @@ pub mod text_encoding{
     use std::fmt::Debug;
     use std::collections::HashMap;
     use encoding::{EncodingRef, EncoderTrap, DecoderTrap, all::*};
-    use super::SavageStringCodec;
+    use super::SavageStringCodecs;
 
     const CODE_PAGE_DATA: [(u32, &str, &str); 140] = [
         (37, "IBM037", "IBM EBCDIC US-Canada"),
@@ -286,7 +286,7 @@ pub mod text_encoding{
         }
     }
 
-    impl SavageStringCodec for StringCodecMaps {
+    impl SavageStringCodecs for StringCodecMaps {
         // 根据编码名称寻找编解码器然后进行编解码
         fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String {
             match String::from_utf8(bytes.to_owned()) {
@@ -357,7 +357,7 @@ pub mod text_encoding{
 
 #[cfg(not(feature = "encoding"))]
 pub mod text_encoding{
-    use super::SavageStringCodec;
+    use super::SavageStringCodecs;
 
     #[derive(Debug, Clone)]
     pub struct StringCodecMaps;
@@ -368,7 +368,7 @@ pub mod text_encoding{
         }
     }
 
-    impl SavageStringCodec for StringCodecMaps{
+    impl SavageStringCodecs for StringCodecMaps{
         fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String {
             self.savage_decode(bytes)
         }
