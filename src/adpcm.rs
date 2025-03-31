@@ -1,3 +1,4 @@
+// https://github.com/superctr/adpcm/tree/master
 
 // fn bs_step(step: i8, history: &mut i16, step_size: &mut i16) -> i16 {
 // 	const ADPCM_TABLE: [i16; 16] = [
