@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, io::{BufReader}, fmt::Debug, error::Error};
+use std::{fs::File, io::{self, BufReader}, fmt::Debug, error::Error};
 
 // use crate::adpcm::*;
 use crate::errors::AudioError;
@@ -12,12 +12,12 @@ use crate::readwrite::{Reader};
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
-    fn decode(&mut self) -> Result<S, std::io::Error>;
+    fn decode(&mut self) -> Result<S, io::Error>;
 }
 
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
-    fn decode(&mut self) -> Result<S, std::io::Error>
+    fn decode(&mut self) -> Result<S, io::Error>
     where S: SampleType {
         self.decode()
     }
@@ -31,7 +31,7 @@ where S: SampleType {
     data_length: u64,
     frame_size: u16,
     spec: Spec,
-    decoder: fn(&mut dyn Reader) -> Result<S, std::io::Error>,
+    decoder: fn(&mut dyn Reader) -> Result<S, io::Error>,
 }
 
 impl<S> PcmDecoder<S>
@@ -52,16 +52,16 @@ where S: SampleType {
         })
     }
 
-    pub fn decode(&mut self) -> Result<S, std::io::Error> {
+    pub fn decode(&mut self) -> Result<S, io::Error> {
         (self.decoder)(&mut self.reader)
     }
 
-    fn decode_to<T>(r: &mut dyn Reader) -> Result<S, std::io::Error>
+    fn decode_to<T>(r: &mut dyn Reader) -> Result<S, io::Error>
     where T: SampleType {
         Ok(S::from(T::read_le(r)?))
     }
 
-    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, std::io::Error>, Box<dyn Error>> {
+    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, io::Error>, Box<dyn Error>> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_to::<i8 >),
