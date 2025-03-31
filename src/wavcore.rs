@@ -19,48 +19,6 @@ pub enum DataFormat{
     Flac,
 }
 
-// 如果有 id3 则使用它来读取 id3 数据
-#[cfg(feature = "id3")]
-pub mod Id3{
-    use super::Reader;
-    use std::error::Error;
-    pub type Tag = id3::Tag;
-    pub fn read<R: Reader>(reader: &mut R, _size: usize) -> Result<Tag, Box<dyn Error>> {
-        Ok(Tag::read_from2(reader)?)
-    }
-}
-
-// 如果没有 id3 则读取原始字节数组
-#[cfg(not(feature = "id3"))]
-pub mod Id3{
-    use std::io::Read;
-    use std::vec::Vec;
-    use std::error::Error;
-    #[derive(Clone)]
-    pub struct Tag {
-        data: Vec<u8>,
-    }
-    impl Tag {
-        fn new(data: Vec<u8>) -> Self {
-            Self {
-                data,
-            }
-        }
-    }
-    pub fn read<R: Read>(reader: &mut R, size: usize) -> Result<Tag, Box<dyn Error>> {
-        #[cfg(debug_assertions)]
-        println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
-        Ok(Tag::new(super::read_bytes(reader, size)?))
-    }
-
-    impl std::fmt::Debug for Tag {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct(&format!("Tag"))
-                .finish_non_exhaustive()
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub enum SampleFormat {
     Unknown,
@@ -1184,5 +1142,47 @@ impl JunkChunk {
         })?;
         cw.end()?;
         Ok(())
+    }
+}
+
+// 如果有 id3 则使用它来读取 id3 数据
+#[cfg(feature = "id3")]
+pub mod Id3{
+    use super::Reader;
+    use std::error::Error;
+    pub type Tag = id3::Tag;
+    pub fn read<R: Reader>(reader: &mut R, _size: usize) -> Result<Tag, Box<dyn Error>> {
+        Ok(Tag::read_from2(reader)?)
+    }
+}
+
+// 如果没有 id3 则读取原始字节数组
+#[cfg(not(feature = "id3"))]
+pub mod Id3{
+    use std::io::Read;
+    use std::vec::Vec;
+    use std::error::Error;
+    #[derive(Clone)]
+    pub struct Tag {
+        data: Vec<u8>,
+    }
+    impl Tag {
+        fn new(data: Vec<u8>) -> Self {
+            Self {
+                data,
+            }
+        }
+    }
+    pub fn read<R: Read>(reader: &mut R, size: usize) -> Result<Tag, Box<dyn Error>> {
+        #[cfg(debug_assertions)]
+        println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
+        Ok(Tag::new(super::read_bytes(reader, size)?))
+    }
+
+    impl std::fmt::Debug for Tag {
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct(&format!("Tag"))
+                .finish_non_exhaustive()
+        }
     }
 }
