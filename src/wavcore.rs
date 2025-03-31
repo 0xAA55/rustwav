@@ -19,6 +19,7 @@ pub enum DataFormat{
     Flac,
 }
 
+// 如果有 id3 则使用它来读取 id3 数据
 #[cfg(feature = "id3")]
 pub mod Id3{
     use super::Reader;
@@ -29,6 +30,7 @@ pub mod Id3{
     }
 }
 
+// 如果没有 id3 则读取原始字节数组
 #[cfg(not(feature = "id3"))]
 pub mod Id3{
     use std::io::Read;
@@ -138,17 +140,18 @@ impl WaveSampleType {
 }
 
 
-pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Result<WaveSampleType, AudioError> {
+pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
     use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{U8,S16,S24,S32,F32,F64};
+    use WaveSampleType::{Unknown, U8,S16,S24,S32,F32,F64};
     match (bits_per_sample, sample_format) {
-        (8, UInt) => Ok(U8),
-        (16, Int) => Ok(S16),
-        (24, Int) => Ok(S24),
-        (32, Int) => Ok(S32),
-        (32, Float) => Ok(F32),
-        (64, Float) => Ok(F64),
-        _ => Err(AudioError::UnknownSampleType),
+        (8, UInt) => U8,
+        (16, Int) => S16,
+        (24, Int) => S24,
+        (32, Int) => S32,
+        (32, Float) => F32,
+        (64, Float) => F64,
+        // 上述的就是 PCM 能支持的所有格式。
+        (_, _) => Unknown,
     }
 }
 
@@ -332,7 +335,7 @@ impl Spec {
         }
     }
 
-    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
+    pub fn get_sample_type(&self) -> WaveSampleType {
         get_sample_type(self.bits_per_sample, self.sample_format)
     }
 
@@ -557,40 +560,37 @@ impl fmt__Chunk {
         Ok(())
     }
 
-    pub fn get_sample_format(&self) -> Result<SampleFormat, AudioError> {
-        use SampleFormat::{Int, UInt, Float};
+    pub fn get_sample_format(&self) -> SampleFormat {
+        use SampleFormat::{Int, UInt, Float, Unknown};
         match (self.format_tag, self.bits_per_sample) {
-            (1, 8) => Ok(UInt),
-            (1, 16) => Ok(Int),
-            (1, 24) => Ok(Int),
-            (1, 32) => Ok(Int),
-            (1, 64) => Ok(Int),
-            (0xFFFE, 8) => Ok(UInt),
-            (0xFFFE, 16) => Ok(Int),
-            (0xFFFE, 24) => Ok(Int),
+            (1, 8) => UInt,
+            (1, 16) => Int,
+            (1, 24) => Int,
+            (1, 32) => Int,
+            (1, 64) => Int,
+            (0xFFFE, 8) => UInt,
+            (0xFFFE, 16) => Int,
+            (0xFFFE, 24) => Int,
             (0xFFFE, 32) | (0xFFFE, 64) => {
                 match self.extension {
                     Some(extension) => {
                         match extension.sub_format {
-                            GUID_PCM_FORMAT => Ok(Int),
-                            GUID_IEEE_FLOAT_FORMAT => Ok(Float),
-                            other => Err(AudioError::Unimplemented(format!("Unknown format identifier GUID {:?}", other))),
+                            GUID_PCM_FORMAT => Int,
+                            GUID_IEEE_FLOAT_FORMAT => Float,
+                            _ => Unknown, // 由插件系统判断
                         }
                     },
-                    None => Ok(Int),
+                    None => Int,
                 }
             },
-            (3, 32) => Ok(Float),
-            (3, 64) => Ok(Float),
-            // TODO
-            // 其实可以实现一个插件系统，给插件系统提供 fmt__chunk 的数据，看它认不认
-            // 如果插件系统认，那么在生成迭代器的时候，让插件系统提供音频帧
-            (t, b) => Err(AudioError::Unimplemented(format!("Unimplemented for format tag = {} and bits per sample = {}", t, b))),
+            (3, 32) => Float,
+            (3, 64) => Float,
+            (_, _) => Unknown, // 由插件系统判断
         }
     }
 
-    pub fn get_sample_type(&self) -> Result<WaveSampleType, AudioError> {
-        get_sample_type(self.bits_per_sample, self.get_sample_format()?)
+    pub fn get_sample_type(&self) -> WaveSampleType {
+        get_sample_type(self.bits_per_sample, self.get_sample_format())
     }
 }
 
