@@ -7,7 +7,7 @@ use std::io::BufWriter;
 use std::error::Error;
 
 pub use crate::wavcore::*;
-use crate::codecs::*;
+use crate::encoders::*;
 use crate::wavreader::WaveReader;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
@@ -56,7 +56,7 @@ impl WaveWriter {
         use DataFormat::{ PCM_Int, PCM_Float, Mp3, OggVorbis, Flac };
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
-        let sample_type = spec.get_sample_type()?;
+        let sample_type = spec.get_sample_type();
         let sample_packer = match data_format {
             PCM_Int | PCM_Float => Encoder::new(Box::new(PcmEncoder::new(sample_type))),
             other => return Err(AudioWriteError::UnsupportedFormat(format!("{:?}", other)).into()),
