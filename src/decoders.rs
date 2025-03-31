@@ -81,4 +81,20 @@ where S: SampleType {
     }
 }
 
+#[cfg(feature = "mp3")]
+mod MP3 {
+    use std::{fs::File, io::{self, BufReader}};
+    use puremp3::*;
+    use crate::sampleutils::SampleType;
+
+    #[derive(Debug)]
+    pub struct Mp3Decoder<S>
+    where S: SampleType {
+        reader: BufReader<File>, // 数据读取器
+        data_offset: u64,
+        data_length: u64,
+        frame_size: u16,
+        
+    }
+}
 
