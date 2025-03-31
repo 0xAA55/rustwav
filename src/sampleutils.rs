@@ -46,13 +46,6 @@ impl u24{
     }
 }
 
-pub trait SampleType: Sized + Clone + Copy + 'static {
-    fn clampf(&self) -> f32 {
-        panic!("There shouldn't a `clampf()` call on integers");
-    }
-    fn clampd(&self) -> f64 {
-        panic!("There shouldn't a `clampf()` call on integers");
-    }
     fn from(v: impl SampleType) -> Self;
     fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
