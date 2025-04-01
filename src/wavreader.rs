@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader}, sync::Arc, error::Error};
+use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader, BufWriter}, error::Error};
 
 use crate::errors::{AudioError, AudioReadError};
 use crate::wavcore::{Spec};
@@ -10,6 +10,7 @@ use crate::wavcore::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListCh
 use crate::wavcore::{guess_channel_mask};
 use crate::decoders::{Decoder, PcmDecoder};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+use crate::filehasher::FileHasher;
 use crate::sampleutils::{SampleType};
 use crate::readwrite::{Reader, StringIO::*};
 
@@ -315,10 +316,11 @@ pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), Box<dyn std
 #[derive(Debug)]
 struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
-    tempfile: Arc<File>,
+    tempdir: Option<tempfile::TempDir>,
     filepath: PathBuf,
     offset: u64,
     length: u64,
+    datahash: u64,
 }
 
 impl WaveDataReader {
@@ -326,18 +328,30 @@ impl WaveDataReader {
     // 能得知临时文件的文件夹。
     fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, Box<dyn Error>> {
         let reader: Option<Box<dyn Reader>>;
-        let tempfile = Arc::new(tempfile::tempfile()?);
         let filepath: Option<PathBuf>;
-        let mut offset: u64 = 0;
-        let mut have_source_file = false;
+        let tempdir: Option<tempfile::TempDir>;
+        let mut hasher = FileHasher::new();
+        let datahash: u64;
+        let offset: u64;
+        let have_source_file: bool;
         match file_source {
-            WaveDataSource::Reader(r) => {
+            WaveDataSource::Reader(mut r) => {
+                // 只有读取器，没有源文件名
+                datahash = hasher.hash(&mut r, data_offset, data_size)?;
                 reader = Some(r);
-                filepath = None;
+                let tdir = tempfile::TempDir::new()?;
+                filepath = Some(tdir.path().join(&format!("{:x}.tmp", datahash)));
+                tempdir = Some(tdir);
+                offset = 0;
+                have_source_file = false;
             },
             WaveDataSource::Filename(path) => {
+                // 有源文件名，因此打开文件
                 let path = PathBuf::from(path);
-                reader = Some(Box::new(BufReader::new(File::open(&path)?)));
+                let mut r = Box::new(BufReader::new(File::open(&path)?));
+                datahash = hasher.hash(&mut r, data_offset, data_size)?;
+                reader = Some(r);
+                tempdir = None;
                 filepath = Some(path);
                 offset = data_offset;
                 have_source_file = true;
@@ -358,7 +372,8 @@ impl WaveDataReader {
             const BUFFER_SIZE: u64 = 81920;
             let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
-            let mut file = tempfile.clone();
+            // 根据临时文件名创建临时文件
+            let mut file = BufWriter::new(File::create(&filepath)?);
             reader.seek(SeekFrom::Start(offset))?;
 
             // 按 BUFFER_SIZE 不断复制
@@ -384,10 +399,11 @@ impl WaveDataReader {
 
         Ok(Self {
             reader: orig_reader,
-            tempfile,
+            tempdir,
             filepath,
             offset,
             length: data_size,
+            datahash,
         })
     }
 
