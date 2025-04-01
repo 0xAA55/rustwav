@@ -1133,6 +1133,37 @@ pub mod Id3{
     where R: Read + Seek + ?Sized {
         Ok(Tag::read_from2(reader)?)
     }
+
+    pub fn id3_write<W>(tag: &Tag, writer: &mut W) -> Result<(), AudioWriteError>
+    where W: Write + ?Sized {
+        Ok(tag.write_to(writer, tag.version())?)
+    }
+
+    impl From<id3::Error> for AudioReadError {
+        fn from(err: id3::Error) -> Self {
+            match err.kind {
+                id3::ErrorKind::Io(ioerr) => AudioReadError::IOError(ioerr.kind()),
+                id3::ErrorKind::StringDecoding(bytes) => AudioReadError::StringDecodeError(bytes),
+                id3::ErrorKind::NoTag => AudioReadError::FormatError(err.description),
+                id3::ErrorKind::Parsing => AudioReadError::DataCorrupted(err.description),
+                id3::ErrorKind::InvalidInput => AudioReadError::DataCorrupted(err.description),
+                id3::ErrorKind::UnsupportedFeature => AudioReadError::Unsupported(err.description),
+            }
+        }
+    }
+
+    impl From<id3::Error> for AudioWriteError {
+        fn from(err: id3::Error) -> Self {
+            match err.kind {
+                id3::ErrorKind::Io(ioerr) => AudioWriteError::IOError(ioerr.kind()),
+                id3::ErrorKind::StringDecoding(bytes) => AudioWriteError::StringDecodeError(bytes),
+                id3::ErrorKind::NoTag => AudioWriteError::OtherReason(err.description),
+                id3::ErrorKind::Parsing => AudioWriteError::OtherReason(err.description),
+                id3::ErrorKind::InvalidInput => AudioWriteError::OtherReason(err.description),
+                id3::ErrorKind::UnsupportedFeature => AudioWriteError::Unsupported(err.description),
+            }
+        }
+    }
 }
 
 // 如果没有 id3 则读取原始字节数组
@@ -1159,6 +1190,13 @@ pub mod Id3{
         #[cfg(debug_assertions)]
         println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
         Ok(Tag::new(super::read_bytes(reader, size)?))
+    }
+
+    pub fn id3_write<W>(tag: &Tag, writer: &mut W) -> Result<(), AudioWriteError>
+    where W: Write + ?Sized {
+        #[cfg(debug_assertions)]
+        println!("Feature \"id3\" was not enabled, the saved id3 binary bytes may not correct, consider compile with \"cargo build --features id3\"");
+        Ok(writer.write_all(&tag.data))
     }
 
     impl std::fmt::Debug for Tag {
