@@ -3,7 +3,7 @@
 use std::{io::{self, Read, Write, SeekFrom}, error::Error, collections::HashMap};
 
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
-use crate::readwrite::{Reader, Writer, SharedWriter, StringIO::*};
+use crate::readwrite::{Reader, Writer, SharedWriter, string_io::*};
 use crate::sampleutils::SampleType;
 use crate::savagestr::SavageStringCodecs;
 

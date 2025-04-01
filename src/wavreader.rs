@@ -12,7 +12,7 @@ use crate::decoders::{Decoder, PcmDecoder};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::filehasher::FileHasher;
 use crate::sampleutils::{SampleType};
-use crate::readwrite::{Reader, StringIO::*};
+use crate::readwrite::{self, Reader, string_io::*};
 
 #[cfg(feature = "mp3")]
 use crate::decoders::MP3::Mp3Decoder;
