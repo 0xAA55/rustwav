@@ -246,7 +246,7 @@ pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Re
         let m = *m as u32;
         if channel_mask & m == m {ret.push(enums[i]);}
     }
-    if ret.len() == channels.into() {
+    if ret.len() == channels as usize {
         Ok(ret)
     } else {
         Err(AudioError::ChannelNotMatchMask)
