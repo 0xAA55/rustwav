@@ -40,15 +40,15 @@ impl SharedWriter{
         Self(Arc::new(Mutex::new(writer)))
     }
 
-    pub fn escorted_work<T, F>(&self, mut action: F) -> Result<T, Box<dyn Error>>
-    where F: FnMut(&mut dyn Writer) -> Result<T, Box<dyn Error>> {
+    pub fn escorted_work<T, F, E>(&self, mut action: F) -> Result<T, E>
+    where F: FnMut(&mut dyn Writer) -> Result<T, E> {
         let mut guard = self.0.lock().unwrap();
         let mut writer = guard.deref_mut();
         (action)(&mut writer)
     }
 
-    pub fn escorted_write<F>(&self, mut action: F) -> Result<(), Box<dyn Error>>
-    where F: FnMut(&mut dyn Writer) -> Result<(), Box<dyn Error>> {
+    pub fn escorted_write<F, E>(&self, mut action: F) -> Result<(), E>
+    where F: FnMut(&mut dyn Writer) -> Result<(), E> {
         let mut guard = self.0.lock().unwrap();
         let mut writer = guard.deref_mut();
         (action)(&mut writer)
