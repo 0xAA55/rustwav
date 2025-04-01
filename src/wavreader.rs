@@ -49,6 +49,16 @@ pub struct WaveReader {
     junk_chunks: Vec<JunkChunk>,
 }
 
+// 接收一个 result 结果，如果是 Ok 则返回 Some(数据)；如果是 Err 则打印错误信息并返回 None
+pub fn optional<T, E>(result: Result<T, E>) -> Option<T>
+where E: std::error::Error{
+    match result {
+        Ok(object) => Some(object),
+        Err(err) => {
+            eprintln!("Error occured while parsing \"{}\": {:?}", std::any::type_name::<T>(), err);
+            None
+        }
+    }
 }
 
 impl WaveReader {
@@ -116,6 +126,7 @@ impl WaveReader {
 
         // 循环处理 WAV 中的各种各样的小节
         while reader.stream_position()? < riff_end {
+            let chunk_position = reader.stream_position()?;
             let chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
                 b"JUNK" => {
@@ -154,46 +165,46 @@ impl WaveReader {
                 },
                 b"bext" => {
                     Self::verify_none(&bext_chunk, &chunk.flag)?;
-                    bext_chunk = Some(BextChunk::read(&mut reader, &*text_encoding)?);
+                    bext_chunk = optional(BextChunk::read(&mut reader, &*text_encoding));
                 },
                 b"smpl" => {
                     Self::verify_none(&smpl_chunk, &chunk.flag)?;
-                    smpl_chunk = Some(SmplChunk::read(&mut reader)?);
+                    smpl_chunk = optional(SmplChunk::read(&mut reader));
                 },
                 b"inst" | b"INST" => {
                     Self::verify_none(&inst_chunk, &chunk.flag)?;
-                    inst_chunk = Some(InstChunk::read(&mut reader)?);
+                    inst_chunk = optional(InstChunk::read(&mut reader));
                 },
                 b"cue " => {
                     Self::verify_none(&cue__chunk, &chunk.flag)?;
-                    cue__chunk = Some(CueChunk::read(&mut reader)?);
+                    cue__chunk = optional(CueChunk::read(&mut reader));
                 },
                 b"axml" => {
                     Self::verify_none(&axml_chunk, &chunk.flag)?;
-                    axml_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
+                    axml_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
                 },
                 b"ixml" => {
                     Self::verify_none(&ixml_chunk, &chunk.flag)?;
-                    ixml_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
+                    ixml_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
                 },
                 b"LIST" => {
                     Self::verify_none(&list_chunk, &chunk.flag)?;
-                    list_chunk = Some(ListChunk::read(&mut reader, chunk.size as u64, &*text_encoding)?);
+                    list_chunk = optional(ListChunk::read(&mut reader, chunk.size as u64, &*text_encoding));
                 }
                 b"acid" => {
                     Self::verify_none(&acid_chunk, &chunk.flag)?;
-                    acid_chunk = Some(AcidChunk::read(&mut reader)?);
+                    acid_chunk = optional(AcidChunk::read(&mut reader));
                 },
                 b"Trkn" => {
                     Self::verify_none(&trkn_chunk, &chunk.flag)?;
-                    trkn_chunk = Some(read_str(&mut reader, chunk.size as usize, &*text_encoding)?);
+                    trkn_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
                 }
                 b"id3 " => {
                     Self::verify_none(&id3__chunk, &chunk.flag)?;
-                    id3__chunk = Some(Id3::read(&mut reader, chunk.size as usize)?);
+                    id3__chunk = optional(Id3::id3_read(&mut reader, chunk.size as usize));
                 },
                 b"\0\0\0\0" => { // 空的 flag
-                    return Err(AudioReadError::IncompleteFile.into());
+                    return Err(AudioReadError::IncompleteFile(chunk_position));
                 },
                 // 曾经发现 BFDi 块，结果发现它是 BFD Player 生成的字符串块，里面大约是软件序列号之类的内容。
                 // 所以此处就不记载 BFDi 块的信息了。
