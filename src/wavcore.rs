@@ -8,14 +8,24 @@ use crate::sampleutils::SampleType;
 use crate::savagestr::SavageStringCodecs;
 
 // 你以为 WAV 就是用来存 PCM 的吗？
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum DataFormat{
-    PCM_Int,
-    PCM_Float,
+    Pcm,
     Mp3,
     OggVorbis,
     Flac,
+}
+
+impl std::fmt::Display for DataFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DataFormat::Pcm => write!(f, "PCM"),
+            DataFormat::Mp3 => write!(f, "MP3"),
+            DataFormat::OggVorbis => write!(f, "OggVorbis"),
+            DataFormat::Flac => write!(f, "FLAC"),
+       }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
