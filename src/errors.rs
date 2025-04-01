@@ -26,6 +26,20 @@ impl std::fmt::Display for AudioReadError {
            AudioReadError::IncompleteFile => write!(f, "The wave file is not complete."),
            AudioReadError::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
        }
+}
+
+impl From<std::io::Error> for AudioReadError {
+    fn from(err: std::io::Error) -> Self {
+        AudioReadError::IOError(err.kind())
+    }
+}
+
+impl From<AudioReadError> for std::io::Error {
+    fn from(err: AudioReadError) -> Self {
+        match err {
+            AudioReadError::IOError(errkind) => std::io::Error::from(errkind),
+            other => panic!("When converting `AudioReadError` to `std::io::Error`, the given error is unrelated: {:?}", other),
+        }
     }
 }
 
@@ -58,6 +72,21 @@ impl std::fmt::Display for AudioWriteError {
     }
 }
 
+impl From<std::io::Error> for AudioWriteError {
+    fn from(err: std::io::Error) -> Self {
+        AudioWriteError::IOError(err.kind())
+    }
+}
+
+impl From<AudioWriteError> for std::io::Error {
+    fn from(err: AudioWriteError) -> Self {
+        match err {
+            AudioWriteError::IOError(errkind) => std::io::Error::from(errkind),
+            other => panic!("When converting `AudioWriteError` to `std::io::Error`, the given error is unrelated: {:?}", other),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AudioError {
     CantGuessChannelMask(u16), // 无法猜出声道掩码
@@ -78,3 +107,41 @@ impl std::fmt::Display for AudioError {
        }
     }
 }
+
+impl From<AudioError> for AudioReadError {
+    fn from(err: AudioError) -> Self {
+        match err {
+            AudioError::CantGuessChannelMask(channels) => AudioReadError::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::ChannelNotMatchMask => AudioReadError::DataCorrupted("the channel number does not match the channel mask".to_owned()),
+            AudioError::Unimplemented(reason) => AudioReadError::Unimplemented(reason),
+            AudioError::InvalidArguments(reason) => AudioReadError::InvalidArguments(reason),
+        }
+    }
+}
+
+impl From<AudioError> for AudioWriteError {
+    fn from(err: AudioError) -> Self {
+        match err {
+            AudioError::CantGuessChannelMask(channels) => AudioWriteError::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::ChannelNotMatchMask => AudioWriteError::InvalidArguments("the channel number does not match the channel mask".to_owned()),
+            AudioError::Unimplemented(reason) => AudioWriteError::Unimplemented(reason),
+            AudioError::InvalidArguments(reason) => AudioWriteError::InvalidArguments(reason),
+        }
+    }
+}
+
+#[cfg(feature = "mp3")]
+impl From<puremp3::Error> for AudioReadError {
+    fn from(err: puremp3::Error) -> Self {
+        match err {
+            puremp3::Error::Mp3Error(mp3err) => {
+                match mp3err {
+                    puremp3::Mp3Error::InvalidData(s) => AudioReadError::FormatError(s.to_owned()),
+                    puremp3::Mp3Error::Unsupported(s) => AudioReadError::Unsupported(s.to_owned()),
+                }
+            },
+            puremp3::Error::IoError(ioerr) => AudioReadError::IOError(ioerr.kind()),
+        }
+    }
+}
+
