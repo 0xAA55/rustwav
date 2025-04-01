@@ -287,6 +287,14 @@ impl WaveWriter {
         if let Some(chunk) = &self.cue__chunk { chunk.write(self.writer.clone())?; }
         if let Some(chunk) = &self.list_chunk { chunk.write(self.writer.clone(), &*self.text_encoding)?; }
         if let Some(chunk) = &self.acid_chunk { chunk.write(self.writer.clone())?; }
+        if let Some(chunk) = &self.id3__chunk {
+            let mut cw = ChunkWriter::begin(self.writer.clone(), b"id3 ")?;
+            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+                Id3::id3_write(&chunk, writer)?;
+                Ok(())
+            })?;
+            cw.end()?;
+        }
 
         // 写入其它全部的字符串块
         let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
