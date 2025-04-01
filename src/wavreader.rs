@@ -423,7 +423,6 @@ where S: SampleType {
     data_length: u64, // 音频数据的总大小
     spec: Spec,
     fact: u32, // fact 数据，部分解码器需要
-    frame_pos: u64, // 当前帧位置
     decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
@@ -436,7 +435,6 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact,
-            frame_pos: 0,
             decoder: match fmt.format_tag {
                 1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
                 0x0055 => {
@@ -466,7 +464,6 @@ where S: SampleType {
             Ok(sample) => sample,
             Err(err) => panic!("{:?}", err),
         };
-        self.frame_pos += 1;
         ret
     }
 }
