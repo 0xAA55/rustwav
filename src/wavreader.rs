@@ -35,7 +35,7 @@ pub struct WaveReader {
     frame_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
-    text_encoding: Box<dyn SavageStringCodecs>,
+    text_encoding: StringCodecMaps,
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
@@ -82,7 +82,7 @@ impl WaveReader {
             WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given"))),
         };
 
-        let text_encoding: Box<dyn SavageStringCodecs> = Box::new(StringCodecMaps::new());
+        let text_encoding = StringCodecMaps::new();
 
         let mut riff_len = 0u64;
         let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。
@@ -165,7 +165,7 @@ impl WaveReader {
                 },
                 b"bext" => {
                     Self::verify_none(&bext_chunk, &chunk.flag)?;
-                    bext_chunk = optional(BextChunk::read(&mut reader, &*text_encoding));
+                    bext_chunk = optional(BextChunk::read(&mut reader, &text_encoding));
                 },
                 b"smpl" => {
                     Self::verify_none(&smpl_chunk, &chunk.flag)?;
@@ -181,15 +181,15 @@ impl WaveReader {
                 },
                 b"axml" => {
                     Self::verify_none(&axml_chunk, &chunk.flag)?;
-                    axml_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
+                    axml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
                 },
                 b"ixml" => {
                     Self::verify_none(&ixml_chunk, &chunk.flag)?;
-                    ixml_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
+                    ixml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
                 },
                 b"LIST" => {
                     Self::verify_none(&list_chunk, &chunk.flag)?;
-                    list_chunk = optional(ListChunk::read(&mut reader, chunk.size as u64, &*text_encoding));
+                    list_chunk = optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding));
                 }
                 b"acid" => {
                     Self::verify_none(&acid_chunk, &chunk.flag)?;
@@ -197,7 +197,7 @@ impl WaveReader {
                 },
                 b"Trkn" => {
                     Self::verify_none(&trkn_chunk, &chunk.flag)?;
-                    trkn_chunk = optional(read_str(&mut reader, chunk.size as usize, &*text_encoding));
+                    trkn_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
                 }
                 b"id3 " => {
                     Self::verify_none(&id3__chunk, &chunk.flag)?;
