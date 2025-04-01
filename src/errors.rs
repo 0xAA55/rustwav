@@ -2,30 +2,35 @@
 
 #[derive(Debug, Clone)]
 pub enum AudioReadError {
+    IncompleteFile(u64), // 不完整的文件
     InvalidArguments(String), // 错误的参数
-    IOError(String), // 读写错误，应停止处理
+    IOError(std::io::ErrorKind), // 读写错误，应停止处理
     FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
     DataCorrupted(String), // 格式也许是正确的，但是数据是错误的
     Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
-    EndOfFile(String), // 超出文件结尾
-    IncompleteFile, // 文件内容不完整
+    Unsupported(String), // 不支持的写入格式
     UnexpectedFlag(String, String), // 没有预料到的符号
+    StringDecodeError(Vec<u8>), // 字符串解码错误
+    OtherReason(String), // 不知道的问题
 }
 
 impl std::error::Error for AudioReadError {}
 
 impl std::fmt::Display for AudioReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       match self {
-           AudioReadError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
-           AudioReadError::IOError(reason) => write!(f, "IOError: {}", reason),
-           AudioReadError::FormatError(reason) => write!(f, "Invalid audio file format: {}", reason),
-           AudioReadError::DataCorrupted(reason) => write!(f, "Audio file data corrupted: {}", reason),
-           AudioReadError::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
-           AudioReadError::EndOfFile(reason) => write!(f, "Read to the end of the file: {}", reason),
-           AudioReadError::IncompleteFile => write!(f, "The wave file is not complete."),
-           AudioReadError::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
-       }
+        match self {
+            AudioReadError::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
+            AudioReadError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            AudioReadError::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
+            AudioReadError::FormatError(reason) => write!(f, "Invalid format: {}", reason),
+            AudioReadError::DataCorrupted(reason) => write!(f, "Data corrupted: {}", reason),
+            AudioReadError::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
+            AudioReadError::Unsupported(feature) => write!(f, "Unsupported feature: {}", feature),
+            AudioReadError::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
+            AudioReadError::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
+            AudioReadError::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
+        }
+    }
 }
 
 impl From<std::io::Error> for AudioReadError {
@@ -46,13 +51,16 @@ impl From<AudioReadError> for std::io::Error {
 #[derive(Debug, Clone)]
 pub enum AudioWriteError {
     InvalidArguments(String), // 输入了错误的参数
-    IOError(String), // 读写错误，应停止处理
-    UnsupportedFormat(String), // 不支持的写入格式
+    IOError(std::io::ErrorKind), // 读写错误，应停止处理
+    Unsupported(String), // 不支持的写入格式
+    Unimplemented(String), // 没实现的写入格式
     ChannelCountNotMatch(String), // 声道数不匹配
-    WrongSampleFormat(String), // 不支持的样本类型
+    BadSampleFormat(String), // 不支持的样本类型
     AlreadyFinished(String), // 早就停止写入了
     NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
     ChunkSizeTooBig(String), // 块大小太大
+    StringDecodeError(Vec<u8>), // 字符串解码错误
+    OtherReason(String), // 不知道的问题
 }
 
 impl std::error::Error for AudioWriteError {}
@@ -61,13 +69,16 @@ impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             AudioWriteError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
-            AudioWriteError::IOError(reason) => write!(f, "IOError {}", reason),
-            AudioWriteError::UnsupportedFormat(reason) => write!(f, "Unsupported PCM format to be saved: {}", reason),
+            AudioWriteError::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
+            AudioWriteError::Unsupported(reason) => write!(f, "Unsupported format: {}", reason),
+            AudioWriteError::Unimplemented(reason) => write!(f, "Unimplemented format: {}", reason),
             AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
-            AudioWriteError::WrongSampleFormat(reason) => write!(f, "Sample format \"{}\" not supported", reason),
+            AudioWriteError::BadSampleFormat(reason) => write!(f, "Bad sample format \"{}\"", reason),
             AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
             AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
             AudioWriteError::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
+            AudioWriteError::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
+            AudioWriteError::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
        }
     }
 }
@@ -92,7 +103,7 @@ pub enum AudioError {
     CantGuessChannelMask(u16), // 无法猜出声道掩码
     ChannelNotMatchMask, // 声道数不和声道掩码匹配
     Unimplemented(String), // 没有实现的解析格式
-    UnknownSampleType, // 不知道的样本的格式
+    InvalidArguments(String), // 不知道的样本的格式
 }
 
 impl std::error::Error for AudioError {}
@@ -103,7 +114,7 @@ impl std::fmt::Display for AudioError {
            AudioError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}", channels),
            AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
            AudioError::Unimplemented(reason) => write!(f, "Unimplemented behavior: {}", reason),
-           AudioError::UnknownSampleType => write!(f, "Unknown sample type we got from the spec"),
+           AudioError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
        }
     }
 }
