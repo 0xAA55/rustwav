@@ -47,7 +47,7 @@ where S: SampleType {
     pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
-            other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other)).into()),
+            other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other))),
         }
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
@@ -123,7 +123,7 @@ pub mod MP3 {
         pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, AudioReadError> {
             match fmt.format_tag {
                 0x0055 => (),
-                other => return Err(AudioReadError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other)).into()),
+                other => return Err(AudioReadError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other))),
             }
             let (frame_header, iterator) = read_mp3(reader)?;
             Ok(Self {
