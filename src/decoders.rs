@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, io::{self, BufReader}, fmt::Debug, error::Error};
+use std::{fs::File, io::BufReader, fmt::Debug};
 
 // use crate::adpcm::*;
-use crate::errors::AudioError;
+use crate::errors::{AudioError, AudioReadError};
 use crate::wavcore::{Spec, WaveSampleType, FmtChunk};
 use crate::sampleutils::{SampleType, i24, u24};
 use crate::readwrite::Reader;
@@ -12,12 +12,12 @@ use crate::readwrite::Reader;
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
-    fn decode(&mut self) -> Result<Vec<S>, io::Error>;
+    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
 }
 
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
-    fn decode(&mut self) -> Result<Vec<S>, io::Error> {
+    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
         self.decode()
     }
 }
@@ -25,7 +25,7 @@ impl<S> Decoder<S> for PcmDecoder<S>
 #[cfg(feature = "mp3")]
 impl<S> Decoder<S> for MP3::Mp3Decoder
     where S: SampleType {
-    fn decode(&mut self) -> Result<Vec<S>, io::Error> {
+    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
         self.decode::<S>()
     }
 }
@@ -39,12 +39,12 @@ where S: SampleType {
     cur_frames: u64,
     num_frames: u64,
     spec: Spec,
-    decoder: fn(&mut dyn Reader, u16) -> Result<Vec<S>, io::Error>,
+    decoder: fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>,
 }
 
 impl<S> PcmDecoder<S>
 where S: SampleType {
-    pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, Box<dyn Error>> {
+    pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
             other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other)).into()),
@@ -61,16 +61,20 @@ where S: SampleType {
         })
     }
 
-    pub fn decode(&mut self) -> Result<Vec<S>, io::Error> {
+    pub fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
         if self.cur_frames >= self.num_frames {
-            Err(io::Error::new(io::ErrorKind::Other, "Finished reading PCM file."))
+            Ok(None)
         } else {
             self.cur_frames += 1;
-            (self.decoder)(&mut self.reader, self.spec.channels)
+            match (self.decoder)(&mut self.reader, self.spec.channels) {
+                Ok(frame) => Ok(Some(frame)),
+                Err(e) => Err(e),
+            }
         }
     }
 
-    fn decode_to<T>(r: &mut dyn Reader, channels: u16) -> Result<Vec<S>, io::Error>
+    // 这个函数用于给 get_decoder 挑选
+    fn decode_to<T>(r: &mut dyn Reader, channels: u16) -> Result<Vec<S>, AudioReadError>
     where T: SampleType {
         let mut ret = Vec::<S>::with_capacity(channels as usize);
         for _ in 0..channels {
@@ -79,7 +83,8 @@ where S: SampleType {
         Ok(ret)
     }
 
-    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, u16) -> Result<Vec<S>, io::Error>, Box<dyn Error>> {
+    // 这个函数返回的 decoder 只负责读取和转换格式，不负责判断是否读到末尾
+    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_to::<i8 >),
@@ -94,16 +99,16 @@ where S: SampleType {
             U64 => Ok(Self::decode_to::<u64>),
             F32 => Ok(Self::decode_to::<f32>),
             F64 => Ok(Self::decode_to::<f64>),
-            Unknown => return Err(AudioError::UnknownSampleType.into()),
+            Unknown => return Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
         }
     }
 }
 
 #[cfg(feature = "mp3")]
 pub mod MP3 {
-    use std::{fs::File, io::{self, BufReader}, fmt::Debug, error::{Error}};
+    use std::{fs::File, io::BufReader, fmt::Debug};
     use puremp3::{read_mp3, FrameHeader, Channels};
-    use crate::errors::AudioError;
+    use crate::errors::AudioReadError;
     use crate::wavcore::FmtChunk;
     use crate::sampleutils::{SampleType};
 
@@ -115,10 +120,10 @@ pub mod MP3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, Box<dyn Error>> {
+        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, AudioReadError> {
             match fmt.format_tag {
                 0x0055 => (),
-                other => return Err(AudioError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other)).into()),
+                other => return Err(AudioReadError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other)).into()),
             }
             let (frame_header, iterator) = read_mp3(reader)?;
             Ok(Self {
@@ -129,7 +134,7 @@ pub mod MP3 {
             })
         }
 
-        pub fn decode<S>(&mut self) -> Result<Vec<S>, io::Error>
+        pub fn decode<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
             match self.iterator.next() {
                 Some((l, r)) => {

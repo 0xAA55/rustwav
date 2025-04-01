@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, path::{Path, PathBuf}, io::{self, Read, Write, Seek, SeekFrom, BufReader, BufWriter}, error::Error};
+use std::{fs::File, path::{Path, PathBuf}, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
 
-use crate::errors::{AudioError, AudioReadError};
+use crate::errors::{AudioReadError};
 use crate::wavcore::{Spec};
 use crate::wavcore::{ChunkHeader};
 use crate::wavcore::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
@@ -49,15 +49,17 @@ pub struct WaveReader {
     junk_chunks: Vec<JunkChunk>,
 }
 
+}
+
 impl WaveReader {
     // 从文件路径打开
-    pub fn open(file_source: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn open(file_source: &str) -> Result<Self, AudioReadError> {
         Self::new(WaveDataSource::Filename(file_source.to_string()))
         // Self::new(WaveDataSource::Reader(Box::new(BufReader::new(File::open(file_source)?)))) // 测试临时文件
     }
 
     // 从读取器打开
-    pub fn new(file_source: WaveDataSource) -> Result<Self, Box<dyn Error>> {
+    pub fn new(file_source: WaveDataSource) -> Result<Self, AudioReadError> {
         let mut filesrc: Option<String> = None;
         let mut reader = match file_source {
             WaveDataSource::Reader(reader) => {
@@ -67,7 +69,7 @@ impl WaveReader {
                 filesrc = Some(filename.clone());
                 Box::new(BufReader::new(File::open(&filename)?))
             },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given"))),
         };
 
         let text_encoding: Box<dyn SavageStringCodecs> = Box::new(StringCodecMaps::new());
@@ -87,7 +89,7 @@ impl WaveReader {
             b"RF64" => {
                 isRF64 = true;
             },
-            _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file")).into()), // 根本不是 WAV
+            _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file"))), // 根本不是 WAV
         }
 
         let start_of_riff = reader.stream_position()?;
@@ -130,7 +132,7 @@ impl WaveReader {
                 },
                 b"ds64" => {
                     if chunk.size < 28 {
-                        return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")).into())
+                        return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")))
                     }
                     riff_len = u64::read_le(&mut reader)?;
                     data_size = u64::read_le(&mut reader)?;
@@ -140,7 +142,7 @@ impl WaveReader {
                 }
                 b"data" => {
                     if data_offset != 0 {
-                        return Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(&chunk.flag))).into());
+                        return Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(&chunk.flag))));
                     }
                     data_offset = chunk.chunk_start_pos;
                     if !isRF64 {
@@ -205,7 +207,7 @@ impl WaveReader {
 
         let fmt__chunk = match fmt__chunk {
             Some(fmt__chunk) => fmt__chunk,
-            None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide any \"data\" chunk")).into()),
+            None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide any \"data\" chunk"))),
         };
 
         let channel_mask = match fmt__chunk.extension {
@@ -278,7 +280,7 @@ impl WaveReader {
     // 它就会疯狂 seek 然后读取，如果多个迭代器在多线程的情况下使用，绝对会乱套。
     // 因此，当 WaveReader 是从文件创建的，那可以给迭代器重新打开文件，让迭代器自己去 seek 和读取。
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
-    pub fn iter<S>(&mut self) -> Result<WaveIter<S>, Box<dyn Error>>
+    pub fn iter<S>(&mut self) -> Result<WaveIter<S>, AudioReadError>
     where S: SampleType {
         WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, match self.fact_data {
             None => 0,
@@ -289,7 +291,7 @@ impl WaveReader {
     // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
     fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
-            Err(AudioReadError::FormatError(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
+            Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
         } else {
             Ok(())
         }
@@ -304,11 +306,14 @@ fn savage_path_buf_to_string(filepath: &Path) -> String {
     }
 }
 
-pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf)?;
     if &buf != flag {
-        Err(AudioReadError::UnexpectedFlag(String::from_utf8_lossy(flag).to_string(), String::from_utf8_lossy(&buf).to_string()).into())
+        Err(AudioReadError::UnexpectedFlag(
+            String::from_utf8_lossy(flag).to_string(),
+            String::from_utf8_lossy(&buf).to_string())
+        )
     } else {
         Ok(())
     }
@@ -327,7 +332,7 @@ struct WaveDataReader {
 impl WaveDataReader {
     // 从原始 WAV 肚子里抠出所有的 data 数据，然后找个临时文件位置存储。
     // 能得知临时文件的文件夹。
-    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, Box<dyn Error>> {
+    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, AudioReadError> {
         let reader: Option<Box<dyn Reader>>;
         let filepath: Option<PathBuf>;
         let tempdir: Option<tempfile::TempDir>;
@@ -357,7 +362,7 @@ impl WaveDataReader {
                 offset = data_offset;
                 have_source_file = true;
             },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given")).into()),
+            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given"))),
         };
 
         // 这个用来存储最原始的 Reader，如果最开始没有给 Reader 而是给了文件名，则存 None。
@@ -393,7 +398,7 @@ impl WaveDataReader {
         })
     }
 
-    fn open(&self) -> Result<File, io::Error> {
+    fn open(&self) -> Result<File, AudioReadError> {
         let mut file = File::open(&self.filepath)?;
         file.seek(SeekFrom::Start(self.offset))?;
         Ok(file)
@@ -413,7 +418,7 @@ where S: SampleType {
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, Box<dyn Error>> {
+    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,
