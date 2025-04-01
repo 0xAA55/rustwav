@@ -369,27 +369,12 @@ impl WaveDataReader {
 
         // 没有原始文件名，只有一个 Reader，那就从 Reader 那里把 WAV 文件肚子里的 data chunk 复制到一个临时文件里。
         if ! have_source_file {
-            // 分段复制文件到临时文件里
-            const BUFFER_SIZE: u64 = 81920;
-            let mut buf = vec![0u8; BUFFER_SIZE as usize];
 
             // 根据临时文件名创建临时文件
             let mut file = BufWriter::new(File::create(&filepath)?);
             reader.seek(SeekFrom::Start(offset))?;
 
-            // 按 BUFFER_SIZE 不断复制
-            let mut to_move = data_size;
-            while to_move >= BUFFER_SIZE {
-                reader.read_exact(&mut buf)?;
-                file.write_all(&buf)?;
-                to_move -= BUFFER_SIZE;
-            }
-            // 复制最后剩下的
-            if to_move != 0 {
-                buf.resize(to_move as usize, 0);
-                reader.read_exact(&mut buf)?;
-                file.write_all(&buf)?;
-            }
+            readwrite::copy(&mut reader, &mut file, data_size)?;
 
             // 这个时候，我们再把原始提供下来的 reader 收集起来存到结构体里
             orig_reader = Some(reader);
