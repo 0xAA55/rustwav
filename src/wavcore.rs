@@ -401,7 +401,7 @@ impl ChunkWriter {
                 }
                 self.ended = true;
                 Ok(())
-            })
+            })?)
         }
     }
 
@@ -928,7 +928,7 @@ impl ListChunk {
                 }
             }
             Ok(())
-        })
+        })?)
     }
 }
 
