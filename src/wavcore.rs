@@ -915,10 +915,10 @@ impl ListChunk {
     }
 
     pub fn write_dict(writer_shared: SharedWriter, dict: &HashMap<String, String>, text_encoding: &dyn SavageStringCodecs) -> Result<(), AudioWriteError> {
-        Ok(writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
+        Ok(writer_shared.escorted_write(|writer| -> Result<(), AudioWriteError> {
             for (key, val) in dict.iter() {
                 if key.len() != 4 {
-                    return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")))
+                    return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
                 }
                 let mut val = val.clone();
                 val.push('\0');
