@@ -43,12 +43,12 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         channels: orig_spec.channels,
         channel_mask: orig_spec.channel_mask,
         sample_rate: orig_spec.sample_rate,
-        bits_per_sample: 24, // 音频改成 24 位
+        bits_per_sample: 16, // 设置样本位数
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::PCM_Int, FileSizeOption::ForceUse4GBFormat).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, FileSizeOption::ForceUse4GBFormat).unwrap();
 
     // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
     // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
