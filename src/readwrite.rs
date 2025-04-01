@@ -57,7 +57,7 @@ impl SharedWriter{
 
 pub mod string_io {
     use std::{io::{self, Read, Write}};
-    use crate::savagestr::SavageStringCodecs;
+    use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
     pub fn read_bytes<T: Read>(r: &mut T, size: usize) -> Result<Vec<u8>, io::Error> {
         let mut buf = vec![0; size];
@@ -65,13 +65,13 @@ pub mod string_io {
         Ok(buf)
     }
 
-    pub fn read_str<T: Read>(r: &mut T, size: usize, text_encoding: &dyn SavageStringCodecs) -> Result<String, io::Error> {
+    pub fn read_str<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
         let mut buf = vec![0; size];
         r.read_exact(&mut buf)?;
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
 
-    pub fn read_sz<T: Read>(r: &mut T, text_encoding: &dyn SavageStringCodecs) -> Result<String, io::Error> {
+    pub fn read_sz<T: Read>(r: &mut T, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
         let mut buf = Vec::<u8>::new();
         loop {
             let b = [0u8; 1];
@@ -86,14 +86,14 @@ pub mod string_io {
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
 
-    pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &String, size: usize, text_encoding: &dyn SavageStringCodecs) -> Result<(), io::Error> {
+    pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &String, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
         let mut data = text_encoding.encode(&data);
         data.resize(size, 0);
         w.write_all(&data)?;
         Ok(())
     }
 
-    pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &String, text_encoding: &dyn SavageStringCodecs) -> Result<(), io::Error> {
+    pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &String, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
         let data = text_encoding.encode(&data);
         w.write_all(&data)?;
         Ok(())
