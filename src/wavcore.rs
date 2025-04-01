@@ -107,14 +107,16 @@ impl WaveSampleType {
 }
 
 
+#[allow(unused_imports)]
 pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
     use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{Unknown, U8,S16,S24,S32,F32,F64};
+    use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
     match (bits_per_sample, sample_format) {
         (8, UInt) => U8,
         (16, Int) => S16,
         (24, Int) => S24,
         (32, Int) => S32,
+        (64, Int) => S64,
         (32, Float) => F32,
         (64, Float) => F64,
         // 上述的就是 PCM 能支持的所有格式。
