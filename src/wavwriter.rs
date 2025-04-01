@@ -62,8 +62,11 @@ impl WaveWriter {
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type();
         let sample_packer = match data_format {
-            PCM_Int | PCM_Float => Encoder::new(Box::new(PcmEncoder::new(sample_type))),
-            other => return Err(AudioWriteError::UnsupportedFormat(format!("{:?}", other)).into()),
+            Pcm => {
+                spec.verify_for_pcm()?;
+                Encoder::new(Box::new(PcmEncoder::new(sample_type)?))
+            },
+            other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
         let mut ret = Self{
             writer: writer.clone(),
@@ -125,24 +128,31 @@ impl WaveWriter {
 
         // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
         let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
+        ext |= self.spec.channels > 2;
 
         let fmt__chunk = FmtChunk {
             format_tag: match &self.data_format {
-                DataFormat::PCM_Int => {
-                    match ext {
-                        false => 1,
-                        true => 0xFFFE,
-                    }
-                },
-                DataFormat::PCM_Float => {
-                    match ext {
-                        false => 3,
-                        true => {
-                            match self.spec.bits_per_sample {
-                                32 | 64 => 0xFFFE,
-                                other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other)).into()),
+                DataFormat::Pcm => {
+                    use SampleFormat::{Unknown, Float, UInt, Int};
+                    match self.spec.sample_format {
+                        Unknown => return Err(AudioWriteError::InvalidArguments("Please check `spec.sample_format` is not set to `Unknown`".to_owned())),
+                        Int | UInt => {
+                            match ext {
+                                false => 1,
+                                true => 0xFFFE,
                             }
-                        }
+                        },
+                        Float => {
+                            match ext {
+                                false => 3,
+                                true => {
+                                    match self.spec.bits_per_sample {
+                                        32 | 64 => 0xFFFE,
+                                        other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other))),
+                                    }
+                                },
+                            }
+                        },
                     }
                 },
                 DataFormat::Mp3 => {
