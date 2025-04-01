@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, error::Error};
+use std::{fs::File, io::{self, BufWriter, SeekFrom}, path::Path};
 
 use crate::errors::AudioWriteError;
 use crate::wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType};
@@ -50,14 +50,14 @@ pub struct WaveWriter {
 }
 
 impl WaveWriter {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
         let file_reader = BufWriter::new(File::create(filename)?);
         let wave_writer = WaveWriter::from(SharedWriter::new(file_reader), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
-    pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, Box<dyn Error>> {
-        use DataFormat::{ PCM_Int, PCM_Float, Mp3, OggVorbis, Flac };
+    pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
+        use DataFormat::{Pcm, Mp3, OggVorbis, Flac};
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type();
@@ -94,13 +94,13 @@ impl WaveWriter {
         Ok(ret)
     }
 
-    fn write_header(&mut self) -> Result<(), Box<dyn Error>> {
+    fn write_header(&mut self) -> Result<(), AudioWriteError> {
         use SampleFormat::{Int, UInt, Float};
 
         self.riff_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
-        self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        self.writer.escorted_write(|writer| -> Result<(), io::Error> {
             writer.write_all(b"WAVE")?;
             Ok(())
         })?;
@@ -110,7 +110,7 @@ impl WaveWriter {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-                self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                self.writer.escorted_write(|writer| -> Result<(), io::Error> {
                     writer.write_all(&[0u8; 28])?;
                     Ok(())
                 })?;
@@ -172,7 +172,7 @@ impl WaveWriter {
                     sub_format: match self.spec.sample_format {
                         Int | UInt => GUID_PCM_FORMAT,
                         Float => GUID_IEEE_FLOAT_FORMAT,
-                        other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other)).into()),
+                        other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other))),
                     },
                 }),
             },
@@ -185,30 +185,30 @@ impl WaveWriter {
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), Box<dyn Error>>
+    pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
-                self.sample_packer.write_frame::<S>(writer, frame)
+            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+                Ok(self.sample_packer.write_frame::<S>(writer, frame)?)
             })?;
             self.num_frames += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")).into())
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
         }
     }
 
     // 保存多个样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), Box<dyn Error>>
+    pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
-                self.sample_packer.write_multiple_frames::<S>(writer, frames)
+            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+                Ok(self.sample_packer.write_multiple_frames::<S>(writer, frames)?)
             })?;
             self.num_frames += frames.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")).into())
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
         }
     }
 
@@ -266,7 +266,7 @@ impl WaveWriter {
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
     }
 
-    pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
         // 结束对 data 块的写入
         self.data_chunk = None;
         
@@ -291,7 +291,7 @@ impl WaveWriter {
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
-            self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
                 write_str(writer, chunk, &*self.text_encoding)?;
                 Ok(())
             })?;
@@ -306,9 +306,9 @@ impl WaveWriter {
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
         self.riff_chunk = None;
 
-        self.writer.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             let file_end_pos = writer.stream_position()?;
-            let mut change_to_4gb_hreader = || -> Result<(), Box<dyn Error>> {
+            let mut change_to_4gb_hreader = || -> Result<(), AudioWriteError> {
                 writer.seek(SeekFrom::Start(0))?;
                 writer.write_all(b"RF64")?;
                 0xFFFFFFFFu32.write_le(writer)?;
@@ -327,7 +327,7 @@ impl WaveWriter {
             match self.file_size_option {
                 FileSizeOption::NeverLargerThan4GB => {
                     if file_end_pos > 0xFFFFFFFFu64 {
-                        Err(AudioWriteError::NotPreparedFor4GBFile.into())
+                        Err(AudioWriteError::NotPreparedFor4GBFile)
                     } else {
                         Ok(())
                     }

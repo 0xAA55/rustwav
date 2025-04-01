@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, SeekFrom}, error::Error, collections::HashMap};
+use std::{io::{self, Read, Write, SeekFrom}, collections::HashMap};
 
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 use crate::readwrite::{Reader, Writer, SharedWriter, string_io::*};
@@ -123,7 +123,7 @@ pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80,
 // 视情况实现
 
 impl GUID {
-    pub fn read<T>(r: &mut T) -> Result<Self, std::io::Error>
+    pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
     where T: Read {
         Ok( Self (
             u32::read_le(r)?,
@@ -142,7 +142,7 @@ impl GUID {
         ))
     }
 
-    pub fn write<T>(&self, w: &mut T) -> Result<(), std::io::Error>
+    pub fn write<T>(&self, w: &mut T) -> Result<(), io::Error>
     where T: Write + ?Sized {
         self.0.write_le(w)?;
         self.1.write_le(w)?;
@@ -332,10 +332,10 @@ impl std::fmt::Debug for ChunkWriter {
 
 impl ChunkWriter {
     // 开始写入 Chunk，此时写入 Chunk Flag，然后记录 Chunk Size 的位置，以及 Chunk 数据的位置。
-    pub fn begin(writer_shared: SharedWriter, flag: &[u8; 4]) -> Result<Self, Box<dyn Error>> {
+    pub fn begin(writer_shared: SharedWriter, flag: &[u8; 4]) -> Result<Self, AudioWriteError> {
         let mut pos_of_chunk_len = 0u64;
         let mut chunk_start = 0u64;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             writer.write_all(flag)?;
             pos_of_chunk_len = writer.stream_position()?;
             0u32.write_le(writer)?;
@@ -352,7 +352,7 @@ impl ChunkWriter {
     }
 
     // 结束写入 Chunk，更新 Chunk Size
-    pub fn end(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn end(&mut self) -> Result<(), AudioWriteError> {
         if self.ended {
             Ok(())
         } else {
@@ -377,11 +377,11 @@ impl ChunkWriter {
     }
 
     // 放弃写入 Chunk，写一个假的 Chunk 大小
-    pub fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), Box<dyn Error>> {
+    pub fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), AudioWriteError> {
         if self.ended {
             Ok(())
         } else {
-            self.writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+            Ok(self.writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                 let end_of_chunk = writer.stream_position()?;
                 writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
                 chunk_size_to_write.write_le(writer)?;
@@ -401,13 +401,13 @@ impl ChunkWriter {
     }
 
     // 取得 Chunk 数据当前写入的大小
-    pub fn get_chunk_data_size(&mut self) -> Result<u64, Box<dyn Error>> {
-        self.writer_shared.escorted_work::<u64, _>(|writer| -> Result<u64, Box<dyn Error>> {
+    pub fn get_chunk_data_size(&mut self) -> Result<u64, AudioWriteError> {
+        Ok(self.writer_shared.escorted_work::<u64, _, io::Error>(|writer| -> Result<u64, io::Error> {
             self.get_chunk_data_size_priv(writer)
-        })
+        })?)
     }
 
-    fn get_chunk_data_size_priv(&self, writer: &mut dyn Writer) -> Result<u64, Box<dyn Error>> {
+    fn get_chunk_data_size_priv(&self, writer: &mut dyn Writer) -> Result<u64, io::Error> {
         Ok(writer.stream_position()? - self.get_chunk_start_pos())
     }
 }
@@ -426,7 +426,7 @@ pub struct ChunkHeader {
 }
 
 impl ChunkHeader {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         // 读取 WAV 中的每个块
         let mut flag = [0u8; 4];
@@ -446,9 +446,9 @@ impl ChunkHeader {
         Self::align(self.chunk_start_pos + self.size as u64)
     }
 
-    pub fn seek_to_next_chunk<R>(&self, reader: &mut R) -> Result<u64, io::Error>
+    pub fn seek_to_next_chunk<R>(&self, reader: &mut R) -> Result<u64, AudioReadError>
     where R: Reader {
-        reader.seek(SeekFrom::Start(self.next_chunk_pos()))
+        Ok(reader.seek(SeekFrom::Start(self.next_chunk_pos()))?)
     }
 }
 
@@ -474,7 +474,7 @@ pub struct FmtChunkExtension {
 }
 
 impl FmtChunk {
-    pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, AudioReadError>
     where R: Reader {
         let mut ret = FmtChunk{
             format_tag: u16::read_le(reader)?,
@@ -496,9 +496,9 @@ impl FmtChunk {
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"fmt ")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             self.format_tag.write_le(writer)?;
             self.channels.write_le(writer)?;
             self.sample_rate.write_le(writer)?;
@@ -549,7 +549,7 @@ impl FmtChunk {
 }
 
 impl FmtChunkExtension {
-    pub fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self{
             ext_len: u16::read_le(reader)?,
@@ -559,7 +559,7 @@ impl FmtChunkExtension {
         })
     }
 
-    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.ext_len.write_le(writer)?;
         self.valid_bits_per_sample.write_le(writer)?;
         self.channel_mask.write_le(writer)?;
@@ -584,7 +584,7 @@ pub struct BextChunk {
 }
 
 impl BextChunk {
-    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodecs) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodecs) -> Result<Self, AudioReadError>
     where R: Reader {
         let description = read_str(reader, 256, text_encoding)?;
         let originator = read_str(reader, 32, text_encoding)?;
@@ -613,9 +613,9 @@ impl BextChunk {
         })
     }
 
-    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"bext")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             write_str_sized(writer, &self.description, 256, text_encoding)?;
             write_str_sized(writer, &self.originator, 32, text_encoding)?;
             write_str_sized(writer, &self.originator_ref, 32, text_encoding)?;
@@ -658,7 +658,7 @@ pub struct SmplSampleLoop {
 }
 
 impl SmplChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         let mut ret = Self{
             manufacturer: u32::read_le(reader)?,
@@ -678,9 +678,9 @@ impl SmplChunk {
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"smpl")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             self.manufacturer.write_le(writer)?;
             self.product.write_le(writer)?;
             self.sample_period.write_le(writer)?;
@@ -701,7 +701,7 @@ impl SmplChunk {
 }
 
 impl SmplSampleLoop {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self{
             identifier: u32::read_le(reader)?,
@@ -713,7 +713,7 @@ impl SmplSampleLoop {
         })
     }
 
-    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.identifier.write_le(writer)?;
         self.type_.write_le(writer)?;
         self.start.write_le(writer)?;
@@ -736,7 +736,7 @@ pub struct InstChunk {
 }
 
 impl InstChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self{
             base_note: u8::read_le(reader)?,
@@ -749,9 +749,9 @@ impl InstChunk {
         })
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"INST")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             self.base_note.write_le(writer)?;
             self.detune.write_le(writer)?;
             self.gain.write_le(writer)?;
@@ -785,7 +785,7 @@ pub struct Cue {
 }
 
 impl CueChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         let mut ret = CueChunk {
             num_cues: u32::read_le(reader)?,
@@ -797,9 +797,9 @@ impl CueChunk {
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"cue ")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             self.num_cues.write_le(writer)?;
             for cue in self.cues.iter() {
                 cue.write(writer)?;
@@ -812,7 +812,7 @@ impl CueChunk {
 }
 
 impl Cue {
-    pub fn read<R>(reader: &mut R) -> Result<Self, io::Error>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self{
             identifier: u32::read_le(reader)?,
@@ -824,7 +824,7 @@ impl Cue {
         })
     }
 
-    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.identifier.write_le(writer)?;
         self.order.write_le(writer)?;
         self.chunk_id.write_le(writer)?;
@@ -842,7 +842,7 @@ pub enum ListChunk {
 }
 
 impl ListChunk {
-    pub fn read<R>(reader: &mut R, chunk_size: u64, text_encoding: &dyn SavageStringCodecs) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, chunk_size: u64, text_encoding: &dyn SavageStringCodecs) -> Result<Self, AudioReadError>
     where R: Reader {
         let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
@@ -860,23 +860,23 @@ impl ListChunk {
                 Ok(Self::Adtl(adtl))
             },
             other => {
-                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", text_encoding.decode_flags(other))).into())
+                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", text_encoding.decode_flags(other))))
             },
         }
     }
 
-    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"LIST")?;
         match self {
             Self::Info(dict) => {
-                writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                     writer.write_all(b"INFO")?;
                     Ok(())
                 })?;
                 Self::write_dict(writer_shared.clone(), dict, text_encoding)?;
             },
             Self::Adtl(adtls) => {
-                writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                     writer.write_all(b"adtl")?;
                     Ok(())
                 })?;
@@ -889,7 +889,7 @@ impl ListChunk {
         Ok(())
     }
 
-    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, text_encoding: &dyn SavageStringCodecs) -> Result<HashMap<String, String>, Box<dyn Error>>
+    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, text_encoding: &dyn SavageStringCodecs) -> Result<HashMap<String, String>, AudioReadError>
     where R: Reader {
         // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
         let mut dict = HashMap::<String, String>::new();
@@ -902,11 +902,11 @@ impl ListChunk {
         Ok(dict)
     }
 
-    pub fn write_dict(writer_shared: SharedWriter, dict: &HashMap<String, String>, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+    pub fn write_dict(writer_shared: SharedWriter, dict: &HashMap<String, String>, text_encoding: &dyn SavageStringCodecs) -> Result<(), AudioWriteError> {
+        Ok(writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             for (key, val) in dict.iter() {
                 if key.len() != 4 {
-                    return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")).into())
+                    return Err(AudioWriteError::InvalidArguments(String::from("flag must be 4 bytes")))
                 }
                 let mut val = val.clone();
                 val.push('\0');
@@ -930,7 +930,7 @@ pub enum AdtlChunk {
 }
 
 impl AdtlChunk {
-    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodecs) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R, text_encoding: &dyn SavageStringCodecs) -> Result<Self, AudioReadError>
     where R: Reader {
         let sub_chunk = ChunkHeader::read(reader)?;
         let ret = match &sub_chunk.flag {
@@ -959,18 +959,18 @@ impl AdtlChunk {
                 })
             },
             other => {
-                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()).into());
+                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()));
             },
         };
         sub_chunk.seek_to_next_chunk(reader)?;
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter, text_encoding: &dyn SavageStringCodecs) -> Result<(), AudioWriteError> {
         match self {
             Self::Labl(labl) => {
                 let mut cw = ChunkWriter::begin(writer_shared.clone(), b"labl")?;
-                writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                     labl.identifier.write_le(writer)?;
                     write_str(writer, &labl.data, text_encoding)?;
                     Ok(())
@@ -979,7 +979,7 @@ impl AdtlChunk {
             },
             Self::Note(note) => {
                 let mut cw = ChunkWriter::begin(writer_shared.clone(), b"note")?;
-                writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                     note.identifier.write_le(writer)?;
                     write_str(writer, &note.data, text_encoding)?;
                     Ok(())
@@ -988,7 +988,7 @@ impl AdtlChunk {
             },
             Self::Ltxt(ltxt) => {
                 let mut cw = ChunkWriter::begin(writer_shared.clone(), b"ltxt")?;
-                writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+                writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
                     ltxt.identifier.write_le(writer)?;
                     ltxt.sample_length.write_le(writer)?;
                     write_str_sized(writer, &ltxt.purpose_id, 4, text_encoding)?;
@@ -1043,7 +1043,7 @@ pub struct AcidChunk {
 }
 
 impl AcidChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, Box<dyn Error>>
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self {
             flags: u32::read_le(reader)?,
@@ -1057,9 +1057,9 @@ impl AcidChunk {
         })
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"acid")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             self.flags.write_le(writer)?;
             self.root_node.write_le(writer)?;
             self.reserved1.write_le(writer)?;
@@ -1097,9 +1097,9 @@ impl JunkChunk {
         }
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), Box<dyn Error>> {
+    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer_shared.clone(), b"JUNK")?;
-        writer_shared.escorted_write(|writer| -> Result<(), Box<dyn Error>> {
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
             match self {
                 Self::FullZero(size) => writer.write_all(&vec![0u8; *size as usize])?,
                 Self::SomeData(data) => writer.write_all(data)?,
@@ -1115,10 +1115,12 @@ impl JunkChunk {
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
 pub mod Id3{
-    use super::Reader;
-    use std::error::Error;
+    use std::io::{Read, Write, Seek};
+    use crate::errors::{AudioReadError, AudioWriteError};
     pub type Tag = id3::Tag;
-    pub fn read<R: Reader>(reader: &mut R, _size: usize) -> Result<Tag, Box<dyn Error>> {
+
+    pub fn id3_read<R>(reader: &mut R, _size: usize) -> Result<Tag, AudioReadError>
+    where R: Read + Seek + ?Sized {
         Ok(Tag::read_from2(reader)?)
     }
 }
@@ -1141,7 +1143,9 @@ pub mod Id3{
             }
         }
     }
-    pub fn read<R: Read>(reader: &mut R, size: usize) -> Result<Tag, Box<dyn Error>> {
+
+    pub fn id3_read<R>(reader: &mut R, size: usize) -> Result<Tag, AudioReadError>
+    where R: Read + Seek + ?Sized {
         #[cfg(debug_assertions)]
         println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
         Ok(Tag::new(super::read_bytes(reader, size)?))
