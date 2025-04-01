@@ -32,8 +32,7 @@ impl SharedWriter{
     }
 }
 
-#[allow(non_snake_case)]
-pub mod StringIO {
+pub mod string_io {
     use std::{io::{Read, Write}, error::Error};
     use crate::savagestr::SavageStringCodecs;
 

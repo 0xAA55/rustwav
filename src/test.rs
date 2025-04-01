@@ -17,7 +17,7 @@ use std::error::Error;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
-pub use readwrite::{Reader, Writer, SharedWriter, StringIO};
+pub use readwrite::{Reader, Writer, SharedWriter, string_io};
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use encoders::{EncoderBasic, Encoder, PcmEncoder};
 pub use decoders::{Decoder, PcmDecoder};
