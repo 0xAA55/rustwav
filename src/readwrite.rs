@@ -1,12 +1,35 @@
 #![allow(dead_code)]
 
-use std::{io::{Read, Write, Seek}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug, error::Error};
+use std::{io::{self, Read, Write, Seek}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug, error::Error};
 
 pub trait Reader: Read + Seek + Debug {}
 impl<T> Reader for T where T: Read + Seek + Debug {}
 
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
+
+pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
+where R: Read, W: Write {
+
+    const BUFFER_SIZE: u64 = 1024;
+    let mut buf = vec![0u8; BUFFER_SIZE as usize];
+
+    // 按 BUFFER_SIZE 不断复制
+    let mut to_copy = bytes_to_copy;
+    while to_copy >= BUFFER_SIZE {
+        reader.read_exact(&mut buf)?;
+        writer.write_all(&buf)?;
+        to_copy -= BUFFER_SIZE;
+    }
+    // 复制最后剩下的
+    if to_copy > 0 {
+        buf.resize(to_copy as usize, 0);
+        reader.read_exact(&mut buf)?;
+        writer.write_all(&buf)?;
+    }
+    Ok(())
+}
+
 
 #[derive(Debug, Clone)]
 pub struct SharedWriter(Arc<Mutex<dyn Writer>>);
