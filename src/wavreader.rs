@@ -53,6 +53,7 @@ impl WaveReader {
     // 从文件路径打开
     pub fn open(file_source: &str) -> Result<Self, Box<dyn Error>> {
         Self::new(WaveDataSource::Filename(file_source.to_string()))
+        // Self::new(WaveDataSource::Reader(Box::new(BufReader::new(File::open(file_source)?)))) // 测试临时文件
     }
 
     // 从读取器打开
