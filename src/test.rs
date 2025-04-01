@@ -3,6 +3,7 @@ mod errors;
 mod savagestr;
 mod readwrite;
 mod sampleutils;
+mod filehasher;
 mod adpcm;
 mod encoders;
 mod decoders;
