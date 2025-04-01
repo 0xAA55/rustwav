@@ -319,6 +319,15 @@ impl Spec {
     pub fn channel_mask_to_speaker_positions_desc(&self) -> Result<Vec<String>, AudioError> {
         channel_mask_to_speaker_positions_desc(self.channels, self.channel_mask)
     }
+
+    pub fn verify_for_pcm(&self) -> Result<(), AudioError> {
+        self.guess_channel_mask()?;
+        if self.get_sample_type() == WaveSampleType::Unknown {
+            Err(AudioError::InvalidArguments(format!("PCM doesn't support {} bits per sample {:?}", self.bits_per_sample, self.sample_format)))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Clone)]
