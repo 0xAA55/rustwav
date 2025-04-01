@@ -142,13 +142,13 @@ pub mod MP3 {
                     let l = S::from(l);
                     let r = S::from(r);
                     match self.frame_header.channels {
-                        Channels::Mono => Ok(vec![m]),
-                        Channels::DualMono => Ok(vec![l, r]),
-                        Channels::Stereo => Ok(vec![l, r]),
-                        Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ }  => Ok(vec![l, r]), 
+                        Channels::Mono => Ok(Some(vec![m])),
+                        Channels::DualMono => Ok(Some(vec![l, r])),
+                        Channels::Stereo => Ok(Some(vec![l, r])),
+                        Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ }  => Ok(Some(vec![l, r])),
                     }
                 },
-                None => Err(io::Error::new(io::ErrorKind::Other, "Finished reading MP3 file.")),
+                None => Ok(None),
             }
         }
     }

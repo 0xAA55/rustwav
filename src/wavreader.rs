@@ -452,8 +452,8 @@ where S: SampleType {
 
     fn next(&mut self) -> Option<Self::Item> {
         let ret = match self.decoder.decode() {
-            Ok(sample) => Some(sample),
-            Err(_) => None,
+            Ok(sample) => sample,
+            Err(err) => panic!("{:?}", err),
         };
         self.frame_pos += 1;
         ret
