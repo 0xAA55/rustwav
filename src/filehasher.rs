@@ -1,4 +1,4 @@
-use std::{hash::{Hasher, DefaultHasher}, io::{self, Read, Write, Seek, SeekFrom, Error}};
+use std::{hash::{Hasher, DefaultHasher}, io::{Read, Write, Seek, SeekFrom, Error}};
 
 use crate::readwrite;
 
@@ -23,13 +23,13 @@ impl FileHasher{
 }
 
 impl Write for FileHasher {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error>
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error>
     {
     	self.hasher.write(buf);
     	Ok(buf.len())
     }
 
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> Result<(), Error> {
     	Ok(())
     }
 }
