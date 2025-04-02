@@ -106,7 +106,7 @@ where S: SampleType {
 
 #[cfg(feature = "mp3")]
 pub mod MP3 {
-    use std::{fs::File, io::BufReader, fmt::Debug};
+    use std::{fs::File, io::{BufReader, Seek}, fmt::Debug};
     use puremp3::{Frame, FrameHeader, Channels};
     use crate::errors::AudioReadError;
     use crate::wavcore::FmtChunk;
@@ -132,6 +132,10 @@ pub mod MP3 {
             let mut the_decoder = puremp3::Mp3Decoder::new(reader);
             let cur_frame = the_decoder.next_frame()?;
             let num_frames = 1;
+            if true {
+                let reader = the_decoder.get_mut();
+                println!("{}, {}, 0x{:x}, 0x{:x}", num_frames, cur_frame.num_samples, reader.stream_position()?, data_length);
+            }
             Ok(Self {
                 data_offset,
                 data_length,
@@ -164,7 +168,10 @@ pub mod MP3 {
                 // 下一个 Frame
                 self.cur_frame = self.the_decoder.next_frame()?; // 竟然会 EOF
                 self.num_frames += 1;
-                println!("{}, {}", self.num_frames, self.cur_frame.num_samples);
+                if true {
+                    let reader = self.the_decoder.get_mut();
+                    println!("{}, {}, 0x{:x}, 0x{:x}", self.num_frames, self.cur_frame.num_samples, reader.stream_position()?, self.data_length);
+                }
                 self.sample_index = 0;
                 self.decode::<S>()
             }
