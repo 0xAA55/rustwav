@@ -191,6 +191,8 @@ impl WaveWriter {
         fmt__chunk.write(self.writer.clone())?;
 
         self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
+        self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
+
         Ok(())
     }
 
