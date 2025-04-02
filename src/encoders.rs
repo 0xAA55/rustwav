@@ -11,7 +11,7 @@ use crate::readwrite::{Writer};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
-pub trait EncoderBasic: Debug {
+pub trait EncoderToImpl: Debug {
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError>;
     fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError>;
     fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError>;
@@ -40,7 +40,7 @@ pub trait EncoderBasic: Debug {
 }
 
 // 提供默认实现。无论用户输入的是什么格式，默认用 f32 传递给编码器。
-impl EncoderBasic for () {
+impl EncoderToImpl for () {
     // 这个方法用户必须实现
     fn write_frame_f32(&mut self, _writer: &mut dyn Writer, _frame: &Vec<f32>) -> Result<(), AudioWriteError> {
         panic!("Must implement `write_frame_f32()` for your encoder to get samples.");
@@ -80,12 +80,12 @@ impl EncoderBasic for () {
 }
 
 #[derive(Debug)]
-pub struct Encoder { // 它就只是负责帮存储一个 `EncoderBasic`，然后提供具有泛型参数的函数便于调用者使用。
-    encoder: Box<dyn EncoderBasic>,
+pub struct Encoder { // 它就只是负责帮存储一个 `EncoderToImpl`，然后提供具有泛型参数的函数便于调用者使用。
+    encoder: Box<dyn EncoderToImpl>,
 }
 
 impl Encoder {
-    pub fn new(encoder: Box<dyn EncoderBasic>) -> Self {
+    pub fn new(encoder: Box<dyn EncoderToImpl>) -> Self {
         Self {
             encoder,
         }
@@ -149,12 +149,12 @@ where S: SampleType,
 
     let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
     for f in frames.iter() {
-        ret.push(sample_conv::<S, D>(f));
+        ret.push(sample_conv(f));
     }
     ret
 }
 
-impl EncoderBasic for PcmEncoder {
+impl EncoderToImpl for PcmEncoder {
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.writer_from__i8.write_frame(writer, frame)}
     fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {self.writer_from_i16.write_frame(writer, frame)}
     fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError> {self.writer_from_i24.write_frame(writer, frame)}
