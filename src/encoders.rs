@@ -70,7 +70,7 @@ impl EncoderToImpl for () {
     fn write_multiple_frames_u64(&mut self, writer: &mut dyn Writer, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames_f32(writer, &sample_conv_batch(frames))}
 
-    // 这个东西也可以帮用户实现
+    // 这个东西可以帮用户实现
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {
         for frame in frames.iter() {
             self.write_frame_f32(writer, frame)?;
@@ -85,9 +85,9 @@ pub struct Encoder { // 它就只是负责帮存储一个 `EncoderToImpl`，然�
 }
 
 impl Encoder {
-    pub fn new(encoder: Box<dyn EncoderToImpl>) -> Self {
+    pub fn new(encoder: impl EncoderToImpl + 'static) -> Self {
         Self {
-            encoder,
+            encoder: Box::new(encoder),
         }
     }
 
