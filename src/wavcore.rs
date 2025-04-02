@@ -1136,8 +1136,8 @@ impl JunkChunk {
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
 pub mod Id3{
-    use std::io::{Read, Write, Seek};
-    use crate::errors::{AudioReadError, AudioWriteError};
+    use std::{io::{Read, Write, Seek}};
+    use crate::errors::{AudioReadError, AudioWriteError, IOErrorInfo};
     pub type Tag = id3::Tag;
 
     pub fn id3_read<R>(reader: &mut R, _size: usize) -> Result<Tag, AudioReadError>
@@ -1153,7 +1153,7 @@ pub mod Id3{
     impl From<id3::Error> for AudioReadError {
         fn from(err: id3::Error) -> Self {
             match err.kind {
-                id3::ErrorKind::Io(ioerr) => AudioReadError::IOError(ioerr.kind()),
+                id3::ErrorKind::Io(ioerr) => AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
                 id3::ErrorKind::StringDecoding(bytes) => AudioReadError::StringDecodeError(bytes),
                 id3::ErrorKind::NoTag => AudioReadError::FormatError(err.description),
                 id3::ErrorKind::Parsing => AudioReadError::DataCorrupted(err.description),
@@ -1166,7 +1166,7 @@ pub mod Id3{
     impl From<id3::Error> for AudioWriteError {
         fn from(err: id3::Error) -> Self {
             match err.kind {
-                id3::ErrorKind::Io(ioerr) => AudioWriteError::IOError(ioerr.kind()),
+                id3::ErrorKind::Io(ioerr) => AudioWriteError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
                 id3::ErrorKind::StringDecoding(bytes) => AudioWriteError::StringDecodeError(bytes),
                 id3::ErrorKind::NoTag => AudioWriteError::OtherReason(err.description),
                 id3::ErrorKind::Parsing => AudioWriteError::OtherReason(err.description),
