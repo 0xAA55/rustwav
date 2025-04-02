@@ -1,10 +1,16 @@
 #![allow(dead_code)]
 
 #[derive(Debug, Clone)]
+pub struct IOErrorInfo {
+    pub kind: std::io::ErrorKind,
+    pub message: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum AudioReadError {
     IncompleteFile(u64), // 不完整的文件
     InvalidArguments(String), // 错误的参数
-    IOError(std::io::ErrorKind), // 读写错误，应停止处理
+    IOError(IOErrorInfo), // 读写错误，应停止处理
     FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
     DataCorrupted(String), // 格式也许是正确的，但是数据是错误的
     Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
@@ -34,15 +40,17 @@ impl std::fmt::Display for AudioReadError {
 }
 
 impl From<std::io::Error> for AudioReadError {
-    fn from(err: std::io::Error) -> Self {
-        AudioReadError::IOError(err.kind())
+    fn from(ioerr: std::io::Error) -> Self {
+        AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
     }
 }
 
 impl From<AudioReadError> for std::io::Error {
     fn from(err: AudioReadError) -> Self {
         match err {
-            AudioReadError::IOError(errkind) => std::io::Error::from(errkind),
+            AudioReadError::IOError(ioerr) => {
+                std::io::Error::from(ioerr.kind)
+            },
             other => panic!("When converting `AudioReadError` to `std::io::Error`, the given error is unrelated: {:?}", other),
         }
     }
@@ -51,7 +59,7 @@ impl From<AudioReadError> for std::io::Error {
 #[derive(Debug, Clone)]
 pub enum AudioWriteError {
     InvalidArguments(String), // 输入了错误的参数
-    IOError(std::io::ErrorKind), // 读写错误，应停止处理
+    IOError(IOErrorInfo), // 读写错误，应停止处理
     Unsupported(String), // 不支持的写入格式
     Unimplemented(String), // 没实现的写入格式
     ChannelCountNotMatch(String), // 声道数不匹配
@@ -84,15 +92,17 @@ impl std::fmt::Display for AudioWriteError {
 }
 
 impl From<std::io::Error> for AudioWriteError {
-    fn from(err: std::io::Error) -> Self {
-        AudioWriteError::IOError(err.kind())
+    fn from(ioerr: std::io::Error) -> Self {
+        AudioWriteError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
     }
 }
 
 impl From<AudioWriteError> for std::io::Error {
     fn from(err: AudioWriteError) -> Self {
         match err {
-            AudioWriteError::IOError(errkind) => std::io::Error::from(errkind),
+            AudioWriteError::IOError(ioerr) => {
+                std::io::Error::from(ioerr.kind)
+            },
             other => panic!("When converting `AudioWriteError` to `std::io::Error`, the given error is unrelated: {:?}", other),
         }
     }
@@ -151,7 +161,7 @@ impl From<puremp3::Error> for AudioReadError {
                     puremp3::Mp3Error::Unsupported(s) => AudioReadError::Unsupported(s.to_owned()),
                 }
             },
-            puremp3::Error::IoError(ioerr) => AudioReadError::IOError(ioerr.kind()),
+            puremp3::Error::IoError(ioerr) => AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
         }
     }
 }
