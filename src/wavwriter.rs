@@ -32,7 +32,7 @@ pub struct WaveWriter {
     frame_size: u16,
     data_offset: u64,
     sample_type: WaveSampleType,
-    encoder: Box<dyn Encoder>,
+    encoder: Encoder,
     text_encoding: StringCodecMaps,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
@@ -64,7 +64,7 @@ impl WaveWriter {
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Box::new(PcmEncoder::new(sample_type)?)
+                Encoder::new(PcmEncoder::new(sample_type)?)
             },
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
