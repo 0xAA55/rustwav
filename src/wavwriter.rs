@@ -11,7 +11,7 @@ use crate::wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChun
 use crate::encoders::{Encoder, PcmEncoder};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::sampleutils::{SampleType};
-use crate::readwrite::{SharedWriter, string_io::*};
+use crate::readwrite::{SharedWriter, Writer, string_io::*};
 use crate::wavreader::WaveReader;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
@@ -32,7 +32,7 @@ pub struct WaveWriter {
     frame_size: u16,
     data_offset: u64,
     sample_type: WaveSampleType,
-    sample_packer: Encoder,
+    encoder: Box<dyn Encoder>,
     text_encoding: StringCodecMaps,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
@@ -61,10 +61,10 @@ impl WaveWriter {
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type();
-        let sample_packer = match data_format {
+        let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(Box::new(PcmEncoder::new(sample_type)?))
+                Box::new(PcmEncoder::new(sample_type)?)
             },
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
@@ -77,7 +77,7 @@ impl WaveWriter {
             frame_size,
             data_offset: 0,
             sample_type,
-            sample_packer,
+            encoder,
             text_encoding: StringCodecMaps::new(),
             riff_chunk: None,
             data_chunk: None,
@@ -198,8 +198,8 @@ impl WaveWriter {
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
-                Ok(self.sample_packer.write_frame::<S>(writer, frame)?)
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_frame(writer, frame)?)
             })?;
             self.num_frames += 1;
             Ok(())
@@ -212,8 +212,8 @@ impl WaveWriter {
     pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
-                Ok(self.sample_packer.write_multiple_frames::<S>(writer, frames)?)
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_multiple_frames(writer, frames)?)
             })?;
             self.num_frames += frames.len() as u64;
             Ok(())
