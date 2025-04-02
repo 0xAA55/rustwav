@@ -11,7 +11,7 @@ use crate::wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChun
 use crate::encoders::{Encoder, PcmEncoder};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::sampleutils::{SampleType};
-use crate::readwrite::{SharedWriter, Writer, string_io::*};
+use crate::readwrite::{SharedWriter, string_io::*};
 use crate::wavreader::WaveReader;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
