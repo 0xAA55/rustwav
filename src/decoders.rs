@@ -57,7 +57,7 @@ where S: SampleType {
             cur_frames: 0,
             num_frames: data_length / fmt.block_align as u64,
             spec: spec.clone(),
-            decoder: Self::get_decoder(wave_sample_type)?,
+            decoder: Self::choose_decoder(wave_sample_type)?,
         })
     }
 
@@ -73,7 +73,7 @@ where S: SampleType {
         }
     }
 
-    // 这个函数用于给 get_decoder 挑选
+    // 这个函数用于给 choose_decoder 挑选
     fn decode_to<T>(r: &mut dyn Reader, channels: u16) -> Result<Vec<S>, AudioReadError>
     where T: SampleType {
         let mut ret = Vec::<S>::with_capacity(channels as usize);
@@ -84,7 +84,7 @@ where S: SampleType {
     }
 
     // 这个函数返回的 decoder 只负责读取和转换格式，不负责判断是否读到末尾
-    fn get_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>, AudioError> {
+    fn choose_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_to::<i8 >),
