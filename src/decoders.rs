@@ -107,16 +107,20 @@ where S: SampleType {
 #[cfg(feature = "mp3")]
 pub mod MP3 {
     use std::{fs::File, io::BufReader, fmt::Debug};
-    use puremp3::{read_mp3, FrameHeader, Channels};
+    use puremp3::{Frame, FrameHeader, Channels};
     use crate::errors::AudioReadError;
     use crate::wavcore::FmtChunk;
     use crate::sampleutils::{SampleType};
 
+    type TheDecoder = puremp3::Mp3Decoder<BufReader<File>>;
+
     pub struct Mp3Decoder {
         data_offset: u64,
         data_length: u64,
-        frame_header: FrameHeader,
-        iterator: Box<dyn Iterator<Item = (f32, f32)>>,
+        the_decoder: TheDecoder,
+        cur_frame: Frame,
+        sample_index: usize,
+        num_frames: u64,
     }
 
     impl Mp3Decoder {
@@ -125,31 +129,66 @@ pub mod MP3 {
                 0x0055 => (),
                 other => return Err(AudioReadError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other))),
             }
-            let (frame_header, iterator) = read_mp3(reader)?;
+            let mut the_decoder = puremp3::Mp3Decoder::new(reader);
+            let cur_frame = the_decoder.next_frame()?;
+            let num_frames = 1;
             Ok(Self {
                 data_offset,
                 data_length,
-                frame_header,
-                iterator: Box::new(iterator),
+                the_decoder,
+                cur_frame, // TODO: 取得 frame 后，判断它的采样率是否和 WAV 相同，如果不相同，要做重采样
+                sample_index: 0,
+                num_frames,
             })
         }
 
         pub fn decode<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
-            match self.iterator.next() {
-                Some((l, r)) => {
-                    let m = S::from((l + r) * 0.5);
-                    let l = S::from(l);
-                    let r = S::from(r);
-                    match self.frame_header.channels {
-                        Channels::Mono => Ok(Some(vec![m])),
-                        Channels::DualMono => Ok(Some(vec![l, r])),
-                        Channels::Stereo => Ok(Some(vec![l, r])),
-                        Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ }  => Ok(Some(vec![l, r])),
-                    }
-                },
-                None => Ok(None),
+            let cur_frame = &self.cur_frame;
+            if self.sample_index < cur_frame.num_samples {
+                let (l, r) = (
+                    cur_frame.samples[0][self.sample_index],
+                    cur_frame.samples[1][self.sample_index]
+                );
+                self.sample_index += 1;
+                let m = S::from((l + r) * 0.5);
+                let l = S::from(l);
+                let r = S::from(r);
+                match cur_frame.header.channels {
+                    Channels::Mono => Ok(Some(vec![m])),
+                    Channels::DualMono => Ok(Some(vec![l, r])),
+                    Channels::Stereo => Ok(Some(vec![l, r])),
+                    Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ } => Ok(Some(vec![l, r])),
+                }
+            } else {
+                // 下一个 Frame
+                self.cur_frame = self.the_decoder.next_frame()?; // 竟然会 EOF
+                self.num_frames += 1;
+                println!("{}, {}", self.num_frames, self.cur_frame.num_samples);
+                self.sample_index = 0;
+                self.decode::<S>()
             }
+        }
+    }
+
+    struct FakeFrame {
+        header: FrameHeader,
+        num_samples: usize,
+    }
+
+    impl FakeFrame {
+        fn from(frame: &Frame) -> Self{
+            Self {
+                header: frame.header.clone(),
+                num_samples: frame.num_samples,
+            }
+        }
+    }
+
+    fn make_option_fake_frame(frame: &Option<Frame>) -> Option<FakeFrame> {
+        match frame {
+            None => None,
+            Some(frame) => Some(FakeFrame::from(&frame)),
         }
     }
 
@@ -158,8 +197,19 @@ pub mod MP3 {
             fmt.debug_struct("Mp3Decoder")
                 .field("data_offset", &self.data_offset)
                 .field("data_length", &self.data_length)
-                .field("frame_header", &self.frame_header)
-                .field("iterator", &format_args!("Iterator<Item = (f32, f32)>"))
+                .field("iterator", &format_args!("Iterator<Item = Frame>"))
+                .field("cur_frame", &FakeFrame::from(&self.cur_frame))
+                .field("sample_index", &self.sample_index)
+                .finish()
+        }
+    }
+
+    impl Debug for FakeFrame {
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Frame")
+                .field("header", &self.header)
+                .field("samples", &format_args!("[[f32; 1152]; 2]"))
+                .field("num_samples", &self.num_samples)
                 .finish()
         }
     }
