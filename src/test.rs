@@ -28,7 +28,7 @@ pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleL
 pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 
-#[cfg(feature = "mp3")]
+#[cfg(feature = "mp3dec")]
 pub use decoders::MP3::Mp3Decoder;
 
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件

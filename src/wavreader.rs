@@ -14,7 +14,7 @@ use crate::filehasher::FileHasher;
 use crate::sampleutils::{SampleType};
 use crate::readwrite::{self, Reader, string_io::*};
 
-#[cfg(feature = "mp3")]
+#[cfg(feature = "mp3dec")]
 use crate::decoders::MP3::Mp3Decoder;
 
 #[derive(Debug)]
@@ -440,9 +440,9 @@ where S: SampleType {
             decoder: match fmt.format_tag {
                 1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(Box::new(reader), data_offset, data_length, spec, fmt)?),
                 0x0055 => {
-                    #[cfg(not(feature = "mp3"))]
+                    #[cfg(not(feature = "mp3dec"))]
                     return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
-                    #[cfg(feature = "mp3")]
+                    #[cfg(feature = "mp3dec")]
                     {Box::new(Mp3Decoder::new(Box::new(reader), data_offset, data_length, false)?)}
                 },
                 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
