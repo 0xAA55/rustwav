@@ -166,6 +166,7 @@ impl GUID {
 
 
 #[derive(Clone, Copy, Debug)]
+#[repr(u32)]
 pub enum SpeakerPosition {
     FrontLeft = 0x1,
     FrontRight = 0x2,
