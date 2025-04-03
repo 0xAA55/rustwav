@@ -199,7 +199,7 @@ pub mod MP3 {
                 self.num_frames += 1;
                 if self.print_debug {
                     let reader = self.the_decoder.get_mut();
-                    println!("{}, {}, 0x{:x}, 0x{:x}", self.num_frames, self.cur_frame.num_samples, reader.stream_position()?, self.data_length);
+                    println!("{}, {}, 0x{:x}, 0x{:x}", self.num_frames, self.cur_frame.num_samples, reader.stream_position()? - self.data_offset, self.data_length);
                 }
                 self.sample_index = 0;
                 self.decode::<S>()
