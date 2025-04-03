@@ -187,5 +187,17 @@ impl From<mp3lame_encoder::Id3TagError> for AudioWriteError {
     }
 }
 
+#[cfg(feature = "mp3enc")]
+impl From<mp3lame_encoder::EncodeError> for AudioWriteError {
+    fn from(err: mp3lame_encoder::EncodeError) -> Self {
+        match err {
+            mp3lame_encoder::EncodeError::BufferTooSmall => Self::InvalidArguments("Buffer is too small".to_owned()),
+            mp3lame_encoder::EncodeError::NoMem => Self::OtherReason("No enough memory".to_owned()),
+            mp3lame_encoder::EncodeError::InvalidState => Self::InvalidArguments("Invalid state".to_owned()),
+            mp3lame_encoder::EncodeError::PsychoAcoustic => Self::InvalidArguments("Psycho acoustic problems".to_owned()),
+            mp3lame_encoder::EncodeError::Other(c_int) => Self::OtherReason(format!("Other lame error code: {}", c_int)),
+        }
+    }
+}
 
 
