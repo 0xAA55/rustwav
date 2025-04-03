@@ -66,6 +66,7 @@ pub enum AudioWriteError {
     NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
     ChunkSizeTooBig(String), // 块大小太大
     StringDecodeError(Vec<u8>), // 字符串解码错误
+    BufferIsFull, // 缓冲区满了
     OtherReason(String), // 不知道的问题
 }
 
@@ -82,6 +83,7 @@ impl std::fmt::Display for AudioWriteError {
             Self::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
             Self::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
+            Self::BufferIsFull => write!(f, "The buffer is full, it should be flushed."),
             Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
        }
     }
