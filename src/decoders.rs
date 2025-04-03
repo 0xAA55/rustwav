@@ -124,11 +124,7 @@ pub mod MP3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, AudioReadError> {
-            match fmt.format_tag {
-                0x0055 => (),
-                other => return Err(AudioReadError::Unimplemented(format!("`Mp3Decoder` can't handle format_tag 0x{:x}", other))),
-            }
+        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64) -> Result<Self, AudioReadError> {
             let mut the_decoder = puremp3::Mp3Decoder::new(reader);
             let cur_frame = the_decoder.next_frame()?;
             let num_frames = 1;
