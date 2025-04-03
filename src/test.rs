@@ -72,7 +72,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         dbg!(&wavereader);
         dbg!(&wavewriter);
     } else {
-        let file = std::fs::File::open("mp3.mp3")?;
+        let file = std::fs::File::open("beethoven_op2no2.mp3")?;
         let filesize = file.metadata().unwrap().len();
         let mut mp3_decocer = Mp3Decoder::new(Box::new(file), 0, filesize, true)?;
 
