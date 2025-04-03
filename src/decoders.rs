@@ -232,13 +232,6 @@ pub mod MP3 {
         }
     }
 
-    fn make_option_fake_frame(frame: &Option<Frame>) -> Option<FakeFrame> {
-        match frame {
-            None => None,
-            Some(frame) => Some(FakeFrame::from(&frame)),
-        }
-    }
-
     impl Debug for Mp3Decoder{
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
             fmt.debug_struct("Mp3Decoder")
