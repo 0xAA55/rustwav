@@ -180,22 +180,33 @@ pub mod MP3 {
                 // 下一个 Frame
                 // TODO:
                 // 检测 Frame 里面的参数变化，比如采样率和声道数的变化，如果采样率变化了，要做 resample。如果声道数变化了，要做声道数处理。
-                self.cur_frame = match self.the_decoder.next_frame() {
-                    Ok(frame) => frame,
-                    Err(err) => {
-                        return match err {
-                            puremp3::Error::Mp3Error(_) => {
-                                if self.print_debug {
-                                    eprintln!("Mp3Error: {:?}", err);
-                                }
-                                Err(err.into())
-                            },
-                            puremp3::Error::IoError(_) => {
-                                Ok(None)
-                            },
-                        }
-                    },
-                };
+                loop {
+                    let reader = self.the_decoder.get_mut();
+                    if reader.stream_position()? >= self.data_offset + self.data_length {
+                        // 真正完成读取
+                        return Ok(None)
+                    }
+                    match self.the_decoder.next_frame() {
+                        Ok(frame) => {
+                            self.cur_frame = frame;
+                            break;
+                        },
+                        Err(err) => {
+                            match err {
+                                puremp3::Error::Mp3Error(_) => {
+                                    if self.print_debug {
+                                        eprintln!("Mp3Error: {:?}", err);
+                                    }
+                                    return Err(err.into())
+                                },
+                                puremp3::Error::IoError(_) => {
+                                    // 返回去强制重新读取帧，直到读取位置达到 MP3 文件长度为止
+                                    continue;
+                                },
+                            }
+                        },
+                    };
+                }
                 self.num_frames += 1;
                 if self.print_debug {
                     let reader = self.the_decoder.get_mut();
