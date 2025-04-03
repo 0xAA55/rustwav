@@ -223,7 +223,7 @@ impl WaveReader {
         };
 
         let channel_mask = match fmt__chunk.extension {
-            None => guess_channel_mask(fmt__chunk.channels)?,
+            None => wavcore::guess_channel_mask(fmt__chunk.channels)?,
             Some(extension) => extension.channel_mask,
         };
 
