@@ -223,6 +223,7 @@ pub struct PcmEncoder {
 }
 
 impl PcmEncoder {
+    // target_sample: 要编码进 WAV 的 PCM 具体格式
     pub fn new(target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
         Ok(Self {
             writer_from__i8: PcmEncoderFrom::< i8>::new(target_sample)?,
@@ -271,7 +272,78 @@ impl EncoderToImpl for PcmEncoder {
 
 #[cfg(feature = "mp3enc")]
 pub mod MP3 {
-    
+    use std::{fmt::Debug, error::Error};
+    use crate::Writer;
+    use crate::AudioWriteError;
+    use mp3lame_encoder::{Builder, Encoder, Mode, DualPcm, FlushNoGap};
+    pub use mp3lame_encoder::{Bitrate, VbrMode, Quality, Id3Tag};
+
+    pub struct Mp3Encoder {
+        writer: Box<dyn Writer>,
+        encoder: Encoder,
+    }
+
+    impl Mp3Encoder {
+        fn new(writer: Box<dyn Writer>, channels: u8, sample_rate: u32, bit_rate: Option<Bitrate>, quality: Option<Quality>, vbr_mode: Option<VbrMode>, id3tag: Option<Id3Tag>) -> Result<Self, AudioWriteError> {
+            let mp3_builder = Builder::new();
+            let mut mp3_builder = match mp3_builder {
+                Some(mp3_builder) => mp3_builder,
+                None => return Err(AudioWriteError::OtherReason("`lame_init()` somehow failed.".to_owned())),
+            };
+
+            match channels {
+                1 => mp3_builder.set_mode(Mode::Mono)?,
+                2 => mp3_builder.set_mode(Mode::JointStereo)?,
+                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other)))
+            }
+
+            mp3_builder.set_num_channels(channels)?;
+            mp3_builder.set_sample_rate(sample_rate)?;
+
+            // 设置位率，直接决定音质。如果没有提供位率，就使用 320 kbps 位率。
+            mp3_builder.set_brate(match bit_rate {
+                Some(bit_rate) => bit_rate,
+                None => Bitrate::Kbps320,
+            })?;
+
+            // 设置品质，如果没设置那就是最佳品质
+            let quality = match quality {
+                Some(quality) => quality,
+                None => Quality::Best,
+            };
+
+            // 此处决定这个 MP3 是 VBR 还是 CBR 模式
+            if let Some(vbr_mode) = vbr_mode {
+                mp3_builder.set_to_write_vbr_tag(true)?;
+                mp3_builder.set_vbr_mode(vbr_mode)?;
+                mp3_builder.set_vbr_quality(quality)?;
+            } else {
+                mp3_builder.set_to_write_vbr_tag(false)?;
+                mp3_builder.set_quality(quality)?;
+            }
+
+            // 如果提供了 id3 信息则设置
+            if let Some(id3tag) = id3tag {
+                mp3_builder.set_id3_tag(id3tag)?;
+            }
+
+            // 创建编码器
+            Ok(Self {
+                writer,
+                encoder: mp3_builder.build()?,
+            })
+        }
+    }
+
+    impl Debug for Mp3Encoder{
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Mp3Encoder")
+                .field("writer", &self.writer)
+                .field("encoder", &format_args!("Encoder"))
+                .finish()
+        }
+    }
+
 }
 
 
