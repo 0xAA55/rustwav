@@ -25,16 +25,16 @@ impl std::error::Error for AudioReadError {}
 impl std::fmt::Display for AudioReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            AudioReadError::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
-            AudioReadError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
-            AudioReadError::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
-            AudioReadError::FormatError(reason) => write!(f, "Invalid format: {}", reason),
-            AudioReadError::DataCorrupted(reason) => write!(f, "Data corrupted: {}", reason),
-            AudioReadError::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
-            AudioReadError::Unsupported(feature) => write!(f, "Unsupported feature: {}", feature),
-            AudioReadError::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
-            AudioReadError::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
-            AudioReadError::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
+            Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
+            Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            Self::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
+            Self::FormatError(reason) => write!(f, "Invalid format: {}", reason),
+            Self::DataCorrupted(reason) => write!(f, "Data corrupted: {}", reason),
+            Self::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
+            Self::Unsupported(feature) => write!(f, "Unsupported feature: {}", feature),
+            Self::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
+            Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
+            Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
         }
     }
 }
@@ -74,15 +74,15 @@ impl std::error::Error for AudioWriteError {}
 impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            AudioWriteError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
-            AudioWriteError::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
-            AudioWriteError::Unsupported(reason) => write!(f, "Unsupported format: {}", reason),
-            AudioWriteError::Unimplemented(reason) => write!(f, "Unimplemented format: {}", reason),
-            AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
-            AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
-            AudioWriteError::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
-            AudioWriteError::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
-            AudioWriteError::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
+            Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            Self::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
+            Self::Unsupported(reason) => write!(f, "Unsupported format: {}", reason),
+            Self::Unimplemented(reason) => write!(f, "Unimplemented format: {}", reason),
+            Self::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
+            Self::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
+            Self::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
+            Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
+            Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
        }
     }
 }
