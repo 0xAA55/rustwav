@@ -32,6 +32,8 @@ pub use filehasher::FileHasher;
 #[cfg(feature = "mp3dec")]
 pub use decoders::MP3::Mp3Decoder;
 
+#[cfg(feature = "mp3enc")]
+pub use crate::encoders::MP3::Mp3Encoder;
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 

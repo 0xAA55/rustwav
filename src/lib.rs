@@ -24,3 +24,9 @@ pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleL
 pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use filehasher::FileHasher;
+
+#[cfg(feature = "mp3dec")]
+pub use decoders::MP3::Mp3Decoder;
+
+#[cfg(feature = "mp3enc")]
+pub use crate::encoders::MP3::Mp3Encoder;
