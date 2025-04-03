@@ -72,16 +72,17 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         dbg!(&wavereader);
         dbg!(&wavewriter);
     } else {
-        let file = std::fs::File::open("beethoven_op2no2.mp3")?;
+        let file = std::fs::File::open(arg1)?;
         let filesize = file.metadata().unwrap().len();
-        let mut mp3_decocer = Mp3Decoder::new(Box::new(file), 0, filesize, true)?;
+        let mut mp3_decocer = Mp3Decoder::new(Box::new(file), 0, filesize, false)?;
 
+        // 设置写入格式参数
         let spec = Spec {
             channels: mp3_decocer.get_channels(),
             channel_mask: 0,
             sample_rate: mp3_decocer.get_sample_rate(),
-            bits_per_sample: 16, // 设置样本位数
-            sample_format: SampleFormat::Int, // 使用有符号整数
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
         };
         let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, FileSizeOption::NeverLargerThan4GB).unwrap();
         loop {
