@@ -28,44 +28,83 @@ pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleL
 pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 
+#[cfg(feature = "mp3")]
+pub use decoders::MP3::Mp3Decoder;
+
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
-    // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
-    let mut wavereader = WaveReader::open(arg1).unwrap();
+    if false {
 
-    // 获取原本音频文件的数据参数
-    let orig_spec = wavereader.spec();
+        // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
+        let mut wavereader = WaveReader::open(arg1).unwrap();
 
-    // 这里可以修改参数，能改变样本的位数和格式等。
-    // WAV 实际支持的样本的位数和格式有限。
-    let spec = Spec {
-        channels: orig_spec.channels,
-        channel_mask: orig_spec.channel_mask,
-        sample_rate: orig_spec.sample_rate,
-        bits_per_sample: 16, // 设置样本位数
-        sample_format: SampleFormat::Int, // 使用有符号整数
-    };
+        // 获取原本音频文件的数据参数
+        let orig_spec = wavereader.spec();
 
-    use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
+        // 这里可以修改参数，能改变样本的位数和格式等。
+        // WAV 实际支持的样本的位数和格式有限。
+        let spec = Spec {
+            channels: orig_spec.channels,
+            channel_mask: orig_spec.channel_mask,
+            sample_rate: orig_spec.sample_rate,
+            bits_per_sample: 16, // 设置样本位数
+            sample_format: SampleFormat::Int, // 使用有符号整数
+        };
 
-    // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+        use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
-    // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
-    // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
-    for frame in wavereader.iter::<f32>()? {
+        // 音频写入器，将音频信息写入到 arg2 文件
+        let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-        // 音频写入器写入每个音频帧
-        wavewriter.write_frame(&frame)?;
+        // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
+        // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
+        for frame in wavereader.iter::<f32>()? {
+
+            // 音频写入器写入每个音频帧
+            wavewriter.write_frame(&frame)?;
+        }
+
+        // 音频写入器从音频读取器那里读取音乐元数据过来
+        wavewriter.migrate_metadata_from_reader(&wavereader);
+
+        // 输出调试信息
+        dbg!(&wavereader);
+        dbg!(&wavewriter);
+    } else {
+        let file = std::fs::File::open("mp3.mp3")?;
+        let filesize = file.metadata().unwrap().len();
+        let mut mp3_decocer = Mp3Decoder::new(std::io::BufReader::new(file), 0, filesize)?;
+
+        let spec = Spec {
+            channels: 2,
+            channel_mask: 3,
+            sample_rate: 22050,
+            bits_per_sample: 16, // 设置样本位数
+            sample_format: SampleFormat::Int, // 使用有符号整数
+        };
+        let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, FileSizeOption::NeverLargerThan4GB).unwrap();
+        loop {
+            let frame = mp3_decocer.decode::<f32>();
+            match frame {
+                Ok(frame) => {
+                    match frame {
+                        Some(frame) => wavewriter.write_frame(&frame)?,
+                        None => break,
+                    }
+                },
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    break;
+                }
+            }
+        }
+
+        // 输出调试信息
+        dbg!(&mp3_decocer);
+        dbg!(&wavewriter);
     }
 
-    // 音频写入器从音频读取器那里读取音乐元数据过来
-    wavewriter.migrate_metadata_from_reader(&wavereader);
-
-    // 输出调试信息
-    dbg!(&wavereader);
-    dbg!(&wavewriter);
 
     Ok(())
 }
