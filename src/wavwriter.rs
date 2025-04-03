@@ -14,6 +14,8 @@ use crate::{SampleType};
 use crate::{SharedWriter, string_io::*};
 use crate::WaveReader;
 
+#[cfg(feature = "mp3enc")]
+use crate::encoders::MP3::Mp3Encoder;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]
