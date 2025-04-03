@@ -293,10 +293,12 @@ impl WaveReader {
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
     pub fn iter<S>(&mut self) -> Result<WaveIter<S>, AudioReadError>
     where S: SampleType {
-        WaveIter::<S>::new(BufReader::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, match self.fact_data {
+        let fact_data = match self.fact_data {
             None => 0,
             Some(fact) => fact,
-        })
+        };
+        // WaveIter::<S>::new(Box::new(BufReader::new(self.data_chunk.open()?)), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
+        WaveIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
     }
 
     // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
@@ -428,7 +430,7 @@ where S: SampleType {
 
 impl<S> WaveIter<S>
 where S: SampleType {
-    fn new(mut reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,
@@ -436,12 +438,12 @@ where S: SampleType {
             spec: spec.clone(),
             fact,
             decoder: match fmt.format_tag {
-                1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
+                1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(Box::new(reader), data_offset, data_length, spec, fmt)?),
                 0x0055 => {
                     #[cfg(not(feature = "mp3"))]
                     return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
                     #[cfg(feature = "mp3")]
-                    {Box::new(Mp3Decoder::new(reader, data_offset, data_length)?)}
+                    {Box::new(Mp3Decoder::new(Box::new(reader), data_offset, data_length, false)?)}
                 },
                 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
                     return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
