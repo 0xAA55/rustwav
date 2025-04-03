@@ -74,12 +74,12 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     } else {
         let file = std::fs::File::open("mp3.mp3")?;
         let filesize = file.metadata().unwrap().len();
-        let mut mp3_decocer = Mp3Decoder::new(std::io::BufReader::new(file), 0, filesize)?;
+        let mut mp3_decocer = Mp3Decoder::new(Box::new(file), 0, filesize, true)?;
 
         let spec = Spec {
-            channels: 2,
-            channel_mask: 3,
-            sample_rate: 22050,
+            channels: mp3_decocer.get_channels(),
+            channel_mask: 0,
+            sample_rate: mp3_decocer.get_sample_rate(),
             bits_per_sample: 16, // 设置样本位数
             sample_format: SampleFormat::Int, // 使用有符号整数
         };
