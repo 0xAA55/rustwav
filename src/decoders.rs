@@ -145,6 +145,19 @@ pub mod MP3 {
             })
         }
 
+        pub fn get_sample_rate(&self) -> u32 {
+            self.cur_frame.header.sample_rate.hz()
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            match self.cur_frame.header.channels {
+                Channels::Mono => 1,
+                Channels::DualMono => 2,
+                Channels::Stereo => 2,
+                Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ } => 2,
+            }
+        }
+
         pub fn decode<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
             let cur_frame = &self.cur_frame;
