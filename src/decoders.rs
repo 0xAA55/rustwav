@@ -181,10 +181,17 @@ pub mod MP3 {
                 self.cur_frame = match self.the_decoder.next_frame() {
                     Ok(frame) => frame,
                     Err(err) => {
-                        if self.print_debug {
-                            eprintln!("{:?}", err);
+                        return match err {
+                            puremp3::Error::Mp3Error(_) => {
+                                if self.print_debug {
+                                    eprintln!("Mp3Error: {:?}", err);
+                                }
+                                Err(err.into())
+                            },
+                            puremp3::Error::IoError(_) => {
+                                Ok(None)
+                            },
                         }
-                        return Ok(None)
                     },
                 };
                 self.num_frames += 1;
