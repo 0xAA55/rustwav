@@ -151,7 +151,7 @@ impl From<AudioError> for AudioWriteError {
     }
 }
 
-#[cfg(feature = "mp3")]
+#[cfg(feature = "mp3dec")]
 impl From<puremp3::Error> for AudioReadError {
     fn from(err: puremp3::Error) -> Self {
         match err {

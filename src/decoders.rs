@@ -22,7 +22,7 @@ impl<S> Decoder<S> for PcmDecoder<S>
     }
 }
 
-#[cfg(feature = "mp3")]
+#[cfg(feature = "mp3dec")]
 impl<S> Decoder<S> for MP3::Mp3Decoder
     where S: SampleType {
     fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
