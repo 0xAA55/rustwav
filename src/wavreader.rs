@@ -441,7 +441,7 @@ where S: SampleType {
                     #[cfg(not(feature = "mp3"))]
                     return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
                     #[cfg(feature = "mp3")]
-                    {Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt)?)}
+                    {Box::new(Mp3Decoder::new(reader, data_offset, data_length)?)}
                 },
                 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
                     return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
