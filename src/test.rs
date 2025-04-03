@@ -11,10 +11,6 @@ mod wavcore;
 mod wavreader;
 mod wavwriter;
 
-use std::env::args;
-use std::process::ExitCode;
-use std::error::Error;
-
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
 pub use readwrite::{Reader, Writer, SharedWriter, string_io};
@@ -34,6 +30,11 @@ pub use decoders::MP3::Mp3Decoder;
 
 #[cfg(feature = "mp3enc")]
 pub use crate::encoders::MP3::Mp3Encoder;
+
+use std::env::args;
+use std::error::Error;
+use std::process::ExitCode;
+
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
