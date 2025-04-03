@@ -178,6 +178,8 @@ pub mod MP3 {
                 }
             } else {
                 // 下一个 Frame
+                // TODO:
+                // 检测 Frame 里面的参数变化，比如采样率和声道数的变化，如果采样率变化了，要做 resample。如果声道数变化了，要做声道数处理。
                 self.cur_frame = match self.the_decoder.next_frame() {
                     Ok(frame) => frame,
                     Err(err) => {
