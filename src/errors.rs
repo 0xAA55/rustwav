@@ -162,3 +162,28 @@ impl From<puremp3::Error> for AudioReadError {
     }
 }
 
+#[cfg(feature = "mp3enc")]
+impl From<mp3lame_encoder::BuildError> for AudioWriteError {
+    fn from(err: mp3lame_encoder::BuildError) -> Self {
+        match err {
+            mp3lame_encoder::BuildError::Generic => Self::InvalidArguments("Generic build error".to_owned()),
+            mp3lame_encoder::BuildError::NoMem => Self::OtherReason("No enough memory".to_owned()),
+            mp3lame_encoder::BuildError::BadBRate => Self::InvalidArguments("Bad bit rate".to_owned()),
+            mp3lame_encoder::BuildError::BadSampleFreq => Self::InvalidArguments("Bad sample rate".to_owned()),
+            mp3lame_encoder::BuildError::InternalError => Self::OtherReason("Internal error".to_owned()),
+            mp3lame_encoder::BuildError::Other(c_int) => Self::OtherReason(format!("Some C language error code: {}", c_int)),
+        }
+    }
+}
+
+#[cfg(feature = "mp3enc")]
+impl From<mp3lame_encoder::Id3TagError> for AudioWriteError {
+    fn from(err: mp3lame_encoder::Id3TagError) -> Self {
+        match err {
+            mp3lame_encoder::Id3TagError::AlbumArtOverflow => Self::InvalidArguments("Specified Id3 tag buffer exceed limit of 128kb".to_owned()),
+        }
+    }
+}
+
+
+
