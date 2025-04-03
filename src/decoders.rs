@@ -104,7 +104,7 @@ where S: SampleType {
     }
 }
 
-#[cfg(feature = "mp3")]
+#[cfg(feature = "mp3dec")]
 pub mod MP3 {
     use std::{fs::File, io::{BufReader, Seek}, fmt::Debug};
     use puremp3::{Frame, FrameHeader, Channels};

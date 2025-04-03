@@ -270,6 +270,10 @@ impl PcmEncoder {
 }
 
 
+#[cfg(feature = "mp3enc")]
+pub mod MP3 {
+    
+}
 
 
 
