@@ -33,7 +33,7 @@ impl<S> Decoder<S> for MP3::Mp3Decoder
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
-    reader: BufReader<File>, // 数据读取器
+    reader: Box<dyn Reader>, // 数据读取器
     data_offset: u64,
     data_length: u64,
     cur_frames: u64,
@@ -44,7 +44,7 @@ where S: SampleType {
 
 impl<S> PcmDecoder<S>
 where S: SampleType {
-    pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
             other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other))),
@@ -110,9 +110,10 @@ pub mod MP3 {
     use puremp3::{Frame, FrameHeader, Channels};
     use crate::errors::AudioReadError;
     use crate::wavcore::FmtChunk;
+    use crate::readwrite::Reader;
     use crate::sampleutils::{SampleType};
 
-    type TheDecoder = puremp3::Mp3Decoder<BufReader<File>>;
+    type TheDecoder = puremp3::Mp3Decoder<Box<dyn Reader>>;
 
     pub struct Mp3Decoder {
         data_offset: u64,
@@ -121,14 +122,15 @@ pub mod MP3 {
         cur_frame: Frame,
         sample_index: usize,
         num_frames: u64,
+        print_debug: bool,
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: BufReader<File>, data_offset: u64, data_length: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, print_debug: bool) -> Result<Self, AudioReadError> {
             let mut the_decoder = puremp3::Mp3Decoder::new(reader);
             let cur_frame = the_decoder.next_frame()?;
             let num_frames = 1;
-            if true {
+            if print_debug {
                 let reader = the_decoder.get_mut();
                 println!("{}, {}, 0x{:x}, 0x{:x}", num_frames, cur_frame.num_samples, reader.stream_position()?, data_length);
             }
@@ -139,6 +141,7 @@ pub mod MP3 {
                 cur_frame, // TODO: 取得 frame 后，判断它的采样率是否和 WAV 相同，如果不相同，要做重采样
                 sample_index: 0,
                 num_frames,
+                print_debug,
             })
         }
 
@@ -162,9 +165,17 @@ pub mod MP3 {
                 }
             } else {
                 // 下一个 Frame
-                self.cur_frame = self.the_decoder.next_frame()?; // 竟然会 EOF
+                self.cur_frame = match self.the_decoder.next_frame() {
+                    Ok(frame) => frame,
+                    Err(err) => {
+                        if self.print_debug {
+                            eprintln!("{:?}", err);
+                        }
+                        return Ok(None)
+                    },
+                };
                 self.num_frames += 1;
-                if true {
+                if self.print_debug {
                     let reader = self.the_decoder.get_mut();
                     println!("{}, {}, 0x{:x}, 0x{:x}", self.num_frames, self.cur_frame.num_samples, reader.stream_position()?, self.data_length);
                 }
