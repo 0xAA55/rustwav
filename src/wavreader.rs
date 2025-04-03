@@ -398,7 +398,7 @@ impl WaveDataReader {
             orig_reader = Some(reader);
 
             #[cfg(debug_assertions)]
-            println!("Using tempfile to store \"data\" chunk: {}", filepath);
+            println!("Using tempfile to store \"data\" chunk: {}", filepath.to_string_lossy());
         }
 
         Ok(Self {
