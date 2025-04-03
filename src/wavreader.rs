@@ -3,16 +3,17 @@
 
 use std::{fs::File, path::{Path, PathBuf}, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
 
-use crate::errors::{AudioReadError};
-use crate::wavcore::{Spec};
-use crate::wavcore::{ChunkHeader};
-use crate::wavcore::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::wavcore::{guess_channel_mask};
-use crate::decoders::{Decoder, PcmDecoder};
-use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
-use crate::filehasher::FileHasher;
-use crate::sampleutils::{SampleType};
-use crate::readwrite::{self, Reader, string_io::*};
+use crate::wavcore;
+use crate::readwrite;
+use crate::{AudioReadError};
+use crate::{Spec};
+use crate::{ChunkHeader};
+use crate::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{Decoder, PcmDecoder};
+use crate::{StringCodecMaps, SavageStringCodecs};
+use crate::FileHasher;
+use crate::{SampleType};
+use crate::{Reader, string_io::*};
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::MP3::Mp3Decoder;

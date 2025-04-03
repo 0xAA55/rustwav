@@ -4,10 +4,10 @@
 use std::fmt::Debug;
 
 // use crate::adpcm::*;
-use crate::errors::AudioWriteError;
-use crate::wavcore::{WaveSampleType};
-use crate::sampleutils::{SampleType, i24, u24};
-use crate::readwrite::{Writer};
+use crate::AudioWriteError;
+use crate::WaveSampleType;
+use crate::{SampleType, i24, u24};
+use crate::Writer;
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。

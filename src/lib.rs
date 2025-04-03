@@ -23,3 +23,4 @@ pub use wavcore::{ChunkWriter, ChunkHeader};
 pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
 pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
+pub use filehasher::FileHasher;

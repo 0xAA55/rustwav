@@ -4,10 +4,10 @@
 use std::{fs::File, io::BufReader, fmt::Debug};
 
 // use crate::adpcm::*;
-use crate::errors::{AudioError, AudioReadError};
-use crate::wavcore::{Spec, WaveSampleType, FmtChunk};
-use crate::sampleutils::{SampleType, i24, u24};
-use crate::readwrite::Reader;
+use crate::{AudioError, AudioReadError};
+use crate::{Spec, WaveSampleType, FmtChunk};
+use crate::{SampleType, i24, u24};
+use crate::Reader;
 
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
