@@ -117,10 +117,10 @@ impl std::error::Error for AudioError {}
 impl std::fmt::Display for AudioError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
-           AudioError::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}", channels),
-           AudioError::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
-           AudioError::Unimplemented(reason) => write!(f, "Unimplemented behavior: {}", reason),
-           AudioError::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+           Self::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}", channels),
+           Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
+           Self::Unimplemented(reason) => write!(f, "Unimplemented behavior: {}", reason),
+           Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
        }
     }
 }
@@ -128,10 +128,10 @@ impl std::fmt::Display for AudioError {
 impl From<AudioError> for AudioReadError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => AudioReadError::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
-            AudioError::ChannelNotMatchMask => AudioReadError::DataCorrupted("the channel number does not match the channel mask".to_owned()),
-            AudioError::Unimplemented(reason) => AudioReadError::Unimplemented(reason),
-            AudioError::InvalidArguments(reason) => AudioReadError::InvalidArguments(reason),
+            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::ChannelNotMatchMask => Self::DataCorrupted("the channel number does not match the channel mask".to_owned()),
+            AudioError::Unimplemented(reason) => Self::Unimplemented(reason),
+            AudioError::InvalidArguments(reason) => Self::InvalidArguments(reason),
         }
     }
 }
@@ -139,10 +139,10 @@ impl From<AudioError> for AudioReadError {
 impl From<AudioError> for AudioWriteError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => AudioWriteError::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
-            AudioError::ChannelNotMatchMask => AudioWriteError::InvalidArguments("the channel number does not match the channel mask".to_owned()),
-            AudioError::Unimplemented(reason) => AudioWriteError::Unimplemented(reason),
-            AudioError::InvalidArguments(reason) => AudioWriteError::InvalidArguments(reason),
+            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::ChannelNotMatchMask => Self::InvalidArguments("the channel number does not match the channel mask".to_owned()),
+            AudioError::Unimplemented(reason) => Self::Unimplemented(reason),
+            AudioError::InvalidArguments(reason) => Self::InvalidArguments(reason),
         }
     }
 }
@@ -153,11 +153,11 @@ impl From<puremp3::Error> for AudioReadError {
         match err {
             puremp3::Error::Mp3Error(mp3err) => {
                 match mp3err {
-                    puremp3::Mp3Error::InvalidData(s) => AudioReadError::FormatError(s.to_owned()),
-                    puremp3::Mp3Error::Unsupported(s) => AudioReadError::Unsupported(s.to_owned()),
+                    puremp3::Mp3Error::InvalidData(s) => Self::FormatError(s.to_owned()),
+                    puremp3::Mp3Error::Unsupported(s) => Self::Unsupported(s.to_owned()),
                 }
             },
-            puremp3::Error::IoError(ioerr) => AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
+            puremp3::Error::IoError(ioerr) => Self::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
         }
     }
 }
