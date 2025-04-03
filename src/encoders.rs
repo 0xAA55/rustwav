@@ -106,7 +106,7 @@ impl Encoder {
             "u64" => self.encoder.write_frame_u64(writer, &sample_conv(frame)),
             "f32" => self.encoder.write_frame_f32(writer, &sample_conv(frame)),
             "f64" => self.encoder.write_frame_f64(writer, &sample_conv(frame)),
-            other => Err(AudioWriteError::BadSampleFormat(other.to_owned())),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
 
@@ -125,7 +125,7 @@ impl Encoder {
             "u64" => self.encoder.write_multiple_frames_u64(writer, &sample_conv_batch(frames)),
             "f32" => self.encoder.write_multiple_frames_f32(writer, &sample_conv_batch(frames)),
             "f64" => self.encoder.write_multiple_frames_f64(writer, &sample_conv_batch(frames)),
-            other => Err(AudioWriteError::BadSampleFormat(other.to_owned())),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
 }

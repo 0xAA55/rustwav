@@ -62,8 +62,6 @@ pub enum AudioWriteError {
     IOError(IOErrorInfo), // 读写错误，应停止处理
     Unsupported(String), // 不支持的写入格式
     Unimplemented(String), // 没实现的写入格式
-    ChannelCountNotMatch(String), // 声道数不匹配
-    BadSampleFormat(String), // 不支持的样本类型
     AlreadyFinished(String), // 早就停止写入了
     NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
     ChunkSizeTooBig(String), // 块大小太大
@@ -80,8 +78,6 @@ impl std::fmt::Display for AudioWriteError {
             AudioWriteError::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
             AudioWriteError::Unsupported(reason) => write!(f, "Unsupported format: {}", reason),
             AudioWriteError::Unimplemented(reason) => write!(f, "Unimplemented format: {}", reason),
-            AudioWriteError::ChannelCountNotMatch(reason) => write!(f, "Channel count not match: {}", reason),
-            AudioWriteError::BadSampleFormat(reason) => write!(f, "Bad sample format \"{}\"", reason),
             AudioWriteError::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
             AudioWriteError::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
             AudioWriteError::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
