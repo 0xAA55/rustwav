@@ -411,23 +411,49 @@ where E: adpcm::Encoder {
     }
 
     pub fn write_frame(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {
-        let mut iter = frame.iter();
-        self.encoder.encode(
-            || -> Option<i16> {
-                match iter.next() {
-                    Some(sample) => {
-                        self.samples_written += 1;
-                        Some(*sample)
-                    },
-                    None => None,
-                }
-            },
-            |byte: u8| -> Result<(), io::Error>{
-                self.bytes_written += 1;
-                byte.write_le(writer)?;
+        let mut sample_sent_l = false;
+        let mut sample_sent_r = false;
+        let feeder_l = || -> Option<i16> {
+            if sample_sent_l == false {
+                sample_sent_l = true;
+                Some(frame[0])
+            } else {
+                None
+            }
+        };
+        let feeder_r = || -> Option<i16> {
+            if sample_sent_r == false {
+                sample_sent_r = true;
+                Some(frame[1])
+            } else {
+                None
+            }
+        };
+        let receiver_l = |byte: u8|{ self.buffer_l.push(byte); };
+        let receiver_r = |byte: u8|{ self.buffer_r.push(byte); };
+        match frame.len() {
+            1 => {
+                self.encoder_l.encode(feeder_l, receiver_l)?;
+                self.samples_written += 1;
+
+                writer.write_all(&self.buffer_l)?;
+                self.bytes_written += self.buffer_l.len() as u64;
+                self.buffer_l.clear();
+
                 Ok(())
-        })?;
-        Ok(())
+            },
+            2 => {
+                self.encoder_l.encode(feeder_l, receiver_l)?;
+                self.encoder_r.encode(feeder_r, receiver_r)?;
+                self.samples_written += 1;
+                self.samples_written += 1;
+
+                self.flush_stereo(writer)?;
+                
+                Ok(())
+            }
+            other => Err(AudioWriteError::InvalidArguments(format!("Wrong channel number {other}"))),
+        }
     }
 
     pub fn write_multiple_frames(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {
