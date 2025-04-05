@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{io::{self}, fmt::Debug};
+use std::{io::{self}, cmp, fmt::Debug};
 
 use crate::adpcm::{self, AdpcmCodecTypes};
 use crate::adpcm::{AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
@@ -336,13 +336,33 @@ impl EncoderToImpl for PcmEncoder {
     }
 }
 
-#[derive(Debug, Clone)]
+const ADPCM_ENCODE_BUFFER: usize = 128;
+
+#[derive(Clone)]
 pub struct AdpcmEncoder<E>
 where E: adpcm::Encoder {
     sample_rate: u32,
     samples_written: u64,
     bytes_written: u64,
-    encoder: E,
+    encoder_l: E,
+    encoder_r: E,
+    buffer_l: Vec<u8>,
+    buffer_r: Vec<u8>,
+}
+
+impl<E> Debug for AdpcmEncoder<E>
+where E: adpcm::Encoder {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct(&format!("AdpcmEncoder<{}>", std::any::type_name::<E>()))
+            .field("sample_rate", &self.sample_rate)
+            .field("samples_written", &self.samples_written)
+            .field("bytes_written", &self.bytes_written)
+            .field("encoder_l", &self.encoder_l)
+            .field("encoder_r", &self.encoder_r)
+            .field("buffer_l", &format_args!("[{}u8;...]", self.buffer_l.len()))
+            .field("buffer_r", &format_args!("[{}u8;...]", self.buffer_r.len()))
+            .finish()
+    }
 }
 
 impl<E> AdpcmEncoder<E>
