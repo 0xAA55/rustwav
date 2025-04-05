@@ -4,12 +4,13 @@
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
+use crate::adpcm::{AdpcmEncoderTypes};
 use crate::AudioWriteError;
 use crate::{DataFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
 use crate::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Encoder, PcmEncoder};
+use crate::{Encoder, PcmEncoder, AdpcmEncoder};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{SharedWriter, string_io::*};
