@@ -4,7 +4,7 @@
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
-use crate::adpcm::{AdpcmEncoderTypes};
+use crate::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA};
 use crate::AudioWriteError;
 use crate::{DataFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
