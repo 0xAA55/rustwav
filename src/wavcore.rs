@@ -22,6 +22,7 @@ impl std::fmt::Display for DataFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             DataFormat::Pcm => write!(f, "PCM"),
+            DataFormat::Adpcm => write!(f, "ADPCM"),
             DataFormat::Mp3 => write!(f, "MP3"),
             DataFormat::OggVorbis => write!(f, "OggVorbis"),
             DataFormat::Flac => write!(f, "FLAC"),
