@@ -372,8 +372,42 @@ where E: adpcm::Encoder {
             sample_rate,
             samples_written: 0,
             bytes_written: 0,
-            encoder: E::new(),
+            encoder_l: E::new(),
+            encoder_r: E::new(),
+            buffer_l: Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER),
+            buffer_r: Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER),
         }
+    }
+
+    fn flush_stereo(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        let mut interleaved = Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER * 2);
+        let min_len = cmp::min(self.buffer_l.len(), self.buffer_r.len());
+        if min_len > 0 {
+            for i in 0..min_len {
+                interleaved.push(self.buffer_l[i]);
+                interleaved.push(self.buffer_r[i]);
+            }
+            writer.write_all(&interleaved)?;
+            self.bytes_written += interleaved.len() as u64;
+            if self.buffer_l.len() > min_len {
+                let byte = *self.buffer_l.last().unwrap();
+                self.buffer_l.clear();
+                self.buffer_l.push(byte);
+            } else {
+                self.buffer_l.clear();
+            }
+            if self.buffer_r.len() > min_len {
+                let byte = *self.buffer_r.last().unwrap();
+                self.buffer_r.clear();
+                self.buffer_r.push(byte);
+            } else {
+                self.buffer_r.clear();
+            }
+        } else {
+            self.buffer_l.clear();
+            self.buffer_r.clear();
+        }
+        Ok(())
     }
 
     pub fn write_frame(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {
