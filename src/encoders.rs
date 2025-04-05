@@ -134,6 +134,10 @@ impl Encoder {
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
+
+    pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.encoder.finalize(writer)
+    }
 }
 
 // 样本类型缩放转换
@@ -275,7 +279,9 @@ impl EncoderToImpl for PcmEncoder {
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.writer_from_f32.write_multiple_frames(writer, frames)}
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_multiple_frames(writer, frames)}
 
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> { Ok(writer.flush()?) }
+    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        Ok(writer.flush()?)
+    }
 }
 
 #[cfg(feature = "mp3enc")]
@@ -371,10 +377,6 @@ pub mod MP3 {
             })
         }
 
-        pub fn finish(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-            self.buffers.finish(writer)
-        }
-
         pub fn write_frame<T>(&mut self, writer: &mut dyn Writer, frame: &[T]) -> Result<(), AudioWriteError>
         where T: SampleType {
             if self.buffers.is_full() {
@@ -414,6 +416,10 @@ pub mod MP3 {
                 },
             }
             Ok(())
+        }
+
+        pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+            self.buffers.finish(writer)
         }
     }
 
@@ -749,7 +755,9 @@ pub mod MP3 {
         fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
         fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
 
-        fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> { Ok(self.finish(writer)?); }
+        fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+            Ok(self.finish(writer)?)
+        }
     }
 
     impl Debug for SharedMp3Encoder {
