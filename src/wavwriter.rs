@@ -163,6 +163,8 @@ impl WaveWriter {
                 },
                 DataFormat::Mp3 => {
                     ext = false;
+                    self.frame_size = 1;
+                    self.spec.bits_per_sample = 0;
                     0x0055
                 },
                 DataFormat::OggVorbis => {
