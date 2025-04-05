@@ -303,31 +303,23 @@ impl EncoderToImpl for PcmEncoder {
     }
 }
 
-pub struct AdpcmEncoder {
+#[derive(Debug, Clone)]
+pub struct AdpcmEncoder<E>
+where E: adpcm::Encoder {
     sample_rate: u32,
     samples_written: u64,
     bytes_written: u64,
-    encoder_type: AdpcmEncoderTypes,
-    encoder: Box<dyn adpcm::Encoder>,
+    encoder: E,
 }
 
-impl AdpcmEncoder {
-    pub fn new(encoder_type: AdpcmEncoderTypes, sample_rate: u32) -> Self {
-        use AdpcmEncoderTypes::{BS, OKI, OKI6258, YMA, YMB, YMZ, AICA};
+impl<E> AdpcmEncoder<E>
+where E: adpcm::Encoder {
+    pub fn new(sample_rate: u32) -> Self {
         Self {
             sample_rate,
             samples_written: 0,
             bytes_written: 0,
-            encoder_type,
-            encoder: match encoder_type {
-                BS => AdpcmEncoderBS::new(sample_rate),
-                OKI => AdpcmEncoderOKI::new(sample_rate),
-                OKI6258 => AdpcmEncoderOKI6258::new(sample_rate),
-                YMA => AdpcmEncoderYMA::new(sample_rate),
-                YMB => AdpcmEncoderYMB::new(sample_rate),
-                YMZ => AdpcmEncoderYMZ::new(sample_rate),
-                AICA => AdpcmEncoderAICA::new(sample_rate),
-            }
+            encoder: E::new(),
         }
     }
 
@@ -356,7 +348,8 @@ impl AdpcmEncoder {
     }
 }
 
-impl EncoderToImpl for AdpcmEncoder {
+impl<E> EncoderToImpl for AdpcmEncoder<E>
+where E: adpcm::Encoder {
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
     fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
     fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
