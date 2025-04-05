@@ -62,7 +62,7 @@ impl WaveWriter {
     }
 
     pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
-        use DataFormat::{Pcm, Mp3, OggVorbis, Flac};
+        use DataFormat::{Pcm, Adpcm, Mp3, OggVorbis, Flac};
         let sizeof_sample = spec.bits_per_sample / 8;
         let frame_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type();
