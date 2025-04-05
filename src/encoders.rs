@@ -38,6 +38,7 @@ pub trait EncoderToImpl: Debug {
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError>;
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError>;
 
+    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 }
 
@@ -46,6 +47,10 @@ impl EncoderToImpl for () {
     // 这个方法用户必须实现
     fn write_frame_f32(&mut self, _writer: &mut dyn Writer, _frame: &Vec<f32>) -> Result<(), AudioWriteError> {
         panic!("Must implement `write_frame_f32()` for your encoder to get samples.");
+    }
+
+    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+        panic!("Must implement `get_bit_rate()` for your encoder.");
     }
 
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.write_frame_f32(writer, &sample_conv(frame))}
@@ -135,6 +140,10 @@ impl Encoder {
         }
     }
 
+    pub fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+        self.encoder.get_bit_rate()
+    }
+
     pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.encoder.finalize(writer)
     }
@@ -218,6 +227,9 @@ where S: SampleType {
 
 #[derive(Debug)]
 pub struct PcmEncoder {
+    channels: u16,
+    sample_rate: u32,
+    sample_type: WaveSampleType,
     writer_from__i8: PcmEncoderFrom< i8>,
     writer_from_i16: PcmEncoderFrom<i16>,
     writer_from_i24: PcmEncoderFrom<i24>,
@@ -234,8 +246,11 @@ pub struct PcmEncoder {
 
 impl PcmEncoder {
     // target_sample: 要编码进 WAV 的 PCM 具体格式
-    pub fn new(target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
+    pub fn new(channels: u16, sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
         Ok(Self {
+            channels,
+            sample_rate,
+            sample_type: target_sample,
             writer_from__i8: PcmEncoderFrom::< i8>::new(target_sample)?,
             writer_from_i16: PcmEncoderFrom::<i16>::new(target_sample)?,
             writer_from_i24: PcmEncoderFrom::<i24>::new(target_sample)?,
@@ -279,6 +294,9 @@ impl EncoderToImpl for PcmEncoder {
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.writer_from_f32.write_multiple_frames(writer, frames)}
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_multiple_frames(writer, frames)}
 
+    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+        Ok(self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8)
+    }
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
     }
@@ -315,8 +333,9 @@ pub mod MP3 {
     #[derive(Debug, Clone)]
     pub struct Mp3Encoder<S>
     where S: SampleType {
-        pub encoder: SharedMp3Encoder,
-        pub buffers: ChannelBuffers<S>,
+        bitrate: u32,
+        encoder: SharedMp3Encoder,
+        buffers: ChannelBuffers<S>,
     }
 
     impl<S> Mp3Encoder<S>
@@ -338,10 +357,11 @@ pub mod MP3 {
             mp3_builder.set_sample_rate(sample_rate)?;
 
             // 设置位率，直接决定音质。如果没有提供位率，就使用 320 kbps 位率。
-            mp3_builder.set_brate(match bit_rate {
+            let bitrate = match bit_rate {
                 Some(bit_rate) => bit_rate,
                 None => Bitrate::Kbps320,
-            })?;
+            };
+            mp3_builder.set_brate(bitrate)?;
 
             // 设置品质，如果没设置那就是最佳品质
             let quality = match quality {
@@ -368,7 +388,8 @@ pub mod MP3 {
 
             // 创建编码器
             Ok(Self {
-                encoder,
+                bitrate: bitrate as u32 * 1000,
+                encoder: encoder.clone(),
                 buffers: match channels {
                     1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
                     2 => ChannelBuffers::<S>::Stereo(BufferStereo::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
@@ -754,6 +775,10 @@ pub mod MP3 {
         fn write_multiple_frames_u64(&mut self, writer: &mut dyn Writer, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
         fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
         fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
+
+        fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+            Ok(self.bitrate as u32)
+        }
 
         fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
             Ok(self.finish(writer)?)
