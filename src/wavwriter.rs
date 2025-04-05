@@ -173,7 +173,7 @@ impl WaveWriter {
             },
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
-            byte_rate: self.spec.sample_rate * self.frame_size as u32,
+            byte_rate: self.encoder.get_bit_rate()? / 8,
             block_align: self.frame_size,
             bits_per_sample: self.spec.bits_per_sample,
             extension: match ext {
