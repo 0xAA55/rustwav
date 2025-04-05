@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
 use crate::AudioWriteError;
 use crate::{DataFormat, Spec, SampleFormat, WaveSampleType};
