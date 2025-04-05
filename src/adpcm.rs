@@ -2,6 +2,20 @@
 #![allow(dead_code)]
 
 pub mod adpcm {
+    use std::io;
+
+	pub trait Encoder {
+		fn encode<IS, OB>(&mut self, input: IS, output: OB) -> Result<(), io::Error>
+            where IS: FnMut() -> Option<i16>,
+                  OB: FnMut(u8) -> Result<(), io::Error>;
+	}
+
+	pub trait Decoder {
+		fn decode<IB, OS>(&mut self, input: IB, output: OS) -> Result<(), io::Error>
+            where IB: FnMut() -> Option<u8>,
+                  OS: FnMut(i16) -> Result<(), io::Error>;
+	}
+
     pub mod bs {
         // Encode and decode algorithms for
         // Brian Schmidt's ADPCM used in QSound DSP
@@ -9,7 +23,10 @@ pub mod adpcm {
         // 2018-2019 by superctr.
         // 2025 by 0xAA55
 
-        use std::{io::{self}};
+        use std::io;
+
+        use super::Encoder;
+        use super::Decoder;
 
         // step ADPCM algorithm
         fn bs_step(step: i8, history: &mut i16, step_size: &mut i16) -> i16 {
@@ -39,6 +56,7 @@ pub mod adpcm {
             (out & 0xFFFF) as i16
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             step_size: i16,
             history: i16,
@@ -59,8 +77,10 @@ pub mod adpcm {
                     filter_state: 0,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 while let Some(sample) = input() {
@@ -78,6 +98,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             step_size: i16,
             history: i16,
@@ -92,8 +113,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -130,6 +153,9 @@ pub mod adpcm {
         // 2025 by 0xAA55
 
         use std::{io::{self}};
+
+        use super::Encoder;
+        use super::Decoder;
 
         const OKI_STEP_TABLE: [u16; 49] = [
             16, 17, 19, 21, 23, 25, 28, 31,
@@ -190,6 +216,7 @@ pub mod adpcm {
             adpcm_sample
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             history: i16,
             step_hist: u8,
@@ -208,8 +235,10 @@ pub mod adpcm {
                     oki_highpass,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -233,6 +262,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             history: i16,
             step_hist: u8,
@@ -249,8 +279,10 @@ pub mod adpcm {
                     oki_highpass,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -277,9 +309,13 @@ pub mod adpcm {
     pub mod oki6258 {
         use std::{io::{self}};
 
+        use super::Encoder;
+        use super::Decoder;
+
         use super::oki::oki_encode_step;
         use super::oki::oki_step;
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             history: i16,
             step_hist: u8,
@@ -298,8 +334,10 @@ pub mod adpcm {
                     oki_highpass,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -323,6 +361,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             history: i16,
             step_hist: u8,
@@ -339,8 +378,10 @@ pub mod adpcm {
                     oki_highpass,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -372,6 +413,9 @@ pub mod adpcm {
         // 2025 by 0xAA55
 
         use std::{io::{self}};
+
+        use super::Encoder;
+        use super::Decoder;
 
         const YMA_STEP_TABLE: [u16; 49] = [
             16, 17, 19, 21, 23, 25, 28, 31,
@@ -418,6 +462,7 @@ pub mod adpcm {
             adpcm_sample
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             history: i16,
             step_hist: u8,
@@ -434,8 +479,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -459,6 +506,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             history: i16,
             step_hist: u8,
@@ -473,8 +521,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -507,6 +557,9 @@ pub mod adpcm {
 
         use std::{io::{self}};
 
+        use super::Encoder;
+        use super::Decoder;
+
         pub fn ymb_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
             const STEP_TABLE: [i32; 8] = [
                 57, 57, 57, 57, 77, 102, 128, 153
@@ -529,6 +582,7 @@ pub mod adpcm {
             newval
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             step_size: i16,
             history: i16,
@@ -545,8 +599,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -571,6 +627,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             step_size: i16,
             history: i16,
@@ -585,8 +642,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -621,6 +680,9 @@ pub mod adpcm {
 
         use std::{io::{self}};
 
+        use super::Encoder;
+        use super::Decoder;
+
         pub fn ymz_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
             const STEP_TABLE: [i32; 8] = [
                 230, 230, 230, 230, 307, 409, 512, 614
@@ -646,6 +708,7 @@ pub mod adpcm {
             newval
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             step_size: i16,
             history: i16,
@@ -662,8 +725,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -689,6 +754,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             step_size: i16,
             history: i16,
@@ -703,8 +769,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+            fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
@@ -732,8 +800,12 @@ pub mod adpcm {
     pub mod aica {
         use std::{io::{self}};
 
+        use super::Encoder;
+        use super::Decoder;
+
         use super::ymz::ymz_step;
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmEncoder {
             step_size: i16,
             history: i16,
@@ -750,8 +822,10 @@ pub mod adpcm {
                     nibble: 0,
                 }
             }
+        }
 
-            pub fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
+        impl Encoder for AdpcmEncoder {
+            fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
             where IS: FnMut() -> Option<i16>,
                   OB: FnMut(u8) -> Result<(), io::Error> {
                 loop {
@@ -777,6 +851,7 @@ pub mod adpcm {
             }
         }
 
+        #[derive(Debug, Clone, Copy)]
         pub struct AdpcmDecoder {
             step_size: i16,
             history: i16,
@@ -791,8 +866,10 @@ pub mod adpcm {
                     nibble: 4,
                 }
             }
+        }
 
-            pub fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
+        impl Decoder for AdpcmDecoder {
+        	fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error> {
                 let mut byte = match input() {
