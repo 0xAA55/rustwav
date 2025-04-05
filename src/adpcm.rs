@@ -15,6 +15,18 @@ pub mod adpcm {
             where IB: FnMut() -> Option<u8>,
                   OS: FnMut(i16) -> Result<(), io::Error>;
 	}
+	
+	pub enum AdpcmEncoderTypes {
+	    BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
+	}
+
+	pub type AdpcmEncoderBS = adpcm::bs::AdpcmEncoder;
+	pub type AdpcmEncoderOKI = adpcm::oki::AdpcmEncoder;
+	pub type AdpcmEncoderOKI6258 = adpcm::oki6258::AdpcmEncoder;
+	pub type AdpcmEncoderYMA = adpcm::yma::AdpcmEncoder;
+	pub type AdpcmEncoderYMB = adpcm::ymb::AdpcmEncoder;
+	pub type AdpcmEncoderYMZ = adpcm::ymz::AdpcmEncoder;
+	pub type AdpcmEncoderAICA = adpcm::aica::AdpcmEncoder;
 
     pub mod bs {
         // Encode and decode algorithms for
