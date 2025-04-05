@@ -15,17 +15,41 @@ pub trait Decoder {
               OS: FnMut(i16) -> Result<(), io::Error>;
 }
 
-pub enum AdpcmEncoderTypes {
+pub enum AdpcmCodecTypes {
     BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
 }
 
-pub type AdpcmEncoderBS = adpcm::bs::AdpcmEncoder;
-pub type AdpcmEncoderOKI = adpcm::oki::AdpcmEncoder;
-pub type AdpcmEncoderOKI6258 = adpcm::oki6258::AdpcmEncoder;
-pub type AdpcmEncoderYMA = adpcm::yma::AdpcmEncoder;
-pub type AdpcmEncoderYMB = adpcm::ymb::AdpcmEncoder;
-pub type AdpcmEncoderYMZ = adpcm::ymz::AdpcmEncoder;
-pub type AdpcmEncoderAICA = adpcm::aica::AdpcmEncoder;
+pub type AdpcmEncoderBS      = bs::AdpcmEncoder;
+pub type AdpcmEncoderOKI     = oki::AdpcmEncoder;
+pub type AdpcmEncoderOKI6258 = oki6258::AdpcmEncoder;
+pub type AdpcmEncoderYMA     = yma::AdpcmEncoder;
+pub type AdpcmEncoderYMB     = ymb::AdpcmEncoder;
+pub type AdpcmEncoderYMZ     = ymz::AdpcmEncoder;
+pub type AdpcmEncoderAICA    = aica::AdpcmEncoder;
+
+pub type AdpcmDecoderBS      = bs::AdpcmDecoder;
+pub type AdpcmDecoderOKI     = oki::AdpcmDecoder;
+pub type AdpcmDecoderOKI6258 = oki6258::AdpcmDecoder;
+pub type AdpcmDecoderYMA     = yma::AdpcmDecoder;
+pub type AdpcmDecoderYMB     = ymb::AdpcmDecoder;
+pub type AdpcmDecoderYMZ     = ymz::AdpcmDecoder;
+pub type AdpcmDecoderAICA    = aica::AdpcmDecoder;
+
+pub type EncBS      = AdpcmEncoderBS;
+pub type EncOKI     = AdpcmEncoderOKI;
+pub type EncOKI6258 = AdpcmEncoderOKI6258;
+pub type EncYMA     = AdpcmEncoderYMA;
+pub type EncYMB     = AdpcmEncoderYMB;
+pub type EncYMZ     = AdpcmEncoderYMZ;
+pub type EncAICA    = AdpcmEncoderAICA;
+
+pub type DecBS      = AdpcmDecoderBS;
+pub type DecOKI     = AdpcmDecoderOKI;
+pub type DecOKI6258 = AdpcmDecoderOKI6258;
+pub type DecYMA     = AdpcmDecoderYMA;
+pub type DecYMB     = AdpcmDecoderYMB;
+pub type DecYMZ     = AdpcmDecoderYMZ;
+pub type DecAICA    = AdpcmDecoderAICA;
 
 pub mod bs {
     // Encode and decode algorithms for
