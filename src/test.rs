@@ -17,6 +17,7 @@ pub use readwrite::{Reader, Writer, SharedWriter, string_io};
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use encoders::{EncoderToImpl, Encoder, PcmEncoder};
 pub use decoders::{Decoder, PcmDecoder};
+pub use adpcm::{AdpcmEncoderTypes, AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
 pub use wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
 pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 pub use wavcore::{ChunkWriter, ChunkHeader};
@@ -29,7 +30,7 @@ pub use filehasher::FileHasher;
 pub use decoders::MP3::Mp3Decoder;
 
 #[cfg(feature = "mp3enc")]
-pub use crate::encoders::MP3::Mp3Encoder;
+pub use encoders::MP3::Mp3Encoder;
 
 use std::env::args;
 use std::error::Error;
@@ -57,7 +58,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm, NeverLargerThan4GB).unwrap();
 
     // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
     // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
