@@ -163,6 +163,26 @@ where S: SampleType {
     Ok(tuples)
 }
 
+pub fn stereo_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
+where S: SampleType {
+    let mut l = Vec::<S>::with_capacity(frames.len());
+    let mut r = Vec::<S>::with_capacity(frames.len());
+    for frame in frames.iter() {
+        match frame.len() {
+            1 => l.push(frame[0]),
+            2 => {
+                l.push(frame[0]);
+                r.push(frame[1]);
+                if l.len() != r.len() {
+                    return Err(AudioWriteError::InvalidArguments(format!("Not all frames are the same channels.")));
+                }
+            },
+            other => return Err(AudioWriteError::InvalidArguments(format!("Channel number is {other}, can't turn to 2 tuples."))),
+        }
+    }
+    Ok((l, r))
+}
+
 // 样本类型缩放转换
 // 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
 fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
