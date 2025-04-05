@@ -301,7 +301,7 @@ impl WaveWriter {
     pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
         // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            Ok(self.encoder.finalize(writer)?)
+            self.encoder.finalize(writer)?;
 
             // 此时，一些编码器应该已经靠统计数据算出了自己的比特率，此时更新 fmt_chunk
             let position = self.fmt_chunk_offset;
@@ -315,6 +315,8 @@ impl WaveWriter {
             // 写入比特率
             writer.seek(SeekFrom::Start(position))?;
             (self.encoder.get_bit_rate()? / 8).write_le(writer)?;
+
+            Ok(())
         })?;
 
         // 结束对 data 块的写入
