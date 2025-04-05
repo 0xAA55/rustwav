@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, io::{self, BufWriter, SeekFrom}, path::Path};
 
 use crate::AudioWriteError;
 use crate::{DataFormat, Spec, SampleFormat, WaveSampleType};
@@ -106,7 +105,7 @@ impl WaveWriter {
         self.riff_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
-        self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             writer.write_all(b"WAVE")?;
             Ok(())
         })?;
@@ -116,7 +115,7 @@ impl WaveWriter {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-                self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+                self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                     writer.write_all(&[0u8; 28])?;
                     Ok(())
                 })?;
@@ -294,7 +293,7 @@ impl WaveWriter {
         if let Some(chunk) = &self.acid_chunk { chunk.write(self.writer.clone())?; }
         if let Some(chunk) = &self.id3__chunk {
             let mut cw = ChunkWriter::begin(self.writer.clone(), b"id3 ")?;
-            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Id3::id3_write(&chunk, writer)?;
                 Ok(())
             })?;
@@ -314,7 +313,7 @@ impl WaveWriter {
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
-            self.writer.escorted_write(|writer| -> Result<(), io::Error> {
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 write_str(writer, chunk, &self.text_encoding)?;
                 Ok(())
             })?;
