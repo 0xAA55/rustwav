@@ -159,7 +159,7 @@ impl WaveWriter {
                 },
                 DataFormat::Mp3 => {
                     ext = false;
-                    0x00FF
+                    0x0055
                 },
                 DataFormat::OggVorbis => {
                     ext = false;
