@@ -380,7 +380,11 @@ where E: adpcm::Encoder {
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
 
     fn get_bit_rate(&mut self) -> u32 {
-        (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
+        if self.samples_written == 0 {
+            self.sample_rate * 8 // 估算
+        } else {
+            (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
+        }
     }
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
