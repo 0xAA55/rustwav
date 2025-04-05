@@ -310,6 +310,9 @@ impl WaveWriter {
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             self.encoder.finalize(writer)?;
 
+            // 记录 data 末尾的位置
+            let end_of_data = writer.stream_position()?;
+
             // 此时，一些编码器应该已经靠统计数据算出了自己的比特率，此时更新 fmt_chunk
             let position = self.fmt_chunk_offset;
 
@@ -323,6 +326,8 @@ impl WaveWriter {
             writer.seek(SeekFrom::Start(position))?;
             (self.encoder.get_bit_rate() / 8).write_le(writer)?;
 
+            // 回到 data 末尾的位置
+            writer.seek(SeekFrom::Start(end_of_data))?;
             Ok(())
         })?;
 
