@@ -5,12 +5,12 @@ use std::{io, fmt::Debug};
 
 pub trait Encoder: Debug {
 	fn new() -> Self;
-	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error>;
+	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
 }
 
 pub trait Decoder: Debug {
 	fn new() -> Self;
-	fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error>;
+	fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
 }
 
 pub enum AdpcmCodecTypes {
@@ -111,12 +111,12 @@ pub mod bs {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 let step = bs_hpf_step(sample, &mut self.filter_history, &mut self.filter_state);
                 let step = ((step / self.step_size) >> 1).clamp(-8, 7) as i8;
                 if self.nibble != 0 {
-                    output(self.buf_sample | (step as u8 & 0xF))?;
+                    output(self.buf_sample | (step as u8 & 0xF));
                 } else {
                     self.buf_sample = (step as u8 & 0xF) << 4;
                 }
@@ -143,7 +143,7 @@ pub mod bs {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -158,7 +158,7 @@ pub mod bs {
                     }
                 }
                 self.nibble ^= 4;
-                output(bs_step(step, &mut self.history, &mut self.step_size))?;
+                output(bs_step(step, &mut self.history, &mut self.step_size));
             }
             Ok(())
         }
@@ -261,7 +261,7 @@ pub mod oki {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -273,7 +273,7 @@ pub mod oki {
                 sample >>= 4;
                 let step = oki_encode_step(sample, &mut self.history, &mut self.step_hist, self.oki_highpass);
                 if self.nibble != 0 {
-                    output(self.buf_sample | (step & 0xF))?;
+                    output(self.buf_sample | (step & 0xF));
                 } else {
                     self.buf_sample = (step & 0xF) << 4;
                 }
@@ -301,7 +301,7 @@ pub mod oki {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -316,7 +316,7 @@ pub mod oki {
                     }
                 }
                 self.nibble ^= 4;
-                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4)?;
+                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4);
             }
             Ok(())
         }
@@ -352,7 +352,7 @@ pub mod oki6258 {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -364,7 +364,7 @@ pub mod oki6258 {
                 sample >>= 4;
                 let step = oki_encode_step(sample, &mut self.history, &mut self.step_hist, self.oki_highpass);
                 if self.nibble != 0 {
-                    output(self.buf_sample | ((step & 0xF) << 4))?;
+                    output(self.buf_sample | ((step & 0xF) << 4));
                 } else {
                     self.buf_sample = step & 0xF;
                 }
@@ -392,7 +392,7 @@ pub mod oki6258 {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -407,7 +407,7 @@ pub mod oki6258 {
                     }
                 }
                 self.nibble ^= 4;
-                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4)?;
+                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4);
             }
             Ok(())
         }
@@ -489,7 +489,7 @@ pub mod yma {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -501,7 +501,7 @@ pub mod yma {
                 sample >>= 4;
                 let step = yma_encode_step(sample, &mut self.history, &mut self.step_hist);
                 if self.nibble != 0 {
-                    output(self.buf_sample | (step & 0xF))?;
+                    output(self.buf_sample | (step & 0xF));
                 } else {
                     self.buf_sample = (step & 0xF) << 4;
                 }
@@ -527,7 +527,7 @@ pub mod yma {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -542,7 +542,7 @@ pub mod yma {
                     }
                 }
                 self.nibble ^= 4;
-                output(yma_step(step as u8, &mut self.history, &mut self.step_hist) << 4)?;
+                output(yma_step(step as u8, &mut self.history, &mut self.step_hist) << 4);
             }
             Ok(())
         }
@@ -601,7 +601,7 @@ pub mod ymb {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -614,7 +614,7 @@ pub mod ymb {
                     adpcm_sample |= 8;
                 }
                 if self.nibble != 0 {
-                    output(self.buf_sample | (adpcm_sample & 0xF) as u8)?;
+                    output(self.buf_sample | (adpcm_sample & 0xF) as u8);
                 } else {
                     self.buf_sample = ((adpcm_sample & 0xF) << 4) as u8;
                 }
@@ -640,7 +640,7 @@ pub mod ymb {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -655,7 +655,7 @@ pub mod ymb {
                     }
                 }
                 self.nibble ^= 4;
-                output(ymb_step(step as u8, &mut self.history, &mut self.step_size))?;
+                output(ymb_step(step as u8, &mut self.history, &mut self.step_size));
             }
             Ok(())
         }
@@ -719,7 +719,7 @@ pub mod ymz {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -732,7 +732,7 @@ pub mod ymz {
                     adpcm_sample |= 8;
                 }
                 if self.nibble != 0 {
-                    output(self.buf_sample | (adpcm_sample & 0xF) as u8)?;
+                    output(self.buf_sample | (adpcm_sample & 0xF) as u8);
                 } else {
                     self.buf_sample = ((adpcm_sample & 0xF) << 4) as u8;
                 }
@@ -759,7 +759,7 @@ pub mod ymz {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -775,7 +775,7 @@ pub mod ymz {
                 }
                 self.nibble ^= 4;
                 self.history = self.history * 254 / 256; // High pass
-                output(ymz_step(step as u8, &mut self.history, &mut self.step_size))?;
+                output(ymz_step(step as u8, &mut self.history, &mut self.step_size));
             }
             Ok(())
         }
@@ -808,7 +808,7 @@ pub mod aica {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -821,7 +821,7 @@ pub mod aica {
                     adpcm_sample |= 8;
                 }
                 if self.nibble == 0 {
-                    output(self.buf_sample | (adpcm_sample << 4) as u8)?;
+                    output(self.buf_sample | (adpcm_sample << 4) as u8);
                 } else {
                     self.buf_sample = (adpcm_sample & 0xF) as u8;
                 }
@@ -848,7 +848,7 @@ pub mod aica {
             }
         }
 
-    	fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
+    	fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -864,7 +864,7 @@ pub mod aica {
                 }
                 self.nibble ^= 4;
                 self.history = self.history * 254 / 256; // High pass
-                output(ymz_step(step as u8, &mut self.history, &mut self.step_size))?;
+                output(ymz_step(step as u8, &mut self.history, &mut self.step_size));
             }
             Ok(())
         }
