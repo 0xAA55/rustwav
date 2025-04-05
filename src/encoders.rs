@@ -298,6 +298,93 @@ impl EncoderToImpl for PcmEncoder {
     fn get_bit_rate(&mut self) -> u32 {
         self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
+    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        Ok(writer.flush()?)
+    }
+}
+
+pub struct AdpcmEncoder {
+    sample_rate: u32,
+    samples_written: u64,
+    bytes_written: u64,
+    encoder_type: AdpcmEncoderTypes,
+    encoder: Box<dyn adpcm::Encoder>,
+}
+
+impl AdpcmEncoder {
+    pub fn new(encoder_type: AdpcmEncoderTypes, sample_rate: u32) -> Self {
+        use AdpcmEncoderTypes::{BS, OKI, OKI6258, YMA, YMB, YMZ, AICA};
+        Self {
+            sample_rate,
+            samples_written: 0,
+            bytes_written: 0,
+            encoder_type,
+            encoder: match encoder_type {
+                BS => AdpcmEncoderBS::new(sample_rate),
+                OKI => AdpcmEncoderOKI::new(sample_rate),
+                OKI6258 => AdpcmEncoderOKI6258::new(sample_rate),
+                YMA => AdpcmEncoderYMA::new(sample_rate),
+                YMB => AdpcmEncoderYMB::new(sample_rate),
+                YMZ => AdpcmEncoderYMZ::new(sample_rate),
+                AICA => AdpcmEncoderAICA::new(sample_rate),
+            }
+        }
+    }
+
+    pub fn write_frame(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {
+        Ok(self.encoder.encode(
+            || -> Option<i16> {
+                match frame.iter() {
+                    Some(sample) => {
+                        self.samples_written += 1;
+                        Some(sample)
+                    },
+                    None => None,
+                }
+            },
+            |byte| -> Result<(), io::Error>{
+                self.bytes_written += 1;
+                byte.write_le(writer)?
+        })?);
+    }
+
+    pub fn write_multiple_frames(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {
+        for frame in frames.iter() {
+            self.write_frame(writer, frame)?;
+        }
+        Ok(())
+    }
+}
+
+impl EncoderToImpl for AdpcmEncoder {
+    fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_i32(&mut self, writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_i64(&mut self, writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame__u8(&mut self, writer: &mut dyn Writer, frame: &Vec<u8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_u16(&mut self, writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_u24(&mut self, writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_u32(&mut self, writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_u64(&mut self, writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_f32(&mut self, writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+    fn write_frame_f64(&mut self, writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
+
+    fn write_multiple_frames__i8(&mut self, writer: &mut dyn Writer, frames: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i16(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i24(&mut self, writer: &mut dyn Writer, frames: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i32(&mut self, writer: &mut dyn Writer, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_i64(&mut self, writer: &mut dyn Writer, frames: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames__u8(&mut self, writer: &mut dyn Writer, frames: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u16(&mut self, writer: &mut dyn Writer, frames: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u24(&mut self, writer: &mut dyn Writer, frames: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u32(&mut self, writer: &mut dyn Writer, frames: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_u64(&mut self, writer: &mut dyn Writer, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+    fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, &sample_conv_batch(frames))}
+
+    fn get_bit_rate(&mut self) -> u32 {
+        (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
     }
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
@@ -815,8 +902,9 @@ pub mod MP3 {
                 .finish()
         }
     }
-
 }
+
+
 
 
 
