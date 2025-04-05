@@ -73,7 +73,7 @@ impl WaveWriter {
                 Encoder::new(PcmEncoder::new(spec.channels, spec.sample_rate, sample_type)?)
             },
             Adpcm => {
-                Encoder::new(AdpcmEncoder::<EncBS>::new(spec.sample_rate))
+                Encoder::new(AdpcmEncoder::<EncOKI>::new(spec.sample_rate))
             },
             Mp3 => {
                 Encoder::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)
@@ -171,8 +171,8 @@ impl WaveWriter {
                 DataFormat::Adpcm => {
                     ext = false;
                     self.frame_size = 1;
-                    self.spec.bits_per_sample = 16;
-                    2
+                    self.spec.bits_per_sample = 8;
+                    0x0010
                 },
                 DataFormat::Mp3 => {
                     ext = false;
