@@ -174,7 +174,7 @@ where S: SampleType,
 }
 
 // PcmEncoderFrom<S>：样本从 S 类型打包到目标类型
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct PcmEncoderFrom<S>
 where S: SampleType {
     writer: fn(&mut dyn Writer, frame: &[S]) -> Result<(), AudioWriteError>,
@@ -225,7 +225,7 @@ where S: SampleType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct PcmEncoder {
     channels: u16,
     sample_rate: u32,
