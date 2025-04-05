@@ -1,15 +1,15 @@
 
-mod errors;
-mod savagestr;
-mod readwrite;
-mod sampleutils;
-mod filehasher;
-mod adpcm;
-mod encoders;
-mod decoders;
-mod wavcore;
-mod wavreader;
-mod wavwriter;
+pub mod errors;
+pub mod savagestr;
+pub mod readwrite;
+pub mod sampleutils;
+pub mod filehasher;
+pub mod adpcm;
+pub mod encoders;
+pub mod decoders;
+pub mod wavcore;
+pub mod wavreader;
+pub mod wavwriter;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
