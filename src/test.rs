@@ -88,7 +88,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
             bits_per_sample: 16,
             sample_format: SampleFormat::Int,
         };
-        let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, FileSizeOption::NeverLargerThan4GB).unwrap();
+        let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, FileSizeOption::NeverLargerThan4GB).unwrap();
         loop {
             let frame = mp3_decocer.decode::<f32>();
             match frame {
