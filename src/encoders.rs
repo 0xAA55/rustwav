@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::fmt::Debug;
+use std::{io::{self}, fmt::Debug};
 
 use crate::adpcm::{self, AdpcmCodecTypes};
 use crate::adpcm::{AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
