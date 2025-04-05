@@ -282,6 +282,9 @@ impl WaveWriter {
 
     pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
         // 结束对 data 块的写入
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+            Ok(self.encoder.finalize(writer)?)
+        })?;
         self.data_chunk = None;
         
         // 写入其它全部的结构体块
