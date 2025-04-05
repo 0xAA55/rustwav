@@ -85,6 +85,7 @@ impl WaveWriter {
             spec: *spec,
             data_format,
             file_size_option,
+            fmt_chunk_offset: 0,
             num_frames: 0,
             frame_size,
             data_offset: 0,
