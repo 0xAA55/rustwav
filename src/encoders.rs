@@ -389,22 +389,22 @@ pub mod MP3 {
         pub fn write_multiple_frames<T>(&mut self, writer: &mut dyn Writer, frames: &[Vec<T>]) -> Result<(), AudioWriteError>
         where T: SampleType {
             match self.buffers {
-                ChannelBuffers::Mono(mbuf) => {
+                ChannelBuffers::Mono(ref mut mbuf) => {
                     let mut buf = Vec::<S>::with_capacity(frames.len());
                     for frame in frames.iter() {
                         if frame.len() != 1 {
-                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}", frame.len())))
+                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}, should be 1", frame.len())))
                         } else {
                             buf.push(S::from(frame[0]));
                         }
                     }
                     mbuf.add_multiple_samples(writer, &buf)?;
                 },
-                ChannelBuffers::Stereo(sbuf) => {
+                ChannelBuffers::Stereo(ref mut sbuf) => {
                     let mut buf = Vec::<(S, S)>::with_capacity(frames.len());
                     for frame in frames.iter() {
                         if frame.len() != 2 {
-                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}", frame.len())))
+                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}, should be 2", frame.len())))
                         } else {
                             buf.push((S::from(frame[0]), S::from(frame[1])));
                         }
@@ -526,14 +526,54 @@ pub mod MP3 {
             Ok(())
         }
 
+        fn convert_mono_pcm<T>(&self) -> Vec<T>
+        where T: SampleType {
+            let mut mono_pcm = Vec::<T>::with_capacity(self.mono_pcm.len());
+            for s in self.mono_pcm.iter() {
+                mono_pcm.push(T::from(*s));
+            }
+            mono_pcm
+        }
+
+        fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
+            match std::any::type_name::<S>() { // i16, u16, i32, f32, f64 是它本来就支持的功能，然而这里需要假装转换一下。
+                "i16" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i16>()), out_buf)?)
+                },
+                "u16" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<u16>()), out_buf)?)
+                },
+                "i32" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i32>()), out_buf)?)
+                },
+                "f32" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<f32>()), out_buf)?)
+                },
+                "f64" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<f64>()), out_buf)?)
+                },
+                "i8" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i16>()), out_buf)?)
+                },
+                "u8" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<u16>()), out_buf)?)
+                },
+                "i24" | "u24" | "u32" => {
+                    Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i32>()), out_buf)?)
+                },
+                other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
+            }
+        }
+
         pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
             if self.cur_samples == 0 {
                 return Ok(())
             }
             self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                let to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
-                encoder.encode_to_vec(MonoPcm(&self.mono_pcm), &mut to_save)?;
+                let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
+                self.encode_to_vec(encoder, &mut to_save)?;
                 writer.write_all(&to_save)?;
+                Ok(())
             })?;
             self.cur_samples = 0;
             Ok(())
@@ -542,9 +582,10 @@ pub mod MP3 {
         pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
             self.flush(writer)?;
             self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                let to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
-                encoder.flush_to_vec::<FlushNoGap>(MonoPcm(&self.mono_pcm), &mut to_save)?;
+                let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
+                encoder.flush_to_vec::<FlushNoGap>(&mut to_save)?;
                 writer.write_all(&to_save)?;
+                Ok(())
             })?;
             Ok(())
         }
@@ -600,15 +641,67 @@ pub mod MP3 {
             (vl, vr)
         }
 
+        fn convert_dual_pcm<T>(&self) -> (Vec<T>, Vec<T>)
+        where T: SampleType {
+            let mut vl = Vec::<T>::with_capacity(self.max_samples);
+            let mut vr = Vec::<T>::with_capacity(self.max_samples);
+            for s in self.dual_pcm.iter() {
+                let (l, r) = *s;
+                let l = T::from(l);
+                let r = T::from(r);
+                vl.push(l);
+                vr.push(r);
+            }
+            (vl, vr)
+        }
+
+        fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
+            match std::any::type_name::<S>() { // i16, u16, i32, f32, f64 是它本来就支持的功能，然而这里需要假装转换一下。
+                "i16" => {
+                    let (l, r) = self.convert_dual_pcm::<i16>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "u16" => {
+                    let (l, r) = self.convert_dual_pcm::<u16>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "i32" => {
+                    let (l, r) = self.convert_dual_pcm::<i32>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "f32" => {
+                    let (l, r) = self.convert_dual_pcm::<f32>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "f64" => {
+                    let (l, r) = self.convert_dual_pcm::<f64>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "i8" => {
+                    let (l, r) = self.convert_dual_pcm::<i16>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "u8" => {
+                    let (l, r) = self.convert_dual_pcm::<u16>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                "i24" | "u24" | "u32" => {
+                    let (l, r) = self.convert_dual_pcm::<i32>();
+                    Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
+                },
+                other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
+            }
+        }
+
         pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
             if self.cur_samples == 0 {
                 return Ok(())
             }
             self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                let to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
-                let (l, r) = self.to_left_right();
-                encoder.encode_to_vec(DualPcm{left: l, right: r}, &mut to_save)?;
+                let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
+                self.encode_to_vec(encoder, &mut to_save)?;
                 writer.write_all(&to_save)?;
+                Ok(())
             })?;
             self.cur_samples = 0;
             Ok(())
@@ -617,11 +710,12 @@ pub mod MP3 {
         pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
             self.flush(writer)?;
             self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                let to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
-                let (l, r) = self.to_left_right();
-                encoder.flush_to_vec::<FlushNoGap>(DualPcm{left: l, right: r}, &mut to_save)?;
+                let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
+                encoder.flush_to_vec::<FlushNoGap>(&mut to_save)?;
                 writer.write_all(&to_save)?;
+                Ok(())
             })?;
+            writer.flush()?;
             Ok(())
         }
     }
