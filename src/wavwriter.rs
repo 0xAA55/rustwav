@@ -168,6 +168,12 @@ impl WaveWriter {
                         },
                     }
                 },
+                DataFormat::Adpcm => {
+                    ext = false;
+                    self.frame_size = 1;
+                    self.spec.bits_per_sample = 16;
+                    2
+                },
                 DataFormat::Mp3 => {
                     ext = false;
                     self.frame_size = 1;
