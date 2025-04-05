@@ -3,8 +3,8 @@
 
 use std::fmt::Debug;
 
-use crate::adpcm::{self, Decoder, AdpcmEncoderTypes};
-use crate::adpcm::{AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
+use crate::adpcm::{self, AdpcmCodecTypes};
+use crate::adpcm::{AdpcmDecoderBS, AdpcmDecoderOKI, AdpcmDecoderOKI6258, AdpcmDecoderYMA, AdpcmDecoderYMB, AdpcmDecoderYMZ, AdpcmDecoderAICA};
 use crate::{AudioError, AudioReadError};
 use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
