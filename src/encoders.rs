@@ -38,7 +38,7 @@ pub trait EncoderToImpl: Debug {
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError>;
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError>;
 
-    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError>;
+    fn get_bit_rate(&mut self) -> u32;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 }
 
@@ -49,7 +49,7 @@ impl EncoderToImpl for () {
         panic!("Must implement `write_frame_f32()` for your encoder to get samples.");
     }
 
-    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+    fn get_bit_rate(&mut self) -> u32 {
         panic!("Must implement `get_bit_rate()` for your encoder.");
     }
 
@@ -140,7 +140,7 @@ impl Encoder {
         }
     }
 
-    pub fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
+    pub fn get_bit_rate(&mut self) -> u32 {
         self.encoder.get_bit_rate()
     }
 
@@ -294,8 +294,9 @@ impl EncoderToImpl for PcmEncoder {
     fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.writer_from_f32.write_multiple_frames(writer, frames)}
     fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_multiple_frames(writer, frames)}
 
-    fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
-        Ok(self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8)
+    fn get_bit_rate(&mut self) -> u32 {
+        self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
+    }
     }
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
@@ -776,8 +777,8 @@ pub mod MP3 {
         fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
         fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
 
-        fn get_bit_rate(&mut self) -> Result<u32, AudioWriteError> {
-            Ok(self.bitrate as u32)
+        fn get_bit_rate(&mut self) -> u32 {
+            self.bitrate as u32
         }
 
         fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
