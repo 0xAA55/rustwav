@@ -12,6 +12,7 @@ use crate::{StringCodecMaps, SavageStringCodecs};
 #[allow(non_camel_case_types)]
 pub enum DataFormat{
     Pcm,
+    Adpcm,
     Mp3,
     OggVorbis,
     Flac,
