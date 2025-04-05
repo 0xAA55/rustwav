@@ -101,8 +101,8 @@ pub mod bs {
         pub filter_state: i32,
     }
 
-    impl AdpcmEncoder {
-        pub fn new() -> Self {
+    impl Encoder for AdpcmEncoder {
+        fn new() -> Self {
             Self {
                 step_size: 10,
                 history: 0,
@@ -140,8 +140,8 @@ pub mod bs {
         pub nibble: u8,
     }
 
-    impl AdpcmDecoder {
-        pub fn new() -> Self {
+    impl Decoder for AdpcmDecoder {
+        fn new() -> Self {
             Self {
                 step_size: 10,
                 history: 0,
@@ -260,14 +260,14 @@ pub mod oki {
         pub oki_highpass: bool,
     }
 
-    impl AdpcmEncoder {
-        pub fn new(oki_highpass: bool) -> Self {
+    impl Encoder for AdpcmEncoder {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
                 buf_sample: 0,
                 nibble: 0,
-                oki_highpass,
+                oki_highpass: false,
             }
         }
     }
@@ -305,8 +305,8 @@ pub mod oki {
         pub oki_highpass: bool,
     }
 
-    impl AdpcmDecoder {
-        pub fn new(oki_highpass: bool) -> Self {
+    impl Decoder for AdpcmDecoder {
+    	fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -359,8 +359,8 @@ pub mod oki6258 {
         pub oki_highpass: bool,
     }
 
-    impl AdpcmEncoder {
-        pub fn new(oki_highpass: bool) -> Self {
+    impl Encoder for AdpcmEncoder {
+    	fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -404,13 +404,12 @@ pub mod oki6258 {
         pub oki_highpass: bool,
     }
 
-    impl AdpcmDecoder {
-        pub fn new(oki_highpass: bool) -> Self {
+    impl Decoder for AdpcmDecoder {
+    	fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
                 nibble: 4,
-                oki_highpass,
             }
         }
     }
@@ -505,8 +504,8 @@ pub mod yma {
         pub nibble: u8,
     }
 
-    impl AdpcmEncoder {
-        pub fn new() -> Self {
+    impl Encoder for AdpcmEncoder {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -548,8 +547,8 @@ pub mod yma {
         pub nibble: u8,
     }
 
-    impl AdpcmDecoder {
-        pub fn new() -> Self {
+    impl Decoder for AdpcmDecoder {
+    	fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -625,8 +624,8 @@ pub mod ymb {
         pub nibble: u8,
     }
 
-    impl AdpcmEncoder {
-        pub fn new() -> Self {
+    impl Encoder for AdpcmEncoder {
+    	fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -669,8 +668,8 @@ pub mod ymb {
         pub nibble: u8,
     }
 
-    impl AdpcmDecoder {
-        pub fn new() -> Self {
+    impl Decoder for AdpcmDecoder {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -751,8 +750,8 @@ pub mod ymz {
         pub nibble: u8,
     }
 
-    impl AdpcmEncoder {
-        pub fn new() -> Self {
+    impl Encoder for AdpcmEncoder {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -796,8 +795,8 @@ pub mod ymz {
         pub nibble: u8,
     }
 
-    impl AdpcmDecoder {
-        pub fn new() -> Self {
+    impl Decoder for AdpcmDecoder {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -848,8 +847,8 @@ pub mod aica {
         pub nibble: u8,
     }
 
-    impl AdpcmEncoder {
-        pub fn new() -> Self {
+    impl Encoder for AdpcmEncoder {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -893,8 +892,8 @@ pub mod aica {
         nibble: u8,
     }
 
-    impl AdpcmDecoder {
-        pub fn new() -> Self {
+    impl Decoder for AdpcmDecoder {
+    	fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
