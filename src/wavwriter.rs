@@ -184,7 +184,7 @@ impl WaveWriter {
             },
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
-            byte_rate: self.encoder.get_bit_rate()? / 8,
+            byte_rate: self.encoder.get_bit_rate() / 8,
             block_align: self.frame_size,
             bits_per_sample: self.spec.bits_per_sample,
             extension: match ext {
@@ -314,7 +314,7 @@ impl WaveWriter {
 
             // 写入比特率
             writer.seek(SeekFrom::Start(position))?;
-            (self.encoder.get_bit_rate()? / 8).write_le(writer)?;
+            (self.encoder.get_bit_rate() / 8).write_le(writer)?;
 
             Ok(())
         })?;
