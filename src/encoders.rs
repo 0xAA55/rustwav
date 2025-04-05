@@ -306,6 +306,7 @@ pub mod MP3 {
         }
     }
 
+    #[derive(Debug, Clone)]
     pub struct Mp3Encoder<S>
     where S: SampleType {
         pub encoder: SharedMp3Encoder,
@@ -653,15 +654,10 @@ pub mod MP3 {
         fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> { Ok(self.finish(writer)?); }
     }
 
-    impl<S> Debug for Mp3Encoder<S>
-    where S: SampleType {
+    impl Debug for SharedMp3Encoder {
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct(format!("Mp3Encoder<{}>", type_name::<S>()))
-                .field("writer", &self.writer)
-                .field("encoder", &format_args!("Encoder"))
-                .field("mono_buf", &self.mono_buf)
-                .field("stereo_buf", &self.stereo_buf)
-                .finish()
+            fmt.debug_struct("SharedMp3Encoder")
+                .finish_non_exhaustive()
         }
     }
 
