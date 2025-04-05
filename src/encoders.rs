@@ -304,12 +304,12 @@ impl EncoderToImpl for PcmEncoder {
 
 #[cfg(feature = "mp3enc")]
 pub mod MP3 {
-    use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut, error::Error};
+    use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
     use crate::Writer;
     use crate::{SampleType, i24, u24};
     use crate::AudioWriteError;
     use crate::EncoderToImpl;
-    use mp3lame_encoder::{Builder, Encoder, Mode, EncoderInput, MonoPcm, DualPcm, FlushNoGap};
+    use mp3lame_encoder::{Builder, Encoder, Mode, MonoPcm, DualPcm, FlushNoGap};
     pub use mp3lame_encoder::{Bitrate, VbrMode, Quality, Id3Tag};
 
     const MAX_SAMPLES_TO_ENCODE: usize = 1024;
