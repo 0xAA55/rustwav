@@ -3,6 +3,9 @@
 
 use std::{io, fmt::Debug};
 
+//TODO
+//检查各项 ADPCM 的编解码结果是否符合。
+
 pub trait Encoder: Debug {
 	fn new() -> Self;
 	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
