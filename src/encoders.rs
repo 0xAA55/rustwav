@@ -416,12 +416,14 @@ pub mod MP3 {
         }
     }
 
+    #[derive(Debug, Clone)]
     enum ChannelBuffers<S>
     where S: SampleType {
         Mono(BufferMono<S>),
         Stereo(BufferStereo<S>),
     }
 
+    #[derive(Clone)]
     struct BufferMono<S>
     where S: SampleType {
         encoder: SharedMp3Encoder,
@@ -430,10 +432,11 @@ pub mod MP3 {
         max_samples: usize,
     }
 
+    #[derive(Clone)]
     struct BufferStereo<S>
     where S: SampleType{
         encoder: SharedMp3Encoder,
-        stereo_pcm: Vec<(S, S)>,
+        dual_pcm: Vec<(S, S)>,
         cur_samples: usize,
         max_samples: usize,
     }
