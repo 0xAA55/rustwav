@@ -33,6 +33,7 @@ pub struct WaveWriter {
     spec: Spec,
     data_format: DataFormat,
     file_size_option: FileSizeOption,
+    fmt_chunk_offset: u64,
     num_frames: u64,
     frame_size: u16,
     data_offset: u64,
@@ -198,6 +199,12 @@ impl WaveWriter {
             },
         };
 
+        // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+            self.fmt_chunk_offset = writer.stream_position()?;
+            Ok(())
+        })?;
+
         fmt__chunk.write(self.writer.clone())?;
 
         self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
@@ -289,10 +296,25 @@ impl WaveWriter {
     }
 
     pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
-        // 结束对 data 块的写入
+        // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             Ok(self.encoder.finalize(writer)?)
+
+            // 此时，一些编码器应该已经靠统计数据算出了自己的比特率，此时更新 fmt_chunk
+            let position = self.fmt_chunk_offset;
+
+            // 跳过 fmt 的 chunk 头
+            let position = position + 8;
+
+            // 找到 byte_rate 的存储位置
+            let position = position + 8;
+
+            // 写入比特率
+            writer.seek(SeekFrom::Start(position))?;
+            (self.encoder.get_bit_rate()? / 8).write_le(writer)?;
         })?;
+
+        // 结束对 data 块的写入
         self.data_chunk = None;
         
         // 写入其它全部的结构体块
