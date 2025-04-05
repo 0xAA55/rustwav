@@ -325,7 +325,7 @@ pub mod MP3 {
             match channels {
                 1 => mp3_builder.set_mode(Mode::Mono)?,
                 2 => mp3_builder.set_mode(Mode::JointStereo)?,
-                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other)))
+                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other))),
             }
 
             mp3_builder.set_num_channels(channels)?;
@@ -366,6 +366,7 @@ pub mod MP3 {
                 buffers: match channels {
                     1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
                     2 => ChannelBuffers::<S>::Stereo(BufferStereo::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
+                    other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other))),
                 },
             })
         }
