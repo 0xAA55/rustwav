@@ -457,10 +457,31 @@ where E: adpcm::Encoder {
     }
 
     pub fn write_multiple_frames(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {
-        for frame in frames.iter() {
-            self.write_frame(writer, frame)?;
+        let (lv, rv) = stereo_to_dual_mono(frames)?;
+        let (mut li, mut ri) = (lv.iter(), rv.iter());
+        let feeder_l = || -> Option<i16> { li.next().copied() };
+        let feeder_r = || -> Option<i16> { ri.next().copied() };
+        let receiver_l = |byte: u8|{ self.buffer_l.push(byte); };
+        let receiver_r = |byte: u8|{ self.buffer_r.push(byte); };
+        match (lv.len() > 0, rv.len() > 0) {
+            (true, false) => {
+                self.encoder_l.encode(feeder_l, receiver_l)?;
+                self.samples_written += lv.len() as u64;
+                writer.write_all(&self.buffer_l)?;
+                self.bytes_written += self.buffer_l.len() as u64;
+                self.buffer_l.clear();
+                Ok(())
+            },
+            (true, true) => {
+                self.encoder_l.encode(feeder_l, receiver_l)?;
+                self.encoder_r.encode(feeder_r, receiver_r)?;
+                self.samples_written += lv.len() as u64;
+                self.samples_written += rv.len() as u64;
+                self.flush_stereo(writer)?;
+                Ok(())
+            },
+            _ => panic!("The developer must have changed the behavior of the function `stereo_to_dual_mono()`, it should only feed the `left` channel for mono."),
         }
-        Ok(())
     }
 }
 
@@ -500,6 +521,7 @@ where E: adpcm::Encoder {
         }
     }
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.flush_stereo(writer)?;
         Ok(writer.flush()?)
     }
 }
