@@ -1,18 +1,16 @@
 // https://github.com/superctr/adpcm/tree/master
 #![allow(dead_code)]
 
-use std::io;
+use std::{io, fmt::Debug};
 
-pub trait Encoder {
-	fn encode<IS, OB>(&mut self, input: IS, output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error>;
+pub trait Encoder: Debug {
+	fn new() -> Self;
+	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error>;
 }
 
-pub trait Decoder {
-	fn decode<IB, OS>(&mut self, input: IB, output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error>;
+pub trait Decoder: Debug {
+	fn new() -> Self;
+	fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error>;
 }
 
 pub enum AdpcmCodecTypes {
@@ -112,12 +110,8 @@ pub mod bs {
                 filter_state: 0,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 let step = bs_hpf_step(sample, &mut self.filter_history, &mut self.filter_state);
                 let step = ((step / self.step_size) >> 1).clamp(-8, 7) as i8;
@@ -148,12 +142,8 @@ pub mod bs {
                 nibble: 0,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -270,12 +260,8 @@ pub mod oki {
                 oki_highpass: false,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -311,15 +297,11 @@ pub mod oki {
                 history: 0,
                 step_hist: 0,
                 nibble: 0,
-                oki_highpass,
+                oki_highpass: false,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -366,15 +348,11 @@ pub mod oki6258 {
                 step_hist: 0,
                 buf_sample: 0,
                 nibble: 0,
-                oki_highpass,
+                oki_highpass: false,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -410,14 +388,11 @@ pub mod oki6258 {
                 history: 0,
                 step_hist: 0,
                 nibble: 4,
+                oki_highpass: false,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -513,12 +488,8 @@ pub mod yma {
                 nibble: 0,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let mut sample = match input() {
                     Some(sample) => sample,
@@ -555,12 +526,8 @@ pub mod yma {
                 nibble: 0,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -633,12 +600,8 @@ pub mod ymb {
                 nibble: 0,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -676,12 +639,8 @@ pub mod ymb {
                 nibble: 0,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -759,12 +718,8 @@ pub mod ymz {
                 nibble: 0,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -803,12 +758,8 @@ pub mod ymz {
                 nibble: 0,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-        fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
@@ -856,12 +807,8 @@ pub mod aica {
                 nibble: 0,
             }
         }
-    }
 
-    impl Encoder for AdpcmEncoder {
-        fn encode<IS, OB>(&mut self, mut input: IS, mut output: OB) -> Result<(), io::Error>
-        where IS: FnMut() -> Option<i16>,
-              OB: FnMut(u8) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8) -> Result<(), io::Error>) -> Result<(), io::Error> {
             loop {
                 let sample = match input() {
                     Some(sample) => sample,
@@ -900,12 +847,8 @@ pub mod aica {
                 nibble: 4,
             }
         }
-    }
 
-    impl Decoder for AdpcmDecoder {
-    	fn decode<IB, OS>(&mut self, mut input: IB, mut output: OS) -> Result<(), io::Error>
-        where IB: FnMut() -> Option<u8>,
-              OS: FnMut(i16) -> Result<(), io::Error> {
+    	fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16) -> Result<(), io::Error>) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
