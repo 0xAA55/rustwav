@@ -324,20 +324,23 @@ where E: adpcm::Encoder {
     }
 
     pub fn write_frame(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {
-        Ok(self.encoder.encode(
+        let mut iter = frame.iter();
+        self.encoder.encode(
             || -> Option<i16> {
-                match frame.iter() {
+                match iter.next() {
                     Some(sample) => {
                         self.samples_written += 1;
-                        Some(sample)
+                        Some(*sample)
                     },
                     None => None,
                 }
             },
-            |byte| -> Result<(), io::Error>{
+            |byte: u8| -> Result<(), io::Error>{
                 self.bytes_written += 1;
-                byte.write_le(writer)?
-        })?);
+                byte.write_le(writer)?;
+                Ok(())
+        })?;
+        Ok(())
     }
 
     pub fn write_multiple_frames(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {
