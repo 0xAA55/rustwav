@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use crate::adpcm::{self, Encoder, AdpcmEncoderTypes};
+use crate::adpcm::{self, AdpcmCodecTypes};
 use crate::adpcm::{AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
 use crate::AudioWriteError;
 use crate::WaveSampleType;
