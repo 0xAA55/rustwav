@@ -93,12 +93,12 @@ pub mod bs {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        step_size: i16,
-        history: i16,
-        buf_sample: u8,
-        nibble: u8,
-        filter_history: i16,
-        filter_state: i32,
+        pub step_size: i16,
+        pub history: i16,
+        pub buf_sample: u8,
+        pub nibble: u8,
+        pub filter_history: i16,
+        pub filter_state: i32,
     }
 
     impl AdpcmEncoder {
@@ -135,9 +135,9 @@ pub mod bs {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        step_size: i16,
-        history: i16,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub nibble: u8,
     }
 
     impl AdpcmDecoder {
@@ -253,11 +253,11 @@ pub mod oki {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        history: i16,
-        step_hist: u8,
-        buf_sample: u8,
-        nibble: u8,
-        oki_highpass: bool,
+        pub history: i16,
+        pub step_hist: u8,
+        pub buf_sample: u8,
+        pub nibble: u8,
+        pub oki_highpass: bool,
     }
 
     impl AdpcmEncoder {
@@ -299,10 +299,10 @@ pub mod oki {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        history: i16,
-        step_hist: u8,
-        nibble: u8,
-        oki_highpass: bool,
+        pub history: i16,
+        pub step_hist: u8,
+        pub nibble: u8,
+        pub oki_highpass: bool,
     }
 
     impl AdpcmDecoder {
@@ -352,11 +352,11 @@ pub mod oki6258 {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        history: i16,
-        step_hist: u8,
-        buf_sample: u8,
-        nibble: u8,
-        oki_highpass: bool,
+        pub history: i16,
+        pub step_hist: u8,
+        pub buf_sample: u8,
+        pub nibble: u8,
+        pub oki_highpass: bool,
     }
 
     impl AdpcmEncoder {
@@ -398,10 +398,10 @@ pub mod oki6258 {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        history: i16,
-        step_hist: u8,
-        nibble: u8,
-        oki_highpass: bool,
+        pub history: i16,
+        pub step_hist: u8,
+        pub nibble: u8,
+        pub oki_highpass: bool,
     }
 
     impl AdpcmDecoder {
@@ -499,10 +499,10 @@ pub mod yma {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        history: i16,
-        step_hist: u8,
-        buf_sample: u8,
-        nibble: u8,
+        pub history: i16,
+        pub step_hist: u8,
+        pub buf_sample: u8,
+        pub nibble: u8,
     }
 
     impl AdpcmEncoder {
@@ -543,9 +543,9 @@ pub mod yma {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        history: i16,
-        step_hist: u8,
-        nibble: u8,
+        pub history: i16,
+        pub step_hist: u8,
+        pub nibble: u8,
     }
 
     impl AdpcmDecoder {
@@ -619,10 +619,10 @@ pub mod ymb {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        step_size: i16,
-        history: i16,
-        buf_sample: u8,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub buf_sample: u8,
+        pub nibble: u8,
     }
 
     impl AdpcmEncoder {
@@ -664,9 +664,9 @@ pub mod ymb {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        step_size: i16,
-        history: i16,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub nibble: u8,
     }
 
     impl AdpcmDecoder {
@@ -745,10 +745,10 @@ pub mod ymz {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        step_size: i16,
-        history: i16,
-        buf_sample: u8,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub buf_sample: u8,
+        pub nibble: u8,
     }
 
     impl AdpcmEncoder {
@@ -791,9 +791,9 @@ pub mod ymz {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmDecoder {
-        step_size: i16,
-        history: i16,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub nibble: u8,
     }
 
     impl AdpcmDecoder {
@@ -842,10 +842,10 @@ pub mod aica {
 
     #[derive(Debug, Clone, Copy)]
     pub struct AdpcmEncoder {
-        step_size: i16,
-        history: i16,
-        buf_sample: u8,
-        nibble: u8,
+        pub step_size: i16,
+        pub history: i16,
+        pub buf_sample: u8,
+        pub nibble: u8,
     }
 
     impl AdpcmEncoder {
