@@ -17,6 +17,7 @@ pub use readwrite::{Reader, Writer, SharedWriter, string_io};
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use encoders::{EncoderToImpl, Encoder, PcmEncoder};
 pub use decoders::{Decoder, PcmDecoder};
+pub use adpcm::{AdpcmEncoderTypes, AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
 pub use wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
 pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 pub use wavcore::{ChunkWriter, ChunkHeader};
@@ -29,4 +30,4 @@ pub use filehasher::FileHasher;
 pub use decoders::MP3::Mp3Decoder;
 
 #[cfg(feature = "mp3enc")]
-pub use crate::encoders::MP3::Mp3Encoder;
+pub use encoders::MP3::Mp3Encoder;
