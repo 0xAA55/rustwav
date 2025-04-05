@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 

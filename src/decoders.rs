@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fs::File, io::BufReader, fmt::Debug};
+use std::fmt::Debug;
 
 // use crate::adpcm::*;
 use crate::{AudioError, AudioReadError};
@@ -106,10 +106,9 @@ where S: SampleType {
 
 #[cfg(feature = "mp3dec")]
 pub mod MP3 {
-    use std::{fs::File, io::{BufReader, Seek}, fmt::Debug};
+    use std::{io::Seek, fmt::Debug};
     use puremp3::{Frame, FrameHeader, Channels};
     use crate::errors::AudioReadError;
-    use crate::wavcore::FmtChunk;
     use crate::readwrite::Reader;
     use crate::sampleutils::{SampleType};
 
