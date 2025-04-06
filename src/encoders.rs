@@ -521,7 +521,21 @@ where E: adpcm::AdpcmEncoder {
         Ok(())
     }
 
+    pub fn write_samples(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {
+        if self.is_stereo {
+            let monos = utils::interleaved_samples_to_multiple_monos(samples, 2)?;
+            let (mono_l, mono_r) = (&monos[0], &monos[1]);
+            let mut mono_l = mono_l.into_iter();
+            let mut mono_r = mono_r.into_iter();
+            self.encoder_l.encode(|| -> Option<i16> { mono_l.next().copied() }, |byte: u8|{ self.buffer_l.push(byte); })?;
+            self.encoder_r.encode(|| -> Option<i16> { mono_r.next().copied() }, |byte: u8|{ self.buffer_r.push(byte); })?;
+        } else {
+            let mut iter = samples.iter();
+            self.encoder_l.encode(|| -> Option<i16> { iter.next().copied() }, |byte: u8|{ self.buffer_l.push(byte); })?;
         }
+        self.samples_written += samples.len() as u64;
+        self.flush_stereo(writer)?;
+        Ok(())
     }
 
         }
