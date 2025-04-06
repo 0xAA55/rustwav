@@ -70,6 +70,16 @@ where S: SampleType {
     }
 }
 
+pub fn multiple_stereos_to_interleaved_samples<S>(stereos: &[(S, S)]) -> Vec<S>
+where S: SampleType {
+    let mut ret = Vec::<S>::with_capacity(stereos.len() * 2);
+    for (l, r) in stereos.into_iter() {
+        ret.push(*l);
+        ret.push(*r);
+    }
+    ret
+}
+
 }
 
 // 样本类型缩放转换
