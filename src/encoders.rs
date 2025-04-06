@@ -448,7 +448,7 @@ impl EncoderToImpl for PcmEncoder {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     sample_rate: u32,
@@ -459,22 +459,6 @@ where E: adpcm::AdpcmEncoder {
     encoder_r: E,
     buffer_l: Vec<u8>,
     buffer_r: Vec<u8>,
-}
-
-impl<E> Debug for AdpcmEncoderWrap<E>
-where E: adpcm::AdpcmEncoder {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct(&format!("AdpcmEncoderWrap<{}>", std::any::type_name::<E>()))
-            .field("sample_rate", &self.sample_rate)
-            .field("samples_written", &self.samples_written)
-            .field("bytes_written", &self.bytes_written)
-            .field("is_stereo", &self.is_stereo)
-            .field("encoder_l", &self.encoder_l)
-            .field("encoder_r", &self.encoder_r)
-            .field("buffer_l", &format_args!("[{}u8;...]", self.buffer_l.len()))
-            .field("buffer_r", &format_args!("[{}u8;...]", self.buffer_r.len()))
-            .finish()
-    }
 }
 
 impl<E> AdpcmEncoderWrap<E>
