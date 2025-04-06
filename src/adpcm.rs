@@ -305,7 +305,7 @@ pub mod oki {
     }
 
     impl AdpcmDecoder for Decoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -355,7 +355,7 @@ pub mod oki6258 {
     }
 
     impl AdpcmEncoder for Encoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -396,7 +396,7 @@ pub mod oki6258 {
     }
 
     impl AdpcmDecoder for Decoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -532,7 +532,7 @@ pub mod yma {
     }
 
     impl AdpcmDecoder for Decoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 history: 0,
                 step_hist: 0,
@@ -605,7 +605,7 @@ pub mod ymb {
     }
 
     impl AdpcmEncoder for Encoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -853,7 +853,7 @@ pub mod aica {
     }
 
     impl AdpcmDecoder for Decoder {
-    	fn new() -> Self {
+        fn new() -> Self {
             Self {
                 step_size: 127,
                 history: 0,
@@ -861,7 +861,7 @@ pub mod aica {
             }
         }
 
-    	fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut byte = match input() {
                 Some(byte) => byte,
                 None => return Ok(()),
