@@ -224,9 +224,131 @@ impl WaveWriter {
     }
 
     // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
+    pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_samples(writer, samples)?)
+            })?;
+            self.num_frames += (samples.len() / self.spec.channels as usize) as u64;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 单声道保存一个样本。频繁调用会非常慢。
+    pub fn write_mono<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if self.spec.channels != 1 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_mono(writer, mono)?)
+            })?;
+            self.num_frames += 1;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 单声道批量保存样本。
+    pub fn write_monos<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if self.spec.channels != 1 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_multiple_mono(writer, monos)?)
+            })?;
+            self.num_frames += monos.len() as u64;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 保存一个立体声样本，频繁调用会非常慢。
+    pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if self.spec.channels != 2 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_stereo(writer, stereo)?)
+            })?;
+            self.num_frames += 1;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 批量保存立体声样本。
+    pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if self.spec.channels != 2 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_multiple_stereos(writer, stereos)?)
+            })?;
+            self.num_frames += stereos.len() as u64;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 保存两个单声道（也就是一个立体声）的样本，频繁调用会非常慢。
+    pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if self.spec.channels != 2 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_dual_mono(writer, mono1, mono2)?)
+            })?;
+            self.num_frames += 1;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 保存两个单声道（也就是一个立体声）的批量样本。
+    pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            if mono1.len() != mono2.len() {
+                return Err(AudioWriteError::MultipleMonosAreNotSameSize);
+            }
+            if self.spec.channels != 2 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
+            }
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(self.encoder.write_multiple_dual_mono(writer, mono1, mono2)?)
+            })?;
+            self.num_frames += mono1.len() as u64;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+        }
+    }
+
+    // 保存一个音频帧，频繁调用会非常慢。支持多种声道格式。
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
+            if self.spec.channels != frame.len() as u16 {
+                return Err(AudioWriteError::WrongChannels(format!("Can't write {} channel audio to {} channels audio file.", frame.len(), self.spec.channels)));
+            }
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_frame(writer, frame)?)
             })?;
@@ -237,12 +359,12 @@ impl WaveWriter {
         }
     }
 
-    // 保存多个样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
-    pub fn write_multiple_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
+    // 批量保存音频帧。支持多种声道格式。
+    pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_multiple_frames(writer, frames)?)
+                Ok(self.encoder.write_multiple_frames(writer, frames, self.spec.channels)?)
             })?;
             self.num_frames += frames.len() as u64;
             Ok(())
