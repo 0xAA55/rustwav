@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::fmt::Debug;
+use std::{fmt::Debug};
 
 use crate::adpcm;
 use crate::{AudioError, AudioReadError};
