@@ -16,7 +16,7 @@ tempfile = "3.18.0"
 windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [features]
-default = ["id3", "encoding", "mp3dec", "mp3enc"]
+default = ["id3", "encoding", "mp3dec", "mp3enc", "resampler"]
 id3 = ["dep:id3"]
 mp3dec = ["dep:puremp3"]
 mp3enc = ["dep:mp3lame-encoder"]
