@@ -67,11 +67,29 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
     // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
     // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
-    for frame in wavereader.iter::<f32>()? {
+    // for frame in wavereader.iter::<f32>()? {
+    // 
+    //     // 音频写入器写入每个音频帧
+    //     wavewriter.write_frame(&frame)?;
+    // }
 
-        // 音频写入器写入每个音频帧
-        wavewriter.write_frame(&frame)?;
-    }
+    // 测试 ADPCM-BS
+    let mut encoder = AdpcmEncoderBS::new();
+    let mut decoder = AdpcmDecoderBS::new();
+    let mut iter = wavereader.iter::<i16>()?;
+    let mut frame = Vec::<i16>::with_capacity(2);
+    adpcm::test(&mut encoder, &mut decoder,
+        || -> Option<i16> {
+            iter.next()
+        },
+        |sample: i16|{
+            frame.push(sample);
+            if frame.len() == 2 {
+                wavewriter.write_frame(&frame)?;
+                frame.clear();
+            }
+        }
+    )?;
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
     wavewriter.migrate_metadata_from_reader(&wavereader);
