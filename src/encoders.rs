@@ -186,9 +186,28 @@ impl Encoder {
         }
     }
 
+    pub fn write_samples<S>(&mut self, writer: &mut dyn Writer, samples: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_samples__i8(writer, &sample_conv(samples)),
+            "i16" => self.encoder.write_samples_i16(writer, &sample_conv(samples)),
+            "i24" => self.encoder.write_samples_i24(writer, &sample_conv(samples)),
+            "i32" => self.encoder.write_samples_i32(writer, &sample_conv(samples)),
+            "i64" => self.encoder.write_samples_i64(writer, &sample_conv(samples)),
+            "u8"  => self.encoder.write_samples__u8(writer, &sample_conv(samples)),
+            "u16" => self.encoder.write_samples_u16(writer, &sample_conv(samples)),
+            "u24" => self.encoder.write_samples_u24(writer, &sample_conv(samples)),
+            "u32" => self.encoder.write_samples_u32(writer, &sample_conv(samples)),
+            "u64" => self.encoder.write_samples_u64(writer, &sample_conv(samples)),
+            "f32" => self.encoder.write_samples_f32(writer, &sample_conv(samples)),
+            "f64" => self.encoder.write_samples_f64(writer, &sample_conv(samples)),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
+    }
+
     pub fn write_frame<S>(&mut self, writer: &mut dyn Writer, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
-        match std::any::type_name::<S>() { // 希望编译器能做到优化，省区字符串比对的过程。
+        match std::any::type_name::<S>() {
             "i8"  => self.encoder.write_frame__i8(writer, &sample_conv(frame)),
             "i16" => self.encoder.write_frame_i16(writer, &sample_conv(frame)),
             "i24" => self.encoder.write_frame_i24(writer, &sample_conv(frame)),
@@ -205,21 +224,97 @@ impl Encoder {
         }
     }
 
-    pub fn write_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
+    pub fn write_multiple_frames<S>(&mut self, writer: &mut dyn Writer, frames: &[Vec<S>], channels: u16) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() { // 希望编译器能做到优化，省区字符串比对的过程。
-            "i8"  => self.encoder.write_multiple_frames__i8(writer, &sample_conv_batch(frames)),
-            "i16" => self.encoder.write_multiple_frames_i16(writer, &sample_conv_batch(frames)),
-            "i24" => self.encoder.write_multiple_frames_i24(writer, &sample_conv_batch(frames)),
-            "i32" => self.encoder.write_multiple_frames_i32(writer, &sample_conv_batch(frames)),
-            "i64" => self.encoder.write_multiple_frames_i64(writer, &sample_conv_batch(frames)),
-            "u8"  => self.encoder.write_multiple_frames__u8(writer, &sample_conv_batch(frames)),
-            "u16" => self.encoder.write_multiple_frames_u16(writer, &sample_conv_batch(frames)),
-            "u24" => self.encoder.write_multiple_frames_u24(writer, &sample_conv_batch(frames)),
-            "u32" => self.encoder.write_multiple_frames_u32(writer, &sample_conv_batch(frames)),
-            "u64" => self.encoder.write_multiple_frames_u64(writer, &sample_conv_batch(frames)),
-            "f32" => self.encoder.write_multiple_frames_f32(writer, &sample_conv_batch(frames)),
-            "f64" => self.encoder.write_multiple_frames_f64(writer, &sample_conv_batch(frames)),
+            "i8"  => self.encoder.write_multiple_frames__i8(writer, &sample_conv_batch(frames), channels),
+            "i16" => self.encoder.write_multiple_frames_i16(writer, &sample_conv_batch(frames), channels),
+            "i24" => self.encoder.write_multiple_frames_i24(writer, &sample_conv_batch(frames), channels),
+            "i32" => self.encoder.write_multiple_frames_i32(writer, &sample_conv_batch(frames), channels),
+            "i64" => self.encoder.write_multiple_frames_i64(writer, &sample_conv_batch(frames), channels),
+            "u8"  => self.encoder.write_multiple_frames__u8(writer, &sample_conv_batch(frames), channels),
+            "u16" => self.encoder.write_multiple_frames_u16(writer, &sample_conv_batch(frames), channels),
+            "u24" => self.encoder.write_multiple_frames_u24(writer, &sample_conv_batch(frames), channels),
+            "u32" => self.encoder.write_multiple_frames_u32(writer, &sample_conv_batch(frames), channels),
+            "u64" => self.encoder.write_multiple_frames_u64(writer, &sample_conv_batch(frames), channels),
+            "f32" => self.encoder.write_multiple_frames_f32(writer, &sample_conv_batch(frames), channels),
+            "f64" => self.encoder.write_multiple_frames_f64(writer, &sample_conv_batch(frames), channels),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
+    }
+
+    pub fn write_mono<S>(&mut self, writer: &mut dyn Writer, mono: S) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        Ok(mono.write_le(writer)?)
+    }
+
+    pub fn write_multiple_mono<S>(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_samples__i8(writer, &sample_conv(monos)),
+            "i16" => self.encoder.write_samples_i16(writer, &sample_conv(monos)),
+            "i24" => self.encoder.write_samples_i24(writer, &sample_conv(monos)),
+            "i32" => self.encoder.write_samples_i32(writer, &sample_conv(monos)),
+            "i64" => self.encoder.write_samples_i64(writer, &sample_conv(monos)),
+            "u8"  => self.encoder.write_samples__u8(writer, &sample_conv(monos)),
+            "u16" => self.encoder.write_samples_u16(writer, &sample_conv(monos)),
+            "u24" => self.encoder.write_samples_u24(writer, &sample_conv(monos)),
+            "u32" => self.encoder.write_samples_u32(writer, &sample_conv(monos)),
+            "u64" => self.encoder.write_samples_u64(writer, &sample_conv(monos)),
+            "f32" => self.encoder.write_samples_f32(writer, &sample_conv(monos)),
+            "f64" => self.encoder.write_samples_f64(writer, &sample_conv(monos)),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
+    }
+
+    pub fn write_dual_mono<S>(&mut self, writer: &mut dyn Writer, mono1: S, mono2: S) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        mono1.write_le(writer)?;
+        mono2.write_le(writer)?;
+        Ok(())
+    }
+
+    pub fn write_multiple_dual_mono<S>(&mut self, writer: &mut dyn Writer, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_multiple_dual_mono__i8(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "i16" => self.encoder.write_multiple_dual_mono_i16(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "i24" => self.encoder.write_multiple_dual_mono_i24(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "i32" => self.encoder.write_multiple_dual_mono_i32(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "i64" => self.encoder.write_multiple_dual_mono_i64(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "u8"  => self.encoder.write_multiple_dual_mono__u8(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "u16" => self.encoder.write_multiple_dual_mono_u16(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "u24" => self.encoder.write_multiple_dual_mono_u24(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "u32" => self.encoder.write_multiple_dual_mono_u32(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "u64" => self.encoder.write_multiple_dual_mono_u64(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "f32" => self.encoder.write_multiple_dual_mono_f32(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            "f64" => self.encoder.write_multiple_dual_mono_f64(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
+    }
+
+    pub fn write_stereo<S>(&mut self, writer: &mut dyn Writer, stereo: (S, S)) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        stereo.0.write_le(writer)?;
+        stereo.1.write_le(writer)?;
+        Ok(())
+    }
+
+    pub fn write_multiple_stereos<S>(&mut self, writer: &mut dyn Writer, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_multiple_stereos__i8(writer, &stereo_conv(stereos)),
+            "i16" => self.encoder.write_multiple_stereos_i16(writer, &stereo_conv(stereos)),
+            "i24" => self.encoder.write_multiple_stereos_i24(writer, &stereo_conv(stereos)),
+            "i32" => self.encoder.write_multiple_stereos_i32(writer, &stereo_conv(stereos)),
+            "i64" => self.encoder.write_multiple_stereos_i64(writer, &stereo_conv(stereos)),
+            "u8"  => self.encoder.write_multiple_stereos__u8(writer, &stereo_conv(stereos)),
+            "u16" => self.encoder.write_multiple_stereos_u16(writer, &stereo_conv(stereos)),
+            "u24" => self.encoder.write_multiple_stereos_u24(writer, &stereo_conv(stereos)),
+            "u32" => self.encoder.write_multiple_stereos_u32(writer, &stereo_conv(stereos)),
+            "u64" => self.encoder.write_multiple_stereos_u64(writer, &stereo_conv(stereos)),
+            "f32" => self.encoder.write_multiple_stereos_f32(writer, &stereo_conv(stereos)),
+            "f64" => self.encoder.write_multiple_stereos_f64(writer, &stereo_conv(stereos)),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
@@ -282,6 +377,10 @@ where S: SampleType {
             (self.writer)(writer, frame)?;
         }
         Ok(())
+    }
+
+    pub fn write_samples(&mut self, writer: &mut dyn Writer, samples: &[S]) -> Result<(), AudioWriteError> {
+        (self.writer)(writer, samples)
     }
 }
 
