@@ -309,6 +309,21 @@ impl WaveReader {
         };
         FrameIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
     }
+    pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
+    where S: SampleType {
+        let fact_data = match self.fact_data {
+            None => 0,
+            Some(fact) => fact,
+        };
+        StereoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
+    }
+    pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
+    where S: SampleType {
+        let fact_data = match self.fact_data {
+            None => 0,
+            Some(fact) => fact,
+        };
+        MonoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
     }
 }
 
@@ -458,6 +473,7 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact,
+            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact)?,
         })
     }
 }
@@ -467,7 +483,81 @@ where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = match self.decoder.decode() {
+        let ret = match self.decoder.decode_frame() {
+            Ok(sample) => sample,
+            Err(err) => panic!("{:?}", err),
+        };
+        ret
+    }
+}
+
+#[derive(Debug)]
+pub struct StereoIter<S>
+where S: SampleType {
+    data_offset: u64, // 音频数据在文件中的位置
+    data_length: u64, // 音频数据的总大小
+    spec: Spec,
+    fact: u32, // fact 数据，部分解码器需要
+    decoder: Box<dyn Decoder<S>>, // 解码器
+}
+
+impl<S> StereoIter<S>
+where S: SampleType {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
+        reader.seek(SeekFrom::Start(data_offset))?;
+        Ok(Self {
+            data_offset,
+            data_length,
+            spec: spec.clone(),
+            fact,
+            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact)?,
+        })
+    }
+}
+
+impl<S> Iterator for StereoIter<S>
+where S: SampleType {
+    type Item = (S, S);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let ret = match self.decoder.decode_stereo() {
+            Ok(sample) => sample,
+            Err(err) => panic!("{:?}", err),
+        };
+        ret
+    }
+}
+
+#[derive(Debug)]
+pub struct MonoIter<S>
+where S: SampleType {
+    data_offset: u64, // 音频数据在文件中的位置
+    data_length: u64, // 音频数据的总大小
+    spec: Spec,
+    fact: u32, // fact 数据，部分解码器需要
+    decoder: Box<dyn Decoder<S>>, // 解码器
+}
+
+impl<S> MonoIter<S>
+where S: SampleType {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
+        reader.seek(SeekFrom::Start(data_offset))?;
+        Ok(Self {
+            data_offset,
+            data_length,
+            spec: spec.clone(),
+            fact,
+            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact)?,
+        })
+    }
+}
+
+impl<S> Iterator for MonoIter<S>
+where S: SampleType {
+    type Item = S;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let ret = match self.decoder.decode_mono() {
             Ok(sample) => sample,
             Err(err) => panic!("{:?}", err),
         };
