@@ -80,6 +80,17 @@ where S: SampleType {
     ret
 }
 
+pub fn interleaved_samples_to_stereos<S>(samples: &[S]) -> Result<Vec<(S, S)>, AudioWriteError>
+where S: SampleType {
+    if (samples.len() & 1) != 0 {
+        return Err(AudioWriteError::NotStereo);
+    }
+    let stereo_len = samples.len() / 2;
+    let mut ret = Vec::<(S, S)>::with_capacity(stereo_len);
+    for i in 0..stereo_len {
+        ret.push((samples[i * 2], samples[i * 2 + 1]));
+    }
+    Ok(ret)
 }
 
 // 样本类型缩放转换
