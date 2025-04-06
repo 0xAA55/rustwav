@@ -284,8 +284,8 @@ impl EncoderToImpl for PcmEncoder {
 const ADPCM_ENCODE_BUFFER: usize = 128;
 
 #[derive(Clone)]
-pub struct AdpcmEncoder<E>
-where E: adpcm::Encoder {
+pub struct AdpcmEncoderWrap<E>
+where E: adpcm::AdpcmEncoder {
     sample_rate: u32,
     samples_written: u64,
     bytes_written: u64,
@@ -295,10 +295,10 @@ where E: adpcm::Encoder {
     buffer_r: Vec<u8>,
 }
 
-impl<E> Debug for AdpcmEncoder<E>
-where E: adpcm::Encoder {
+impl<E> Debug for AdpcmEncoderWrap<E>
+where E: adpcm::AdpcmEncoder {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct(&format!("AdpcmEncoder<{}>", std::any::type_name::<E>()))
+        fmt.debug_struct(&format!("AdpcmEncoderWrap<{}>", std::any::type_name::<E>()))
             .field("sample_rate", &self.sample_rate)
             .field("samples_written", &self.samples_written)
             .field("bytes_written", &self.bytes_written)
@@ -310,8 +310,8 @@ where E: adpcm::Encoder {
     }
 }
 
-impl<E> AdpcmEncoder<E>
-where E: adpcm::Encoder {
+impl<E> AdpcmEncoderWrap<E>
+where E: adpcm::AdpcmEncoder {
     pub fn new(sample_rate: u32) -> Self {
         Self {
             sample_rate,
@@ -430,8 +430,8 @@ where E: adpcm::Encoder {
     }
 }
 
-impl<E> EncoderToImpl for AdpcmEncoder<E>
-where E: adpcm::Encoder {
+impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
+where E: adpcm::AdpcmEncoder {
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
     fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
     fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError> {self.write_frame(writer, &sample_conv(frame))}
