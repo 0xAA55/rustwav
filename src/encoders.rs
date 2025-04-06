@@ -627,6 +627,7 @@ pub mod MP3 {
     #[derive(Debug, Clone)]
     pub struct Mp3Encoder<S>
     where S: SampleType {
+        channels: u8,
         bitrate: u32,
         encoder: SharedMp3Encoder,
         buffers: ChannelBuffers<S>,
@@ -682,6 +683,7 @@ pub mod MP3 {
 
             // 创建编码器
             Ok(Self {
+                channels,
                 bitrate: bitrate as u32 * 1000,
                 encoder: encoder.clone(),
                 buffers: match channels {
