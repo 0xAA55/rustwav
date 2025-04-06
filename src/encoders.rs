@@ -538,7 +538,19 @@ where E: adpcm::AdpcmEncoder {
         Ok(())
     }
 
+    pub fn write_multiple_stereos(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {
+        if self.is_stereo == false {
+            return Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned()));
         }
+        let (lv, rv) = utils::stereos_to_dual_mono(stereos);
+        let (ll, rl) = (lv.len(), rv.len());
+        let (mut li, mut ri) = (lv.into_iter(), rv.into_iter());
+        self.encoder_l.encode(|| -> Option<i16> { li.next() }, |byte: u8|{ self.buffer_l.push(byte); })?;
+        self.encoder_r.encode(|| -> Option<i16> { ri.next() }, |byte: u8|{ self.buffer_r.push(byte); })?;
+        self.samples_written += ll as u64;
+        self.samples_written += rl as u64;
+        self.flush_stereo(writer)?;
+        Ok(())
     }
 }
 
