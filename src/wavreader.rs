@@ -285,6 +285,15 @@ impl WaveReader {
     pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> { &self.id3__chunk }
     pub fn get_junk_chunks(&self) -> &Vec<JunkChunk> { &self.junk_chunks }
 
+    // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
+    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
+        if o.is_some() {
+            Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
+        } else {
+            Ok(())
+        }
+    }
+
     // 创建迭代器。
     // 迭代器的作用是读取每个音频帧。
     // 但是嘞，这里有个问题： WaveReader 的创建方式有两种，一种是从 Read 创建，另一种是从文件创建。
@@ -301,14 +310,6 @@ impl WaveReader {
         // WaveIter::<S>::new(Box::new(BufReader::new(self.data_chunk.open()?)), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
         WaveIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
     }
-
-    // 用于检测特定 Chunk 是否有被重复读取的情况，有就报错
-    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
-        if o.is_some() {
-            Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
-        } else {
-            Ok(())
-        }
     }
 }
 
