@@ -23,7 +23,7 @@ pub use adpcm::{AdpcmEncoder, AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI62
 pub use adpcm::{AdpcmDecoder, AdpcmDecoderBS, AdpcmDecoderOKI, AdpcmDecoderOKI6258, AdpcmDecoderYMA, AdpcmDecoderYMB, AdpcmDecoderYMZ, AdpcmDecoderAICA};
 pub use adpcm::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA};
 pub use adpcm::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA};
-pub use wavcore::{DataFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
+pub use wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
 pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 pub use wavcore::{ChunkWriter, ChunkHeader};
 pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
