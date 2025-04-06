@@ -27,7 +27,7 @@ pub use wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType
 pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 pub use wavcore::{ChunkWriter, ChunkHeader};
 pub use wavcore::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
-pub use wavreader::{WaveDataSource, WaveReader, WaveIter};
+pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use filehasher::FileHasher;
 
