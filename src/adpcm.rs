@@ -90,7 +90,7 @@ pub mod bs {
         if step <= 0 {
             delta = -delta;
         }
-        let out = ((out + delta) & 0xFFFF) as i16;
+        let out = ((out + delta).clamp(-32768, 32767)) as i16;
         let scale = (scale * ADPCM_TABLE[(8 + step) as usize] as i32) >> 6;
         *step_size = scale.clamp(1, 2000) as i16;
         *history = out;
@@ -102,7 +102,7 @@ pub mod bs {
         *state = (*state >> 2) + input as i32 - *history as i32;
         *history = input;
         let out = (*state >> 1) + input as i32;
-        (out & 0xFFFF) as i16
+        out.clamp(-32768, 32767) as i16
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -610,7 +610,7 @@ pub mod ymb {
         }
         //step_size = nstep.clamp(511, 32767);
         *step_size = nstep.clamp(127, 24576) as i16;
-        let newval = (newval & 0xffff) as i16;
+        let newval = newval.clamp(-32768, 32767) as i16;
         *history = newval;
         newval
     }
@@ -732,7 +732,7 @@ pub mod ymz {
         }
         //step_size = nstep.clamp(511, 32767);
         *step_size = nstep.clamp(127, 24576) as i16;
-        let newval = (newval & 0xffff) as i16;
+        let newval = newval.clamp(-32768, 32767) as i16;
         *history = newval;
         newval
     }
