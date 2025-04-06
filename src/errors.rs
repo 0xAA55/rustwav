@@ -67,6 +67,10 @@ pub enum AudioWriteError {
     ChunkSizeTooBig(String), // 块大小太大
     StringDecodeError(Vec<u8>), // 字符串解码错误
     BufferIsFull, // 缓冲区满了
+    MultipleMonosAreNotSameSize, // 多个通道的数据不是一样长
+    FrameChannelsNotSame, // 每个音频帧的通道数不同
+    WrongChannels(String), // 声道数错误
+    NotStereo, // 不是双声道
     OtherReason(String), // 不知道的问题
 }
 
@@ -84,6 +88,10 @@ impl std::fmt::Display for AudioWriteError {
             Self::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
             Self::BufferIsFull => write!(f, "The buffer is full, it should be flushed."),
+            Self::MultipleMonosAreNotSameSize => write!(f, "The lengths of the channels are not equal."),
+            Self::FrameChannelsNotSame => write!(f, "The channels of each frames are not equal."),
+            Self::WrongChannels(prompt) => write!(f, "Wrong channels: {prompt}"),
+            Self::NotStereo => write!(f, "The samples are not stereo audio samples"),
             Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
        }
     }
