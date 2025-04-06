@@ -420,6 +420,26 @@ impl WaveDataReader {
     }
 }
 
+fn create_decoder<S>(reader: Box<dyn Reader>, sample_rate: u32, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact: u32) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+where S: SampleType {
+    match fmt.format_tag {
+        1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
+        0x0055 => {
+            #[cfg(not(feature = "mp3dec"))]
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
+            #[cfg(feature = "mp3dec")]
+            {Ok(Box::new(Mp3Decoder::new(reader, sample_rate, data_offset, data_length, false)?))}
+        },
+        0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
+        },
+        0xF1AC => { // FLAG
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")));
+        },
+        other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
+    }
+}
+
 #[derive(Debug)]
 pub struct WaveIter<S>
 where S: SampleType {
@@ -439,22 +459,6 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact,
-            decoder: match fmt.format_tag {
-                1 | 0xFFFE | 3 => Box::new(PcmDecoder::<S>::new(Box::new(reader), data_offset, data_length, spec, fmt)?),
-                0x0055 => {
-                    #[cfg(not(feature = "mp3dec"))]
-                    return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
-                    #[cfg(feature = "mp3dec")]
-                    {Box::new(Mp3Decoder::new(Box::new(reader), data_offset, data_length, false)?)}
-                },
-                0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
-                    return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
-                },
-                0xF1AC => { // FLAG
-                    return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")));
-                },
-                other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
-            },
         })
     }
 }
