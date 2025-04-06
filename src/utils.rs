@@ -80,6 +80,29 @@ where S: SampleType {
     ret
 }
 
+pub fn interleaved_samples_to_multiple_monos<S>(samples: &[S], channels: u16) -> Result<Vec<Vec<S>>, AudioWriteError>
+where S: SampleType {
+    if channels == 0 {
+        return Err(AudioWriteError::InvalidArguments("Channels must not be zero".to_owned()));
+    }
+    let channels = channels as usize;
+    let mut ret = Vec::<Vec<S>>::new();
+    ret.resize(channels, Vec::<S>::new());
+    for (index, sample) in samples.into_iter().enumerate() {
+        let channel = index % channels;
+        ret[channel].push(*sample);
+    }
+    match is_same_len(&ret) {
+        None => Ok(ret),
+        Some((equal, _)) => {
+            match equal {
+                false => Err(AudioWriteError::MultipleMonosAreNotSameSize),
+                true => Ok(ret)
+            }
+        }
+    }
+}
+
 pub fn interleaved_samples_to_stereos<S>(samples: &[S]) -> Result<Vec<(S, S)>, AudioWriteError>
 where S: SampleType {
     if (samples.len() & 1) != 0 {
