@@ -75,6 +75,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // }
 
     let (all_l, all_r) = utils::multiple_frames_to_dual_mono(&wavereader.iter::<i16>()?.collect::<Vec<Vec<i16>>>())?;
+    let (len_l, len_r) = (all_l.len(), all_r.len());
 
     // 测试 ADPCM-BS
     let mut encoder_l = AdpcmEncoderBS::new();
@@ -93,6 +94,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         || -> Option<i16> { iter_r.next() },
         |sample: i16|{ out_r.push(sample); }
     )?;
+
+    println!("({len_l}, {len_r}) => ({}, {})", out_l.len(), out_r.len());
 
     // 写入转换后的音频
     wavewriter.write_dual_monos(&out_l, &out_r)?;
