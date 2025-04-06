@@ -448,14 +448,13 @@ impl EncoderToImpl for PcmEncoder {
     }
 }
 
-const ADPCM_ENCODE_BUFFER: usize = 128;
-
 #[derive(Clone)]
 pub struct AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     sample_rate: u32,
     samples_written: u64,
     bytes_written: u64,
+    is_stereo: bool,
     encoder_l: E,
     encoder_r: E,
     buffer_l: Vec<u8>,
@@ -469,6 +468,7 @@ where E: adpcm::AdpcmEncoder {
             .field("sample_rate", &self.sample_rate)
             .field("samples_written", &self.samples_written)
             .field("bytes_written", &self.bytes_written)
+            .field("is_stereo", &self.is_stereo)
             .field("encoder_l", &self.encoder_l)
             .field("encoder_r", &self.encoder_r)
             .field("buffer_l", &format_args!("[{}u8;...]", self.buffer_l.len()))
@@ -479,15 +479,16 @@ where E: adpcm::AdpcmEncoder {
 
 impl<E> AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
-    pub fn new(sample_rate: u32) -> Self {
+    pub fn new(sample_rate: u32, is_stereo: bool) -> Self {
         Self {
             sample_rate,
             samples_written: 0,
             bytes_written: 0,
+            is_stereo,
             encoder_l: E::new(),
             encoder_r: E::new(),
-            buffer_l: Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER),
-            buffer_r: Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER),
+            buffer_l: Vec::<u8>::new(),
+            buffer_r: Vec::<u8>::new(),
         }
     }
 
