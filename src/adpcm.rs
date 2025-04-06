@@ -16,14 +16,17 @@ pub trait AdpcmDecoder: Debug {
 pub trait AdpcmCodec: AdpcmEncoder + AdpcmDecoder {}
 impl<T> AdpcmCodec for T where T: AdpcmEncoder + AdpcmDecoder{}
 
-pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, input: impl FnMut() -> Option<i16> + Clone, output: impl FnMut(i16) + Clone) -> Result<(), io::Error> {
-	encoder.encode(input.clone(),
-		|code: u8| {
-	 		let buf = vec![code];
-	 		let mut iter = buf.into_iter();
-	 		decoder.decode(|| -> Option<u8> { iter.next() }, output.clone()).unwrap()
-	 	}
-	)
+pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+    encoder.encode(
+        ||-> Option<i16> { input() },
+        |code: u8| {
+            let buf = vec![code];
+            let mut iter = buf.into_iter();
+            decoder.decode(
+                || -> Option<u8> { iter.next() },
+                |sample: i16|{ output(sample) }).unwrap()
+        }
+    )
 }
 
 pub enum AdpcmCodecTypes {
