@@ -47,6 +47,7 @@ impl u24{
 }
 
 pub trait SampleType: Debug + Sized + Clone + Copy + 'static {
+    fn new() -> Self;
     fn from(v: impl SampleType) -> Self;
     fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
@@ -83,6 +84,9 @@ impl SampleFrom for f32 {fn to(s: impl SampleType) -> Self { s.to_f32() }}
 impl SampleFrom for f64 {fn to(s: impl SampleType) -> Self { s.to_f64() }}
 
 impl SampleType for i8{
+    fn new() -> Self {
+        0i8
+    }
     fn from(v: impl SampleType) -> i8{
         v.to_i8()
     }
@@ -147,6 +151,9 @@ impl SampleType for i8{
 }
 
 impl SampleType for i16{
+    fn new() -> Self {
+        0i16
+    }
     fn from(v: impl SampleType) -> i16{
         v.to_i16()
     }
@@ -209,6 +216,9 @@ impl SampleType for i16{
 }
 
 impl SampleType for i24 {
+    fn new() -> Self {
+        i24.from_le_bytes(0, 0, 0)
+    }
     fn from(v: impl SampleType) -> i24{
         v.to_i24()
     }
@@ -277,6 +287,9 @@ impl SampleType for i24 {
 }
 
 impl SampleType for i32{
+    fn new() -> Self {
+        0i32
+    }
     fn from(v: impl SampleType) -> i32{
         v.to_i32()
     }
@@ -340,6 +353,9 @@ impl SampleType for i32{
 }
 
 impl SampleType for i64{
+    fn new() -> Self {
+        0i64
+    }
     fn from(v: impl SampleType) -> i64{
         v.to_i64()
     }
@@ -403,6 +419,9 @@ impl SampleType for i64{
 }
 
 impl SampleType for u8{
+    fn new() -> Self {
+        0x80u8
+    }
     fn from(v: impl SampleType) -> u8{
         v.to_u8()
     }
@@ -467,6 +486,9 @@ impl SampleType for u8{
 }
 
 impl SampleType for u16{
+    fn new() -> Self {
+        0x8000u16
+    }
     fn from(v: impl SampleType) -> u16{
         v.to_u16()
     }
@@ -530,6 +552,9 @@ impl SampleType for u16{
 }
 
 impl SampleType for u24 {
+    fn new() -> Self {
+        u24::from_le_bytes(0x00, 0x00, 0x80);
+    }
     fn from(v: impl SampleType) -> u24{
         v.to_u24()
     }
@@ -592,6 +617,9 @@ impl SampleType for u24 {
 }
 
 impl SampleType for u32{
+    fn new() -> Self {
+        0x80000000u32
+    }
     fn from(v: impl SampleType) -> u32{
         v.to_u32()
     }
@@ -655,6 +683,9 @@ impl SampleType for u32{
 }
 
 impl SampleType for u64{
+    fn new() -> Self {
+        0x80000000_00000000u64
+    }
     fn from(v: impl SampleType) -> u64{
         v.to_u64()
     }
@@ -717,6 +748,9 @@ impl SampleType for u64{
 }
 
 impl SampleType for f32{
+    fn new() -> Self {
+        0.0
+    }
     fn from(v: impl SampleType) -> f32{
         v.to_f32()
     }
@@ -779,6 +813,9 @@ impl SampleType for f32{
 }
 
 impl SampleType for f64{
+    fn new() -> Self {
+        0.0
+    }
     fn from(v: impl SampleType) -> f64{
         v.to_f64()
     }
