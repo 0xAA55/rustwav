@@ -6,7 +6,7 @@ use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
 use crate::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA};
 use crate::AudioWriteError;
-use crate::{DataFormat, Spec, SampleFormat, WaveSampleType};
+use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
 use crate::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
@@ -72,11 +72,21 @@ impl WaveWriter {
                 spec.verify_for_pcm()?;
                 Encoder::new(PcmEncoder::new(spec.channels, spec.sample_rate, sample_type)?)
             },
-            Adpcm => {
-                Encoder::new(AdpcmEncoderWrap::<EncOKI>::new(spec.sample_rate, match spec.channels {
+            Adpcm(sub_format) => {
+                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
+                let is_stereo = match spec.channels {
                     1 => false,
                     _ => true,
-                }))
+                };
+                match sub_format {
+                    Bs => Encoder::new(AdpcmEncoderWrap::<EncBS>::new(spec.sample_rate, is_stereo)),
+                    Oki => Encoder::new(AdpcmEncoderWrap::<EncOKI>::new(spec.sample_rate, is_stereo)),
+                    Oki6258 => Encoder::new(AdpcmEncoderWrap::<EncOKI6258>::new(spec.sample_rate, is_stereo)),
+                    Yma => Encoder::new(AdpcmEncoderWrap::<EncYMA>::new(spec.sample_rate, is_stereo)),
+                    Ymb => Encoder::new(AdpcmEncoderWrap::<EncYMB>::new(spec.sample_rate, is_stereo)),
+                    Ymz => Encoder::new(AdpcmEncoderWrap::<EncYMZ>::new(spec.sample_rate, is_stereo)),
+                    Aica => Encoder::new(AdpcmEncoderWrap::<EncAICA>::new(spec.sample_rate, is_stereo)),
+                }
             },
             Mp3 => {
                 Encoder::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)
