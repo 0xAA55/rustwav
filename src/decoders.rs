@@ -68,9 +68,10 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 #[cfg(feature = "mp3dec")]
 impl<S> Decoder<S> for MP3::Mp3Decoder
     where S: SampleType {
-    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
-        self.decode::<S>()
-    }
+    fn get_channels(&self) -> u16 { self.get_channels() }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
 }
 
 #[derive(Debug)]
