@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::{io::{Read, Write, Error}, mem::size_of, fmt::Debug, clone::Clone};
+use std::ops::{Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign};
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
@@ -47,6 +48,10 @@ impl u24{
 }
 
 pub trait SampleType: Debug + Sized + Clone + Copy + 'static {
+pub trait SampleType:
+Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> +
+AddAssign + SubAssign + MulAssign + DivAssign +
+Debug + Sized + Clone + Copy + 'static {
     fn new() -> Self;
     fn from(v: impl SampleType) -> Self;
     fn to_i8 (&self) -> i8;
