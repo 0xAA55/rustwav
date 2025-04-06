@@ -602,6 +602,7 @@ pub mod MP3 {
     use crate::{SampleType, i24, u24};
     use crate::AudioWriteError;
     use crate::EncoderToImpl;
+    use crate::utils::{self, sample_conv, stereo_conv};
     use mp3lame_encoder::{Builder, Encoder, Mode, MonoPcm, DualPcm, FlushNoGap};
     pub use mp3lame_encoder::{Bitrate, VbrMode, Quality, Id3Tag};
 
