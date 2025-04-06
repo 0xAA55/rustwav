@@ -50,9 +50,12 @@ pub trait Decoder<S>: Debug
 
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
-    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
-        self.decode()
-    }
+    fn get_channels(&self) -> u16 { self.spec.channels }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono() }
+}
+
 }
 
 #[cfg(feature = "mp3dec")]
@@ -69,10 +72,9 @@ where S: SampleType {
     reader: Box<dyn Reader>, // 数据读取器
     data_offset: u64,
     data_length: u64,
-    cur_frames: u64,
-    num_frames: u64,
     spec: Spec,
-    decoder: fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>,
+    sample_decoder: fn(&mut dyn Reader) -> Result<S, AudioReadError>,
+    samples_decoder: fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>,
 }
 
 impl<S> PcmDecoder<S>
@@ -80,59 +82,128 @@ where S: SampleType {
     pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
-            other => return Err(AudioError::Unimplemented(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other))),
+            other => return Err(AudioError::InvalidArguments(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other))),
         }
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
             reader,
             data_offset,
             data_length,
-            cur_frames: 0,
-            num_frames: data_length / fmt.block_align as u64,
             spec: spec.clone(),
-            decoder: Self::choose_decoder(wave_sample_type)?,
+            sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
+            samples_decoder: Self::choose_samples_decoder(wave_sample_type)?,
         })
     }
 
-    pub fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
-        if self.cur_frames >= self.num_frames {
+    fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
+        let end_of_data = self.data_offset + self.data_length;
+        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+    }
+
+    fn decode_sample<T>(&mut self) -> Result<Option<S>, AudioReadError>
+    where T: SampleType {
+        if self.is_end_of_data()? {
             Ok(None)
         } else {
-            self.cur_frames += 1;
-            match (self.decoder)(&mut self.reader, self.spec.channels) {
-                Ok(frame) => Ok(Some(frame)),
-                Err(e) => Err(e),
-            }
+            Ok(Some(S::from(T::read_le(&mut self.reader)?)))
         }
     }
 
     // 这个函数用于给 choose_decoder 挑选
-    fn decode_to<T>(r: &mut dyn Reader, channels: u16) -> Result<Vec<S>, AudioReadError>
+    fn decode_sample_to<T>(r: &mut dyn Reader) -> Result<S, AudioReadError>
     where T: SampleType {
-        let mut ret = Vec::<S>::with_capacity(channels as usize);
-        for _ in 0..channels {
-            ret.push(S::from(T::read_le(r)?));
+        Ok(S::from(T::read_le(r)?))
+    }
+    fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
+    where T: SampleType {
+        let mut ret = Vec::<S>::with_capacity(num_samples_to_read);
+        for _ in 0..num_samples_to_read {
+            ret.push(Self::decode_sample_to::<T>(r)?);
         }
         Ok(ret)
     }
 
     // 这个函数返回的 decoder 只负责读取和转换格式，不负责判断是否读到末尾
-    fn choose_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, u16) -> Result<Vec<S>, AudioReadError>, AudioError> {
+    fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
-            S8 =>  Ok(Self::decode_to::<i8 >),
-            S16 => Ok(Self::decode_to::<i16>),
-            S24 => Ok(Self::decode_to::<i24>),
-            S32 => Ok(Self::decode_to::<i32>),
-            S64 => Ok(Self::decode_to::<i64>),
-            U8 =>  Ok(Self::decode_to::<u8 >),
-            U16 => Ok(Self::decode_to::<u16>),
-            U24 => Ok(Self::decode_to::<u24>),
-            U32 => Ok(Self::decode_to::<u32>),
-            U64 => Ok(Self::decode_to::<u64>),
-            F32 => Ok(Self::decode_to::<f32>),
-            F64 => Ok(Self::decode_to::<f64>),
-            Unknown => return Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
+            S8 =>  Ok(Self::decode_sample_to::<i8 >),
+            S16 => Ok(Self::decode_sample_to::<i16>),
+            S24 => Ok(Self::decode_sample_to::<i24>),
+            S32 => Ok(Self::decode_sample_to::<i32>),
+            S64 => Ok(Self::decode_sample_to::<i64>),
+            U8 =>  Ok(Self::decode_sample_to::<u8 >),
+            U16 => Ok(Self::decode_sample_to::<u16>),
+            U24 => Ok(Self::decode_sample_to::<u24>),
+            U32 => Ok(Self::decode_sample_to::<u32>),
+            U64 => Ok(Self::decode_sample_to::<u64>),
+            F32 => Ok(Self::decode_sample_to::<f32>),
+            F64 => Ok(Self::decode_sample_to::<f64>),
+            Unknown => Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
+        }
+    }
+
+    fn choose_samples_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>, AudioError> {
+        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        match wave_sample_type {
+            S8 =>  Ok(Self::decode_samples_to::<i8 >),
+            S16 => Ok(Self::decode_samples_to::<i16>),
+            S24 => Ok(Self::decode_samples_to::<i24>),
+            S32 => Ok(Self::decode_samples_to::<i32>),
+            S64 => Ok(Self::decode_samples_to::<i64>),
+            U8 =>  Ok(Self::decode_samples_to::<u8 >),
+            U16 => Ok(Self::decode_samples_to::<u16>),
+            U24 => Ok(Self::decode_samples_to::<u24>),
+            U32 => Ok(Self::decode_samples_to::<u32>),
+            U64 => Ok(Self::decode_samples_to::<u64>),
+            F32 => Ok(Self::decode_samples_to::<f32>),
+            F64 => Ok(Self::decode_samples_to::<f64>),
+            Unknown => Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
+        }
+    }
+
+    pub fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
+        if self.is_end_of_data()? {
+            Ok(None)
+        } else {
+            Ok(Some((self.samples_decoder)(&mut self.reader, self.spec.channels as usize)?))
+        }
+    }
+
+    pub fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
+        if self.is_end_of_data()? {
+            Ok(None)
+        } else {
+            match self.spec.channels {
+                1 => {
+                    let sample = (self.sample_decoder)(&mut self.reader)?;
+                    Ok(Some((sample, sample)))
+                },
+                2 => {
+                    let sample_l = (self.sample_decoder)(&mut self.reader)?;
+                    let sample_r = (self.sample_decoder)(&mut self.reader)?;
+                    Ok(Some((sample_l, sample_r)))
+                },
+                other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 2 channels."))),
+            }
+        }
+    }
+
+    pub fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
+        if self.is_end_of_data()? {
+            Ok(None)
+        } else {
+            match self.get_channels() {
+                1 => {
+                    Ok(Some((self.sample_decoder)(&mut self.reader)?))
+                },
+                2 => {
+                    let sample_l = (self.sample_decoder)(&mut self.reader)?;
+                    let sample_r = (self.sample_decoder)(&mut self.reader)?;
+                    Ok(Some(sample_l / S::from(2) + sample_r / S::from(2)))
+                },
+                other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 1 channels."))),
+            }
         }
     }
 }
