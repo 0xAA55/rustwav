@@ -60,6 +60,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
+    #[allow(unused_imports)]
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     // 音频写入器，将音频信息写入到 arg2 文件
