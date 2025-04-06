@@ -301,14 +301,13 @@ impl WaveReader {
     // 它就会疯狂 seek 然后读取，如果多个迭代器在多线程的情况下使用，绝对会乱套。
     // 因此，当 WaveReader 是从文件创建的，那可以给迭代器重新打开文件，让迭代器自己去 seek 和读取。
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
-    pub fn iter<S>(&mut self) -> Result<WaveIter<S>, AudioReadError>
+    pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
     where S: SampleType {
         let fact_data = match self.fact_data {
             None => 0,
             Some(fact) => fact,
         };
-        // WaveIter::<S>::new(Box::new(BufReader::new(self.data_chunk.open()?)), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
-        WaveIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
+        FrameIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, fact_data)
     }
     }
 }
@@ -441,7 +440,7 @@ where S: SampleType {
 }
 
 #[derive(Debug)]
-pub struct WaveIter<S>
+pub struct FrameIter<S>
 where S: SampleType {
     data_offset: u64, // 音频数据在文件中的位置
     data_length: u64, // 音频数据的总大小
@@ -450,7 +449,7 @@ where S: SampleType {
     decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
-impl<S> WaveIter<S>
+impl<S> FrameIter<S>
 where S: SampleType {
     fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact: u32) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
@@ -463,7 +462,7 @@ where S: SampleType {
     }
 }
 
-impl<S> Iterator for WaveIter<S>
+impl<S> Iterator for FrameIter<S>
 where S: SampleType {
     type Item = Vec<S>;
 
