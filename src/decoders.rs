@@ -484,6 +484,7 @@ pub mod MP3 {
             }
         }
 
+        pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
             let cur_frame = &self.cur_frame;
             if self.sample_index < cur_frame.num_samples {
@@ -502,43 +503,11 @@ pub mod MP3 {
                     Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ } => Ok(Some(vec![l, r])),
                 }
             } else {
-                // 下一个 Frame
-                // TODO:
-                // 检测 Frame 里面的参数变化，比如采样率和声道数的变化，如果采样率变化了，要做 resample。如果声道数变化了，要做声道数处理。
-                loop {
-                    let reader = self.the_decoder.get_mut();
-                    if reader.stream_position()? >= self.data_offset + self.data_length {
-                        // 真正完成读取
-                        return Ok(None)
-                    }
-                    match self.the_decoder.next_frame() {
-                        Ok(frame) => {
-                            self.cur_frame = frame;
-                            break;
-                        },
-                        Err(err) => {
-                            match err {
-                                puremp3::Error::Mp3Error(_) => {
-                                    if self.print_debug {
-                                        eprintln!("Mp3Error: {:?}", err);
-                                    }
-                                    return Err(err.into())
-                                },
-                                puremp3::Error::IoError(_) => {
-                                    // 返回去强制重新读取帧，直到读取位置达到 MP3 文件长度为止
-                                    continue;
-                                },
-                            }
-                        },
-                    };
+                match self.next_mp3_frame()? {
+                    false => return Ok(None),
+                    true => (),
                 }
-                self.num_frames += 1;
-                if self.print_debug {
-                    let reader = self.the_decoder.get_mut();
-                    println!("{}, {}, 0x{:x}, 0x{:x}", self.num_frames, self.cur_frame.num_samples, reader.stream_position()? - self.data_offset, self.data_length);
-                }
-                self.sample_index = 0;
-                self.decode::<S>()
+                self.decode_frame::<S>()
             }
         }
     }
