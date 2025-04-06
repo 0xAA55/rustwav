@@ -164,13 +164,17 @@ pub mod bs {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -322,13 +326,17 @@ pub mod oki {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -413,13 +421,17 @@ pub mod oki6258 {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -548,13 +560,17 @@ pub mod yma {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -661,13 +677,17 @@ pub mod ymb {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -780,13 +800,17 @@ pub mod ymz {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble != 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
@@ -869,13 +893,17 @@ pub mod aica {
                 Some(byte) => byte,
                 None => return Ok(()),
             };
-            loop {
+            let mut quit = false;
+            while !quit {
                 let step = (byte as i8) << self.nibble;
                 let step = step >> 4;
                 if self.nibble == 0 {
                     byte = match input() {
                         Some(byte) => byte,
-                        None => break,
+                        None => {
+                            quit = true;
+                            byte
+                        },
                     }
                 }
                 self.nibble ^= 4;
