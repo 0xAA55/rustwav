@@ -706,33 +706,13 @@ pub mod MP3 {
             }
         }
 
-        pub fn write_multiple_frames<T>(&mut self, writer: &mut dyn Writer, frames: &[Vec<T>]) -> Result<(), AudioWriteError>
+        pub fn write_multiple_stereos<T>(&mut self, writer: &mut dyn Writer, stereos: &[(T, T)]) -> Result<(), AudioWriteError>
         where T: SampleType {
-            match self.buffers {
-                ChannelBuffers::Mono(ref mut mbuf) => {
-                    let mut buf = Vec::<S>::with_capacity(frames.len());
-                    for frame in frames.iter() {
-                        if frame.len() != 1 {
-                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}, should be 1", frame.len())))
-                        } else {
-                            buf.push(S::from(frame[0]));
-                        }
-                    }
-                    mbuf.add_multiple_samples(writer, &buf)?;
-                },
-                ChannelBuffers::Stereo(ref mut sbuf) => {
-                    let mut buf = Vec::<(S, S)>::with_capacity(frames.len());
-                    for frame in frames.iter() {
-                        if frame.len() != 2 {
-                            return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}, should be 2", frame.len())))
-                        } else {
-                            buf.push((S::from(frame[0]), S::from(frame[1])));
-                        }
-                    }
-                    sbuf.add_multiple_samples(writer, &buf)?;
-                },
+            match self.channels{
+                1 => Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned())),
+                2 => Ok(self.buffers.add_multiple_samples_s(writer, &stereo_conv::<T, S>(stereos))?),
+                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
-            Ok(())
         }
 
         pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
