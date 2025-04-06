@@ -217,7 +217,7 @@ impl SampleType for i16{
 
 impl SampleType for i24 {
     fn new() -> Self {
-        i24.from_le_bytes(0, 0, 0)
+        Self::from_le_bytes([0, 0, 0])
     }
     fn from(v: impl SampleType) -> i24{
         v.to_i24()
@@ -553,7 +553,7 @@ impl SampleType for u16{
 
 impl SampleType for u24 {
     fn new() -> Self {
-        u24::from_le_bytes(0x00, 0x00, 0x80);
+        Self::from_le_bytes([0x00, 0x00, 0x80])
     }
     fn from(v: impl SampleType) -> u24{
         v.to_u24()
