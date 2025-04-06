@@ -56,6 +56,13 @@ impl<S> Decoder<S> for PcmDecoder<S>
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono() }
 }
 
+impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
+    where S: SampleType,
+          D: adpcm::AdpcmDecoder {
+    fn get_channels(&self) -> u16 { if self.is_stereo {2} else {1} }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
 }
 
 #[cfg(feature = "mp3dec")]
@@ -207,6 +214,142 @@ where S: SampleType {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct AdpcmDecoderWrap<D>
+where D: adpcm::AdpcmDecoder {
+    reader: Box<dyn Reader>, // 数据读取器
+    data_offset: u64,
+    data_length: u64,
+    is_stereo: bool,
+    decoder_l: D,
+    decoder_r: D,
+    buffer_l: Vec<i16>,
+    buffer_r: Vec<i16>,
+}
+
+impl<D> AdpcmDecoderWrap<D>
+where D: adpcm::AdpcmDecoder {
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, AudioReadError> {
+        Ok(Self {
+            reader,
+            data_offset,
+            data_length,
+            is_stereo: match fmt.channels {
+                1 => false,
+                2 => true,
+                other => return Err(AudioReadError::InvalidArguments(format!("Num channels in the `fmt ` chunk is invalid: {other}"))),
+            },
+            decoder_l: D::new(),
+            decoder_r: D::new(),
+            buffer_l: Vec::<i16>::new(),
+            buffer_r: Vec::<i16>::new(),
+        })
+    }
+
+    fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
+        let end_of_data = self.data_offset + self.data_length;
+        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+    }
+
+    fn read_byte(&mut self) -> Option<u8> {
+        match self.is_end_of_data() {
+            Ok(val) => {
+                match val {
+                    true => None,
+                    false => {
+                        match u8::read_le(&mut self.reader) {
+                            Ok(byte) => Some(byte),
+                            Err(_) => None,
+                        }
+                    },
+                }
+            },
+            Err(_) => None,
+        }
+    }
+
+    pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+    where S: SampleType {
+        match self.is_stereo {
+            false => {
+                while self.buffer_l.len() == 0 {
+                    if self.is_end_of_data()? {
+                        return Ok(None);
+                    } 
+                    // 利用迭代器，每个声道只给它一个数据
+                    let mut l_iter = [u8::read_le(&mut self.reader)?].into_iter();
+                    self.decoder_l.decode(
+                        || -> Option<u8> {l_iter.next()},
+                        |sample: i16| {self.buffer_l.push(sample);})?;
+                }
+                let sample = S::from(self.buffer_l[0]);
+                self.buffer_l = self.buffer_l[1..].to_vec();
+                Ok(Some(sample))
+            },
+            true => {
+                match self.decode_stereo::<S>()? {
+                    Some((l, r)) => Ok(Some(l / S::from(2) + r / S::from(2))),
+                    None => Ok(None),
+                }
+            },
+        }
+    }
+
+    pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+    where S: SampleType {
+        match self.is_stereo {
+            false => {
+                match self.decode_mono::<S>()? {
+                    Some(sample) => Ok(Some((sample, sample))),
+                    None => Ok(None),
+                }
+            },
+            true => {
+                // 这个时候要左右一起读，因为声道数据是左右交替的
+                while self.buffer_l.len() == 0 || self.buffer_r.len() == 0 {
+                    if self.is_end_of_data()? {
+                        return Ok(None);
+                    } 
+                    // 利用迭代器，每个声道只给它一个数据
+                    let mut l_iter = [u8::read_le(&mut self.reader)?].into_iter();
+                    let mut r_iter = [u8::read_le(&mut self.reader)?].into_iter();
+                    self.decoder_l.decode(
+                        || -> Option<u8> {l_iter.next()},
+                        |sample: i16| {self.buffer_l.push(sample);})?;
+                    self.decoder_r.decode(
+                        || -> Option<u8> {r_iter.next()},
+                        |sample: i16| {self.buffer_r.push(sample);})?;
+                }
+                let (l, r) = (self.buffer_l[0], self.buffer_r[0]);
+                let (l, r) = (S::from(l), S::from(r));
+                // 滚动数据
+                self.buffer_l = self.buffer_l[1..].to_vec();
+                self.buffer_r = self.buffer_r[1..].to_vec();
+                Ok(Some((l, r)))
+            },
+        }
+    }
+
+    pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+    where S: SampleType {
+        match self.is_stereo {
+            false => {
+                match self.decode_mono::<S>()? {
+                    Some(sample) => Ok(Some(vec![sample])),
+                    None => Ok(None),
+                }
+            },
+            true => {
+                match self.decode_stereo::<S>()? {
+                    Some((l, r)) => Ok(Some(vec![l, r])),
+                    None => Ok(None),
+                }
+            },
+        }
+    }
+}
+
 
 #[cfg(feature = "mp3dec")]
 pub mod MP3 {
