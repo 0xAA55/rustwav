@@ -73,23 +73,28 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     //     wavewriter.write_frame(&frame)?;
     // }
 
+    let (all_l, all_r) = utils::multiple_frames_to_dual_mono(&wavereader.iter::<i16>()?.collect::<Vec<Vec<i16>>>())?;
+
     // 测试 ADPCM-BS
-    let mut encoder = AdpcmEncoderBS::new();
-    let mut decoder = AdpcmDecoderBS::new();
-    let mut iter = wavereader.iter::<i16>()?;
-    let mut frame = Vec::<i16>::with_capacity(2);
-    adpcm::test(&mut encoder, &mut decoder,
-        || -> Option<i16> {
-            iter.next()
-        },
-        |sample: i16|{
-            frame.push(sample);
-            if frame.len() == 2 {
-                wavewriter.write_frame(&frame)?;
-                frame.clear();
-            }
-        }
+    let mut encoder_l = AdpcmEncoderBS::new();
+    let mut encoder_r = AdpcmEncoderBS::new();
+    let mut decoder_l = AdpcmDecoderBS::new();
+    let mut decoder_r = AdpcmDecoderBS::new();
+    let mut out_l = Vec::<i16>::new();
+    let mut out_r = Vec::<i16>::new();
+    let mut iter_l = all_l.into_iter();
+    let mut iter_r = all_r.into_iter();
+    adpcm::test(&mut encoder_l, &mut decoder_l,
+        || -> Option<i16> { iter_l.next() },
+        |sample: i16|{ out_l.push(sample); }
     )?;
+    adpcm::test(&mut encoder_r, &mut decoder_r,
+        || -> Option<i16> { iter_r.next() },
+        |sample: i16|{ out_r.push(sample); }
+    )?;
+
+    // 写入转换后的音频
+    wavewriter.write_dual_monos(&out_l, &out_r)?;
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
     wavewriter.migrate_metadata_from_reader(&wavereader);
