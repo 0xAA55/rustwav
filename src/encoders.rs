@@ -529,8 +529,9 @@ where E: adpcm::AdpcmEncoder {
         let (lv, rv) = utils::stereos_to_dual_mono(stereos);
         let (ll, rl) = (lv.len(), rv.len());
         let (mut li, mut ri) = (lv.into_iter(), rv.into_iter());
-        self.encoder_l.encode(|| -> Option<i16> { li.next() }, |byte: u8|{ self.buffer_l.push(byte); })?;
-        self.encoder_r.encode(|| -> Option<i16> { ri.next() }, |byte: u8|{ self.buffer_r.push(byte); })?;
+        const FLUSH_THRESHOLD: usize = 32; // 存了超过这么多字节就要写缓存了。
+        self.encoder_l.encode(|| -> Option<i16> { li.next() }, |byte: u8|{ self.buffer_l.push(byte); if self.buffer_l.len() >= FLUSH_THRESHOLD {self.flush_stereo(writer).unwrap(); }})?;
+        self.encoder_r.encode(|| -> Option<i16> { ri.next() }, |byte: u8|{ self.buffer_r.push(byte); if self.buffer_r.len() >= FLUSH_THRESHOLD {self.flush_stereo(writer).unwrap(); }})?;
         self.samples_written += ll as u64;
         self.samples_written += rl as u64;
         self.flush_stereo(writer)?;
