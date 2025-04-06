@@ -363,6 +363,7 @@ pub mod MP3 {
     type TheDecoder = puremp3::Mp3Decoder<Box<dyn Reader>>;
 
     pub struct Mp3Decoder {
+        target_sample_format: u32,
         data_offset: u64,
         data_length: u64,
         the_decoder: TheDecoder,
@@ -373,19 +374,16 @@ pub mod MP3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, print_debug: bool) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, data_offset: u64, data_length: u64, print_debug: bool) -> Result<Self, AudioReadError> {
             let mut the_decoder = puremp3::Mp3Decoder::new(reader);
             let cur_frame = the_decoder.next_frame()?;
             let num_frames = 1;
-            if print_debug {
-                let reader = the_decoder.get_mut();
-                println!("{}, {}, 0x{:x}, 0x{:x}", num_frames, cur_frame.num_samples, reader.stream_position()?, data_length);
-            }
             Ok(Self {
+                target_sample_format,
                 data_offset,
                 data_length,
                 the_decoder,
-                cur_frame, // TODO: 取得 frame 后，判断它的采样率是否和 WAV 相同，如果不相同，要做重采样
+                cur_frame,
                 sample_index: 0,
                 num_frames,
                 print_debug,
@@ -393,6 +391,10 @@ pub mod MP3 {
         }
 
         pub fn get_sample_rate(&self) -> u32 {
+            self.target_sample_format
+        }
+
+        pub fn get_frame_sample_rate(&self) -> u32 {
             self.cur_frame.header.sample_rate.hz()
         }
 
