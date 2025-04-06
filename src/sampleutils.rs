@@ -2,16 +2,19 @@
 
 use std::{io::{Read, Write, Error}, mem::size_of, fmt::Debug, clone::Clone};
 use std::ops::{Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign};
+use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr, BitAndAssign, BitOrAssign, BitXorAssign, ShlAssign, ShrAssign};
+use std::ops::{Rem, RemAssign};
+use std::ops::{Neg};
 
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub struct i24(pub u8, pub u8, pub u8); // 低中高
 
 impl i24{
-    fn from_le_bytes(bytes: [u8; 3]) -> Self {
+    fn from_le_bytes(bytes: &[u8]) -> Self {
         Self(bytes[0], bytes[1], bytes[2])
     }
-    fn from_be_bytes(bytes: [u8; 3]) -> Self {
+    fn from_be_bytes(bytes: &[u8]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
     fn to_le_bytes(self) -> [u8; 3] {
@@ -23,6 +26,147 @@ impl i24{
     fn get_highest_i8(&self) -> i8 {
         self.2 as i8
     }
+    fn as_i64(&self) -> i64 {
+        i64::from_le_bytes([self.0, self.1, self.2, 0, 0, 0, 0, 0])
+    }
+    fn as_i32(&self) -> i32 {
+        i32::from_le_bytes([self.0, self.1, self.2, 0])
+    }
+    fn as_i16(&self) -> i16 {
+        i16::from_le_bytes([self.0, self.1])
+    }
+    fn as_i8(&self) -> i8 {
+        self.0 as i8
+    }
+    fn as_u64(&self) -> u64 {
+        u64::from_le_bytes([self.0, self.1, self.2, 0, 0, 0, 0, 0])
+    }
+    fn as_u32(&self) -> u32 {
+        u32::from_le_bytes([self.0, self.1, self.2, 0])
+    }
+    fn as_u16(&self) -> u16 {
+        u16::from_le_bytes([self.0, self.1])
+    }
+    fn as_u8(&self) -> u8 {
+        self.0 as u8
+    }
+}
+
+impl Add for i24 {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        (self.as_i32() + rhs.as_i32()).as_i24()
+    }
+}
+impl Sub for i24 {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        (self.as_i32() - rhs.as_i32()).as_i24()
+    }
+}
+impl Mul for i24 {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        (self.as_i32() * rhs.as_i32()).as_i24()
+    }
+}
+impl Div for i24 {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        (self.as_i32() / rhs.as_i32()).as_i24()
+    }
+}
+impl AddAssign for i24 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.add(rhs);
+    }
+}
+impl SubAssign for i24 {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.sub(rhs);
+    }
+}
+impl MulAssign for i24 {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.mul(rhs);
+    }
+}
+impl DivAssign for i24 {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = self.div(rhs);
+    }
+}
+impl BitAnd for i24 {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0, self.1 & rhs.1, self.2 & rhs.2)
+    }
+}
+impl BitOr for i24 {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0, self.1 | rhs.1, self.2 | rhs.2)
+    }
+}
+impl BitXor for i24 {
+    type Output = Self;
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0, self.1 ^ rhs.1, self.2 ^ rhs.2)
+    }
+}
+impl Shl for i24 {
+    type Output = Self;
+    fn shl(self, rhs: Self) -> Self::Output {
+        (self.as_i32() << rhs.as_i32()).as_i24()
+    }
+}
+impl Shr for i24 {
+    type Output = Self;
+    fn shr(self, rhs: Self) -> Self::Output {
+        (self.as_i32() >> rhs.as_i32()).as_i24()
+    }
+}
+impl BitAndAssign for i24 {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = self.bitand(rhs);
+    }
+}
+impl BitOrAssign for i24 {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = self.bitor(rhs);
+    }
+}
+impl BitXorAssign for i24 {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = self.bitxor(rhs);
+    }
+}
+impl ShlAssign for i24 {
+    fn shl_assign(&mut self, rhs: Self) {
+        *self = self.shl(rhs);
+    }
+}
+impl ShrAssign for i24 {
+    fn shr_assign(&mut self, rhs: Self) {
+        *self = self.shr(rhs);
+    }
+}
+impl Rem for i24 {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        (self.as_i32() % rhs.as_i32()).as_i24()
+    }
+}
+impl RemAssign for i24 {
+    fn rem_assign(&mut self, rhs: Self) {
+        *self = self.rem(rhs);
+    }
+}
+impl Neg for i24 {
+    type Output = Self;
+    fn neg(self) -> Self::Output{
+        (-self.as_i32()).as_i24()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,10 +174,10 @@ impl i24{
 pub struct u24(pub u8, pub u8, pub u8); // 低中高
 
 impl u24{
-    fn from_le_bytes(bytes: [u8; 3]) -> Self {
+    fn from_le_bytes(bytes: &[u8]) -> Self {
         Self(bytes[0], bytes[1], bytes[2])
     }
-    fn from_be_bytes(bytes: [u8; 3]) -> Self {
+    fn from_be_bytes(bytes: &[u8]) -> Self {
         Self(bytes[2], bytes[1], bytes[0])
     }
     fn to_le_bytes(self) -> [u8; 3] {
@@ -45,9 +189,143 @@ impl u24{
     fn get_highest_u8(&self) -> u8 {
         self.2
     }
+    fn as_i64(&self) -> i64 {
+        i64::from_le_bytes([self.0, self.1, self.2, 0, 0, 0, 0, 0])
+    }
+    fn as_i32(&self) -> i32 {
+        i32::from_le_bytes([self.0, self.1, self.2, 0])
+    }
+    fn as_i16(&self) -> i16 {
+        i16::from_le_bytes([self.0, self.1])
+    }
+    fn as_i8(&self) -> i8 {
+        self.0 as i8
+    }
+    fn as_u64(&self) -> u64 {
+        u64::from_le_bytes([self.0, self.1, self.2, 0, 0, 0, 0, 0])
+    }
+    fn as_u32(&self) -> u32 {
+        u32::from_le_bytes([self.0, self.1, self.2, 0])
+    }
+    fn as_u16(&self) -> u16 {
+        u16::from_le_bytes([self.0, self.1])
+    }
+    fn as_u8(&self) -> u8 {
+        self.0 as u8
+    }
 }
 
-pub trait SampleType: Debug + Sized + Clone + Copy + 'static {
+impl Add for u24 {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        (self.as_u32() + rhs.as_u32()).as_u24()
+    }
+}
+impl Sub for u24 {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        (self.as_u32() - rhs.as_u32()).as_u24()
+    }
+}
+impl Mul for u24 {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        (self.as_u32() * rhs.as_u32()).as_u24()
+    }
+}
+impl Div for u24 {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        (self.as_u32() / rhs.as_u32()).as_u24()
+    }
+}
+impl AddAssign for u24 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.add(rhs);
+    }
+}
+impl SubAssign for u24 {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.sub(rhs);
+    }
+}
+impl MulAssign for u24 {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.mul(rhs);
+    }
+}
+impl DivAssign for u24 {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = self.div(rhs);
+    }
+}
+impl BitAnd for u24 {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0, self.1 & rhs.1, self.2 & rhs.2)
+    }
+}
+impl BitOr for u24 {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0, self.1 | rhs.1, self.2 | rhs.2)
+    }
+}
+impl BitXor for u24 {
+    type Output = Self;
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0, self.1 ^ rhs.1, self.2 ^ rhs.2)
+    }
+}
+impl Shl for u24 {
+    type Output = Self;
+    fn shl(self, rhs: Self) -> Self::Output {
+        (self.as_u32() << rhs.as_u32()).as_u24()
+    }
+}
+impl Shr for u24 {
+    type Output = Self;
+    fn shr(self, rhs: Self) -> Self::Output {
+        (self.as_u32() >> rhs.as_u32()).as_u24()
+    }
+}
+impl BitAndAssign for u24 {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = self.bitand(rhs);
+    }
+}
+impl BitOrAssign for u24 {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = self.bitor(rhs);
+    }
+}
+impl BitXorAssign for u24 {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = self.bitxor(rhs);
+    }
+}
+impl ShlAssign for u24 {
+    fn shl_assign(&mut self, rhs: Self) {
+        *self = self.shl(rhs);
+    }
+}
+impl ShrAssign for u24 {
+    fn shr_assign(&mut self, rhs: Self) {
+        *self = self.shr(rhs);
+    }
+}
+impl Rem for u24 {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        (self.as_u32() % rhs.as_u32()).as_u24()
+    }
+}
+impl RemAssign for u24 {
+    fn rem_assign(&mut self, rhs: Self) {
+        *self = self.rem(rhs);
+    }
+}
+
 pub trait SampleType:
 Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> +
 AddAssign + SubAssign + MulAssign + DivAssign +
@@ -66,6 +344,8 @@ Debug + Sized + Clone + Copy + 'static {
     fn to_u24(&self) -> u24;
     fn to_f32(&self) -> f32;
     fn to_f64(&self) -> f64;
+    fn as_i24(&self) -> i24;
+    fn as_u24(&self) -> u24;
     fn read_le<T>(r: &mut T) -> Result<Self, Error> where T: Read + ?Sized;
     fn read_be<T>(r: &mut T) -> Result<Self, Error> where T: Read + ?Sized;
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error> where T: Write + ?Sized;
@@ -121,11 +401,17 @@ impl SampleType for i8{
     }
     fn to_i24(&self) -> i24{
         let lo = self.to_u8();
-        i24::from_le_bytes([lo, lo, (*self) as u8])
+        i24::from_le_bytes(&[lo, lo, (*self) as u8])
     }
     fn to_u24(&self) -> u24{
         let lo = self.to_u8();
-        u24::from_le_bytes([lo, lo, lo])
+        u24::from_le_bytes(&[lo, lo, lo])
+    }
+    fn as_i24(&self) -> i24{
+        i24(*self as u8, 0, 0)
+    }
+    fn as_u24(&self) -> u24{
+        u24(*self as u8, 0, 0)
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -192,6 +478,12 @@ impl SampleType for i16{
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
     }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..2])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..2])
+    }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
     }
@@ -222,7 +514,7 @@ impl SampleType for i16{
 
 impl SampleType for i24 {
     fn new() -> Self {
-        Self::from_le_bytes([0, 0, 0])
+        Self::from_le_bytes(&[0, 0, 0])
     }
     fn from(v: impl SampleType) -> i24{
         v.to_i24()
@@ -261,7 +553,13 @@ impl SampleType for i24 {
     }
     fn to_u24(&self) -> u24{
         let hi = self.get_highest_i8().to_u8();
-        u24::from_le_bytes([self.0, self.1, hi])
+        u24::from_le_bytes(&[self.0, self.1, hi])
+    }
+    fn as_i24(&self) -> i24{
+        *self
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes())
     }
     fn to_f32(&self) -> f32{
         self.to_i32().to_f32()
@@ -273,13 +571,13 @@ impl SampleType for i24 {
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
-        Ok(Self::from_le_bytes(buf))
+        Ok(Self::from_le_bytes(&buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
+        Ok(Self::from_be_bytes(&buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
     where T: Write + ?Sized {
@@ -324,10 +622,16 @@ impl SampleType for i32{
     }
     fn to_i24(&self) -> i24{
         let b = self.to_le_bytes();
-        i24::from_le_bytes([b[1], b[2], b[3]])
+        i24::from_le_bytes(&[b[1], b[2], b[3]])
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
+    }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..3])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..3])
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -390,10 +694,16 @@ impl SampleType for i64{
     }
     fn to_i24(&self) -> i24{
         let b = self.to_le_bytes();
-        i24::from_le_bytes([b[5], b[6], b[7]])
+        i24::from_le_bytes(&[b[5], b[6], b[7]])
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
+    }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..3])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..3])
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -457,10 +767,16 @@ impl SampleType for u8{
     }
     fn to_i24(&self) -> i24{
         let hi = self.to_i8() as u8;
-        i24::from_le_bytes([*self, *self, hi])
+        i24::from_le_bytes(&[*self, *self, hi])
     }
     fn to_u24(&self) -> u24{
-        u24::from_le_bytes([*self, *self, *self])
+        u24::from_le_bytes(&[*self, *self, *self])
+    }
+    fn as_i24(&self) -> i24{
+        i24(*self, 0, 0)
+    }
+    fn as_u24(&self) -> u24{
+        u24(*self, 0, 0)
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -528,6 +844,12 @@ impl SampleType for u16{
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
     }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..2])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..2])
+    }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
     }
@@ -558,7 +880,7 @@ impl SampleType for u16{
 
 impl SampleType for u24 {
     fn new() -> Self {
-        Self::from_le_bytes([0x00, 0x00, 0x80])
+        Self::from_le_bytes(&[0x00, 0x00, 0x80])
     }
     fn from(v: impl SampleType) -> u24{
         v.to_u24()
@@ -588,9 +910,15 @@ impl SampleType for u24 {
         u64::from_le_bytes([self.1, self.2, self.0, self.1, self.2, self.0, self.1, self.2])
     }
     fn to_i24(&self) -> i24{
-        i24::from_le_bytes([self.0, self.1, self.2.to_i8() as u8])
+        i24::from_le_bytes(&[self.0, self.1, self.2.to_i8() as u8])
     }
     fn to_u24(&self) -> u24{
+        *self
+    }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes())
+    }
+    fn as_u24(&self) -> u24{
         *self
     }
     fn to_f32(&self) -> f32{
@@ -603,13 +931,13 @@ impl SampleType for u24 {
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
-        Ok(Self::from_le_bytes(buf))
+        Ok(Self::from_le_bytes(&buf))
     }
     fn read_be<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
         r.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
+        Ok(Self::from_be_bytes(&buf))
     }
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error>
     where T: Write + ?Sized {
@@ -658,6 +986,12 @@ impl SampleType for u32{
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
+    }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..3])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..3])
     }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
@@ -724,6 +1058,12 @@ impl SampleType for u64{
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
     }
+    fn as_i24(&self) -> i24{
+        i24::from_le_bytes(&self.to_le_bytes()[..3])
+    }
+    fn as_u24(&self) -> u24{
+        u24::from_le_bytes(&self.to_le_bytes()[..3])
+    }
     fn to_f32(&self) -> f32{
         (*self as f32) / (Self::MAX as f32)
     }
@@ -788,6 +1128,12 @@ impl SampleType for f32{
     }
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
+    }
+    fn as_i24(&self) -> i24{
+        (*self as i32).as_i24()
+    }
+    fn as_u24(&self) -> u24{
+        (*self as u32).as_u24()
     }
     fn to_f32(&self) -> f32{
         *self
@@ -854,6 +1200,12 @@ impl SampleType for f64{
     fn to_u24(&self) -> u24{
         self.to_i24().to_u24()
     }
+    fn as_i24(&self) -> i24{
+        (*self as i32).as_i24()
+    }
+    fn as_u24(&self) -> u24{
+        (*self as u32).as_u24()
+    }
     fn to_f32(&self) -> f32{
         *self as f32
     }
@@ -881,6 +1233,3 @@ impl SampleType for f64{
         w.write_all(&self.to_be_bytes())
     }
 }
-
-
-
