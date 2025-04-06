@@ -694,15 +694,15 @@ pub mod MP3 {
             })
         }
 
-        pub fn write_frame<T>(&mut self, writer: &mut dyn Writer, frame: &[T]) -> Result<(), AudioWriteError>
+        pub fn write_samples<T>(&mut self, writer: &mut dyn Writer, samples: &[T]) -> Result<(), AudioWriteError>
         where T: SampleType {
             if self.buffers.is_full() {
                 self.buffers.flush(writer)?;
             }
-            match frame.len() {
-                1 => self.buffers.add_sample_m(S::from(frame[0])),
-                2 => self.buffers.add_sample_s((S::from(frame[0]), S::from(frame[1]))),
-                other => return Err(AudioWriteError::InvalidArguments(format!("Bad frame channels: {}", other)))
+            match self.channels {
+                1 => Ok(self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples))?),
+                2 => Ok(self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?)?),
+                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
         }
 
