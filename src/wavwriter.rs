@@ -181,11 +181,21 @@ impl WaveWriter {
                         },
                     }
                 },
-                DataFormat::Adpcm => {
+                DataFormat::Adpcm(sub_format) => {
+                    use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
                     ext = false;
                     self.frame_size = 1;
                     self.spec.bits_per_sample = 8;
-                    0x0010
+                    match sub_format {
+                        // Bs,
+                        Oki => 0x0010,
+                        Oki6258 => 0x0017,
+                        Yma => 0x0020,
+                        // Ymb,
+                        // Ymz,
+                        // Aica,
+                        other => return Err(AudioWriteError::InvalidArguments(format!("Could not find a format tag for {other}."))),
+                    }
                 },
                 DataFormat::Mp3 => {
                     ext = false;
