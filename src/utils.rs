@@ -40,6 +40,11 @@ pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
     }
 }
 
+pub fn multiple_frames_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
+where S: SampleType {
+    Ok(stereos_to_dual_mono(&multiple_frames_to_tuples(frames)?))
+}
+
 pub fn multiple_frames_to_multiple_monos<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<Vec<S>>, AudioWriteError>
 where S: SampleType {
     let mut ret = Vec::<Vec<S>>::new();
