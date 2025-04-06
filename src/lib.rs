@@ -10,6 +10,7 @@ pub mod decoders;
 pub mod wavcore;
 pub mod wavreader;
 pub mod wavwriter;
+pub mod utils;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
