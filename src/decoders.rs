@@ -407,7 +407,83 @@ pub mod MP3 {
             }
         }
 
-        pub fn decode<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+        fn next_mp3_frame(&mut self) -> Result<bool, AudioReadError> {
+            loop {
+                let reader = self.the_decoder.get_mut();
+                if reader.stream_position()? >= self.data_offset + self.data_length {
+                    // 真正完成读取
+                    return Ok(false)
+                }
+                match self.the_decoder.next_frame() {
+                    Ok(frame) => {
+                        // 下一个 Frame
+                        // TODO:
+                        // 检测 Frame 里面的参数变化，比如采样率和声道数的变化，如果采样率变化了，要做 resample。如果声道数变化了，要做声道数处理。
+                        self.cur_frame = frame;
+                        break;
+                    },
+                    Err(err) => {
+                        match err {
+                            puremp3::Error::Mp3Error(_) => {
+                                if self.print_debug {
+                                    eprintln!("Mp3Error: {:?}", err);
+                                }
+                                return Err(err.into())
+                            },
+                            puremp3::Error::IoError(_) => {
+                                // 返回去强制重新读取帧，直到读取位置达到 MP3 文件长度为止
+                                continue;
+                            },
+                        }
+                    },
+                };
+            }
+            self.num_frames += 1;
+            self.sample_index = 0;
+            Ok(true)
+        }
+
+        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+        where S: SampleType {
+            let cur_frame = &self.cur_frame;
+            if self.sample_index < cur_frame.num_samples {
+                let (l, r) = (
+                    cur_frame.samples[0][self.sample_index],
+                    cur_frame.samples[1][self.sample_index]
+                );
+                self.sample_index += 1;
+                let l = S::from(l);
+                let r = S::from(r);
+                Ok(Some((l, r)))
+            } else {
+                match self.next_mp3_frame()? {
+                    false => return Ok(None),
+                    true => (),
+                }
+                self.decode_stereo::<S>()
+            }
+        }
+
+        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where S: SampleType {
+            let cur_frame = &self.cur_frame;
+            if self.sample_index < cur_frame.num_samples {
+                let (l, r) = (
+                    cur_frame.samples[0][self.sample_index],
+                    cur_frame.samples[1][self.sample_index]
+                );
+                self.sample_index += 1;
+                let m = S::from((l + r) * 0.5);
+                Ok(Some(m))
+            } else {
+                match self.next_mp3_frame()? {
+                    false => return Ok(None),
+                    true => (),
+                }
+                self.decode_mono::<S>()
+            }
+        }
+
         where S: SampleType {
             let cur_frame = &self.cur_frame;
             if self.sample_index < cur_frame.num_samples {
