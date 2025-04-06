@@ -40,12 +40,33 @@ pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
     }
 }
 
+pub fn multiple_frames_to_multiple_monos<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<Vec<S>>, AudioWriteError>
+where S: SampleType {
+    let mut ret = Vec::<Vec<S>>::new();
+    match is_same_len(frames) {
+        None => Ok(ret),
+        Some((equal, length)) => {
+            match equal {
+                false => Err(AudioWriteError::FrameChannelsNotSame),
+                true => {
+                    ret.resize(length, {let mut mono = Vec::<S>::new(); mono.resize(frames.len(), S::new()); mono});
+                    for (position, frame) in frames.into_iter().enumerate() {
+                        if let Some(channels) = channels {
+                            if channels as usize != frame.len() {
+                                return Err(AudioWriteError::WrongChannels(format!("The channels is {channels} but the frames include a {} channel frame.", frame.len())));
+                            }
+                        }
+                        for (channel, sample) in frame.into_iter().enumerate() {
+                            ret[channel][position] = *sample;
+                        }
+                    }
+                    Ok(ret)
                 }
-            },
-            other => return Err(AudioWriteError::InvalidArguments(format!("Channel number is {other}, can't turn to 2 tuples."))),
+            }
         }
     }
-    Ok((l, r))
+}
+
 pub fn multiple_monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
 where S: SampleType {
     let mut ret = Vec::<S>::new();
