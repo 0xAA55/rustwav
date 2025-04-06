@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use crate::adpcm::{self};
+use crate::adpcm;
 use crate::{AudioError, AudioReadError};
 use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
