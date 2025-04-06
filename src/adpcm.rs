@@ -3,9 +3,6 @@
 
 use std::{io, fmt::Debug};
 
-//TODO
-//检查各项 ADPCM 的编解码结果是否符合。
-
 pub trait AdpcmEncoder: Debug {
 	fn new() -> Self;
 	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
@@ -18,6 +15,16 @@ pub trait AdpcmDecoder: Debug {
 
 pub trait AdpcmCodec: AdpcmEncoder + AdpcmDecoder {}
 impl<T> AdpcmCodec for T where T: AdpcmEncoder + AdpcmDecoder{}
+
+pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, input: impl FnMut() -> Option<i16> + Clone, output: impl FnMut(i16) + Clone) -> Result<(), io::Error> {
+	encoder.encode(input.clone(),
+		|code: u8| {
+	 		let buf = vec![code];
+	 		let mut iter = buf.into_iter();
+	 		decoder.decode(|| -> Option<u8> { iter.next() }, output.clone()).unwrap()
+	 	}
+	)
+}
 
 pub enum AdpcmCodecTypes {
     BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
