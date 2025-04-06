@@ -9,23 +9,47 @@ use crate::{StringCodecMaps, SavageStringCodecs};
 
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
 pub enum DataFormat{
     Pcm,
-    Adpcm,
+    Adpcm(AdpcmSubFormat),
     Mp3,
     OggVorbis,
     Flac,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum AdpcmSubFormat {
+    Bs,
+    Oki,
+    Oki6258,
+    Yma,
+    Ymb,
+    Ymz,
+    Aica
+}
+
 impl std::fmt::Display for DataFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            DataFormat::Pcm => write!(f, "PCM"),
-            DataFormat::Adpcm => write!(f, "ADPCM"),
-            DataFormat::Mp3 => write!(f, "MP3"),
-            DataFormat::OggVorbis => write!(f, "OggVorbis"),
-            DataFormat::Flac => write!(f, "FLAC"),
+            Self::Pcm => write!(f, "PCM"),
+            Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
+            Self::Mp3 => write!(f, "MP3"),
+            Self::OggVorbis => write!(f, "OggVorbis"),
+            Self::Flac => write!(f, "FLAC"),
+       }
+    }
+}
+
+impl std::fmt::Display for AdpcmSubFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Bs => write!(f, "ADPCM-BS"),
+            Self::Oki => write!(f, "ADPCM-OKI"),
+            Self::Oki6258 => write!(f, "ADPCM-OKI6258"),
+            Self::Yma => write!(f, "ADPCM-YMA"),
+            Self::Ymb => write!(f, "ADPCM-YMB"),
+            Self::Ymz => write!(f, "ADPCM-YMZ"),
+            Self::Aica => write!(f, "ADPCM-AICA"),
        }
     }
 }
