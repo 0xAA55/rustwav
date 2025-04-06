@@ -25,6 +25,21 @@ where S: SampleType {
     (l, r)
 }
 
+pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
+    if data.len() == 0 {
+        None
+    } else {
+        let lengths = data.iter().map(|item| item.len()).collect::<Vec<usize>>();
+        let first = lengths[0];
+        for i in lengths.iter() {
+            if *i != first {
+                return Some((false, 0));
+            }
+        }
+        Some((true, first))
+    }
+}
+
                 }
             },
             other => return Err(AudioWriteError::InvalidArguments(format!("Channel number is {other}, can't turn to 2 tuples."))),
