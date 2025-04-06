@@ -66,15 +66,10 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-    // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数，此处设置的是 f32
+    // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数
     // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
-    // for frame in wavereader.iter::<f32>()? {
-    // 
-    //     // 音频写入器写入每个音频帧
-    //     wavewriter.write_frame(&frame)?;
-    // }
 
-    let (all_l, all_r) = utils::multiple_frames_to_dual_mono(&wavereader.iter::<i16>()?.collect::<Vec<Vec<i16>>>())?;
+    let (all_l, all_r) = utils::multiple_stereos_to_dual_monos(&wavereader.stereo_iter::<i16>()?.collect::<Vec<(i16, i16)>>());
     let (len_l, len_r) = (all_l.len(), all_r.len());
 
     let mut encoder_l = AdpcmEncoderYMB::new();
