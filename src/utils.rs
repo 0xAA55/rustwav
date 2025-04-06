@@ -16,15 +16,15 @@ where S: SampleType {
 
 pub fn stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {
-    let mut r = Vec::<S>::with_capacity(frames.len());
-    for frame in frames.iter() {
-        match frame.len() {
-            1 => l.push(frame[0]),
-            2 => {
-                l.push(frame[0]);
-                r.push(frame[1]);
-                if l.len() != r.len() {
-                    return Err(AudioWriteError::InvalidArguments(format!("Not all frames are the same channels.")));
+    let mut l = Vec::<S>::with_capacity(stereos.len());
+    let mut r = Vec::<S>::with_capacity(stereos.len());
+    for stereo in stereos.iter() {
+        l.push(stereo.0);
+        r.push(stereo.1);
+    }
+    (l, r)
+}
+
                 }
             },
             other => return Err(AudioWriteError::InvalidArguments(format!("Channel number is {other}, can't turn to 2 tuples."))),
