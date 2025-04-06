@@ -12,7 +12,40 @@ use crate::Reader;
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
-    fn decode(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
+
+    // 必须实现
+    fn get_channels(&self) -> u16;
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
+
+    // 可选实现
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
+        match self.get_channels() {
+            1 => Ok(match self.decode_frame()? {
+                Some(samples) => Some((samples[0], samples[0])),
+                None => None,
+            }),
+            2 => Ok(match self.decode_frame()? {
+                Some(samples) => Some((samples[0], samples[1])),
+                None => None,
+            }),
+            other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 2 channels."))),
+        }
+    }
+
+    // 可选实现
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
+        match self.get_channels() {
+            1 => Ok(match self.decode_frame()? {
+                Some(samples) => Some(samples[0]),
+                None => None,
+            }),
+            2 => Ok(match self.decode_frame()? {
+                Some(samples) => Some(samples[0] / S::from(2) + samples[1] / S::from(2)),
+                None => None,
+            }),
+            other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 1 channels."))),
+        }
+    }
 }
 
 impl<S> Decoder<S> for PcmDecoder<S>
