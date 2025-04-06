@@ -1,7 +1,7 @@
 use crate::{AudioWriteError};
 use crate::{SampleType};
 
-pub fn stereo_to_tuples<S>(frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioWriteError>
+pub fn multiple_frames_to_tuples<S>(frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioWriteError>
 where S: SampleType {
     let mut tuples = Vec::<(S, S)>::with_capacity(frames.len());
     for frame in frames.iter() {
@@ -14,9 +14,8 @@ where S: SampleType {
     Ok(tuples)
 }
 
-pub fn stereo_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
+pub fn stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {
-    let mut l = Vec::<S>::with_capacity(frames.len());
     let mut r = Vec::<S>::with_capacity(frames.len());
     for frame in frames.iter() {
         match frame.len() {
