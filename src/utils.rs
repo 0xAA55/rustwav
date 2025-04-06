@@ -46,6 +46,30 @@ pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
         }
     }
     Ok((l, r))
+pub fn multiple_monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
+where S: SampleType {
+    let mut ret = Vec::<S>::new();
+    match is_same_len(monos) {
+        None => Ok(ret),
+        Some((equal, length)) => {
+            match equal {
+                false => Err(AudioWriteError::MultipleMonosAreNotSameSize),
+                true => {
+                    ret.resize(length * monos.len(), S::new());
+                    let mut write_position = 0usize;
+                    for position in 0..length {
+                        for channel in 0..monos.len() {
+                            ret[write_position] = monos[channel][position];
+                            write_position += 1;
+                        }
+                    }
+                    Ok(ret)
+                }
+            }
+        }
+    }
+}
+
 }
 
 // 样本类型缩放转换
