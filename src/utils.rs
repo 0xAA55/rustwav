@@ -60,6 +60,20 @@ where S: SampleType,
     }
     ret
 }
+
+pub fn stereo_conv<S, D>(frame: &[(S, S)]) -> Vec<(D, D)>
+where S: SampleType,
+      D: SampleType {
+
+    let mut ret = Vec::<(D, D)>::with_capacity(frame.len());
+    for f in frame.into_iter() {
+        let (l, r) = *f;
+        let (l, r) = (D::from(l), D::from(r));
+        ret.push((l, r));
+    }
+    ret
+}
+
 // 样本类型缩放转换批量版
 pub fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
 where S: SampleType,
