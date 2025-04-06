@@ -8,9 +8,7 @@ use crate::AudioWriteError;
 use crate::WaveSampleType;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
-use crate::utils::sample_conv;
-use crate::utils::sample_conv_batch;
-use crate::utils::stereo_to_dual_mono;
+use crate::utils::{self, sample_conv, stereo_conv, sample_conv_batch};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
