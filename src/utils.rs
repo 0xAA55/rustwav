@@ -111,6 +111,17 @@ where S: SampleType {
     ret
 }
 
+pub fn multiple_stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
+where S: SampleType {
+    let mut ret_l = Vec::<S>::with_capacity(stereos.len());
+    let mut ret_r = Vec::<S>::with_capacity(stereos.len());
+    for (l, r) in stereos.into_iter() {
+        ret_l.push(*l);
+        ret_r.push(*r);
+    }
+    (ret_l, ret_r)
+}
+
 pub fn interleaved_samples_to_multiple_monos<S>(samples: &[S], channels: u16) -> Result<Vec<Vec<S>>, AudioWriteError>
 where S: SampleType {
     if channels == 0 {
