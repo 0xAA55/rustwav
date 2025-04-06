@@ -16,6 +16,9 @@ pub trait AdpcmDecoder: Debug {
 	fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
 }
 
+pub trait AdpcmCodec: AdpcmEncoder + AdpcmDecoder {}
+impl<T> AdpcmCodec for T where T: AdpcmEncoder + AdpcmDecoder{}
+
 pub enum AdpcmCodecTypes {
     BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
 }
