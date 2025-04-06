@@ -6,12 +6,12 @@ use std::{io, fmt::Debug};
 //TODO
 //检查各项 ADPCM 的编解码结果是否符合。
 
-pub trait Encoder: Debug {
+pub trait AdpcmEncoder: Debug {
 	fn new() -> Self;
 	fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
 }
 
-pub trait Decoder: Debug {
+pub trait AdpcmDecoder: Debug {
 	fn new() -> Self;
 	fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
 }
@@ -20,21 +20,21 @@ pub enum AdpcmCodecTypes {
     BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
 }
 
-pub type AdpcmEncoderBS      = bs::AdpcmEncoder;
-pub type AdpcmEncoderOKI     = oki::AdpcmEncoder;
-pub type AdpcmEncoderOKI6258 = oki6258::AdpcmEncoder;
-pub type AdpcmEncoderYMA     = yma::AdpcmEncoder;
-pub type AdpcmEncoderYMB     = ymb::AdpcmEncoder;
-pub type AdpcmEncoderYMZ     = ymz::AdpcmEncoder;
-pub type AdpcmEncoderAICA    = aica::AdpcmEncoder;
+pub type AdpcmEncoderBS      = bs::Encoder;
+pub type AdpcmEncoderOKI     = oki::Encoder;
+pub type AdpcmEncoderOKI6258 = oki6258::Encoder;
+pub type AdpcmEncoderYMA     = yma::Encoder;
+pub type AdpcmEncoderYMB     = ymb::Encoder;
+pub type AdpcmEncoderYMZ     = ymz::Encoder;
+pub type AdpcmEncoderAICA    = aica::Encoder;
 
-pub type AdpcmDecoderBS      = bs::AdpcmDecoder;
-pub type AdpcmDecoderOKI     = oki::AdpcmDecoder;
-pub type AdpcmDecoderOKI6258 = oki6258::AdpcmDecoder;
-pub type AdpcmDecoderYMA     = yma::AdpcmDecoder;
-pub type AdpcmDecoderYMB     = ymb::AdpcmDecoder;
-pub type AdpcmDecoderYMZ     = ymz::AdpcmDecoder;
-pub type AdpcmDecoderAICA    = aica::AdpcmDecoder;
+pub type AdpcmDecoderBS      = bs::Decoder;
+pub type AdpcmDecoderOKI     = oki::Decoder;
+pub type AdpcmDecoderOKI6258 = oki6258::Decoder;
+pub type AdpcmDecoderYMA     = yma::Decoder;
+pub type AdpcmDecoderYMB     = ymb::Decoder;
+pub type AdpcmDecoderYMZ     = ymz::Decoder;
+pub type AdpcmDecoderAICA    = aica::Decoder;
 
 pub type EncBS      = AdpcmEncoderBS;
 pub type EncOKI     = AdpcmEncoderOKI;
@@ -61,8 +61,8 @@ pub mod bs {
 
     use std::io;
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     // step ADPCM algorithm
     fn bs_step(step: i8, history: &mut i16, step_size: &mut i16) -> i16 {
@@ -93,7 +93,7 @@ pub mod bs {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub step_size: i16,
         pub history: i16,
         pub buf_sample: u8,
@@ -102,7 +102,7 @@ pub mod bs {
         pub filter_state: i32,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
         fn new() -> Self {
             Self {
                 step_size: 10,
@@ -131,13 +131,13 @@ pub mod bs {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub step_size: i16,
         pub history: i16,
         pub nibble: u8,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
         fn new() -> Self {
             Self {
                 step_size: 10,
@@ -182,8 +182,8 @@ pub mod oki {
 
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     const OKI_STEP_TABLE: [u16; 49] = [
         16, 17, 19, 21, 23, 25, 28, 31,
@@ -245,7 +245,7 @@ pub mod oki {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub history: i16,
         pub step_hist: u8,
         pub buf_sample: u8,
@@ -253,7 +253,7 @@ pub mod oki {
         pub oki_highpass: bool,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
         fn new() -> Self {
             Self {
                 history: 0,
@@ -287,14 +287,14 @@ pub mod oki {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub history: i16,
         pub step_hist: u8,
         pub nibble: u8,
         pub oki_highpass: bool,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
     	fn new() -> Self {
             Self {
                 history: 0,
@@ -329,14 +329,14 @@ pub mod oki {
 pub mod oki6258 {
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     use super::oki::oki_encode_step;
     use super::oki::oki_step;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub history: i16,
         pub step_hist: u8,
         pub buf_sample: u8,
@@ -344,7 +344,7 @@ pub mod oki6258 {
         pub oki_highpass: bool,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
     	fn new() -> Self {
             Self {
                 history: 0,
@@ -378,14 +378,14 @@ pub mod oki6258 {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub history: i16,
         pub step_hist: u8,
         pub nibble: u8,
         pub oki_highpass: bool,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
     	fn new() -> Self {
             Self {
                 history: 0,
@@ -426,8 +426,8 @@ pub mod yma {
 
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     const YMA_STEP_TABLE: [u16; 49] = [
         16, 17, 19, 21, 23, 25, 28, 31,
@@ -475,14 +475,14 @@ pub mod yma {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub history: i16,
         pub step_hist: u8,
         pub buf_sample: u8,
         pub nibble: u8,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
         fn new() -> Self {
             Self {
                 history: 0,
@@ -515,13 +515,13 @@ pub mod yma {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub history: i16,
         pub step_hist: u8,
         pub nibble: u8,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
     	fn new() -> Self {
             Self {
                 history: 0,
@@ -561,8 +561,8 @@ pub mod ymb {
 
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     pub fn ymb_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
         const STEP_TABLE: [i32; 8] = [
@@ -587,14 +587,14 @@ pub mod ymb {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub step_size: i16,
         pub history: i16,
         pub buf_sample: u8,
         pub nibble: u8,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
     	fn new() -> Self {
             Self {
                 step_size: 127,
@@ -628,13 +628,13 @@ pub mod ymb {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub step_size: i16,
         pub history: i16,
         pub nibble: u8,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
         fn new() -> Self {
             Self {
                 step_size: 127,
@@ -676,8 +676,8 @@ pub mod ymz {
 
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     pub fn ymz_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
         const STEP_TABLE: [i32; 8] = [
@@ -705,14 +705,14 @@ pub mod ymz {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub step_size: i16,
         pub history: i16,
         pub buf_sample: u8,
         pub nibble: u8,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
         fn new() -> Self {
             Self {
                 step_size: 127,
@@ -747,13 +747,13 @@ pub mod ymz {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         pub step_size: i16,
         pub history: i16,
         pub nibble: u8,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
         fn new() -> Self {
             Self {
                 step_size: 127,
@@ -788,20 +788,20 @@ pub mod ymz {
 pub mod aica {
     use std::{io::{self}};
 
-    use super::Encoder;
-    use super::Decoder;
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
 
     use super::ymz::ymz_step;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmEncoder {
+    pub struct Encoder {
         pub step_size: i16,
         pub history: i16,
         pub buf_sample: u8,
         pub nibble: u8,
     }
 
-    impl Encoder for AdpcmEncoder {
+    impl AdpcmEncoder for Encoder {
         fn new() -> Self {
             Self {
                 step_size: 127,
@@ -836,13 +836,13 @@ pub mod aica {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmDecoder {
+    pub struct Decoder {
         step_size: i16,
         history: i16,
         nibble: u8,
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
     	fn new() -> Self {
             Self {
                 step_size: 127,
