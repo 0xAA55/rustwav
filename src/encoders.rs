@@ -1026,31 +1026,31 @@ pub mod MP3 {
 
     impl<S> EncoderToImpl for Mp3Encoder<S>
     where S: SampleType {
-        fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &Vec<i8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &Vec<i16>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &Vec<i24>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_i32(&mut self, writer: &mut dyn Writer, frame: &Vec<i32>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_i64(&mut self, writer: &mut dyn Writer, frame: &Vec<i64>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame__u8(&mut self, writer: &mut dyn Writer, frame: &Vec<u8 >) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_u16(&mut self, writer: &mut dyn Writer, frame: &Vec<u16>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_u24(&mut self, writer: &mut dyn Writer, frame: &Vec<u24>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_u32(&mut self, writer: &mut dyn Writer, frame: &Vec<u32>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_u64(&mut self, writer: &mut dyn Writer, frame: &Vec<u64>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_f32(&mut self, writer: &mut dyn Writer, frame: &Vec<f32>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
-        fn write_frame_f64(&mut self, writer: &mut dyn Writer, frame: &Vec<f64>) -> Result<(), AudioWriteError> {self.write_frame(writer, frame)}
+        fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_i32(&mut self, writer: &mut dyn Writer, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_i64(&mut self, writer: &mut dyn Writer, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples__u8(&mut self, writer: &mut dyn Writer, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_u16(&mut self, writer: &mut dyn Writer, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_u24(&mut self, writer: &mut dyn Writer, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_u32(&mut self, writer: &mut dyn Writer, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_u64(&mut self, writer: &mut dyn Writer, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
 
-        fn write_multiple_frames__i8(&mut self, writer: &mut dyn Writer, frames: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_i16(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_i24(&mut self, writer: &mut dyn Writer, frames: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_i32(&mut self, writer: &mut dyn Writer, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_i64(&mut self, writer: &mut dyn Writer, frames: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames__u8(&mut self, writer: &mut dyn Writer, frames: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_u16(&mut self, writer: &mut dyn Writer, frames: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_u24(&mut self, writer: &mut dyn Writer, frames: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_u32(&mut self, writer: &mut dyn Writer, frames: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_u64(&mut self, writer: &mut dyn Writer, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
-        fn write_multiple_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_multiple_frames(writer, frames)}
+        fn write_multiple_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_i32(&mut self, writer: &mut dyn Writer, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_i64(&mut self, writer: &mut dyn Writer, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos__u8(&mut self, writer: &mut dyn Writer, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_u16(&mut self, writer: &mut dyn Writer, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_u24(&mut self, writer: &mut dyn Writer, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_u32(&mut self, writer: &mut dyn Writer, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
 
         fn get_bit_rate(&mut self) -> u32 {
             self.bitrate as u32
