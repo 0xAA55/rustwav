@@ -8,7 +8,7 @@ where S: SampleType {
         match frame.len() {
             1 => tuples.push((frame[0], frame[0])),
             2 => tuples.push((frame[0], frame[1])),
-            other => return Err(AudioWriteError::InvalidArguments(format!("Channel number is {other}, can't turn to 2 tuples."))),
+            _ => return Err(AudioWriteError::FrameChannelsNotSame),
         }
     }
     Ok(tuples)
