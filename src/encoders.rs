@@ -493,32 +493,30 @@ where E: adpcm::AdpcmEncoder {
     }
 
     fn flush_stereo(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut interleaved = Vec::<u8>::with_capacity(ADPCM_ENCODE_BUFFER * 2);
-        let min_len = cmp::min(self.buffer_l.len(), self.buffer_r.len());
-        if min_len > 0 {
-            for i in 0..min_len {
-                interleaved.push(self.buffer_l[i]);
-                interleaved.push(self.buffer_r[i]);
-            }
-            writer.write_all(&interleaved)?;
-            self.bytes_written += interleaved.len() as u64;
-            if self.buffer_l.len() > min_len {
-                let byte = *self.buffer_l.last().unwrap();
-                self.buffer_l.clear();
-                self.buffer_l.push(byte);
-            } else {
-                self.buffer_l.clear();
-            }
-            if self.buffer_r.len() > min_len {
-                let byte = *self.buffer_r.last().unwrap();
-                self.buffer_r.clear();
-                self.buffer_r.push(byte);
-            } else {
-                self.buffer_r.clear();
+        let mut interleaved = Vec::<u8>::new();
+        if self.is_stereo {
+            let min_len = cmp::min(self.buffer_l.len(), self.buffer_r.len());
+            if min_len > 0 {
+                for i in 0..min_len {
+                    interleaved.push(self.buffer_l[i]);
+                    interleaved.push(self.buffer_r[i]);
+                }
+                writer.write_all(&interleaved)?;
+                self.bytes_written += interleaved.len() as u64;
+                if self.buffer_l.len() > min_len {
+                    self.buffer_l = self.buffer_l.clone().into_iter().skip(min_len).collect();
+                } else {
+                    self.buffer_l.clear();
+                }
+                if self.buffer_r.len() > min_len {
+                    self.buffer_r = self.buffer_r.clone().into_iter().skip(min_len).collect();
+                } else {
+                    self.buffer_r.clear();
+                }
             }
         } else {
+            writer.write_all(&self.buffer_l)?;
             self.buffer_l.clear();
-            self.buffer_r.clear();
         }
         Ok(())
     }
