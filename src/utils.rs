@@ -96,6 +96,11 @@ where S: SampleType {
     }
 }
 
+pub fn multiple_frames_to_interleaved_samples<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<S>, AudioWriteError>
+where S: SampleType {
+    multiple_monos_to_interleaved_samples(&multiple_frames_to_multiple_monos(frames, channels)?)
+}
+
 pub fn multiple_stereos_to_interleaved_samples<S>(stereos: &[(S, S)]) -> Vec<S>
 where S: SampleType {
     let mut ret = Vec::<S>::with_capacity(stereos.len() * 2);
