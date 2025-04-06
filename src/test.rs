@@ -77,13 +77,10 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let (all_l, all_r) = utils::multiple_frames_to_dual_mono(&wavereader.iter::<i16>()?.collect::<Vec<Vec<i16>>>())?;
     let (len_l, len_r) = (all_l.len(), all_r.len());
 
-    // BS 有问题，YMB 有问题
-    // OKI 音量正常
-
-    let mut encoder_l = AdpcmEncoderOKI::new();
-    let mut encoder_r = AdpcmEncoderOKI::new();
-    let mut decoder_l = AdpcmDecoderOKI::new();
-    let mut decoder_r = AdpcmDecoderOKI::new();
+    let mut encoder_l = AdpcmEncoderYMB::new();
+    let mut encoder_r = AdpcmEncoderYMB::new();
+    let mut decoder_l = AdpcmDecoderYMB::new();
+    let mut decoder_r = AdpcmDecoderYMB::new();
     let mut out_l = Vec::<i16>::new();
     let mut out_r = Vec::<i16>::new();
     let mut iter_l = all_l.into_iter();
