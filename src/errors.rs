@@ -45,6 +45,14 @@ impl From<std::io::Error> for AudioReadError {
     }
 }
 
+impl From<crate::adpcm::ima::ImaAdpcmError> for AudioReadError {
+    fn from(imaerr: crate::adpcm::ima::ImaAdpcmError) -> Self {
+        match imaerr{
+            crate::adpcm::ima::ImaAdpcmError::InvalidArgument(info) => Self::InvalidArguments(info),
+        }
+    }
+}
+
 impl From<AudioReadError> for std::io::Error {
     fn from(err: AudioReadError) -> Self {
         match err {
