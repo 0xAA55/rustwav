@@ -17,15 +17,23 @@ pub enum DataFormat{
     Flac,
 }
 
+// 这些编码是乱写的
 #[derive(Debug, Clone, Copy)]
+#[repr(u16)]
 pub enum AdpcmSubFormat {
-    Bs,
-    Oki,
-    Oki6258,
-    Yma,
-    Ymb,
-    Ymz,
-    Aica
+    Bs = 0xFFFC,
+    Oki = 0x0010,
+    Oki6258 = 0x0017,
+    Yma = 0x0020,
+    Ymb = 0xFFFB,
+    Ymz = 0xFFFA,
+    Aica = 0xFFF9
+}
+
+impl std::convert::Into<u16> for AdpcmSubFormat {
+    fn into(self) -> u16 {
+        self as u16
+    }
 }
 
 impl std::fmt::Display for DataFormat {
