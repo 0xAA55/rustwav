@@ -324,7 +324,7 @@ impl WaveReader {
     }
 }
 
-fn create_decoder<S>(reader: Box<dyn Reader>, sample_rate: u32, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact_data: &[u8]) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact_data: &[u8]) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
     use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima};
     const TAG_BS: u16 = Bs as u16;
@@ -349,7 +349,7 @@ where S: SampleType {
             #[cfg(not(feature = "mp3dec"))]
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
             #[cfg(feature = "mp3dec")]
-            {Ok(Box::new(Mp3Decoder::new(reader, sample_rate, data_offset, data_length, false)?))}
+            {Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length)?))}
         },
         0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
@@ -488,7 +488,7 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact_data: fact_data.to_vec(),
-            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact_data)?,
+            decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
 }
@@ -525,7 +525,7 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact_data: fact_data.to_vec(),
-            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact_data)?,
+            decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
 }
@@ -562,7 +562,7 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             fact_data: fact_data.to_vec(),
-            decoder: create_decoder::<S>(reader, spec.sample_rate, data_offset, data_length, spec, fmt, fact_data)?,
+            decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
 }
