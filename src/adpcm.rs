@@ -9,6 +9,12 @@ pub trait AdpcmEncoder: Debug {
     fn get_interleave_bytes(&self) -> usize {
         4
     }
+    fn get_header_bytes(&self) -> usize {
+        0
+    }
+    fn get_block_size(&self) -> u16 {
+        512
+    }
 }
 
 pub trait AdpcmDecoder: Debug {
@@ -16,6 +22,12 @@ pub trait AdpcmDecoder: Debug {
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
     fn get_interleave_bytes(&self) -> usize {
         4
+    }
+    fn get_header_bytes(&self) -> usize {
+        0
+    }
+    fn get_block_size(&self) -> u16 {
+        512
     }
 }
 
@@ -965,6 +977,8 @@ pub mod ima {
         32767
     ];
 
+    const MAX_BLOCK_SIZE: u16 = 512;
+
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder {
         prev_sample: i16,
@@ -972,6 +986,7 @@ pub mod ima {
         nibble: [u8; 2],
         nibble_index: u8,
         header_written: bool,
+        num_outputs: u16,
     }
 
     impl Encoder{
@@ -1010,6 +1025,7 @@ pub mod ima {
                 nibble: [0u8; 2],
                 nibble_index: 0,
                 header_written: false,
+                num_outputs: 0,
             }
         }
 
@@ -1017,23 +1033,29 @@ pub mod ima {
         // 一开始输出 4 字节的头部信息
         // 然后每两个样本转一个码
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            if !self.header_written {
-                // 写出 4 字节头部
-                let buf = self.prev_sample.to_le_bytes();
-                output(buf[0]);
-                output(buf[1]);
-                output(self.stepsize_index as u8);
-                output(0);
-                self.header_written = true;
-            }
-
-            // 开始编码，这里就不管是否一定要输出够 4 个字节了。
             while let Some(sample) = input() {
+                if !self.header_written {
+                    // 写出 4 字节头部
+                    let buf = self.prev_sample.to_le_bytes();
+                    output(buf[0]);
+                    output(buf[1]);
+                    output(self.stepsize_index as u8);
+                    output(0);
+                    self.num_outputs += 4;
+                    self.header_written = true;
+                }
                 self.nibble[self.nibble_index as usize] = self.encode_sample(sample);
                 self.nibble_index += 1;
                 if self.nibble_index >= 2 {
                     self.nibble_index = 0;
                     output(self.nibble[0] | (self.nibble[1] << 4));
+                    self.num_outputs += 1;
+                    if self.num_outputs >= self.get_block_size() {
+                        // 到达块大小上限，重置编码器
+                        self.prev_sample = sample;
+                        self.header_written = false;
+                        self.num_outputs = 0;
+                    }
                 }
             }
             Ok(())
@@ -1041,6 +1063,12 @@ pub mod ima {
 
         fn get_interleave_bytes(&self) -> usize {
             4
+        }
+        fn get_header_bytes(&self) -> usize {
+            4
+        }
+        fn get_block_size(&self) -> u16 {
+            MAX_BLOCK_SIZE
         }
     }
 
@@ -1055,6 +1083,7 @@ pub mod ima {
         ready: bool,
         buffer: [u8; 4],
         bufsize: u8,
+        input_count: u16,
     }
 
     impl Decoder{
@@ -1099,37 +1128,44 @@ pub mod ima {
                 ready: false,
                 buffer: [0u8; 4],
                 bufsize: 0,
+                input_count: 0,
             }
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            // 先吃四个字节用来初始化，并输出第一个样本。
-            if !self.ready {
-                while self.bufsize < 4 {
-                    match input() {
-                        Some(byte) => self.push_buf(byte),
-                        None => return Ok(()),
-                    }
-                }
-                self.sample_val = i16::from_le_bytes([self.buffer[0], self.buffer[1]]);
-                self.stepsize_index = self.buffer[2] as i8;
-                if self.buffer[3] != 0 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "Reserved byte for ADPCM-IMA must be zero."));
-                }
-                self.bufsize = 0;
-                self.ready = true;
-                output(self.sample_val);
-            }
-            // 完成初始化后，每吃一个字节输出两个样本。
-            if self.ready {
-                // 每读取 4 个字节解 8 个码
-                loop {
+            loop {
+                if !self.ready {
+                    // 先吃四个字节用来初始化，并输出第一个样本。
                     while self.bufsize < 4 {
                         match input() {
-                            Some(byte) => self.push_buf(byte),
+                            Some(byte) => {
+                                self.push_buf(byte);
+                                self.input_count += 1;
+                            },
                             None => return Ok(()),
                         }
                     }
+                    self.sample_val = i16::from_le_bytes([self.buffer[0], self.buffer[1]]);
+                    self.stepsize_index = self.buffer[2] as i8;
+                    if self.buffer[3] != 0 {
+                        return Err(io::Error::new(io::ErrorKind::InvalidData, "Reserved byte for ADPCM-IMA must be zero."));
+                    }
+                    self.bufsize = 0;
+                    self.ready = true;
+                    output(self.sample_val);
+                }
+                if self.ready {
+                    // 完成初始化后，每吃一个字节输出两个样本。
+                    while self.bufsize < 4 {
+                        match input() {
+                            Some(byte) => {
+                                self.push_buf(byte);
+                                self.input_count += 1;
+                            },
+                            None => return Ok(()),
+                        }
+                    }
+                    // 每读取 4 个字节解 8 个码
                     let (b1, b2, b3, b4) = (self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]);
                     output(self.decode_sample((b1 >> 0) & 0xF));
                     output(self.decode_sample((b1 >> 4) & 0xF));
@@ -1140,13 +1176,22 @@ pub mod ima {
                     output(self.decode_sample((b4 >> 0) & 0xF));
                     output(self.decode_sample((b4 >> 4) & 0xF));
                     self.bufsize = 0;
+                    if self.input_count >= self.get_block_size() {
+                        self.input_count = 0;
+                        self.ready = false;
+                    }
                 }
             }
-            Ok(())
         }
 
         fn get_interleave_bytes(&self) -> usize {
             4
+        }
+        fn get_header_bytes(&self) -> usize {
+            4
+        }
+        fn get_block_size(&self) -> u16 {
+            MAX_BLOCK_SIZE
         }
     }
 }
