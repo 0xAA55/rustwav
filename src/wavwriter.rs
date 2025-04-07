@@ -486,7 +486,16 @@ impl WaveWriter {
             Ok(())
         })?;
 
-        
+        // 如果有 fact 块，则写入它（写在 data 尾部可能对于一些 WAV parser 而言有点奇怪，但是这是符合 WAV 规范的。）
+        if let Some(fact_data) = self.encoder.provide_fact_data()? {
+            let mut cw = ChunkWriter::begin(self.writer.clone(), b"fact")?;
+            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                writer.write_all(&fact_data)?;
+                Ok(())
+            })?;
+            cw.end()?;
+        }
+
         // 写入其它全部的结构体块
         if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone(), &self.text_encoding)?; }
         if let Some(chunk) = &self.smpl_chunk { chunk.write(self.writer.clone())?; }
