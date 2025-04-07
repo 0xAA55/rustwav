@@ -29,10 +29,6 @@ pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mu
     )
 }
 
-pub enum AdpcmCodecTypes {
-    BS, OKI, OKI6258, YMA, YMB, YMZ, AICA
-}
-
 pub type AdpcmEncoderBS      = bs::Encoder;
 pub type AdpcmEncoderOKI     = oki::Encoder;
 pub type AdpcmEncoderOKI6258 = oki6258::Encoder;
