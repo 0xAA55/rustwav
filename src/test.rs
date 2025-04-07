@@ -66,10 +66,16 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     };
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Oki), NeverLargerThan4GB).unwrap();
 
-    for stereo in wavereader.stereo_iter::<i16>()? {
-        wavewriter.write_stereo(stereo)?;
+    let cached = false;
+    if cached {
+        let stereos = wavereader.stereo_iter::<i16>()?.collect::<Vec<(i16, i16)>>();
+        wavewriter.write_stereos(&stereos)?;
+    } else {
+        for stereo in wavereader.stereo_iter::<i16>()? {
+            wavewriter.write_stereo(stereo)?;
+        }
     }
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
