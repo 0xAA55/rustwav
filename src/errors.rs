@@ -26,15 +26,15 @@ impl std::fmt::Display for AudioReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
-            Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
-            Self::FormatError(reason) => write!(f, "Invalid format: {}", reason),
-            Self::DataCorrupted(reason) => write!(f, "Data corrupted: {}", reason),
-            Self::Unimplemented(reason) => write!(f, "Unimplemented for the file format: {}", reason),
-            Self::Unsupported(feature) => write!(f, "Unsupported feature: {}", feature),
-            Self::UnexpectedFlag(expected, got) => write!(f, "Expect \"{}\", got \"{}\".", expected, got),
+            Self::FormatError(info) => write!(f, "Invalid format: {info}"),
+            Self::DataCorrupted(info) => write!(f, "Data corrupted: {info}"),
+            Self::Unimplemented(info) => write!(f, "Unimplemented for the file format: {info}"),
+            Self::Unsupported(feature) => write!(f, "Unsupported feature: {feature}"),
+            Self::UnexpectedFlag(expected, got) => write!(f, "Expect \"{expected}\", got \"{got}\"."),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
-            Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
+            Self::OtherReason(info) => write!(f, "Unknown error: {info}"),
         }
     }
 }
@@ -79,20 +79,20 @@ impl std::error::Error for AudioWriteError {}
 impl std::fmt::Display for AudioWriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
-            Self::Unsupported(reason) => write!(f, "Unsupported format: {}", reason),
-            Self::Unimplemented(reason) => write!(f, "Unimplemented format: {}", reason),
-            Self::AlreadyFinished(reason) => write!(f, "Already finished writing {}", reason),
+            Self::Unsupported(info) => write!(f, "Unsupported format: {info}"),
+            Self::Unimplemented(info) => write!(f, "Unimplemented format: {info}"),
+            Self::AlreadyFinished(info) => write!(f, "Already finished writing {info}"),
             Self::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
-            Self::ChunkSizeTooBig(reason) => write!(f, "Chunk size is too big: {}", reason),
+            Self::ChunkSizeTooBig(info) => write!(f, "Chunk size is too big: {info}"),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
             Self::BufferIsFull => write!(f, "The buffer is full, it should be flushed."),
             Self::MultipleMonosAreNotSameSize => write!(f, "The lengths of the channels are not equal."),
             Self::FrameChannelsNotSame => write!(f, "The channels of each frames are not equal."),
             Self::WrongChannels(prompt) => write!(f, "Wrong channels: {prompt}"),
             Self::NotStereo => write!(f, "The samples are not stereo audio samples"),
-            Self::OtherReason(reason) => write!(f, "Unknown error: {}", reason),
+            Self::OtherReason(info) => write!(f, "Unknown error: {info}"),
        }
     }
 }
@@ -127,10 +127,10 @@ impl std::error::Error for AudioError {}
 impl std::fmt::Display for AudioError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
        match self {
-           Self::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {}", channels),
+           Self::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
            Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
-           Self::Unimplemented(reason) => write!(f, "Unimplemented behavior: {}", reason),
-           Self::InvalidArguments(reason) => write!(f, "Invalid arguments: {}", reason),
+           Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
+           Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
        }
     }
 }
@@ -138,10 +138,10 @@ impl std::fmt::Display for AudioError {
 impl From<AudioError> for AudioReadError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::DataCorrupted("the channel number does not match the channel mask".to_owned()),
-            AudioError::Unimplemented(reason) => Self::Unimplemented(reason),
-            AudioError::InvalidArguments(reason) => Self::InvalidArguments(reason),
+            AudioError::Unimplemented(info) => Self::Unimplemented(info),
+            AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
         }
     }
 }
@@ -149,10 +149,10 @@ impl From<AudioError> for AudioReadError {
 impl From<AudioError> for AudioWriteError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {}", channels)),
+            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::InvalidArguments("the channel number does not match the channel mask".to_owned()),
-            AudioError::Unimplemented(reason) => Self::Unimplemented(reason),
-            AudioError::InvalidArguments(reason) => Self::InvalidArguments(reason),
+            AudioError::Unimplemented(info) => Self::Unimplemented(info),
+            AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
         }
     }
 }
@@ -181,7 +181,7 @@ impl From<mp3lame_encoder::BuildError> for AudioWriteError {
             mp3lame_encoder::BuildError::BadBRate => Self::InvalidArguments("Bad bit rate".to_owned()),
             mp3lame_encoder::BuildError::BadSampleFreq => Self::InvalidArguments("Bad sample rate".to_owned()),
             mp3lame_encoder::BuildError::InternalError => Self::OtherReason("Internal error".to_owned()),
-            mp3lame_encoder::BuildError::Other(c_int) => Self::OtherReason(format!("Other lame error code: {}", c_int)),
+            mp3lame_encoder::BuildError::Other(c_int) => Self::OtherReason(format!("Other lame error code: {c_int}")),
         }
     }
 }
@@ -203,7 +203,7 @@ impl From<mp3lame_encoder::EncodeError> for AudioWriteError {
             mp3lame_encoder::EncodeError::NoMem => Self::OtherReason("No enough memory".to_owned()),
             mp3lame_encoder::EncodeError::InvalidState => Self::InvalidArguments("Invalid state".to_owned()),
             mp3lame_encoder::EncodeError::PsychoAcoustic => Self::InvalidArguments("Psycho acoustic problems".to_owned()),
-            mp3lame_encoder::EncodeError::Other(c_int) => Self::OtherReason(format!("Other lame error code: {}", c_int)),
+            mp3lame_encoder::EncodeError::Other(c_int) => Self::OtherReason(format!("Other lame error code: {c_int}")),
         }
     }
 }
