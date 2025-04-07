@@ -127,9 +127,12 @@ impl WaveReader {
         junk_chunks = Vec::<JunkChunk>::new();
 
         // 循环处理 WAV 中的各种各样的小节
+        let mut last_flag: [u8; 4];
+        let mut chunk = ChunkHeader::new();
         while reader.stream_position()? < riff_end {
             let chunk_position = reader.stream_position()?;
-            let chunk = ChunkHeader::read(&mut reader)?;
+            last_flag = chunk.flag;
+            chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
                 b"JUNK" => {
                     let mut junk = vec![0; chunk.size as usize];
@@ -212,7 +215,11 @@ impl WaveReader {
                 // 曾经发现 BFDi 块，结果发现它是 BFD Player 生成的字符串块，里面大约是软件序列号之类的内容。
                 // 所以此处就不记载 BFDi 块的信息了。
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: {}", text_encoding.decode_flags(other));
+                    println!("Unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], 0x{:x}",
+                             text_encoding.decode_flags(other),
+                             other[0], other[1], other[2], other[3],
+                             chunk_position);
+                    println!("The last chunk is '{}'", text_encoding.decode_flags(&last_flag))
                 },
             }
             // 跳到下一个块的开始位置
