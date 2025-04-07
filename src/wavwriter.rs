@@ -456,6 +456,11 @@ impl WaveWriter {
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             self.encoder.finalize(writer)?;
 
+        // 结束写入 data
+        if let Some(ref mut data_chunk) = self.data_chunk {
+            data_chunk.end()?;
+            self.data_chunk = None;
+        }
             // 记录 data 末尾的位置
             let end_of_data = writer.stream_position()?;
 
@@ -477,8 +482,6 @@ impl WaveWriter {
             Ok(())
         })?;
 
-        // 结束对 data 块的写入
-        self.data_chunk = None;
         
         // 写入其它全部的结构体块
         if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone(), &self.text_encoding)?; }
