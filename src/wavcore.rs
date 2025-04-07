@@ -648,12 +648,18 @@ impl FmtChunk {
 impl FmtChunkAdpcmData {
     pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
-        Ok(Self{
-            samples_per_block: u16::read_le(reader)?,
-        })
+        let size = u16::read_le(reader)?;
+        if size != 2 {
+            Err(AudioReadError::UnexpectedFlag(2.to_string(), size.to_string()))
+        } else {
+            Ok(Self{
+                samples_per_block: u16::read_le(reader)?,
+            })
+        }
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        2u16.write_le(writer)?;
         self.samples_per_block.write_le(writer)?;
         Ok(())
     }
