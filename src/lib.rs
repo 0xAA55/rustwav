@@ -19,7 +19,7 @@ pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use encoders::EncoderToImpl;
 pub use encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 pub use decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap};
-pub use adpcm::{AdpcmCodecTypes, AdpcmCodec};
+pub use adpcm::{AdpcmCodec};
 pub use adpcm::{AdpcmEncoder, AdpcmEncoderBS, AdpcmEncoderOKI, AdpcmEncoderOKI6258, AdpcmEncoderYMA, AdpcmEncoderYMB, AdpcmEncoderYMZ, AdpcmEncoderAICA};
 pub use adpcm::{AdpcmDecoder, AdpcmDecoderBS, AdpcmDecoderOKI, AdpcmDecoderOKI6258, AdpcmDecoderYMA, AdpcmDecoderYMB, AdpcmDecoderYMZ, AdpcmDecoderAICA};
 pub use adpcm::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA, EncIMA};
