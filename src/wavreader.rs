@@ -9,7 +9,7 @@ use crate::{AudioReadError};
 use crate::{Spec};
 use crate::{ChunkHeader};
 use crate::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap};
+use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
 use crate::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::FileHasher;
@@ -328,6 +328,42 @@ impl WaveReader {
     }
 }
 
+fn create_decoder<S>(reader: Box<dyn Reader>, sample_rate: u32, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact: u32) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+where S: SampleType {
+    use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
+    const TAG_BS: u16 = Bs as u16;
+    const TAG_OKI: u16 = Oki as u16;
+    const TAG_OKI6258: u16 = Oki6258 as u16;
+    const TAG_YMA: u16 = Yma as u16;
+    const TAG_YMB: u16 = Ymb as u16;
+    const TAG_YMZ: u16 = Ymz as u16;
+    const TAG_AICA: u16 = Aica as u16;
+    match fmt.format_tag {
+        1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
+        TAG_BS => Ok(Box::new(AdpcmDecoderWrap::<DecBS>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_OKI => Ok(Box::new(AdpcmDecoderWrap::<DecOKI>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_OKI6258 => Ok(Box::new(AdpcmDecoderWrap::<DecOKI6258>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_YMA => Ok(Box::new(AdpcmDecoderWrap::<DecYMA>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_YMB => Ok(Box::new(AdpcmDecoderWrap::<DecYMB>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_YMZ => Ok(Box::new(AdpcmDecoderWrap::<DecYMZ>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_AICA => Ok(Box::new(AdpcmDecoderWrap::<DecAICA>::new(reader, data_offset, data_length, fmt)?)),
+        0x0055 => {
+            #[cfg(not(feature = "mp3dec"))]
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
+            #[cfg(feature = "mp3dec")]
+            {Ok(Box::new(Mp3Decoder::new(reader, sample_rate, data_offset, data_length, false)?))}
+        },
+        0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
+        },
+        0xF1AC => { // FLAC
+            // #[cfg(not(feature = "flac"))]
+            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")));
+        },
+        other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
+    }
+}
+
 // 莽夫式 PathBuf 转换为字符串
 fn savage_path_buf_to_string(filepath: &Path) -> String {
     match filepath.to_str() {
@@ -432,28 +468,6 @@ impl WaveDataReader {
         let mut file = File::open(&self.filepath)?;
         file.seek(SeekFrom::Start(self.offset))?;
         Ok(file)
-    }
-}
-
-fn create_decoder<S>(reader: Box<dyn Reader>, sample_rate: u32, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact: u32) -> Result<Box<dyn Decoder<S>>, AudioReadError>
-where S: SampleType {
-    match fmt.format_tag {
-        1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
-        0x0010 =>  Ok(Box::new(AdpcmDecoderWrap::<DecOKI>::new(reader, data_offset, data_length, fmt)?)),
-        0x0055 => {
-            #[cfg(not(feature = "mp3dec"))]
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
-            #[cfg(feature = "mp3dec")]
-            {Ok(Box::new(Mp3Decoder::new(reader, sample_rate, data_offset, data_length, false)?))}
-        },
-        0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
-        },
-        0xF1AC => { // FLAC
-            // #[cfg(not(feature = "flac"))]
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")));
-        },
-        other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
     }
 }
 
