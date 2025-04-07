@@ -526,6 +526,8 @@ where E: adpcm::AdpcmEncoder {
     buffer_r: Vec<u8>,
 }
 
+const MAX_BUFFER_USAGE: usize = 1024;
+
 impl<E> AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     pub fn new(sample_rate: u32, is_stereo: bool) -> Self {
@@ -541,24 +543,37 @@ where E: adpcm::AdpcmEncoder {
         }
     }
 
-    fn flush_stereo(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+    fn get_interleave_bytes(&self) -> usize {
+        self.encoder_l.get_interleave_bytes()
+    }
+
+    fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         let mut interleaved = Vec::<u8>::new();
+        let interleave_bytes = self.get_interleave_bytes();
         if self.is_stereo {
             let min_len = cmp::min(self.buffer_l.len(), self.buffer_r.len());
-            if min_len > 0 {
-                for i in 0..min_len {
-                    interleaved.push(self.buffer_l[i]);
-                    interleaved.push(self.buffer_r[i]);
+            if min_len >= interleave_bytes {
+                let mut written = 0;
+                for i in (0..min_len).step_by(interleave_bytes) {
+                    if i + interleave_bytes <= min_len {
+                        for j in 0..interleave_bytes {
+                            interleaved.push(self.buffer_l[i + j]);
+                        }
+                        for j in 0..interleave_bytes {
+                            interleaved.push(self.buffer_r[i + j]);
+                        }
+                        written += interleave_bytes;
+                    }
                 }
                 writer.write_all(&interleaved)?;
                 self.bytes_written += interleaved.len() as u64;
-                if self.buffer_l.len() > min_len {
-                    self.buffer_l = self.buffer_l.clone().into_iter().skip(min_len).collect();
+                if self.buffer_l.len() > written {
+                    self.buffer_l = self.buffer_l[written..].to_vec();
                 } else {
                     self.buffer_l.clear();
                 }
-                if self.buffer_r.len() > min_len {
-                    self.buffer_r = self.buffer_r.clone().into_iter().skip(min_len).collect();
+                if self.buffer_r.len() > written {
+                    self.buffer_r = self.buffer_r[written..].to_vec();
                 } else {
                     self.buffer_r.clear();
                 }
@@ -579,12 +594,17 @@ where E: adpcm::AdpcmEncoder {
             let mut mono_r = mono_r.into_iter();
             self.encoder_l.encode(|| -> Option<i16> { mono_l.next() }, |byte: u8|{ self.buffer_l.push(byte); })?;
             self.encoder_r.encode(|| -> Option<i16> { mono_r.next() }, |byte: u8|{ self.buffer_r.push(byte); })?;
+            if self.buffer_l.len() > MAX_BUFFER_USAGE || self.buffer_r.len() > MAX_BUFFER_USAGE {
+                self.flush_buffers(writer)?;
+            }
         } else {
             let mut iter = samples.iter().copied();
             self.encoder_l.encode(|| -> Option<i16> { iter.next()}, |byte: u8|{ self.buffer_l.push(byte); })?;
+            if self.buffer_l.len() >= MAX_BUFFER_USAGE {
+                self.flush_buffers(writer)?;
+            }
         }
         self.samples_written += samples.len() as u64;
-        self.flush_stereo(writer)?;
         Ok(())
     }
 
@@ -599,7 +619,9 @@ where E: adpcm::AdpcmEncoder {
         self.encoder_r.encode(|| -> Option<i16> { ri.next() }, |byte: u8|{ self.buffer_r.push(byte);})?;
         self.samples_written += ll as u64;
         self.samples_written += rl as u64;
-        self.flush_stereo(writer)?;
+        if self.buffer_l.len() >= MAX_BUFFER_USAGE || self.buffer_r.len() >= MAX_BUFFER_USAGE {
+            self.flush_buffers(writer)?;
+        }
         Ok(())
     }
 }
