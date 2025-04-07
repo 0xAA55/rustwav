@@ -511,7 +511,6 @@ impl ChunkHeader {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
 pub struct FmtChunk {
     pub format_tag: u16, // https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h
     pub channels: u16,
@@ -519,12 +518,23 @@ pub struct FmtChunk {
     pub byte_rate: u32,
     pub block_align: u16,
     pub bits_per_sample: u16,
-    pub extension: Option<FmtChunkExtension>,
+    pub extension: FmtChunkExtension,
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
-pub struct FmtChunkExtension {
+pub enum FmtChunkExtension {
+    None,
+    AdpcmData(FmtChunkAdpcmData),
+    Extensible(FmtChunkExtensible),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FmtChunkAdpcmData{
+    pub samples_per_block: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FmtChunkExtensible {
     pub ext_len: u16,
     pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
@@ -543,10 +553,16 @@ impl FmtChunk {
             bits_per_sample: u16::read_le(reader)?,
             extension: None,
         };
+        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         match ret.format_tag {
+            TAG_ADPCM_IMA => {
+                if chunk_size >= 18 {
+                    ret.extension = FmtChunkExtension::AdpcmData(FmtChunkAdpcmData::read(reader)?);
+                }
+            },
             0xFFFE => {
                 if chunk_size >= 40 {
-                    ret.extension = Some(FmtChunkExtension::read(reader)?);
+                    ret.extension = FmtChunkExtension::Extensible(FmtChunkExtensible::read(reader)?);
                 }
             },
             _ => (),
@@ -606,7 +622,21 @@ impl FmtChunk {
     }
 }
 
-impl FmtChunkExtension {
+impl FmtChunkAdpcmData {
+    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
+    where R: Reader {
+        Ok(Self{
+            samples_per_block: u16::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.samples_per_block.write_le(writer)?;
+        Ok(())
+    }
+}
+
+impl FmtChunkExtensible {
     pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         Ok(Self{
