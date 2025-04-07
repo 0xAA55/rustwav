@@ -18,17 +18,20 @@ pub enum DataFormat{
 }
 
 // 这些编码是乱写的
+// TODO
+// 这几个东西有杂音有可能是因为压缩后存储的样本大小不对。
+// 虽然压缩后输出的是 u8，但是 IMA 是按每 u32 交错存储多声道的。
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 pub enum AdpcmSubFormat {
     Bs = 0xFFF6,
-    Oki = 0xFFF7,
+    Oki = 0x0010,
     Oki6258 = 0xFFF8,
     Yma = 0xFFF9,
     Ymb = 0xFFFA,
     Ymz = 0xFFFB,
     Aica = 0xFFFC,
-    Ima = 0x0017,
+    Ima = 0x0011,
 }
 
 impl std::convert::Into<u16> for AdpcmSubFormat {
