@@ -353,197 +353,193 @@ where D: adpcm::AdpcmDecoder {
 
 #[cfg(feature = "mp3dec")]
 pub mod MP3 {
-    use std::{io::Seek, fmt::Debug};
-    use puremp3::{Frame, FrameHeader, Channels};
+    use std::{io::{Read, SeekFrom}, fmt::Debug};
+    use rmp3::{DecoderOwned, Frame};
     use crate::errors::AudioReadError;
     use crate::readwrite::Reader;
     use crate::sampleutils::{SampleType};
 
-    type TheDecoder = puremp3::Mp3Decoder<Box<dyn Reader>>;
-
     pub struct Mp3Decoder {
         target_sample_format: u32,
-        data_offset: u64,
-        data_length: u64,
-        the_decoder: TheDecoder,
-        cur_frame: Frame,
-        sample_index: usize,
-        num_frames: u64,
-        print_debug: bool,
+        target_channels: u16,
+        the_decoder: DecoderOwned<Vec<u8>>,
+        cur_frame: Option<Mp3AudioData>,
+        frame_index: u64,
+    }
+
+    impl Debug for Mp3Decoder{
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Mp3Decoder")
+                .field("target_sample_format", &self.target_sample_format)
+                .field("target_channels", &self.target_channels)
+                .field("the_decoder", &format_args!("DecoderOwned<Vec<u8>>"))
+                .field("cur_frame", &self.cur_frame)
+                .field("frame_index", &self.frame_index)
+                .finish()
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct Mp3AudioData {
+        pub bitrate: u32,
+        pub channels: u16,
+        pub mpeg_layer: u8,
+        pub sample_rate: u32,
+        pub sample_count: usize,
+        pub samples: Vec<i16>,
+        pub buffer_index: usize,
+    }
+
+    impl Debug for Mp3AudioData{
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Mp3AudioData")
+                .field("bitrate", &self.bitrate)
+                .field("channels", &self.channels)
+                .field("mpeg_layer", &self.mpeg_layer)
+                .field("sample_rate", &self.sample_rate)
+                .field("sample_count", &self.sample_count)
+                .field("samples", &format_args!("[i16; {}]", self.samples.len()))
+                .field("buffer_index", &self.buffer_index)
+                .finish_non_exhaustive()
+        }
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, data_offset: u64, data_length: u64, print_debug: bool) -> Result<Self, AudioReadError> {
-            let mut the_decoder = puremp3::Mp3Decoder::new(reader);
-            let cur_frame = the_decoder.next_frame()?;
-            let num_frames = 1;
-            Ok(Self {
+        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, target_channels: u16, data_offset: u64, data_length: u64) -> Result<Self, AudioReadError> {
+            let mut reader = reader;
+            let mut mp3_raw_data = Vec::<u8>::new();
+            mp3_raw_data.resize(data_length as usize, 0u8);
+            reader.seek(SeekFrom::Start(data_offset))?;
+            reader.read_exact(&mut mp3_raw_data)?;
+            let the_decoder = rmp3::DecoderOwned::new(mp3_raw_data);
+            let mut ret = Self {
                 target_sample_format,
-                data_offset,
-                data_length,
+                target_channels,
                 the_decoder,
-                cur_frame,
-                sample_index: 0,
-                num_frames,
-                print_debug,
-            })
+                cur_frame: None,
+                frame_index: 0,
+            };
+            ret.cur_frame = ret.get_next_frame();
+            Ok(ret)
+        }
+
+        fn get_next_frame(&mut self) -> Option<Mp3AudioData> {
+            while let Some(frame) = self.the_decoder.next() {
+                if let Frame::Audio(audio) = frame {
+                    self.frame_index += 1;
+                    return Some(Mp3AudioData{
+                        bitrate: audio.bitrate(),
+                        channels: audio.channels(),
+                        mpeg_layer: audio.mpeg_layer(),
+                        sample_rate: audio.sample_rate(),
+                        sample_count: audio.sample_count(),
+                        samples: audio.samples().to_vec(),
+                        buffer_index: 0,
+                    });
+                }
+            }
+            None
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            self.target_channels
         }
 
         pub fn get_sample_rate(&self) -> u32 {
             self.target_sample_format
         }
 
-        pub fn get_frame_sample_rate(&self) -> u32 {
-            self.cur_frame.header.sample_rate.hz()
+        pub fn get_cur_frame(&self) -> &Option<Mp3AudioData> {
+            &self.cur_frame
         }
 
-        pub fn get_channels(&self) -> u16 {
-            match self.cur_frame.header.channels {
-                Channels::Mono => 1,
-                Channels::DualMono => 2,
-                Channels::Stereo => 2,
-                Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ } => 2,
+        pub fn decode_mono_raw(&mut self) -> Result<Option<i16>, AudioReadError> {
+            match self.cur_frame {
+                None => Ok(None),
+                Some(ref mut frame) => {
+                    match frame.channels {
+                        1 => {
+                            let sample = frame.samples[frame.buffer_index];
+                            frame.buffer_index += 1;
+                            if frame.buffer_index >= frame.sample_count {
+                                self.cur_frame = self.get_next_frame();
+                            }
+                            Ok(Some(sample))
+                        },
+                        2 => {
+                            let l = frame.samples[frame.buffer_index * 2];
+                            let r = frame.samples[frame.buffer_index * 2 + 1];
+                            frame.buffer_index += 1;
+                            if frame.buffer_index >= frame.sample_count {
+                                self.cur_frame = self.get_next_frame();
+                            }
+                            Ok(Some(((l as i32 +  r as i32) / 2i32) as i16))
+                        },
+                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                    }
+                }
             }
         }
 
-        fn next_mp3_frame(&mut self) -> Result<bool, AudioReadError> {
-            loop {
-                let reader = self.the_decoder.get_mut();
-                if reader.stream_position()? >= self.data_offset + self.data_length {
-                    // 真正完成读取
-                    return Ok(false)
+        pub fn decode_stereo_raw(&mut self) -> Result<Option<(i16, i16)>, AudioReadError> {
+            match self.cur_frame {
+                None => Ok(None),
+                Some(ref mut frame) => {
+                    match frame.channels {
+                        1 => {
+                            let sample = frame.samples[frame.buffer_index];
+                            frame.buffer_index += 1;
+                            if frame.buffer_index >= frame.sample_count {
+                                self.cur_frame = self.get_next_frame();
+                            }
+                            Ok(Some((sample, sample)))
+                        },
+                        2 => {
+                            let l = frame.samples[frame.buffer_index * 2];
+                            let r = frame.samples[frame.buffer_index * 2 + 1];
+                            frame.buffer_index += 1;
+                            if frame.buffer_index >= frame.sample_count {
+                                self.cur_frame = self.get_next_frame();
+                            }
+                            Ok(Some((l, r)))
+                        },
+                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                    }
                 }
-                match self.the_decoder.next_frame() {
-                    Ok(frame) => {
-                        // 下一个 Frame
-                        // TODO:
-                        // 检测 Frame 里面的参数变化，比如采样率和声道数的变化，如果采样率变化了，要做 resample。如果声道数变化了，要做声道数处理。
-                        self.cur_frame = frame;
-                        break;
-                    },
-                    Err(err) => {
-                        match err {
-                            puremp3::Error::Mp3Error(_) => {
-                                if self.print_debug {
-                                    eprintln!("Mp3Error: {:?}", err);
-                                }
-                                return Err(err.into())
-                            },
-                            puremp3::Error::IoError(_) => {
-                                // 返回去强制重新读取帧，直到读取位置达到 MP3 文件长度为止
-                                continue;
-                            },
-                        }
-                    },
-                };
-            }
-            self.num_frames += 1;
-            self.sample_index = 0;
-            Ok(true)
-        }
-
-        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-        where S: SampleType {
-            let cur_frame = &self.cur_frame;
-            if self.sample_index < cur_frame.num_samples {
-                let (l, r) = (
-                    cur_frame.samples[0][self.sample_index],
-                    cur_frame.samples[1][self.sample_index]
-                );
-                self.sample_index += 1;
-                let l = S::from(l);
-                let r = S::from(r);
-                Ok(Some((l, r)))
-            } else {
-                match self.next_mp3_frame()? {
-                    false => return Ok(None),
-                    true => (),
-                }
-                self.decode_stereo::<S>()
             }
         }
 
         pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
         where S: SampleType {
-            let cur_frame = &self.cur_frame;
-            if self.sample_index < cur_frame.num_samples {
-                let (l, r) = (
-                    cur_frame.samples[0][self.sample_index],
-                    cur_frame.samples[1][self.sample_index]
-                );
-                self.sample_index += 1;
-                let m = S::from((l + r) * 0.5);
-                Ok(Some(m))
-            } else {
-                match self.next_mp3_frame()? {
-                    false => return Ok(None),
-                    true => (),
-                }
-                self.decode_mono::<S>()
+            match self.decode_mono_raw()? {
+                None => Ok(None),
+                Some(s) => {
+                    Ok(Some(S::from(s)))
+                },
+            }
+        }
+
+        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+        where S: SampleType {
+            match self.decode_stereo_raw()? {
+                None => Ok(None),
+                Some((l, r)) => Ok(Some((S::from(l), S::from(r)))),
             }
         }
 
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
-            let cur_frame = &self.cur_frame;
-            if self.sample_index < cur_frame.num_samples {
-                let (l, r) = (
-                    cur_frame.samples[0][self.sample_index],
-                    cur_frame.samples[1][self.sample_index]
-                );
-                self.sample_index += 1;
-                let m = S::from((l + r) * 0.5);
-                let l = S::from(l);
-                let r = S::from(r);
-                match cur_frame.header.channels {
-                    Channels::Mono => Ok(Some(vec![m])),
-                    Channels::DualMono => Ok(Some(vec![l, r])),
-                    Channels::Stereo => Ok(Some(vec![l, r])),
-                    Channels::JointStereo{ intensity_stereo: _, mid_side_stereo: _ } => Ok(Some(vec![l, r])),
-                }
-            } else {
-                match self.next_mp3_frame()? {
-                    false => return Ok(None),
-                    true => (),
-                }
-                self.decode_frame::<S>()
+            let stereo = self.decode_stereo::<S>()?;
+            match stereo {
+                None => Ok(None),
+                Some((l, r)) => {
+                    match self.target_channels {
+                        1 => Ok(Some(vec![S::from(l)])),
+                        2 => Ok(Some(vec![S::from(l), S::from(r)])),
+                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                    }
+                },
             }
-        }
-    }
-
-    struct FakeFrame {
-        header: FrameHeader,
-        num_samples: usize,
-    }
-
-    impl FakeFrame {
-        fn from(frame: &Frame) -> Self{
-            Self {
-                header: frame.header.clone(),
-                num_samples: frame.num_samples,
-            }
-        }
-    }
-
-    impl Debug for Mp3Decoder{
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("Mp3Decoder")
-                .field("data_offset", &self.data_offset)
-                .field("data_length", &self.data_length)
-                .field("iterator", &format_args!("Iterator<Item = Frame>"))
-                .field("cur_frame", &FakeFrame::from(&self.cur_frame))
-                .field("sample_index", &self.sample_index)
-                .finish()
-        }
-    }
-
-    impl Debug for FakeFrame {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("Frame")
-                .field("header", &self.header)
-                .field("samples", &format_args!("[[f32; 1152]; 2]"))
-                .field("num_samples", &self.num_samples)
-                .finish()
         }
     }
 }
