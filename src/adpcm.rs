@@ -6,11 +6,17 @@ use std::{io, fmt::Debug};
 pub trait AdpcmEncoder: Debug {
     fn new() -> Self;
     fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
+    fn get_interleave_bytes(&self) -> usize {
+        4
+    }
 }
 
 pub trait AdpcmDecoder: Debug {
     fn new() -> Self;
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
+    fn get_interleave_bytes(&self) -> usize {
+        4
+    }
 }
 
 pub trait AdpcmCodec: AdpcmEncoder + AdpcmDecoder {}
