@@ -14,7 +14,7 @@ pub enum AudioReadError {
     FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
     DataCorrupted(String), // 格式也许是正确的，但是数据是错误的
     Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
-    Unsupported(String), // 不支持的写入格式
+    Unsupported(String), // 不支持的格式
     UnexpectedFlag(String, String), // 没有预料到的符号
     StringDecodeError(Vec<u8>), // 字符串解码错误
     OtherReason(String), // 不知道的问题
