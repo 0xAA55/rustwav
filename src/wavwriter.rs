@@ -156,62 +156,64 @@ impl WaveWriter {
         let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
         ext |= self.spec.channels > 2;
 
-        let fmt__chunk = FmtChunk {
-            format_tag: match &self.data_format {
-                DataFormat::Pcm => {
-                    use SampleFormat::{Unknown, Float, UInt, Int};
-                    match self.spec.sample_format {
-                        Unknown => return Err(AudioWriteError::InvalidArguments("Please check `spec.sample_format` is not set to `Unknown`".to_owned())),
-                        Int | UInt => {
-                            match ext {
-                                false => 1,
-                                true => 0xFFFE,
-                            }
-                        },
-                        Float => {
-                            match ext {
-                                false => 3,
-                                true => {
-                                    match self.spec.bits_per_sample {
-                                        32 | 64 => 0xFFFE,
-                                        other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other))),
-                                    }
-                                },
-                            }
-                        },
-                    }
-                },
-                DataFormat::Adpcm(sub_format) => {
-                    use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
-                    ext = false;
-                    self.frame_size = 1;
-                    self.spec.bits_per_sample = 8;
-                    match sub_format {
-                        // Bs,
-                        Oki => 0x0010,
-                        Oki6258 => 0x0017,
-                        Yma => 0x0020,
-                        // Ymb,
-                        // Ymz,
-                        // Aica,
-                        other => return Err(AudioWriteError::InvalidArguments(format!("Could not find a format tag for {other}."))),
-                    }
-                },
-                DataFormat::Mp3 => {
-                    ext = false;
-                    self.frame_size = 1;
-                    self.spec.bits_per_sample = 0;
-                    0x0055
-                },
-                DataFormat::OggVorbis => {
-                    ext = false;
-                    0x674f
-                },
-                DataFormat::Flac => {
-                    ext = false;
-                    0xF1AC
+        let format_tag = match &self.data_format {
+            DataFormat::Pcm => {
+                use SampleFormat::{Unknown, Float, UInt, Int};
+                match self.spec.sample_format {
+                    Unknown => return Err(AudioWriteError::InvalidArguments("Please check `spec.sample_format` is not set to `Unknown`".to_owned())),
+                    Int | UInt => {
+                        match ext {
+                            false => 1,
+                            true => 0xFFFE,
+                        }
+                    },
+                    Float => {
+                        match ext {
+                            false => 3,
+                            true => {
+                                match self.spec.bits_per_sample {
+                                    32 | 64 => 0xFFFE,
+                                    other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other))),
+                                }
+                            },
+                        }
+                    },
                 }
             },
+            DataFormat::Adpcm(sub_format) => {
+                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
+                ext = false;
+                self.frame_size = 1;
+                self.spec.bits_per_sample = 8;
+                match sub_format {
+                    // Bs,
+                    Oki => 0x0010, // 噪音
+                    // Oki6258 => 0x0017, // 噪音
+                    // Yma => 0x0020, // 噪音
+                    // Ymb,
+                    // Ymz,
+                    // Aica,
+                    other => return Err(AudioWriteError::InvalidArguments(format!("Could not find a format tag for {other}."))),
+                }
+            },
+            DataFormat::Mp3 => {
+                ext = false;
+                self.frame_size = 1;
+                self.spec.bits_per_sample = 0;
+                0x0055
+            },
+            DataFormat::OggVorbis => {
+                ext = false;
+                0x674f
+            },
+            DataFormat::Flac => {
+                ext = false;
+                0xF1AC
+            }
+        };
+
+        let fmt__chunk = FmtChunk {
+            format_tag,
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
             byte_rate: self.encoder.get_bit_rate() / 8,
