@@ -918,7 +918,7 @@ pub mod aica {
 }
 
 pub mod ima {
-    use std::{io::{self}, cmp::{max, min}};
+    use std::{io::{self}, cmp::min};
 
     use super::AdpcmEncoder;
     use super::AdpcmDecoder;
@@ -926,20 +926,9 @@ pub mod ima {
     const IMAADPCM_ALIGNMENT: usize = 16;
     const IMAADPCMWAVENCODER_HEADER_SIZE: usize = 60;
 
-    fn imaadpcm_round_up(val: u64, n: u64) -> u64 {
-        (((val + (n - 1)) / n) * n)
-    }
-
-    fn imaadpcm_calculate_datasize_byte(num_samples: u64, bits_per_sample: u16) -> u64 {
-        imaadpcm_round_up((num_samples) * (bits_per_sample), 8) / 8)
-    }
-
+    #[derive(Debug)]
     pub enum ImaAdpcmError {
-        UnknownError(String), // 未知错误
         InvalidArgument(String), // 参数错误
-        InvalidFormat(String), // 错误格式
-        InsufficientBuffer, // 缓冲区不足
-        InsufficientData, // 数据不足
     }
 
     impl std::error::Error for ImaAdpcmError {}
@@ -947,21 +936,17 @@ pub mod ima {
     impl std::fmt::Display for ImaAdpcmError {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             match self {
-                Self::UnknownError(info) => write!(f, "Unknown error: {info}"),
-                Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
-                Self::InvalidFormat(info) => write!(f, "Invalid format: {info}"),
-                Self::InsufficientBuffer => write!(f, "Insufficient buffer"),
-                Self::InsufficientData => write!(f, "Insufficient data"),
+                Self::InvalidArgument(info) => write!(f, "Invalid arguments: {info}"),
             }
         }
     }
 
-    const IMAADPCM_INDEX_TABLE: [i8; 16] = {
+    const IMAADPCM_INDEX_TABLE: [i8; 16] = [
         -1, -1, -1, -1, 2, 4, 6, 8, 
         -1, -1, -1, -1, 2, 4, 6, 8 
-    };
+    ];
 
-    const IMAADPCM_STEPSIZE_TABLE[u16; 89] = {
+    const IMAADPCM_STEPSIZE_TABLE: [u16; 89] = [
         7,     8,     9,     10,    11,    12,    13,    14, 
         16,    17,    19,    21,    23,    25,    28,    31, 
         34,    37,    41,    45,    50,    55,    60,    66,
@@ -974,32 +959,190 @@ pub mod ima {
         7132,  7845,  8630,  9493,  10442, 11487, 12635, 13899,
         15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
         32767
-    };
+    ];
 
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder {
         prev_sample: i16,
         stepsize_index: i8,
+        nibble: [u8; 2],
+        nibble_index: u8,
+        header_written: bool,
     }
 
+    impl Encoder{
+        // 编一个码
+        pub fn encode_sample(&mut self, sample: i16) -> u8 {
+            let mut prev = self.prev_sample as i32;
+            let idx = self.stepsize_index;
+            let stepsize = IMAADPCM_STEPSIZE_TABLE[idx as usize] as i32;
+            let diff = sample as i32 - prev;
+            let sign = diff < 0;
+            let diffabs = diff.abs();
+            let mut nibble = min((diffabs << 2) / stepsize, 7) as u8;
+            if sign {
+                nibble |= 8;
+            }
+            let delta = (nibble & 7) as i32;
+            let qdiff = (stepsize * ((delta << 1) + 1)) >> 3;
+            if sign {
+                prev -= qdiff;
+            } else {
+                prev += qdiff;
+            }
+            prev = prev.clamp(-32768, 32767);
+            let idx = (idx + IMAADPCM_INDEX_TABLE[nibble as usize]).clamp(0, 88);
+            self.prev_sample = prev as i16;
+            self.stepsize_index = idx;
+            nibble
+        }
+    }
+
+    impl AdpcmEncoder for Encoder {
+        fn new() -> Self {
+            Self {
+                prev_sample: 0,
+                stepsize_index: 0,
+                nibble: [0u8; 2],
+                nibble_index: 0,
+                header_written: false,
+            }
+        }
+
+        // 编码器逻辑
+        // 一开始输出 4 字节的头部信息
+        // 然后每两个样本转一个码
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            if !self.header_written {
+                // 写出 4 字节头部
+                let buf = self.prev_sample.to_le_bytes();
+                output(buf[0]);
+                output(buf[1]);
+                output(self.stepsize_index as u8);
+                output(0);
+                self.header_written = true;
+            }
+
+            // 开始编码，这里就不管是否一定要输出够 4 个字节了。
+            while let Some(sample) = input() {
+                self.nibble[self.nibble_index as usize] = self.encode_sample(sample);
+                self.nibble_index += 1;
+                if self.nibble_index >= 2 {
+                    self.nibble_index = 0;
+                    output(self.nibble[0] | (self.nibble[1] << 4));
+                }
+            }
+            Ok(())
+        }
+
+        fn get_interleave_bytes(&self) -> usize {
+            4
+        }
+    }
+
+    // 解码器逻辑
+    // data 里面是交错存储的 u32
+    // 对于每个声道，第一个 u32 用于初始化解码器
+    // 之后的每个 u32 相当于 4 个字节，能解出 8 个码
     #[derive(Debug, Clone, Copy)]
     pub struct Decoder {
         sample_val: i16,
         stepsize_index: i8,
+        ready: bool,
+        buffer: [u8; 4],
+        bufsize: u8,
     }
 
     impl Decoder{
-        pub fn get_num_samples(fact_data: [u8; 4]) -> u32 {
-            u32::from_le_bytes(fact_data)
+        pub fn get_num_samples(fact_data: &Vec<u8>) -> Result<u64, ImaAdpcmError> {
+            match fact_data.len() {
+                4 => Ok(u32::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3]]) as u64),
+                8 => Ok(u64::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3], fact_data[4], fact_data[5], fact_data[6], fact_data[7]])),
+                other => Err(ImaAdpcmError::InvalidArgument(format!("fact data size should be 4 or 8, not {other}."))),
+            }
+        }
+
+        // 解一个码
+        pub fn decode_sample(&mut self, nibble: u8) -> i16 {
+            let mut predict = self.sample_val as i32;
+            let idx = self.stepsize_index;
+            let stepsize = IMAADPCM_STEPSIZE_TABLE[idx as usize] as i32;
+            let idx = (idx + IMAADPCM_INDEX_TABLE[nibble as usize]).clamp(0, 88);
+            let delta = (nibble & 7) as i32;
+            let qdiff = (stepsize * ((delta << 1) + 1)) >> 3;
+            if (nibble & 8) != 0 {
+                predict -= qdiff;
+            } else {
+                predict += qdiff;
+            }
+            predict = predict.clamp(-32768, 32767);
+            self.sample_val = predict as i16;
+            self.stepsize_index = idx;
+            self.sample_val
+        }
+
+        fn push_buf(&mut self, byte: u8) {
+            self.buffer[self.bufsize as usize] = byte;
+            self.bufsize += 1;
         }
     }
 
-    impl Decoder for AdpcmDecoder {
+    impl AdpcmDecoder for Decoder {
         fn new() -> Self {
             Self {
                 sample_val: 0,
                 stepsize_index: 0,
+                ready: false,
+                buffer: [0u8; 4],
+                bufsize: 0,
             }
+        }
+
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            // 先吃四个字节用来初始化，并输出第一个样本。
+            if !self.ready {
+                while self.bufsize < 4 {
+                    match input() {
+                        Some(byte) => self.push_buf(byte),
+                        None => return Ok(()),
+                    }
+                }
+                self.sample_val = i16::from_le_bytes([self.buffer[0], self.buffer[1]]);
+                self.stepsize_index = self.buffer[2] as i8;
+                if self.buffer[3] != 0 {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "Reserved byte for ADPCM-IMA must be zero."));
+                }
+                self.bufsize = 0;
+                self.ready = true;
+                output(self.sample_val);
+            }
+            // 完成初始化后，每吃一个字节输出两个样本。
+            if self.ready {
+                // 每读取 4 个字节解 8 个码
+                loop {
+                    while self.bufsize < 4 {
+                        match input() {
+                            Some(byte) => self.push_buf(byte),
+                            None => return Ok(()),
+                        }
+                    }
+                    let (b1, b2, b3, b4) = (self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]);
+                    output(self.decode_sample((b1 >> 0) & 0xF));
+                    output(self.decode_sample((b1 >> 4) & 0xF));
+                    output(self.decode_sample((b2 >> 0) & 0xF));
+                    output(self.decode_sample((b2 >> 4) & 0xF));
+                    output(self.decode_sample((b3 >> 0) & 0xF));
+                    output(self.decode_sample((b3 >> 4) & 0xF));
+                    output(self.decode_sample((b4 >> 0) & 0xF));
+                    output(self.decode_sample((b4 >> 4) & 0xF));
+                    self.bufsize = 0;
+                }
+            }
+            Ok(())
+        }
+
+        fn get_interleave_bytes(&self) -> usize {
+            4
         }
     }
 }
