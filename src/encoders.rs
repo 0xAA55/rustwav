@@ -14,7 +14,7 @@ use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_bat
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
 pub trait EncoderToImpl: Debug {
-    fn get_bit_rate(&self) -> u32;
+    fn get_bit_rate(&self, channels: u16) -> u32;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
     fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
@@ -150,7 +150,7 @@ pub trait EncoderToImpl: Debug {
 impl EncoderToImpl for () {
 
     // 这个方法用户必须实现
-    fn get_bit_rate(&self) -> u32 {
+    fn get_bit_rate(&self, _channels: u16) -> u32 {
         panic!("Must implement `get_bit_rate()` for your encoder.");
     }
 
@@ -199,8 +199,8 @@ impl Encoder {
         }
     }
 
-    pub fn get_bit_rate(&self) -> u32 {
-        self.encoder.get_bit_rate()
+    pub fn get_bit_rate(&self, channels: u16) -> u32 {
+        self.encoder.get_bit_rate(channels)
     }
 
     pub fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -445,7 +445,6 @@ where S: SampleType {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PcmEncoder {
-    channels: u16,
     sample_rate: u32,
     sample_type: WaveSampleType,
     writer_from__i8: PcmEncoderFrom< i8>,
@@ -464,9 +463,8 @@ pub struct PcmEncoder {
 
 impl PcmEncoder {
     // target_sample: 要编码进 WAV 的 PCM 具体格式
-    pub fn new(channels: u16, sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
+    pub fn new(sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
         Ok(Self {
-            channels,
             sample_rate,
             sample_type: target_sample,
             writer_from__i8: PcmEncoderFrom::< i8>::new(target_sample)?,
@@ -486,8 +484,8 @@ impl PcmEncoder {
 }
 
 impl EncoderToImpl for PcmEncoder {
-    fn get_bit_rate(&self) -> u32 {
-        self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
+    fn get_bit_rate(&self, channels: u16) -> u32 {
+        channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         Ok(())
@@ -545,6 +543,10 @@ where E: adpcm::AdpcmEncoder {
 
     fn get_interleave_bytes(&self) -> usize {
         self.encoder_l.get_interleave_bytes()
+    }
+
+    fn get_block_size(&self) -> u16 {
+        self.encoder_l.get_block_size()
     }
 
     fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
@@ -628,18 +630,19 @@ where E: adpcm::AdpcmEncoder {
 
 impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
-    fn get_bit_rate(&self) -> u32 {
+    fn get_bit_rate(&self, channels: u16) -> u32 {
         if self.samples_written == 0 {
             self.sample_rate * 8 // 估算
         } else {
-            (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
+            (self.bytes_written / (self.samples_written / (self.sample_rate as u64 * channels as u64))) as u32 * 8
         }
     }
 
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-        fmt.byte_rate = self.get_bit_rate() / 8;
+        fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
+        fmt.block_align = self.get_block_size() * fmt.channels;
         if let FmtChunkExtension::AdpcmData(ref mut adpcm_data) = fmt.extension {
-            adpcm_data.samples_per_block = (self.bytes_written * 8 / (fmt.bits_per_sample * fmt.channels) as u64) as u16;
+            adpcm_data.samples_per_block = fmt.block_align * 2;
         } else {
             return Err(AudioWriteError::OtherReason(format!("For ADPCM format, the `fmt ` chunk must have the corresponding extension block for it (Current is {:?}).", fmt.extension)));
         }
@@ -1144,12 +1147,12 @@ pub mod MP3 {
 
     impl<S> EncoderToImpl for Mp3Encoder<S>
     where S: SampleType {
-        fn get_bit_rate(&self) -> u32 {
-            self.bitrate as u32
+        fn get_bit_rate(&self, channels: u16) -> u32 {
+            self.bitrate as u32 * channels as u32
         }
 
         fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-            fmt.byte_rate = self.get_bit_rate() / 8;
+            fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
             Ok(())
         }
 
