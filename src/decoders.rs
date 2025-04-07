@@ -280,6 +280,22 @@ where D: adpcm::AdpcmDecoder {
         }
     }
 
+    fn safe_read_byte(&mut self) -> u8 {
+        match u8::read_le(&mut self.reader) {
+            Ok(byte) => byte,
+            Err(_) => 0,
+        }
+    }
+
+    fn safe_read_bytes(&mut self) -> Vec<u8> {
+        let interleave_bytes = self.decoder_l.get_interleave_bytes();
+        let mut ret = Vec::<u8>::with_capacity(interleave_bytes);
+        for _ in 0..interleave_bytes {
+            ret.push(self.safe_read_byte());
+        }
+        ret
+    }
+
     pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
     where S: SampleType {
         match self.is_stereo {
@@ -295,9 +311,9 @@ where D: adpcm::AdpcmDecoder {
                     if self.is_end_of_data()? {
                         return Ok(None);
                     } 
-                    // 利用迭代器，每个声道只给它一个数据
-                    let mut l_iter = [u8::read_le(&mut self.reader)?].into_iter();
-                    let mut r_iter = [u8::read_le(&mut self.reader)?].into_iter();
+                    // 利用迭代器，每个声道只给它一个块的数据
+                    let mut l_iter = self.safe_read_bytes().into_iter();
+                    let mut r_iter = self.safe_read_bytes().into_iter();
                     self.decoder_l.decode(
                         || -> Option<u8> {l_iter.next()},
                         |sample: i16| {self.buffer_l.push(sample);})?;
