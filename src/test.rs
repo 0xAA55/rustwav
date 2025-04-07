@@ -44,6 +44,9 @@ use std::process::ExitCode;
 
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
+    #[allow(unused_imports)]
+    use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
+
 
     // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
     let mut wavereader = WaveReader::open(arg1).unwrap();
@@ -60,9 +63,6 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         bits_per_sample: 16, // 设置样本位数
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
-
-    #[allow(unused_imports)]
-    use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
