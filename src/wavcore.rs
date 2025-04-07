@@ -951,22 +951,21 @@ impl ListChunk {
     }
 
     pub fn write_dict(writer_shared: SharedWriter, dict: &HashMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
-        Ok(writer_shared.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            for (key, val) in dict.iter() {
-                if key.len() != 4 {
-                    return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
-                }
-                let mut val = val.clone();
-                val.push('\0');
-                write_str(writer, key, text_encoding)?;
-                (val.len() as u32).write_le(writer)?;
-                write_str(writer, &val, text_encoding)?;
-                if writer.stream_position()? & 1 > 0 {
-                    0u8.write_le(writer)?;
-                }
+        for (key, val) in dict.iter() {
+            if key.len() != 4 {
+                return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
             }
-            Ok(())
-        })?)
+            let mut flag = [0u8; 4];
+            {let mut w: &mut[u8] = &mut flag; w}.write(key.as_bytes())?;
+            let mut cw = ChunkWriter::begin(writer_shared.clone(), &flag)?;
+            let mut val = val.clone();
+            val.push('\0');
+            writer_shared.escorted_write(|writer| -> Result<(), AudioWriteError> {
+                Ok(write_str(writer, &val, text_encoding)?)
+            })?;
+            cw.end()?;
+        }
+        Ok(())
     }
 }
 
