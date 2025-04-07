@@ -8,12 +8,15 @@ use crate::AudioWriteError;
 use crate::WaveSampleType;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
+use crate::{FmtChunk, FmtChunkExtension};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
 pub trait EncoderToImpl: Debug {
-    fn get_bit_rate(&mut self) -> u32;
+    fn get_bit_rate(&self) -> u32;
+    fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
+    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 
     // 这些是最底层的函数，不关声道数，直接写样本，其中除了 f32 版以外都有默认实现。
@@ -147,18 +150,28 @@ pub trait EncoderToImpl: Debug {
 impl EncoderToImpl for () {
 
     // 这个方法用户必须实现
-    fn get_bit_rate(&mut self) -> u32 {
+    fn get_bit_rate(&self) -> u32 {
         panic!("Must implement `get_bit_rate()` for your encoder.");
     }
 
     // 这个方法用户必须实现
-    fn write_samples_f32(&mut self, _writer: &mut dyn Writer, _samples: &[f32]) -> Result<(), AudioWriteError> {
-        panic!("Must atlease implement `write_samples_f32()` for your encoder to get samples.");
+    fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+        panic!("Must implement `update_fmt_chunk()` for your encoder.");
+    }
+
+    // 这个方法用户必须实现
+    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
+        panic!("Must implement `provide_fact_data()` for your encoder.");
     }
 
     // 这个方法用户必须实现
     fn finalize(&mut self, _writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         panic!("Must implement `finalize()` for your encoder to flush the data.");
+    }
+
+    // 这个方法用户必须实现
+    fn write_samples_f32(&mut self, _writer: &mut dyn Writer, _samples: &[f32]) -> Result<(), AudioWriteError> {
+        panic!("Must atlease implement `write_samples_f32()` for your encoder to get samples.");
     }
 
     fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &sample_conv(samples))}
@@ -184,6 +197,22 @@ impl Encoder {
         Self {
             encoder: Box::new(encoder),
         }
+    }
+
+    pub fn get_bit_rate(&self) -> u32 {
+        self.encoder.get_bit_rate()
+    }
+
+    pub fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+        self.encoder.update_fmt_chunk(fmt)
+    }
+
+    pub fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
+        self.encoder.provide_fact_data()
+    }
+
+    pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.encoder.finalize(writer)
     }
 
     pub fn write_samples<S>(&mut self, writer: &mut dyn Writer, samples: &[S]) -> Result<(), AudioWriteError>
@@ -356,14 +385,6 @@ impl Encoder {
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
-
-    pub fn get_bit_rate(&mut self) -> u32 {
-        self.encoder.get_bit_rate()
-    }
-
-    pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.encoder.finalize(writer)
-    }
 }
 
 // PcmEncoderFrom<S>：样本从 S 类型打包到目标类型
@@ -465,6 +486,19 @@ impl PcmEncoder {
 }
 
 impl EncoderToImpl for PcmEncoder {
+    fn get_bit_rate(&self) -> u32 {
+        self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
+    }
+    fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+        Ok(())
+    }
+    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
+        Ok(None)
+    }
+    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        Ok(writer.flush()?)
+    }
+
     fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.writer_from__i8.write_samples(writer, samples)}
     fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.writer_from_i16.write_samples(writer, samples)}
     fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.writer_from_i24.write_samples(writer, samples)}
@@ -477,13 +511,6 @@ impl EncoderToImpl for PcmEncoder {
     fn write_samples_u64(&mut self, writer: &mut dyn Writer, samples: &[u64]) -> Result<(), AudioWriteError> {self.writer_from_u64.write_samples(writer, samples)}
     fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.writer_from_f32.write_samples(writer, samples)}
     fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_samples(writer, samples)}
-
-    fn get_bit_rate(&mut self) -> u32 {
-        self.channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
-    }
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        Ok(writer.flush()?)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -579,6 +606,49 @@ where E: adpcm::AdpcmEncoder {
 
 impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
+    fn get_bit_rate(&self) -> u32 {
+        if self.samples_written == 0 {
+            self.sample_rate * 8 // 估算
+        } else {
+            (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
+        }
+    }
+
+    fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+        fmt.byte_rate = self.get_bit_rate() / 8;
+        if let FmtChunkExtension::AdpcmData(ref mut adpcm_data) = fmt.extension {
+            adpcm_data.samples_per_block = (self.bytes_written * 8 / (fmt.bits_per_sample * fmt.channels) as u64) as u16;
+        } else {
+            return Err(AudioWriteError::OtherReason(format!("For ADPCM format, the `fmt ` chunk must have the corresponding extension block for it (Current is {:?}).", fmt.extension)));
+        }
+        Ok(())
+    }
+
+    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
+        if self.samples_written <= 0xFFFFFFFFu64 {
+            Ok(Some((self.samples_written as u32).to_le_bytes().to_vec()))
+        } else {
+            Ok(Some(self.samples_written.to_le_bytes().to_vec()))
+        }
+    }
+
+    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        let interleave_bytes = self.get_interleave_bytes();
+        if self.is_stereo {
+            while self.buffer_l.len() < self.buffer_r.len() { self.buffer_l.push(0); }
+            while self.buffer_r.len() < self.buffer_l.len() { self.buffer_r.push(0); }
+            let lpad = (interleave_bytes - self.buffer_l.len() % interleave_bytes) % interleave_bytes;
+            let rpad = (interleave_bytes - self.buffer_r.len() % interleave_bytes) % interleave_bytes;
+            for _ in 0..lpad {self.buffer_l.push(0);}
+            for _ in 0..rpad {self.buffer_r.push(0);}
+        } else {
+            let lpad = (interleave_bytes - self.buffer_l.len() % interleave_bytes) % interleave_bytes;
+            for _ in 0..lpad {self.buffer_l.push(0);}
+        }
+        self.flush_buffers(writer)?;
+        Ok(writer.flush()?)
+    }
+
     fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
     fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
     fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
@@ -604,18 +674,6 @@ where E: adpcm::AdpcmEncoder {
     fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
     fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
     fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
-
-    fn get_bit_rate(&mut self) -> u32 {
-        if self.samples_written == 0 {
-            self.sample_rate * 8 // 估算
-        } else {
-            (self.bytes_written / (self.samples_written / (self.sample_rate as u64))) as u32 * 8
-        }
-    }
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.flush_stereo(writer)?;
-        Ok(writer.flush()?)
-    }
 }
 
 #[cfg(feature = "mp3enc")]
@@ -623,6 +681,7 @@ pub mod MP3 {
     use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
     use crate::Writer;
     use crate::{SampleType, i24, u24};
+    use crate::FmtChunk;
     use crate::AudioWriteError;
     use crate::EncoderToImpl;
     use crate::utils::{self, sample_conv, stereos_conv};
@@ -1063,6 +1122,27 @@ pub mod MP3 {
 
     impl<S> EncoderToImpl for Mp3Encoder<S>
     where S: SampleType {
+        fn get_bit_rate(&self) -> u32 {
+            self.bitrate as u32
+        }
+
+        fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+            fmt.byte_rate = self.get_bit_rate() / 8;
+            Ok(())
+        }
+
+        fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
+            if self.samples_written <= 0xFFFFFFFFu64 {
+                Ok(Some((self.samples_written as u32).to_le_bytes().to_vec()))
+            } else {
+                Ok(Some(self.samples_written.to_le_bytes().to_vec()))
+            }
+        }
+
+        fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+            Ok(self.finish(writer)?)
+        }
+
         fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
         fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
         fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
@@ -1088,14 +1168,6 @@ pub mod MP3 {
         fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
         fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
         fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-
-        fn get_bit_rate(&mut self) -> u32 {
-            self.bitrate as u32
-        }
-
-        fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-            Ok(self.finish(writer)?)
-        }
     }
 
     impl Debug for SharedMp3Encoder {
