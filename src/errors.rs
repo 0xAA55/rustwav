@@ -165,21 +165,6 @@ impl From<AudioError> for AudioWriteError {
     }
 }
 
-#[cfg(feature = "mp3dec")]
-impl From<puremp3::Error> for AudioReadError {
-    fn from(err: puremp3::Error) -> Self {
-        match err {
-            puremp3::Error::Mp3Error(mp3err) => {
-                match mp3err {
-                    puremp3::Mp3Error::InvalidData(s) => Self::FormatError(s.to_owned()),
-                    puremp3::Mp3Error::Unsupported(s) => Self::Unsupported(s.to_owned()),
-                }
-            },
-            puremp3::Error::IoError(ioerr) => Self::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
-        }
-    }
-}
-
 #[cfg(feature = "mp3enc")]
 impl From<mp3lame_encoder::BuildError> for AudioWriteError {
     fn from(err: mp3lame_encoder::BuildError) -> Self {
