@@ -9,7 +9,8 @@ use crate::{AudioReadError};
 use crate::{Spec};
 use crate::{ChunkHeader};
 use crate::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Decoder, PcmDecoder};
+use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap};
+use crate::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::FileHasher;
 use crate::{SampleType};
@@ -438,6 +439,7 @@ fn create_decoder<S>(reader: Box<dyn Reader>, sample_rate: u32, data_offset: u64
 where S: SampleType {
     match fmt.format_tag {
         1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
+        0x0010 =>  Ok(Box::new(AdpcmDecoderWrap::<DecOKI>::new(reader, data_offset, data_length, fmt)?)),
         0x0055 => {
             #[cfg(not(feature = "mp3dec"))]
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
