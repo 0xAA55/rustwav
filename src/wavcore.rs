@@ -574,7 +574,7 @@ impl FmtChunk {
             byte_rate: u32::read_le(reader)?,
             block_align: u16::read_le(reader)?,
             bits_per_sample: u16::read_le(reader)?,
-            extension: None,
+            extension: FmtChunkExtension::None,
         };
         const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         match ret.format_tag {
@@ -602,8 +602,10 @@ impl FmtChunk {
             self.byte_rate.write_le(writer)?;
             self.block_align.write_le(writer)?;
             self.bits_per_sample.write_le(writer)?;
-            if let Some(ext) = self.extension {
-                ext.write(writer)?;
+            match self.extension {
+                FmtChunkExtension::AdpcmData(data) => data.write(writer)?,
+                FmtChunkExtension::Extensible(ext) => ext.write(writer)?,
+                _ => (),
             }
             Ok(())
         })?;
@@ -624,14 +626,15 @@ impl FmtChunk {
             (0xFFFE, 24) => Int,
             (0xFFFE, 32) | (0xFFFE, 64) => {
                 match self.extension {
-                    Some(extension) => {
+                    FmtChunkExtension::Extensible(extension) => {
                         match extension.sub_format {
                             GUID_PCM_FORMAT => Int,
                             GUID_IEEE_FLOAT_FORMAT => Float,
                             _ => Unknown, // 由插件系统判断
                         }
                     },
-                    None => Int,
+                    FmtChunkExtension::None => Int,
+                    FmtChunkExtension::AdpcmData(_) => panic!("Unexpected ADPCM data in the `fmt ` chunk without using the ADPCM encoding."),
                 }
             },
             (3, 32) => Float,

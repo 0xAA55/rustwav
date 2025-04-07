@@ -9,7 +9,8 @@ use crate::AudioWriteError;
 use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
-use crate::{FmtChunk, FmtChunkExtensible, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{FmtChunk, FmtChunkExtension, FmtChunkAdpcmData, FmtChunkExtensible};
+use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
@@ -42,6 +43,7 @@ pub struct WaveWriter {
     text_encoding: StringCodecMaps,
     riff_chunk: Option<ChunkWriter>,
     data_chunk: Option<ChunkWriter>,
+    pub fmt__chunk: FmtChunk,
     pub bext_chunk: Option<BextChunk>,
     pub smpl_chunk: Option<SmplChunk>,
     pub inst_chunk: Option<InstChunk>,
@@ -106,6 +108,7 @@ impl WaveWriter {
             sample_type,
             encoder,
             text_encoding: StringCodecMaps::new(),
+            fmt__chunk: FmtChunk::new(),
             riff_chunk: None,
             data_chunk: None,
             bext_chunk: None,
@@ -154,13 +157,14 @@ impl WaveWriter {
             self.spec.guess_channel_mask()?;
         }
 
-        // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
+        let mut fmt_extension = FmtChunkExtension::None;
         let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
         ext |= self.spec.channels > 2;
 
         let format_tag = match &self.data_format {
             DataFormat::Pcm => {
                 use SampleFormat::{Unknown, Float, UInt, Int};
+                // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
                 match self.spec.sample_format {
                     Unknown => return Err(AudioWriteError::InvalidArguments("Please check `spec.sample_format` is not set to `Unknown`".to_owned())),
                     Int | UInt => {
@@ -183,47 +187,45 @@ impl WaveWriter {
                 }
             },
             DataFormat::Adpcm(sub_format) => {
-                ext = false;
-                self.frame_size = 1;
-                self.spec.bits_per_sample = 8;
+                fmt_extension = FmtChunkExtension::AdpcmData(FmtChunkAdpcmData{samples_per_block: 0});
+                self.block_size = 0x400;
+                self.spec.bits_per_sample = 4;
                 (*sub_format) as u16
             },
             DataFormat::Mp3 => {
-                ext = false;
-                self.frame_size = 1;
+                self.block_size = 1;
                 self.spec.bits_per_sample = 0;
                 0x0055
             },
             DataFormat::OggVorbis => {
-                ext = false;
                 0x674f
             },
             DataFormat::Flac => {
-                ext = false;
                 0xF1AC
             }
         };
 
-        let fmt__chunk = FmtChunk {
+        if ext {
+            fmt_extension = FmtChunkExtension::Extensible(FmtChunkExtensible {
+                ext_len: 22,
+                valid_bits_per_sample: self.spec.bits_per_sample,
+                channel_mask: self.spec.channel_mask,
+                sub_format: match self.spec.sample_format {
+                    Int | UInt => GUID_PCM_FORMAT,
+                    Float => GUID_IEEE_FLOAT_FORMAT,
+                    other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other))),
+                },
+            });
+        }
+
+        self.fmt__chunk = FmtChunk {
             format_tag,
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
             byte_rate: self.encoder.get_bit_rate() / 8,
-            block_align: self.frame_size,
+            block_align: self.block_size,
             bits_per_sample: self.spec.bits_per_sample,
-            extension: match ext {
-                false => None,
-                true => Some(FmtChunkExtensible {
-                    ext_len: 22,
-                    valid_bits_per_sample: self.spec.bits_per_sample,
-                    channel_mask: self.spec.channel_mask,
-                    sub_format: match self.spec.sample_format {
-                        Int | UInt => GUID_PCM_FORMAT,
-                        Float => GUID_IEEE_FLOAT_FORMAT,
-                        other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other))),
-                    },
-                }),
-            },
+            extension: fmt_extension,
         };
 
         // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
