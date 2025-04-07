@@ -911,3 +911,91 @@ pub mod aica {
     }
 }
 
+pub mod ima {
+    use std::{io::{self}, cmp::{max, min}};
+
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
+    
+    const IMAADPCM_ALIGNMENT: usize = 16;
+    const IMAADPCMWAVENCODER_HEADER_SIZE: usize = 60;
+
+    fn imaadpcm_round_up(val: u64, n: u64) -> u64 {
+        (((val + (n - 1)) / n) * n)
+    }
+
+    fn imaadpcm_calculate_datasize_byte(num_samples: u64, bits_per_sample: u16) -> u64 {
+        imaadpcm_round_up((num_samples) * (bits_per_sample), 8) / 8)
+    }
+
+    pub enum ImaAdpcmError {
+        UnknownError(String), // 未知错误
+        InvalidArgument(String), // 参数错误
+        InvalidFormat(String), // 错误格式
+        InsufficientBuffer, // 缓冲区不足
+        InsufficientData, // 数据不足
+    }
+
+    impl std::error::Error for ImaAdpcmError {}
+
+    impl std::fmt::Display for ImaAdpcmError {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match self {
+                Self::UnknownError(info) => write!(f, "Unknown error: {info}"),
+                Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
+                Self::InvalidFormat(info) => write!(f, "Invalid format: {info}"),
+                Self::InsufficientBuffer => write!(f, "Insufficient buffer"),
+                Self::InsufficientData => write!(f, "Insufficient data"),
+            }
+        }
+    }
+
+    const IMAADPCM_INDEX_TABLE: [i8; 16] = {
+        -1, -1, -1, -1, 2, 4, 6, 8, 
+        -1, -1, -1, -1, 2, 4, 6, 8 
+    };
+
+    const IMAADPCM_STEPSIZE_TABLE[u16; 89] = {
+        7,     8,     9,     10,    11,    12,    13,    14, 
+        16,    17,    19,    21,    23,    25,    28,    31, 
+        34,    37,    41,    45,    50,    55,    60,    66,
+        73,    80,    88,    97,    107,   118,   130,   143, 
+        157,   173,   190,   209,   230,   253,   279,   307,
+        337,   371,   408,   449,   494,   544,   598,   658,
+        724,   796,   876,   963,   1060,  1166,  1282,  1411, 
+        1552,  1707,  1878,  2066,  2272,  2499,  2749,  3024,
+        3327,  3660,  4026,  4428,  4871,  5358,  5894,  6484,
+        7132,  7845,  8630,  9493,  10442, 11487, 12635, 13899,
+        15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
+        32767
+    };
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Encoder {
+        prev_sample: i16,
+        stepsize_index: i8,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Decoder {
+        sample_val: i16,
+        stepsize_index: i8,
+    }
+
+    impl Decoder{
+        pub fn get_num_samples(fact_data: [u8; 4]) -> u32 {
+            u32::from_le_bytes(fact_data)
+        }
+    }
+
+    impl Decoder for AdpcmDecoder {
+        fn new() -> Self {
+            Self {
+                sample_val: 0,
+                stepsize_index: 0,
+            }
+        }
+    }
+}
+
+
