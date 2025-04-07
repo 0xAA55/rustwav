@@ -452,31 +452,35 @@ impl WaveWriter {
             return Ok(());
         }
 
+        // data 块的最后位置
+        let mut end_of_data: u64 = 0;
+
         // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             self.encoder.finalize(writer)?;
+            Ok(())
+        })?;
 
         // 结束写入 data
         if let Some(ref mut data_chunk) = self.data_chunk {
             data_chunk.end()?;
             self.data_chunk = None;
         }
+
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             // 记录 data 末尾的位置
-            let end_of_data = writer.stream_position()?;
+            end_of_data = writer.stream_position()?;
 
-            // 此时，一些编码器应该已经靠统计数据算出了自己的比特率，此时更新 fmt_chunk
-            let position = self.fmt_chunk_offset;
+            // 找到 fmt 块
+            writer.seek(SeekFrom::Start(self.fmt_chunk_offset))?;
+            Ok(())
+        })?;
 
-            // 跳过 fmt 的 chunk 头
-            let position = position + 8;
+        // 更新 fmt 头部信息，重新写入 fmt 头部
+        self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
+        self.fmt__chunk.write(self.writer.clone())?;
 
-            // 找到 byte_rate 的存储位置
-            let position = position + 8;
-
-            // 写入比特率
-            writer.seek(SeekFrom::Start(position))?;
-            (self.encoder.get_bit_rate() / 8).write_le(writer)?;
-
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             // 回到 data 末尾的位置
             writer.seek(SeekFrom::Start(end_of_data))?;
             Ok(())
