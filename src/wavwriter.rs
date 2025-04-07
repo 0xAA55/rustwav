@@ -4,7 +4,7 @@
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
-use crate::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA};
+use crate::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA, EncIMA};
 use crate::AudioWriteError;
 use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
@@ -76,7 +76,7 @@ impl WaveWriter {
                 Encoder::new(PcmEncoder::new(spec.channels, spec.sample_rate, sample_type)?)
             },
             Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica};
+                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima};
                 let is_stereo = match spec.channels {
                     1 => false,
                     _ => true,
@@ -89,6 +89,7 @@ impl WaveWriter {
                     Ymb => Encoder::new(AdpcmEncoderWrap::<EncYMB>::new(spec.sample_rate, is_stereo)),
                     Ymz => Encoder::new(AdpcmEncoderWrap::<EncYMZ>::new(spec.sample_rate, is_stereo)),
                     Aica => Encoder::new(AdpcmEncoderWrap::<EncAICA>::new(spec.sample_rate, is_stereo)),
+                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(spec.sample_rate, is_stereo)),
                 }
             },
             Mp3 => {
