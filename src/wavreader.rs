@@ -8,7 +8,7 @@ use crate::readwrite;
 use crate::{AudioReadError};
 use crate::{Spec};
 use crate::{ChunkHeader};
-use crate::{FmtChunk, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
 use crate::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA};
 use crate::{StringCodecMaps, SavageStringCodecs};
@@ -224,8 +224,8 @@ impl WaveReader {
         };
 
         let channel_mask = match fmt__chunk.extension {
-            None => wavcore::guess_channel_mask(fmt__chunk.channels)?,
-            Some(extension) => extension.channel_mask,
+            FmtChunkExtension::Extensible(extensible) => extensible.channel_mask,
+            _ => wavcore::guess_channel_mask(fmt__chunk.channels)?,
         };
 
         let frame_size = fmt__chunk.block_align;
