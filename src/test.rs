@@ -67,15 +67,23 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     };
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Oki), NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Ima), NeverLargerThan4GB).unwrap();
 
-    let cached = false;
-    if cached {
-        let stereos = wavereader.stereo_iter::<i16>()?.collect::<Vec<(i16, i16)>>();
-        wavewriter.write_stereos(&stereos)?;
-    } else {
-        for stereo in wavereader.stereo_iter::<i16>()? {
-            wavewriter.write_stereo(stereo)?;
+    match spec.channels {
+        1 => {
+            for stereo in wavereader.mono_iter::<i16>()? {
+                wavewriter.write_mono(stereo)?;
+            }
+        },
+        2 => {
+            for stereo in wavereader.stereo_iter::<i16>()? {
+                wavewriter.write_stereo(stereo)?;
+            }
+        },
+        _ => {
+            for frame in wavereader.frame_iter::<i16>()? {
+                wavewriter.write_frame(&frame)?;
+            }
         }
     }
 
@@ -92,8 +100,22 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
     let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-    for stereo in wavereader_2.stereo_iter::<i16>()? {
-        wavewriter_2.write_stereo(stereo)?;
+    match spec.channels {
+        1 => {
+            for stereo in wavereader_2.mono_iter::<i16>()? {
+                wavewriter_2.write_mono(stereo)?;
+            }
+        },
+        2 => {
+            for stereo in wavereader_2.stereo_iter::<i16>()? {
+                wavewriter_2.write_stereo(stereo)?;
+            }
+        },
+        _ => {
+            for frame in wavereader_2.frame_iter::<i16>()? {
+                wavewriter_2.write_frame(&frame)?;
+            }
+        }
     }
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
