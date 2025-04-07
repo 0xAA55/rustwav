@@ -8,7 +8,7 @@ use crate::AudioWriteError;
 use crate::WaveSampleType;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
-use crate::utils::{self, sample_conv, stereo_conv, sample_conv_batch};
+use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
@@ -269,9 +269,21 @@ impl Encoder {
 
     pub fn write_dual_mono<S>(&mut self, writer: &mut dyn Writer, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
-        mono1.write_le(writer)?;
-        mono2.write_le(writer)?;
-        Ok(())
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_dual_mono__i8(writer, mono1.to_i8() , mono2.to_i8() ),
+            "i16" => self.encoder.write_dual_mono_i16(writer, mono1.to_i16(), mono2.to_i16()),
+            "i24" => self.encoder.write_dual_mono_i24(writer, mono1.to_i24(), mono2.to_i24()),
+            "i32" => self.encoder.write_dual_mono_i32(writer, mono1.to_i32(), mono2.to_i32()),
+            "i64" => self.encoder.write_dual_mono_i64(writer, mono1.to_i64(), mono2.to_i64()),
+            "u8"  => self.encoder.write_dual_mono__u8(writer, mono1.to_u8() , mono2.to_u8() ),
+            "u16" => self.encoder.write_dual_mono_u16(writer, mono1.to_u16(), mono2.to_u16()),
+            "u24" => self.encoder.write_dual_mono_u24(writer, mono1.to_u24(), mono2.to_u24()),
+            "u32" => self.encoder.write_dual_mono_u32(writer, mono1.to_u32(), mono2.to_u32()),
+            "u64" => self.encoder.write_dual_mono_u64(writer, mono1.to_u64(), mono2.to_u64()),
+            "f32" => self.encoder.write_dual_mono_f32(writer, mono1.to_f32(), mono2.to_f32()),
+            "f64" => self.encoder.write_dual_mono_f64(writer, mono1.to_f64(), mono2.to_f64()),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
     }
 
     pub fn write_multiple_dual_mono<S>(&mut self, writer: &mut dyn Writer, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
@@ -295,26 +307,38 @@ impl Encoder {
 
     pub fn write_stereo<S>(&mut self, writer: &mut dyn Writer, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
-        stereo.0.write_le(writer)?;
-        stereo.1.write_le(writer)?;
-        Ok(())
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_stereo__i8(writer, stereo_conv(stereo)),
+            "i16" => self.encoder.write_stereo_i16(writer, stereo_conv(stereo)),
+            "i24" => self.encoder.write_stereo_i24(writer, stereo_conv(stereo)),
+            "i32" => self.encoder.write_stereo_i32(writer, stereo_conv(stereo)),
+            "i64" => self.encoder.write_stereo_i64(writer, stereo_conv(stereo)),
+            "u8"  => self.encoder.write_stereo__u8(writer, stereo_conv(stereo)),
+            "u16" => self.encoder.write_stereo_u16(writer, stereo_conv(stereo)),
+            "u24" => self.encoder.write_stereo_u24(writer, stereo_conv(stereo)),
+            "u32" => self.encoder.write_stereo_u32(writer, stereo_conv(stereo)),
+            "u64" => self.encoder.write_stereo_u64(writer, stereo_conv(stereo)),
+            "f32" => self.encoder.write_stereo_f32(writer, stereo_conv(stereo)),
+            "f64" => self.encoder.write_stereo_f64(writer, stereo_conv(stereo)),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
     }
 
     pub fn write_multiple_stereos<S>(&mut self, writer: &mut dyn Writer, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_multiple_stereos__i8(writer, &stereo_conv(stereos)),
-            "i16" => self.encoder.write_multiple_stereos_i16(writer, &stereo_conv(stereos)),
-            "i24" => self.encoder.write_multiple_stereos_i24(writer, &stereo_conv(stereos)),
-            "i32" => self.encoder.write_multiple_stereos_i32(writer, &stereo_conv(stereos)),
-            "i64" => self.encoder.write_multiple_stereos_i64(writer, &stereo_conv(stereos)),
-            "u8"  => self.encoder.write_multiple_stereos__u8(writer, &stereo_conv(stereos)),
-            "u16" => self.encoder.write_multiple_stereos_u16(writer, &stereo_conv(stereos)),
-            "u24" => self.encoder.write_multiple_stereos_u24(writer, &stereo_conv(stereos)),
-            "u32" => self.encoder.write_multiple_stereos_u32(writer, &stereo_conv(stereos)),
-            "u64" => self.encoder.write_multiple_stereos_u64(writer, &stereo_conv(stereos)),
-            "f32" => self.encoder.write_multiple_stereos_f32(writer, &stereo_conv(stereos)),
-            "f64" => self.encoder.write_multiple_stereos_f64(writer, &stereo_conv(stereos)),
+            "i8"  => self.encoder.write_multiple_stereos__i8(writer, &stereos_conv(stereos)),
+            "i16" => self.encoder.write_multiple_stereos_i16(writer, &stereos_conv(stereos)),
+            "i24" => self.encoder.write_multiple_stereos_i24(writer, &stereos_conv(stereos)),
+            "i32" => self.encoder.write_multiple_stereos_i32(writer, &stereos_conv(stereos)),
+            "i64" => self.encoder.write_multiple_stereos_i64(writer, &stereos_conv(stereos)),
+            "u8"  => self.encoder.write_multiple_stereos__u8(writer, &stereos_conv(stereos)),
+            "u16" => self.encoder.write_multiple_stereos_u16(writer, &stereos_conv(stereos)),
+            "u24" => self.encoder.write_multiple_stereos_u24(writer, &stereos_conv(stereos)),
+            "u32" => self.encoder.write_multiple_stereos_u32(writer, &stereos_conv(stereos)),
+            "u64" => self.encoder.write_multiple_stereos_u64(writer, &stereos_conv(stereos)),
+            "f32" => self.encoder.write_multiple_stereos_f32(writer, &stereos_conv(stereos)),
+            "f64" => self.encoder.write_multiple_stereos_f64(writer, &stereos_conv(stereos)),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
@@ -553,18 +577,18 @@ where E: adpcm::AdpcmEncoder {
     fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
     fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
 
-    fn write_multiple_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_i32(&mut self, writer: &mut dyn Writer, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_i64(&mut self, writer: &mut dyn Writer, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos__u8(&mut self, writer: &mut dyn Writer, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_u16(&mut self, writer: &mut dyn Writer, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_u24(&mut self, writer: &mut dyn Writer, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_u32(&mut self, writer: &mut dyn Writer, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
-    fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereo_conv(stereos))}
+    fn write_multiple_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_i32(&mut self, writer: &mut dyn Writer, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_i64(&mut self, writer: &mut dyn Writer, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos__u8(&mut self, writer: &mut dyn Writer, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_u16(&mut self, writer: &mut dyn Writer, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_u24(&mut self, writer: &mut dyn Writer, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_u32(&mut self, writer: &mut dyn Writer, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+    fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
 
     fn get_bit_rate(&mut self) -> u32 {
         if self.samples_written == 0 {
@@ -586,7 +610,7 @@ pub mod MP3 {
     use crate::{SampleType, i24, u24};
     use crate::AudioWriteError;
     use crate::EncoderToImpl;
-    use crate::utils::{self, sample_conv, stereo_conv};
+    use crate::utils::{self, sample_conv, stereos_conv};
     use mp3lame_encoder::{Builder, Encoder, Mode, MonoPcm, DualPcm, FlushNoGap};
     pub use mp3lame_encoder::{Bitrate, VbrMode, Quality, Id3Tag};
 
@@ -694,7 +718,7 @@ pub mod MP3 {
         where T: SampleType {
             match self.channels{
                 1 => Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned())),
-                2 => Ok(self.buffers.add_multiple_samples_s(writer, &stereo_conv::<T, S>(stereos))?),
+                2 => Ok(self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos))?),
                 other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
         }
