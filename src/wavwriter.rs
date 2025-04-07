@@ -73,7 +73,7 @@ impl WaveWriter {
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(PcmEncoder::new(spec.channels, spec.sample_rate, sample_type)?)
+                Encoder::new(PcmEncoder::new(spec.sample_rate, sample_type)?)
             },
             Adpcm(sub_format) => {
                 use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima};
@@ -223,7 +223,7 @@ impl WaveWriter {
             format_tag,
             channels: self.spec.channels,
             sample_rate: self.spec.sample_rate,
-            byte_rate: self.encoder.get_bit_rate() / 8,
+            byte_rate: self.encoder.get_bit_rate(self.spec.channels) / 8,
             block_align: self.block_size,
             bits_per_sample: self.spec.bits_per_sample,
             extension: fmt_extension,
