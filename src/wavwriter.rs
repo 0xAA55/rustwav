@@ -53,6 +53,7 @@ pub struct WaveWriter {
     pub trkn_chunk: Option<String>,
     pub id3__chunk: Option<Id3::Tag>,
     pub junk_chunks: Vec<JunkChunk>,
+    finalized: bool,
 }
 
 impl WaveWriter {
@@ -118,6 +119,7 @@ impl WaveWriter {
             trkn_chunk: None,
             id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
+            finalized: false,
         };
         ret.write_header()?;
         Ok(ret)
@@ -453,6 +455,10 @@ impl WaveWriter {
     }
 
     pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
+        if self.finalized {
+            return Ok(());
+        }
+
         // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             self.encoder.finalize(writer)?;
@@ -546,23 +552,22 @@ impl WaveWriter {
             match self.file_size_option {
                 FileSizeOption::NeverLargerThan4GB => {
                     if file_end_pos > 0xFFFFFFFFu64 {
-                        Err(AudioWriteError::NotPreparedFor4GBFile)
-                    } else {
-                        Ok(())
+                        Err(AudioWriteError::NotPreparedFor4GBFile)?;
                     }
                 },
                 FileSizeOption::AllowLargerThan4GB => {
                     if file_end_pos > 0xFFFFFFFFu64 {
-                        change_to_4gb_hreader()
-                    } else {
-                        Ok(())
+                        change_to_4gb_hreader()?;
                     }
                 },
                 FileSizeOption::ForceUse4GBFormat => {
-                    change_to_4gb_hreader()
+                    change_to_4gb_hreader()?;
                 },
             }
+            writer.flush()?;
+            Ok(())
         })?;
+        self.finalized = true;
         Ok(())
     }
 }
