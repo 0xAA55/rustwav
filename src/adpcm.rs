@@ -42,6 +42,7 @@ pub type AdpcmEncoderYMA     = yma::Encoder;
 pub type AdpcmEncoderYMB     = ymb::Encoder;
 pub type AdpcmEncoderYMZ     = ymz::Encoder;
 pub type AdpcmEncoderAICA    = aica::Encoder;
+pub type AdpcmEncoderIMA     = ima::Encoder;
 
 pub type AdpcmDecoderBS      = bs::Decoder;
 pub type AdpcmDecoderOKI     = oki::Decoder;
@@ -50,6 +51,7 @@ pub type AdpcmDecoderYMA     = yma::Decoder;
 pub type AdpcmDecoderYMB     = ymb::Decoder;
 pub type AdpcmDecoderYMZ     = ymz::Decoder;
 pub type AdpcmDecoderAICA    = aica::Decoder;
+pub type AdpcmDecoderIMA     = ima::Decoder;
 
 pub type EncBS      = AdpcmEncoderBS;
 pub type EncOKI     = AdpcmEncoderOKI;
@@ -58,6 +60,7 @@ pub type EncYMA     = AdpcmEncoderYMA;
 pub type EncYMB     = AdpcmEncoderYMB;
 pub type EncYMZ     = AdpcmEncoderYMZ;
 pub type EncAICA    = AdpcmEncoderAICA;
+pub type EncIMA     = AdpcmEncoderIMA;
 
 pub type DecBS      = AdpcmDecoderBS;
 pub type DecOKI     = AdpcmDecoderOKI;
@@ -66,6 +69,7 @@ pub type DecYMA     = AdpcmDecoderYMA;
 pub type DecYMB     = AdpcmDecoderYMB;
 pub type DecYMZ     = AdpcmDecoderYMZ;
 pub type DecAICA    = AdpcmDecoderAICA;
+pub type DecIMA     = AdpcmDecoderIMA;
 
 pub mod bs {
     // Encode and decode algorithms for
