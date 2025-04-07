@@ -47,6 +47,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
+    println!("======== TEST 1 ========");
 
     // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
     let mut wavereader = WaveReader::open(arg1).unwrap();
@@ -67,13 +68,34 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
+    for stereo in wavereader.stereo_iter::<i16>()? {
+        wavewriter.write_stereo(stereo)?;
+    }
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
     wavewriter.migrate_metadata_from_reader(&wavereader);
+    wavewriter.finalize()?;
 
     // 输出调试信息
     dbg!(&wavereader);
     dbg!(&wavewriter);
+
+    println!("======== TEST 2 ========");
+
+    let mut wavereader_2 = WaveReader::open(arg2).unwrap();
+    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+
+    for stereo in wavereader_2.stereo_iter::<i16>()? {
+        wavewriter_2.write_stereo(stereo)?;
+    }
+
+    // 音频写入器从音频读取器那里读取音乐元数据过来
+    wavewriter_2.migrate_metadata_from_reader(&wavereader_2);
+    wavewriter_2.finalize()?;
+
+    // 输出调试信息
+    dbg!(&wavereader_2);
+    dbg!(&wavewriter_2);
 
     Ok(())
 }
