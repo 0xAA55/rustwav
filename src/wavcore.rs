@@ -484,6 +484,14 @@ pub struct ChunkHeader {
 }
 
 impl ChunkHeader {
+    pub fn new() -> Self {
+        Self {
+            flag: [0u8; 4],
+            size: 0,
+            chunk_start_pos: 0,
+        }
+    }
+
     pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
     where R: Reader {
         // 读取 WAV 中的每个块
@@ -542,6 +550,18 @@ pub struct FmtChunkExtensible {
 }
 
 impl FmtChunk {
+    pub fn new() -> Self {
+        Self {
+            format_tag: 0,
+            channels: 0,
+            sample_rate: 0,
+            byte_rate: 0,
+            block_align: 0,
+            bits_per_sample: 0,
+            extension: FmtChunkExtension::None,
+        }
+    }
+
     pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, AudioReadError>
     where R: Reader {
         let mut ret = FmtChunk{
