@@ -82,7 +82,6 @@ where S: SampleType {
     data_length: u64,
     spec: Spec,
     sample_decoder: fn(&mut dyn Reader) -> Result<S, AudioReadError>,
-    samples_decoder: fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>,
 }
 
 impl<S> PcmDecoder<S>
@@ -99,7 +98,6 @@ where S: SampleType {
             data_length,
             spec: spec.clone(),
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
-            samples_decoder: Self::choose_samples_decoder(wave_sample_type)?,
         })
     }
 
@@ -151,30 +149,15 @@ where S: SampleType {
         }
     }
 
-    fn choose_samples_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>, AudioError> {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
-        match wave_sample_type {
-            S8 =>  Ok(Self::decode_samples_to::<i8 >),
-            S16 => Ok(Self::decode_samples_to::<i16>),
-            S24 => Ok(Self::decode_samples_to::<i24>),
-            S32 => Ok(Self::decode_samples_to::<i32>),
-            S64 => Ok(Self::decode_samples_to::<i64>),
-            U8 =>  Ok(Self::decode_samples_to::<u8 >),
-            U16 => Ok(Self::decode_samples_to::<u16>),
-            U24 => Ok(Self::decode_samples_to::<u24>),
-            U32 => Ok(Self::decode_samples_to::<u32>),
-            U64 => Ok(Self::decode_samples_to::<u64>),
-            F32 => Ok(Self::decode_samples_to::<f32>),
-            F64 => Ok(Self::decode_samples_to::<f64>),
-            Unknown => Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
-        }
-    }
-
     pub fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
         if self.is_end_of_data()? {
             Ok(None)
         } else {
-            Ok(Some((self.samples_decoder)(&mut self.reader, self.spec.channels as usize)?))
+            let mut frame = Vec::<S>::with_capacity(self.spec.channels as usize);
+            for _ in 0..self.spec.channels {
+                frame.push((self.sample_decoder)(&mut self.reader)?);
+            }
+            Ok(Some(frame))
         }
     }
 
