@@ -67,33 +67,6 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-    // 使用迭代器读取 WaveReader 的音频，注意迭代器支持一个泛型参数
-    // 迭代器会自动把读取到的原始音频格式按照这个泛型格式做转换，并使样本的数值符合样本数据类型的范围
-
-    let (all_l, all_r) = utils::multiple_stereos_to_dual_monos(&wavereader.stereo_iter::<i16>()?.collect::<Vec<(i16, i16)>>());
-    let (len_l, len_r) = (all_l.len(), all_r.len());
-
-    let mut encoder_l = AdpcmEncoderYMB::new();
-    let mut encoder_r = AdpcmEncoderYMB::new();
-    let mut decoder_l = AdpcmDecoderYMB::new();
-    let mut decoder_r = AdpcmDecoderYMB::new();
-    let mut out_l = Vec::<i16>::new();
-    let mut out_r = Vec::<i16>::new();
-    let mut iter_l = all_l.into_iter();
-    let mut iter_r = all_r.into_iter();
-    adpcm::test(&mut encoder_l, &mut decoder_l,
-        || -> Option<i16> { iter_l.next() },
-        |sample: i16|{ out_l.push(sample); }
-    )?;
-    adpcm::test(&mut encoder_r, &mut decoder_r,
-        || -> Option<i16> { iter_r.next() },
-        |sample: i16|{ out_r.push(sample); }
-    )?;
-
-    println!("({len_l}, {len_r}) => ({}, {})", out_l.len(), out_r.len());
-
-    // 写入转换后的音频
-    wavewriter.write_dual_monos(&out_l, &out_r)?;
 
     // 音频写入器从音频读取器那里读取音乐元数据过来
     wavewriter.migrate_metadata_from_reader(&wavereader);
