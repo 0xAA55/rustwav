@@ -245,7 +245,21 @@ impl Encoder {
 
     pub fn write_mono<S>(&mut self, writer: &mut dyn Writer, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
-        Ok(mono.write_le(writer)?)
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_mono__i8(writer, mono.to_i8() ),
+            "i16" => self.encoder.write_mono_i16(writer, mono.to_i16()),
+            "i24" => self.encoder.write_mono_i24(writer, mono.to_i24()),
+            "i32" => self.encoder.write_mono_i32(writer, mono.to_i32()),
+            "i64" => self.encoder.write_mono_i64(writer, mono.to_i64()),
+            "u8"  => self.encoder.write_mono__u8(writer, mono.to_u8() ),
+            "u16" => self.encoder.write_mono_u16(writer, mono.to_u16()),
+            "u24" => self.encoder.write_mono_u24(writer, mono.to_u24()),
+            "u32" => self.encoder.write_mono_u32(writer, mono.to_u32()),
+            "u64" => self.encoder.write_mono_u64(writer, mono.to_u64()),
+            "f32" => self.encoder.write_mono_f32(writer, mono.to_f32()),
+            "f64" => self.encoder.write_mono_f64(writer, mono.to_f64()),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
     }
 
     pub fn write_multiple_mono<S>(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError>
