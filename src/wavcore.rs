@@ -25,13 +25,13 @@ pub enum DataFormat{
 #[repr(u16)]
 pub enum AdpcmSubFormat {
     Bs = 0xFFF6,
-    Oki = 0x0010,
+    Oki = 0xFFF7,
     Oki6258 = 0xFFF8,
     Yma = 0xFFF9,
     Ymb = 0xFFFA,
     Ymz = 0xFFFB,
     Aica = 0xFFFC,
-    Ima = 0x0011,
+    Ima = 0x0011, // 只有这个能用
 }
 
 impl std::convert::Into<u16> for AdpcmSubFormat {
