@@ -171,15 +171,20 @@ where S: SampleType,
     ret
 }
 
-pub fn stereo_conv<S, D>(frame: &[(S, S)]) -> Vec<(D, D)>
+pub fn stereo_conv<S, D>(frame: (S, S)) -> (D, D)
+where S: SampleType,
+      D: SampleType {
+    let (l, r) = frame;
+    (D::from(l), D::from(r))
+}
+
+pub fn stereos_conv<S, D>(frame: &[(S, S)]) -> Vec<(D, D)>
 where S: SampleType,
       D: SampleType {
 
     let mut ret = Vec::<(D, D)>::with_capacity(frame.len());
     for f in frame.into_iter() {
-        let (l, r) = *f;
-        let (l, r) = (D::from(l), D::from(r));
-        ret.push((l, r));
+        ret.push(stereo_conv(*f));
     }
     ret
 }
