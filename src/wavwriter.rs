@@ -9,7 +9,7 @@ use crate::AudioWriteError;
 use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
-use crate::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{FmtChunk, FmtChunkExtensible, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
@@ -213,7 +213,7 @@ impl WaveWriter {
             bits_per_sample: self.spec.bits_per_sample,
             extension: match ext {
                 false => None,
-                true => Some(FmtChunkExtension {
+                true => Some(FmtChunkExtensible {
                     ext_len: 22,
                     valid_bits_per_sample: self.spec.bits_per_sample,
                     channel_mask: self.spec.channel_mask,
