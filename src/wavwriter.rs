@@ -36,7 +36,7 @@ pub struct WaveWriter {
     file_size_option: FileSizeOption,
     fmt_chunk_offset: u64,
     num_frames: u64,
-    frame_size: u16,
+    block_size: u16,
     data_offset: u64,
     sample_type: WaveSampleType,
     encoder: Encoder,
@@ -68,7 +68,7 @@ impl WaveWriter {
     pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
         use DataFormat::{Pcm, Adpcm, Mp3, OggVorbis, Flac};
         let sizeof_sample = spec.bits_per_sample / 8;
-        let frame_size = sizeof_sample * spec.channels;
+        let block_size = sizeof_sample * spec.channels;
         let sample_type = spec.get_sample_type();
         let encoder = match data_format {
             Pcm => {
@@ -104,7 +104,7 @@ impl WaveWriter {
             file_size_option,
             fmt_chunk_offset: 0,
             num_frames: 0,
-            frame_size,
+            block_size,
             data_offset: 0,
             sample_type,
             encoder,
@@ -400,7 +400,7 @@ impl WaveWriter {
         self.num_frames
     }
     pub fn get_frame_size(&self) -> u16 {
-        self.frame_size
+        self.block_size
     }
     pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
         self.bext_chunk = Some(chunk.clone());
@@ -534,7 +534,7 @@ impl WaveWriter {
                 writer.write_all(b"ds64")?;
                 28u32.write_le(writer)?; // ds64 段的长度
                 let riff_size = file_end_pos - 8;
-                let data_size = self.num_frames * self.frame_size as u64;
+                let data_size = self.num_frames * self.block_size as u64;
                 let sample_count = self.num_frames / self.spec.channels as u64;
                 riff_size.write_le(writer)?;
                 data_size.write_le(writer)?;

@@ -34,7 +34,7 @@ pub struct WaveReader {
     fact_data: Option<u32>, // fact 块的参数
     data_offset: u64, // 音频数据的位置
     data_size: u64, // 音频数据的大小
-    frame_size: u16, // 每一帧音频的字节数
+    block_size: u16, // 每一帧音频的字节数
     num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
     text_encoding: StringCodecMaps,
@@ -228,8 +228,8 @@ impl WaveReader {
             _ => wavcore::guess_channel_mask(fmt__chunk.channels)?,
         };
 
-        let frame_size = fmt__chunk.block_align;
-        let num_frames = data_size / frame_size as u64;
+        let block_size = fmt__chunk.block_align;
+        let num_frames = data_size / block_size as u64;
         let spec = Spec {
             channels: fmt__chunk.channels,
             channel_mask,
@@ -249,7 +249,7 @@ impl WaveReader {
             fact_data,
             data_offset,
             data_size,
-            frame_size,
+            block_size,
             num_frames,
             data_chunk,
             text_encoding,
