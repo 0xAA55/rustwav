@@ -652,6 +652,7 @@ pub mod MP3 {
     where S: SampleType {
         channels: u8,
         bitrate: u32,
+        samples_written: u64,
         encoder: SharedMp3Encoder,
         buffers: ChannelBuffers<S>,
     }
@@ -708,6 +709,7 @@ pub mod MP3 {
             Ok(Self {
                 channels,
                 bitrate: bitrate as u32 * 1000,
+                samples_written: 0,
                 encoder: encoder.clone(),
                 buffers: match channels {
                     1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
@@ -723,8 +725,16 @@ pub mod MP3 {
                 self.buffers.flush(writer)?;
             }
             match self.channels {
-                1 => Ok(self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples))?),
-                2 => Ok(self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?)?),
+                1 => {
+                    self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples))?;
+                    self.samples_written += samples.len() as u64;
+                    Ok(())
+                },
+                2 => {
+                    self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?)?;
+                    self.samples_written += samples.len() as u64;
+                    Ok(())
+                },
                 other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
         }
@@ -733,7 +743,11 @@ pub mod MP3 {
         where T: SampleType {
             match self.channels{
                 1 => Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned())),
-                2 => Ok(self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos))?),
+                2 => {
+                    self.samples_written += stereos.len() as u64 * 2;
+                    self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos))?;
+                    Ok(())
+                },
                 other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
         }
