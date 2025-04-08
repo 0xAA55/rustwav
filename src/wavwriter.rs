@@ -9,7 +9,7 @@ use crate::AudioWriteError;
 use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
-use crate::{FmtChunk, FmtChunkExtension, FmtChunkAdpcmData, FmtChunkExtensible};
+use crate::{FmtChunk, FmtExtension, AdpcmMsData, AdpcmImaData, Extensible};
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 use crate::{StringCodecMaps, SavageStringCodecs};
