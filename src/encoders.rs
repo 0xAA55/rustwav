@@ -549,6 +549,10 @@ where E: adpcm::AdpcmEncoder {
         self.encoder_l.get_block_size()
     }
 
+    fn yield_extension_data(&self, channels: u16) -> Option<FmtExtension> {
+        self.encoder_l.yield_extension_data(channels)
+    }
+
     fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         let mut interleaved = Vec::<u8>::new();
         let interleave_bytes = self.get_interleave_bytes();
@@ -641,12 +645,17 @@ where E: adpcm::AdpcmEncoder {
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
         fmt.block_align = self.get_block_size() * fmt.channels;
-        if let FmtChunkExtension::AdpcmData(ref mut adpcm_data) = fmt.extension {
-            adpcm_data.samples_per_block = fmt.block_align * 2;
-        } else {
-            return Err(AudioWriteError::OtherReason(format!("For ADPCM format, the `fmt ` chunk must have the corresponding extension block for it (Current is {:?}).", fmt.extension)));
+        let mut extension_length: u16 = 0;
+        if let Some(extension) = fmt.extension {
+            extension_length = extension.get_length();
         }
-        Ok(())
+        let extension = self.yield_extension_data(fmt.channels);
+        if let Some(new_ext) = extension{
+            let new_length = new_ext.get_length();
+            if new_length != extension_length {
+                return Err(AudioWriteError::InvalidArguments(format!("The extension data length of your ADPCM encoder yielded ({new_length}) is different than the initialized `fmt ` chunk extension data length ({extension_length}), so it's unable to update the `fmt ` chunk in the file.")));
+            }
+        }
     }
 
     fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
