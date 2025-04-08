@@ -495,8 +495,7 @@ impl ChunkHeader {
         }
     }
 
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         // 读取 WAV 中的每个块
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
@@ -515,8 +514,7 @@ impl ChunkHeader {
         Self::align(self.chunk_start_pos + self.size as u64)
     }
 
-    pub fn seek_to_next_chunk<R>(&self, reader: &mut R) -> Result<u64, AudioReadError>
-    where R: Reader {
+    pub fn seek_to_next_chunk(&self, reader: &mut dyn Reader) -> Result<u64, AudioReadError> {
         Ok(reader.seek(SeekFrom::Start(self.next_chunk_pos()))?)
     }
 }
@@ -565,8 +563,7 @@ impl FmtChunk {
         }
     }
 
-    pub fn read<R>(reader: &mut R, chunk_size: u32) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader, chunk_size: u32) -> Result<Self, AudioReadError> {
         let mut ret = FmtChunk{
             format_tag: u16::read_le(reader)?,
             channels: u16::read_le(reader)?,
@@ -704,8 +701,7 @@ pub struct BextChunk {
 }
 
 impl BextChunk {
-    pub fn read<R>(reader: &mut R, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
         let description = read_str(reader, 256, text_encoding)?;
         let originator = read_str(reader, 32, text_encoding)?;
         let originator_ref = read_str(reader, 32, text_encoding)?;
@@ -778,8 +774,7 @@ pub struct SmplSampleLoop {
 }
 
 impl SmplChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         let mut ret = Self{
             manufacturer: u32::read_le(reader)?,
             product: u32::read_le(reader)?,
@@ -821,8 +816,7 @@ impl SmplChunk {
 }
 
 impl SmplSampleLoop {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
             identifier: u32::read_le(reader)?,
             type_: u32::read_le(reader)?,
@@ -856,8 +850,7 @@ pub struct InstChunk {
 }
 
 impl InstChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
             base_note: u8::read_le(reader)?,
             detune: u8::read_le(reader)?,
@@ -905,8 +898,7 @@ pub struct Cue {
 }
 
 impl CueChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         let mut ret = CueChunk {
             num_cues: u32::read_le(reader)?,
             cues: Vec::<Cue>::new(),
@@ -932,8 +924,7 @@ impl CueChunk {
 }
 
 impl Cue {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
             identifier: u32::read_le(reader)?,
             order: u32::read_le(reader)?,
@@ -962,8 +953,7 @@ pub enum ListChunk {
 }
 
 impl ListChunk {
-    pub fn read<R>(reader: &mut R, chunk_size: u64, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader, chunk_size: u64, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
         let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
@@ -1009,8 +999,7 @@ impl ListChunk {
         Ok(())
     }
 
-    pub fn read_dict<R>(reader: &mut R, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError>
-    where R: Reader {
+    pub fn read_dict(reader: &mut Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError> {
         // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
         let mut dict = HashMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
@@ -1049,8 +1038,7 @@ pub enum AdtlChunk {
 }
 
 impl AdtlChunk {
-    pub fn read<R>(reader: &mut R, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
         let sub_chunk = ChunkHeader::read(reader)?;
         let ret = match &sub_chunk.flag {
             b"labl" => {
@@ -1162,8 +1150,7 @@ pub struct AcidChunk {
 }
 
 impl AcidChunk {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         Ok(Self {
             flags: u32::read_le(reader)?,
             root_node: u16::read_le(reader)?,
@@ -1238,7 +1225,7 @@ pub mod Id3{
     use crate::errors::{AudioReadError, AudioWriteError, IOErrorInfo};
     pub type Tag = id3::Tag;
 
-    pub fn id3_read<R>(reader: &mut R, _size: usize) -> Result<Tag, AudioReadError>
+    pub fn id3_read(reader: &mut Reader, _size: usize) -> Result<Tag, AudioReadError>
     where R: Read + Seek + ?Sized {
         Ok(Tag::read_from2(reader)?)
     }
@@ -1294,7 +1281,7 @@ pub mod Id3{
         }
     }
 
-    pub fn id3_read<R>(reader: &mut R, size: usize) -> Result<Tag, AudioReadError>
+    pub fn id3_read(reader: &mut Reader, size: usize) -> Result<Tag, AudioReadError>
     where R: Read + Seek + ?Sized {
         #[cfg(debug_assertions)]
         println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
