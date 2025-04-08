@@ -19,6 +19,9 @@ pub trait AdpcmEncoder: Debug {
     fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
         None
     }
+    fn flush(&mut self, output: impl FnMut(u8)) -> Result<(), io::Error> {
+        Ok(())
+    }
 }
 
 pub trait AdpcmDecoder: Debug {
@@ -32,6 +35,9 @@ pub trait AdpcmDecoder: Debug {
     }
     fn get_block_size(&self) -> u16 {
         512
+    }
+    fn flush(&mut self, output: impl FnMut(i16)) -> Result<(), io::Error> {
+        Ok(())
     }
 }
 
