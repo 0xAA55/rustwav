@@ -528,24 +528,36 @@ pub struct FmtChunk {
     pub byte_rate: u32,
     pub block_align: u16,
     pub bits_per_sample: u16,
-    pub extension: FmtChunkExtension,
+    pub extension: Option<FmtExtension>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum FmtChunkExtension {
-    None,
-    AdpcmData(FmtChunkAdpcmData),
-    Extensible(FmtChunkExtensible),
+pub struct FmtExtension {
+    pub ext_len: u16,
+    pub data: ExtensionData,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FmtChunkAdpcmData{
+pub enum ExtensionData{
+    AdpcmMs(AdpcmMsData),
+    AdpcmIma(AdpcmImaData),
+    Extensible(Extensible),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AdpcmMsData{
+    pub samples_per_block: u16,
+    pub num_coef: u16,
+    pub coeffs: [(i16, i16); 7],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AdpcmImaData{
     pub samples_per_block: u16,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FmtChunkExtensible {
-    pub ext_len: u16,
+pub struct Extensible {
     pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
     pub sub_format: GUID,
@@ -560,7 +572,7 @@ impl FmtChunk {
             byte_rate: 0,
             block_align: 0,
             bits_per_sample: 0,
-            extension: FmtChunkExtension::None,
+            extension: None,
         }
     }
 
@@ -572,21 +584,10 @@ impl FmtChunk {
             byte_rate: u32::read_le(reader)?,
             block_align: u16::read_le(reader)?,
             bits_per_sample: u16::read_le(reader)?,
-            extension: FmtChunkExtension::None,
+            extension: None,
         };
-        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
-        match ret.format_tag {
-            TAG_ADPCM_IMA => {
-                if chunk_size >= 18 {
-                    ret.extension = FmtChunkExtension::AdpcmData(FmtChunkAdpcmData::read(reader)?);
-                }
-            },
-            0xFFFE => {
-                if chunk_size >= 40 {
-                    ret.extension = FmtChunkExtension::Extensible(FmtChunkExtensible::read(reader)?);
-                }
-            },
-            _ => (),
+        if chunk_size > 16 {
+            ret.extension = FmtExtension::read(reader, format_tag)?;
         }
         Ok(ret)
     }
@@ -600,10 +601,8 @@ impl FmtChunk {
             self.byte_rate.write_le(writer)?;
             self.block_align.write_le(writer)?;
             self.bits_per_sample.write_le(writer)?;
-            match self.extension {
-                FmtChunkExtension::AdpcmData(data) => data.write(writer)?,
-                FmtChunkExtension::Extensible(ext) => ext.write(writer)?,
-                _ => (),
+            if let Some(extension) = self.extension {
+                extension.write(writer)?;
             }
             Ok(())
         })?;
@@ -623,16 +622,17 @@ impl FmtChunk {
             (0xFFFE, 16) => Int,
             (0xFFFE, 24) => Int,
             (0xFFFE, 32) | (0xFFFE, 64) => {
-                match self.extension {
-                    FmtChunkExtension::Extensible(extension) => {
-                        match extension.sub_format {
-                            GUID_PCM_FORMAT => Int,
-                            GUID_IEEE_FLOAT_FORMAT => Float,
-                            _ => Unknown, // 由插件系统判断
-                        }
-                    },
-                    FmtChunkExtension::None => Int,
-                    FmtChunkExtension::AdpcmData(_) => panic!("Unexpected ADPCM data in the `fmt ` chunk without using the ADPCM encoding."),
+                if let Some(extension) = self.extension {
+                    match extension.data{
+                        ExtensionData::Extensible(extensible) => {
+                            match extensible.sub_format {
+                                GUID_PCM_FORMAT => Int,
+                                GUID_IEEE_FLOAT_FORMAT => Float,
+                                _ => Unknown, // 由插件系统判断
+                            }
+                        },
+                        other => panic!("Unexpected extension data in the `fmt ` chunk: {:?}", other),
+                    }
                 }
             },
             (3, 32) => Float,
@@ -646,39 +646,158 @@ impl FmtChunk {
     }
 }
 
-impl FmtChunkAdpcmData {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
-        let size = u16::read_le(reader)?;
-        if size != 2 {
-            Err(AudioReadError::UnexpectedFlag(2.to_string(), size.to_string()))
-        } else {
-            Ok(Self{
-                samples_per_block: u16::read_le(reader)?,
-            })
+impl FmtExtension {
+    pub fn new_adpcm_ms(adpcm_ms: AdpcmMs) -> Self {
+        Self {
+            ext_len: AdpcmMsData::sizeof(),
+            data: ExtensionData::AdpcmMs(adpcm_ms),
         }
     }
 
+    pub fn new_adpcm_ima(adpcm_ima: AdpcmIma) -> Self {
+        Self {
+            ext_len: AdpcmMsData::sizeof(),
+            data: ExtensionData::AdpcmIma(adpcm_ima),
+        }
+    }
+
+    pub fn new_adpcm_ima(extensible: Extensible) -> Self {
+        Self {
+            ext_len: Extensible::sizeof(),
+            data: ExtensionData::Extensible(extensible),
+        }
+    }
+
+    pub fn get_length(&self) -> u16 {
+        self.ext_len
+    }
+
+    pub fn read(reader: &mut Reader, format_tag: u16) -> Result<Self, AudioReadError> {
+        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
+        const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
+        Ok(Self{
+            ext_len: u16::read_le(reader)?,
+            data: match format_tag {
+                TAG_ADPCM_MS => {
+                    if ext_len >= AdpcmMsData::sizeof() {
+                        Some(ExtensionData::AdpcmMs(AdpcmMsData::read(reader)?));
+                    }
+                },
+                TAG_ADPCM_IMA => {
+                    if ext_len >= AdpcmImaData::sizeof() {
+                        Some(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?));
+                    }
+                },
+                0xFFFE => {
+                    if ext_len >= Extensible::sizeof() {
+                        Some(ExtensionData::Extensible(Extensible::read(reader)?));
+                    }
+                },
+                _ => (),
+            },
+        })
+    }
+
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        2u16.write_le(writer)?;
+        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
+        const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
+        ext_len.write_le(writer)?;
+        if let Some(data) = self.data {
+            match data {
+                ExtensionData::AdpcmMs(data) => data.write(writer)?,
+                ExtensionData::AdpcmIma(data) => data.write(writer)?,
+                ExtensionData::Extensible(data) => data.write(writer)?,
+            }
+        }
+    }
+}
+
+impl AdpcmMsData {
+    pub fn new() -> Self {
+        Self {
+            samples_per_block: 0,
+            num_coef: 7,
+            coeffs: [
+                (256, 0   ),
+                (512, -256),
+                (0  , 0   ),
+                (192, 64  ),
+                (240, 0   ),
+                (460, -208),
+                (392, -232),
+            ],
+        }
+    }
+
+    pub fn sizeof() -> usize {
+        32
+    }
+
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            samples_per_block: u16::read_le(reader)?,
+            num_coef: u16::read_le(reader)?,
+            coeffs: [
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+                (u16::read_le(reader)?, u16::read_le(reader)?),
+            ],
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.samples_per_block.write_le(writer)?;
+        self.num_coef.write_le(writer)?;
+        for coeff in self.coeffs {
+            let (coef1, coef2) = coeff;
+            coef1.write_le(writer)?;
+            coef2.write_le(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl AdpcmImaData {
+    pub fn new(samples_per_block: u16) -> Self {
+        Self {
+            samples_per_block,
+        }
+    }
+
+    pub fn sizeof() -> usize {
+        2
+    }
+
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            samples_per_block: u16::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.samples_per_block.write_le(writer)?;
         Ok(())
     }
 }
 
-impl FmtChunkExtensible {
-    pub fn read<R>(reader: &mut R) -> Result<Self, AudioReadError>
-    where R: Reader {
+impl Extensible {
+    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
-            ext_len: u16::read_le(reader)?,
             valid_bits_per_sample: u16::read_le(reader)?,
             channel_mask: u32::read_le(reader)?,
             sub_format: GUID::read(reader)?,
         })
     }
 
+    pub fn sizeof() -> usize {
+        22
+    }
+
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.ext_len.write_le(writer)?;
         self.valid_bits_per_sample.write_le(writer)?;
         self.channel_mask.write_le(writer)?;
         self.sub_format.write(writer)?;
