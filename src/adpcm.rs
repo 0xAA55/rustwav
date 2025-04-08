@@ -1,48 +1,43 @@
-// https://github.com/superctr/adpcm/tree/master
 #![allow(dead_code)]
 
 use std::{io, fmt::Debug};
-use crate::FmtExtension;
+use crate::{FmtChunk};
+
+#[derive(Debug, Clone, Copy)]
+pub enum CurrentChannel {
+    Left,
+    Right
+}
 
 pub trait AdpcmEncoder: Debug {
-    fn new() -> Self;
+    fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
     fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
-    fn get_interleave_bytes(&self) -> usize {
-        4
+    fn get_required_fmt_chunk_size(&mut self) -> usize {
+        16
     }
-    fn get_header_bytes(&self) -> usize {
-        0
+    fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+        Ok(())
     }
-    fn get_block_size(&self) -> u16 {
-        512
-    }
-    fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
-        None
-    }
-    fn flush(&mut self, output: impl FnMut(u8)) -> Result<(), io::Error> {
+    fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
         Ok(())
     }
 }
 
 pub trait AdpcmDecoder: Debug {
-    fn new(extension_data: Option<FmtExtension>) -> Result<Self, io::Error>;
+    fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
-    fn get_interleave_bytes(&self) -> usize {
-        4
-    }
-    fn get_header_bytes(&self) -> usize {
-        0
-    }
-    fn get_block_size(&self) -> u16 {
-        512
-    }
-    fn flush(&mut self, output: impl FnMut(i16)) -> Result<(), io::Error> {
+    fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
         Ok(())
     }
 }
 
-pub trait AdpcmCodec: AdpcmEncoder + AdpcmDecoder {}
-impl<T> AdpcmCodec for T where T: AdpcmEncoder + AdpcmDecoder{}
+pub fn get_num_samples(fact_data: &Vec<u8>) -> Result<u64, io::Error> {
+    match fact_data.len() {
+        4 => Ok(u32::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3]]) as u64),
+        8 => Ok(u64::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3], fact_data[4], fact_data[5], fact_data[6], fact_data[7]])),
+        other => Err(io::Error::new(io::ErrorKind::InvalidData, format!("fact data size should be 4 or 8, not {other}."))),
+    }
+}
 
 pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
     encoder.encode(
@@ -57,901 +52,23 @@ pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mu
     )
 }
 
-pub type AdpcmEncoderBS      = bs::Encoder;
-pub type AdpcmEncoderOKI     = oki::Encoder;
-pub type AdpcmEncoderOKI6258 = oki6258::Encoder;
-pub type AdpcmEncoderYMA     = yma::Encoder;
-pub type AdpcmEncoderYMB     = ymb::Encoder;
-pub type AdpcmEncoderYMZ     = ymz::Encoder;
-pub type AdpcmEncoderAICA    = aica::Encoder;
 pub type AdpcmEncoderIMA     = ima::Encoder;
-pub type AdpcmEncoderMS      = ms::Encoder;
+// pub type AdpcmEncoderMS      = ms::Encoder;
 
-pub type AdpcmDecoderBS      = bs::Decoder;
-pub type AdpcmDecoderOKI     = oki::Decoder;
-pub type AdpcmDecoderOKI6258 = oki6258::Decoder;
-pub type AdpcmDecoderYMA     = yma::Decoder;
-pub type AdpcmDecoderYMB     = ymb::Decoder;
-pub type AdpcmDecoderYMZ     = ymz::Decoder;
-pub type AdpcmDecoderAICA    = aica::Decoder;
 pub type AdpcmDecoderIMA     = ima::Decoder;
-pub type AdpcmDecoderMS      = ms::Decoder;
+// pub type AdpcmDecoderMS      = ms::Decoder;
 
-pub type EncBS      = AdpcmEncoderBS;
-pub type EncOKI     = AdpcmEncoderOKI;
-pub type EncOKI6258 = AdpcmEncoderOKI6258;
-pub type EncYMA     = AdpcmEncoderYMA;
-pub type EncYMB     = AdpcmEncoderYMB;
-pub type EncYMZ     = AdpcmEncoderYMZ;
-pub type EncAICA    = AdpcmEncoderAICA;
 pub type EncIMA     = AdpcmEncoderIMA;
-pub type EncMS      = AdpcmEncoderMS;
+// pub type EncMS      = AdpcmEncoderMS;
 
-pub type DecBS      = AdpcmDecoderBS;
-pub type DecOKI     = AdpcmDecoderOKI;
-pub type DecOKI6258 = AdpcmDecoderOKI6258;
-pub type DecYMA     = AdpcmDecoderYMA;
-pub type DecYMB     = AdpcmDecoderYMB;
-pub type DecYMZ     = AdpcmDecoderYMZ;
-pub type DecAICA    = AdpcmDecoderAICA;
 pub type DecIMA     = AdpcmDecoderIMA;
-pub type DecMS      = AdpcmDecoderMS;
-
-pub mod bs {
-    // Encode and decode algorithms for
-    // Brian Schmidt's ADPCM used in QSound DSP
-
-    // 2018-2019 by superctr.
-    // 2025 by 0xAA55
-
-    use std::io;
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    // step ADPCM algorithm
-    fn bs_step(step: i8, history: &mut i16, step_size: &mut i16) -> i16 {
-        const ADPCM_TABLE: [i16; 16] = [
-            154, 154, 128, 102, 77, 58, 58, 58, // 2.4, 2.4, 2.0, 1.6, 1.2, 0.9, 0.9, 0.9
-            58, 58, 58, 58, 77, 102, 128, 154   // 0.9, 0.9, 0.9, 0.9, 1.2, 1.6, 2.0, 2.4
-        ];
-        
-        let scale = *step_size as i32;
-        let mut delta = ((1 + (step << 1).abs() as i32) * scale) >> 1;
-        let out = *history as i32;
-        if step <= 0 {
-            delta = -delta;
-        }
-        let out = ((out + delta).clamp(-32768, 32767)) as i16;
-        let scale = (scale * ADPCM_TABLE[(8 + step) as usize] as i32) >> 6;
-        *step_size = scale.clamp(1, 2000) as i16;
-        *history = out;
-        out
-    }
-
-    // step high pass filter
-    fn bs_hpf_step(input: i16, history: &mut i16, state: &mut i32) -> i16 {
-        *state = (*state >> 2) + input as i32 - *history as i32;
-        *history = input;
-        let out = (*state >> 1) + input as i32;
-        out.clamp(-32768, 32767) as i16
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub buf_sample: u8,
-        pub nibble: u8,
-        pub filter_history: i16,
-        pub filter_state: i32,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                step_size: 10,
-                history: 0,
-                buf_sample: 0,
-                nibble: 0,
-                filter_history: 0,
-                filter_state: 0,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            while let Some(sample) = input() {
-                let step = bs_hpf_step(sample, &mut self.filter_history, &mut self.filter_state);
-                let step = ((step / self.step_size) >> 1).clamp(-8, 7) as i8;
-                if self.nibble != 0 {
-                    output(self.buf_sample | (step as u8 & 0xF));
-                } else {
-                    self.buf_sample = (step as u8 & 0xF) << 4;
-                }
-                self.nibble ^= 1;
-                bs_step(step, &mut self.history, &mut self.step_size);
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub nibble: u8,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                step_size: 10,
-                history: 0,
-                nibble: 0,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                output(bs_step(step, &mut self.history, &mut self.step_size));
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod oki {
-    // Encode and decode algorithms for
-    // OKI ADPCM
-
-    // Only difference between MSM6295 and MSM6258 is that the nibbles are swapped.
-    // MSM6295 reads from MSB to LSB. MSM6258 reads from LSB to MSB.
-
-    // Dialogic 'VOX' PCM reads from MSB to LSB, therefore should use the MSM6295 functions.
-
-    // 2019-2022 by superctr.
-    // 2025 by 0xAA55
-
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    const OKI_STEP_TABLE: [u16; 49] = [
-        16, 17, 19, 21, 23, 25, 28, 31,
-        34, 37, 41, 45, 50, 55, 60, 66,
-        73, 80, 88, 97, 107,118,130,143,
-        157,173,190,209,230,253,279,307,
-        337,371,408,449,494,544,598,658,
-        724,796,876,963,1060,1166,1282,1411,1552
-    ];
-
-    pub fn oki_step(step: u8, history: &mut i16, step_hist: &mut u8, oki_highpass: bool) -> i16
-    {
-        const ADJUST_TABLE: [i8; 8] = [
-            -1,-1,-1,-1,2,4,6,8
-        ];
-
-        let step_size = OKI_STEP_TABLE[*step_hist as usize] as i16;
-        let mut delta = (step_size >> 3) as i16;
-        if step & 1 != 0 {
-            delta += step_size >> 2;
-        }
-        if step & 2 != 0 {
-            delta += step_size >> 1;
-        }
-        if step & 4 != 0 {
-            delta += step_size;
-        }
-        if step & 8 != 0 {
-            delta = -delta;
-        }
-
-        let out: i32;
-        if oki_highpass {
-            out = (((delta as i32) << 8) + ((*history as i32) * 245)) >> 8;
-        } else {
-            out = (*history + delta) as i32;
-        }
-        let out = out.clamp(-2048, 2047) as i16; // Saturate output
-        *history = out;
-        let adjusted_step = *step_hist as i8 + ADJUST_TABLE[(step & 7) as usize];
-        *step_hist = adjusted_step.clamp(0, 48) as u8;
-        out
-    }
-
-    pub fn oki_encode_step(input: i16, history: &mut i16, step_hist: &mut u8, oki_highpass: bool) -> u8 {
-        let mut step_size = OKI_STEP_TABLE[*step_hist as usize] as i16;
-        let mut delta = input - *history;
-        let mut adpcm_sample: u8 = if delta < 0 { 8 } else { 0 };
-        delta = delta.abs();
-        for bit in (0..3).rev() {
-            if delta >= step_size {
-                adpcm_sample |= 1 << bit;
-                delta -= step_size;
-            }
-            step_size >>= 1;
-        }
-        oki_step(adpcm_sample as u8, history, step_hist, oki_highpass);
-        adpcm_sample
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub buf_sample: u8,
-        pub nibble: u8,
-        pub oki_highpass: bool,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                history: 0,
-                step_hist: 0,
-                buf_sample: 0,
-                nibble: 0,
-                oki_highpass: false,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let mut sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                if sample < 0x7FF8 {
-                    sample += 8;
-                }
-                sample >>= 4;
-                let step = oki_encode_step(sample, &mut self.history, &mut self.step_hist, self.oki_highpass);
-                if self.nibble != 0 {
-                    output(self.buf_sample | (step & 0xF));
-                } else {
-                    self.buf_sample = (step & 0xF) << 4;
-                }
-                self.nibble ^= 1;
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub nibble: u8,
-        pub oki_highpass: bool,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                history: 0,
-                step_hist: 0,
-                nibble: 0,
-                oki_highpass: false,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4);
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod oki6258 {
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    use super::oki::oki_encode_step;
-    use super::oki::oki_step;
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub buf_sample: u8,
-        pub nibble: u8,
-        pub oki_highpass: bool,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                history: 0,
-                step_hist: 0,
-                buf_sample: 0,
-                nibble: 0,
-                oki_highpass: false,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let mut sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                if sample < 0x7FF8 {
-                    sample += 8;
-                }
-                sample >>= 4;
-                let step = oki_encode_step(sample, &mut self.history, &mut self.step_hist, self.oki_highpass);
-                if self.nibble != 0 {
-                    output(self.buf_sample | ((step & 0xF) << 4));
-                } else {
-                    self.buf_sample = step & 0xF;
-                }
-                self.nibble ^= 1;
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub nibble: u8,
-        pub oki_highpass: bool,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                history: 0,
-                step_hist: 0,
-                nibble: 4,
-                oki_highpass: false,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                output(oki_step(step as u8, &mut self.history, &mut self.step_hist, self.oki_highpass) << 4);
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod yma {
-    // Encode and decode algorithms for
-    // Yamaha ADPCM-A
-
-    // 2019 by superctr.
-    // 2025 by 0xAA55
-
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    const YMA_STEP_TABLE: [u16; 49] = [
-        16, 17, 19, 21, 23, 25, 28, 31,
-        34, 37, 41, 45, 50, 55, 60, 66,
-        73, 80, 88, 97, 107,118,130,143,
-        157,173,190,209,230,253,279,307,
-        337,371,408,449,494,544,598,658,
-        724,796,876,963,1060,1166,1282,1411,1552
-    ];
-
-    pub fn yma_step(step: u8, history: &mut i16, step_hist: &mut u8) -> i16 {
-        const DELTA_TABLE: [i8; 16] = [
-            1,3,5,7,9,11,13,15, -1,-3,-5,-7,-9,-11,-13,-15
-        ];
-        const ADJUST_TABLE: [i8; 8] = [
-            -1,-1,-1,-1,2,5,7,9
-        ];
-        let step_size = YMA_STEP_TABLE[*step_hist as usize];
-        let delta = DELTA_TABLE[(step & 0xF) as usize] as i16 * step_size as i16 / 8;
-        let out = (*history + delta) & 0xFFF; // No saturation
-        let out = out | if out & 0x800 != 0 { 0xf000u16 as i16 } else { 0 };
-        *history = out;
-        let adjusted_step = *step_hist as i8 + ADJUST_TABLE[(step & 7) as usize]; // Different adjust table
-        *step_hist = adjusted_step.clamp(0, 48) as u8;
-        out
-    }
-
-    pub fn yma_encode_step(input: i16, history: &mut i16, step_hist: &mut u8) -> u8 {
-        let mut step_size = YMA_STEP_TABLE[*step_hist as usize] as i16;
-        let mut delta = input - *history;
-        let mut adpcm_sample = if delta < 0 { 8 } else { 0 };
-        if delta < 0 {
-            adpcm_sample = 8;
-        }
-        delta = delta.abs();
-        for bit in (0..3).rev() {
-            if delta >= step_size {
-                adpcm_sample |= 1 << bit;
-                delta -= step_size;
-            }
-            step_size >>= 1;
-        }
-        yma_step(adpcm_sample, history, step_hist);
-        adpcm_sample
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub buf_sample: u8,
-        pub nibble: u8,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                history: 0,
-                step_hist: 0,
-                buf_sample: 0,
-                nibble: 0,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let mut sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                if sample < 0x7FF8 {
-                    sample += 8;
-                }
-                sample >>= 4;
-                let step = yma_encode_step(sample, &mut self.history, &mut self.step_hist);
-                if self.nibble != 0 {
-                    output(self.buf_sample | (step & 0xF));
-                } else {
-                    self.buf_sample = (step & 0xF) << 4;
-                }
-                self.nibble ^= 1;
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub history: i16,
-        pub step_hist: u8,
-        pub nibble: u8,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                history: 0,
-                step_hist: 0,
-                nibble: 0,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                output(yma_step(step as u8, &mut self.history, &mut self.step_hist) << 4);
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod ymb {
-    // Encode and decode algorithms for
-    // Y8950/YM2608/YM2610 ADPCM-B
-
-    // 2019 by superctr.
-    // 2025 by 0xAA55
-
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    pub fn ymb_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
-        const STEP_TABLE: [i32; 8] = [
-            57, 57, 57, 57, 77, 102, 128, 153
-        ];
-
-        let sign = (step & 8) as i32;
-        let delta = (step & 7) as i32;
-        let diff = ((1 + (delta << 1)) * *step_size as i32) >> 3;
-        let mut newval = *history as i32;
-        let nstep = (STEP_TABLE[delta as usize] * *step_size as i32) >> 6;
-        if sign > 0 {
-            newval -= diff;
-        } else {
-            newval += diff;
-        }
-        //step_size = nstep.clamp(511, 32767);
-        *step_size = nstep.clamp(127, 24576) as i16;
-        let newval = newval.clamp(-32768, 32767) as i16;
-        *history = newval;
-        newval
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub buf_sample: u8,
-        pub nibble: u8,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                step_size: 127,
-                history: 0,
-                buf_sample: 0,
-                nibble: 0,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                let step = ((sample & -8) - self.history) as i32;
-                let mut adpcm_sample = ((step.abs() << 16) / ((self.step_size as i32) << 14)) as u32;
-                adpcm_sample = adpcm_sample.clamp(0, 7);
-                if step < 0 {
-                    adpcm_sample |= 8;
-                }
-                if self.nibble != 0 {
-                    output(self.buf_sample | (adpcm_sample & 0xF) as u8);
-                } else {
-                    self.buf_sample = ((adpcm_sample & 0xF) << 4) as u8;
-                }
-                self.nibble ^= 1;
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub nibble: u8,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                step_size: 127,
-                history: 0,
-                nibble: 0,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                output(ymb_step(step as u8, &mut self.history, &mut self.step_size));
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod ymz {
-    // Encode and decode algorithms for
-    // YMZ280B / AICA ADPCM.
-
-    // The only difference between YMZ280B and AICA ADPCM is that the nibbles are swapped.
-
-    // 2019 by superctr.
-    // 2025 by 0xAA55
-
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    pub fn ymz_step(step: u8, history: &mut i16, step_size: &mut i16) -> i16 {
-        const STEP_TABLE: [i32; 8] = [
-            230, 230, 230, 230, 307, 409, 512, 614
-        ];
-
-        let sign = (step & 8) as i32;
-        let delta = (step & 7) as i32;
-        let diff = ((1 + (delta << 1)) * *step_size as i32) >> 3;
-        let mut newval = *history as i32;
-        let nstep = (STEP_TABLE[delta as usize] * *step_size as i32) >> 8;
-        // Only found in the official AICA encoder
-        // but it's possible all chips (including ADPCM-B) does this.
-        let diff = diff.clamp(0, 32767);
-        if sign > 0 {
-            newval -= diff;
-        } else {
-            newval += diff;
-        }
-        //step_size = nstep.clamp(511, 32767);
-        *step_size = nstep.clamp(127, 24576) as i16;
-        let newval = newval.clamp(-32768, 32767) as i16;
-        *history = newval;
-        newval
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub buf_sample: u8,
-        pub nibble: u8,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                step_size: 127,
-                history: 0,
-                buf_sample: 0,
-                nibble: 0,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                let step = ((sample & -8) - self.history) as i32;
-                let mut adpcm_sample = ((step.abs() << 16) / ((self.step_size as i32) << 14)) as u32;
-                adpcm_sample = adpcm_sample.clamp(0, 7);
-                if step < 0 {
-                    adpcm_sample |= 8;
-                }
-                if self.nibble != 0 {
-                    output(self.buf_sample | (adpcm_sample & 0xF) as u8);
-                } else {
-                    self.buf_sample = ((adpcm_sample & 0xF) << 4) as u8;
-                }
-                self.nibble ^= 1;
-                ymz_step(adpcm_sample as u8, &mut self.history, &mut self.step_size);
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub nibble: u8,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                step_size: 127,
-                history: 0,
-                nibble: 0,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble != 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                self.history = self.history * 254 / 256; // High pass
-                output(ymz_step(step as u8, &mut self.history, &mut self.step_size));
-            }
-            Ok(())
-        }
-    }
-}
-
-pub mod aica {
-    use std::{io::{self}};
-
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
-
-    use super::ymz::ymz_step;
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
-        pub step_size: i16,
-        pub history: i16,
-        pub buf_sample: u8,
-        pub nibble: u8,
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                step_size: 127,
-                history: 0,
-                buf_sample: 0,
-                nibble: 0,
-            }
-        }
-
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                let sample = match input() {
-                    Some(sample) => sample,
-                    None => break,
-                };
-                let step = ((sample & -8) - self.history) as i32;
-                let mut adpcm_sample = ((step.abs() << 16) / ((self.step_size as i32) << 14)) as u32;
-                adpcm_sample = adpcm_sample.clamp(0, 7);
-                if step < 0 {
-                    adpcm_sample |= 8;
-                }
-                if self.nibble == 0 {
-                    output(self.buf_sample | (adpcm_sample << 4) as u8);
-                } else {
-                    self.buf_sample = (adpcm_sample & 0xF) as u8;
-                }
-                self.nibble ^= 1;
-                ymz_step(adpcm_sample as u8, &mut self.history, &mut self.step_size);
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
-        step_size: i16,
-        history: i16,
-        nibble: u8,
-    }
-
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                step_size: 127,
-                history: 0,
-                nibble: 4,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            let mut byte = match input() {
-                Some(byte) => byte,
-                None => return Ok(()),
-            };
-            let mut quit = false;
-            while !quit {
-                let step = (byte as i8) << self.nibble;
-                let step = step >> 4;
-                if self.nibble == 0 {
-                    byte = match input() {
-                        Some(byte) => byte,
-                        None => {
-                            quit = true;
-                            byte
-                        },
-                    }
-                }
-                self.nibble ^= 4;
-                self.history = self.history * 254 / 256; // High pass
-                output(ymz_step(step as u8, &mut self.history, &mut self.step_size));
-            }
-            Ok(())
-        }
-    }
-}
+// pub type DecMS      = AdpcmDecoderMS;
 
 pub mod ima {
-    use std::{io::{self}, cmp::min};
+    use std::{io, cmp::min, mem};
 
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
+    use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
+    use crate::{FmtChunk, ExtensionData, AdpcmImaData};
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
@@ -988,20 +105,50 @@ pub mod ima {
         32767
     ];
 
-    const MAX_BLOCK_SIZE: u16 = 512;
-    const INTERLEAVE_BYTES: u16 = 4;
+    const BLOCK_SIZE: usize = 512;
+    const INTERLEAVE_BYTES: usize = 4;
+    const SAMPLE_BUFFER_SIZE: usize = 512;
+    const NIBBLE_BUFFER_SIZE: usize = 512;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct Encoder {
+    pub struct EncoderCore {
         prev_sample: i16,
         stepsize_index: i8,
         nibble: [u8; 2],
         nibble_index: u8,
         header_written: bool,
-        num_outputs: u16,
+        num_outputs: usize,
     }
 
-    impl Encoder{
+    #[derive(Debug, Clone)]
+    pub struct StereoEncoder {
+        current_channel: CurrentChannel,
+        core_l: EncoderCore,
+        core_r: EncoderCore,
+        buffer_l: Vec<i16>,
+        buffer_r: Vec<i16>,
+        nibble_l: Vec<u8>,
+        nibble_r: Vec<u8>,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum Encoder {
+        Mono(EncoderCore),
+        Stereo(StereoEncoder),
+    }
+
+    impl EncoderCore{
+        pub fn new() -> Self {
+            Self {
+                prev_sample: 0,
+                stepsize_index: 0,
+                nibble: [0u8; 2],
+                nibble_index: 0,
+                header_written: false,
+                num_outputs: 0,
+            }
+        }
+
         // 编一个码
         pub fn encode_sample(&mut self, sample: i16) -> u8 {
             let mut prev = self.prev_sample as i32;
@@ -1027,24 +174,11 @@ pub mod ima {
             self.stepsize_index = idx;
             nibble
         }
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
-            Self {
-                prev_sample: 0,
-                stepsize_index: 0,
-                nibble: [0u8; 2],
-                nibble_index: 0,
-                header_written: false,
-                num_outputs: 0,
-            }
-        }
 
         // 编码器逻辑
         // 一开始输出 4 字节的头部信息
         // 然后每两个样本转一个码
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 if !self.header_written {
                     // 写出 4 字节头部
@@ -1062,7 +196,7 @@ pub mod ima {
                     self.nibble_index = 0;
                     output(self.nibble[0] | (self.nibble[1] << 4));
                     self.num_outputs += 1;
-                    if self.num_outputs >= MAX_BLOCK_SIZE {
+                    if self.num_outputs >= BLOCK_SIZE {
                         // 到达块大小上限，重置编码器
                         self.prev_sample = sample;
                         self.header_written = false;
@@ -1073,30 +207,128 @@ pub mod ima {
             Ok(())
         }
 
-        fn get_interleave_bytes(&self) -> usize {
-            INTERLEAVE_BYTES as usize
-        }
-        fn get_header_bytes(&self) -> usize {
-            4
-        }
-        fn get_block_size(&self) -> u16 {
-            MAX_BLOCK_SIZE
-        }
-        fn flush(&mut self, output: impl FnMut(u8)) -> Result<(), io::Error> {
-            let pad = INTERLEAVE_BYTES - self.num_outputs % INTERLEAVE_BYTES;
-            if pad != 0 && pad != INTERLEAVE_BYTES {
-                let mut pad = Vec::<i16>::new();
-                pad.resize(pad_size, 0);
-                let iter = pad.into_iter();
-                self.encode(
-                    || -> Option<i16> {
-                        iter.next()
-                    },
-                    |nibble: u8| {
-                        output(nibble)
-                    })?
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            let aligned_size = ((self.num_outputs - 1) / INTERLEAVE_BYTES + 1) * INTERLEAVE_BYTES;
+            let pad_size = aligned_size - self.num_outputs;
+            if pad_size != 0 {
+                let mut iter = {let mut pad = Vec::<i16>::new(); pad.resize(pad_size, 0); pad.into_iter()};
+                self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?
             }
             Ok(())
+        }
+    }
+
+    impl StereoEncoder {
+        pub fn new() -> Self {
+            Self {
+                current_channel: CurrentChannel::Left,
+                core_l: EncoderCore::new(),
+                core_r: EncoderCore::new(),
+                buffer_l: Vec::<i16>::new(),
+                buffer_r: Vec::<i16>::new(),
+                nibble_l: Vec::<u8>::new(),
+                nibble_r: Vec::<u8>::new(),
+            }
+        }
+
+        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            while let Some(sample) = input() {
+                match self.current_channel{
+                    CurrentChannel::Left => {
+                        self.current_channel = CurrentChannel::Right;
+                        self.buffer_l.push(sample);
+                    },
+                    CurrentChannel::Right => {
+                        self.current_channel = CurrentChannel::Left;
+                        self.buffer_r.push(sample);
+                    },
+                }
+                if self.buffer_l.len() >= SAMPLE_BUFFER_SIZE &&
+                   self.buffer_r.len() >= SAMPLE_BUFFER_SIZE {
+                    let iter_l = mem::replace(&mut self.buffer_l, Vec::<i16>::new()).into_iter();
+                    let iter_r = mem::replace(&mut self.buffer_r, Vec::<i16>::new()).into_iter();
+                    let mut feeder_l = iter_l.clone().take(SAMPLE_BUFFER_SIZE);
+                    let mut feeder_r = iter_r.clone().take(SAMPLE_BUFFER_SIZE);
+                    self.core_l.encode(|| -> Option<i16> {feeder_l.next()}, |nibble:u8|{self.nibble_l.push(nibble)})?;
+                    self.core_r.encode(|| -> Option<i16> {feeder_r.next()}, |nibble:u8|{self.nibble_r.push(nibble)})?;
+                    self.buffer_l = iter_l.skip(SAMPLE_BUFFER_SIZE).collect();
+                    self.buffer_r = iter_r.skip(SAMPLE_BUFFER_SIZE).collect();
+                }
+                while self.nibble_l.len() >= INTERLEAVE_BYTES &&
+                      self.nibble_r.len() >= INTERLEAVE_BYTES {
+                    let iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
+                    let iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
+                    let feeder_l = iter_l.clone().take(INTERLEAVE_BYTES);
+                    let feeder_r = iter_r.clone().take(INTERLEAVE_BYTES);
+                    for nibble in feeder_l {output(nibble);}
+                    for nibble in feeder_r {output(nibble);}
+                    self.nibble_l = iter_l.skip(INTERLEAVE_BYTES).collect();
+                    self.nibble_r = iter_r.skip(INTERLEAVE_BYTES).collect();
+                }
+            }
+            Ok(())
+        }
+
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            // 全部写入
+            let mut iter_l = mem::replace(&mut self.buffer_l, Vec::<i16>::new()).into_iter();
+            let mut iter_r = mem::replace(&mut self.buffer_r, Vec::<i16>::new()).into_iter();
+            self.core_l.encode(|| -> Option<i16> {iter_l.next()}, |nibble:u8|{self.nibble_l.push(nibble)})?;
+            self.core_r.encode(|| -> Option<i16> {iter_r.next()}, |nibble:u8|{self.nibble_r.push(nibble)})?;
+            self.core_l.flush(|nibble:u8|{self.nibble_l.push(nibble)})?;
+            self.core_r.flush(|nibble:u8|{self.nibble_r.push(nibble)})?;
+            while self.nibble_l.len() > 0 &&
+                  self.nibble_r.len() > 0 {
+                let iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
+                let iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
+                let feeder_l = iter_l.clone().take(INTERLEAVE_BYTES);
+                let feeder_r = iter_r.clone().take(INTERLEAVE_BYTES);
+                for nibble in feeder_l {output(nibble);}
+                for nibble in feeder_r {output(nibble);}
+                self.nibble_l = iter_l.skip(INTERLEAVE_BYTES).collect();
+                self.nibble_r = iter_r.skip(INTERLEAVE_BYTES).collect();
+            }
+            Ok(())
+        }
+    }
+
+    impl AdpcmEncoder for Encoder {
+        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
+            match channels {
+                1 => Ok(Encoder::Mono(EncoderCore::new())),
+                2 => Ok(Encoder::Stereo(StereoEncoder::new())),
+                other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-IMA encoder."))),
+            }
+        }
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            match self {
+                Encoder::Mono(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
+                Encoder::Stereo(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
+            }
+        }
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            match self {
+                Encoder::Mono(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
+                Encoder::Stereo(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
+            }
+        }
+        fn get_required_fmt_chunk_size(&mut self) -> usize {
+            16 + 2 + AdpcmImaData::sizeof()
+        }
+        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+            fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
+            fmt_chunk.bits_per_sample = 4;
+            fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
+            if let Some(ref mut extension) = fmt_chunk.extension {
+                if let ExtensionData::AdpcmIma(ref mut adpcm_ima) = extension.data {
+                    adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4 * fmt_chunk.channels) * fmt_chunk.channels * 2;
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA")))
+                }
+            } else {
+                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-IMA, must store the extension data in the `fmt ` chunk")))
+            }
         }
     }
 
@@ -1105,21 +337,42 @@ pub mod ima {
     // 对于每个声道，第一个 u32 用于初始化解码器
     // 之后的每个 u32 相当于 4 个字节，能解出 8 个码
     #[derive(Debug, Clone, Copy)]
-    pub struct Decoder {
+    pub struct DecoderCore {
         sample_val: i16,
         stepsize_index: i8,
         ready: bool,
         buffer: [u8; 4],
-        bufsize: u8,
-        input_count: u16,
+        bufsize: usize,
+        input_count: usize,
     }
 
-    impl Decoder{
-        pub fn get_num_samples(fact_data: &Vec<u8>) -> Result<u64, ImaAdpcmError> {
-            match fact_data.len() {
-                4 => Ok(u32::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3]]) as u64),
-                8 => Ok(u64::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3], fact_data[4], fact_data[5], fact_data[6], fact_data[7]])),
-                other => Err(ImaAdpcmError::InvalidArgument(format!("fact data size should be 4 or 8, not {other}."))),
+    #[derive(Debug, Clone)]
+    pub struct StereoDecoder {
+        current_channel: CurrentChannel,
+        counter: u8,
+        core_l: DecoderCore,
+        core_r: DecoderCore,
+        nibble_l: Vec<u8>,
+        nibble_r: Vec<u8>,
+        sample_l: Vec<i16>,
+        sample_r: Vec<i16>,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum Decoder {
+        Mono(DecoderCore),
+        Stereo(StereoDecoder),
+    }
+
+    impl DecoderCore{
+        pub fn new() -> Self {
+            Self {
+                sample_val: 0,
+                stepsize_index: 0,
+                ready: false,
+                buffer: [0u8; INTERLEAVE_BYTES],
+                bufsize: 0,
+                input_count: 0,
             }
         }
 
@@ -1146,21 +399,8 @@ pub mod ima {
             self.buffer[self.bufsize as usize] = byte;
             self.bufsize += 1;
         }
-    }
 
-    impl AdpcmDecoder for Decoder {
-        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            Ok(Self {
-                sample_val: 0,
-                stepsize_index: 0,
-                ready: false,
-                buffer: [0u8; INTERLEAVE_BYTES],
-                bufsize: 0,
-                input_count: 0,
-            })
-        }
-
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             loop {
                 if !self.ready {
                     // 先吃四个字节用来初始化，并输出第一个样本。
@@ -1204,7 +444,7 @@ pub mod ima {
                     output(self.decode_sample((b4 >> 0) & 0xF));
                     output(self.decode_sample((b4 >> 4) & 0xF));
                     self.bufsize = 0;
-                    if self.input_count >= MAX_BLOCK_SIZE {
+                    if self.input_count >= BLOCK_SIZE {
                         self.input_count = 0;
                         self.ready = false;
                     }
@@ -1212,65 +452,584 @@ pub mod ima {
             }
         }
 
-        fn get_interleave_bytes(&self) -> usize {
-            INTERLEAVE_BYTES as usize
-        }
-        fn get_header_bytes(&self) -> usize {
-            4
-        }
-        fn get_block_size(&self) -> u16 {
-            MAX_BLOCK_SIZE
-        }
-        fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
-            Some(FmtExtension::new_adpcm_ima(ExtensionData::AdpcmIma::new(self.get_block_size() * channels)))
-        }
-        fn flush(&mut self, output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             if (self.ready, self.bufsize > 0, self.bufsize < INTERLEAVE_BYTES) == (true, true, true) {
                 let pad_size = INTERLEAVE_BYTES - self.bufsize;
                 let mut pad = Vec::<u8>::new();
                 pad.resize(pad_size, 0);
-                let iter = pad.into_iter();
-                self.decode(
-                    || -> Option<u8> {
-                        iter.next()
+                let mut iter = pad.into_iter();
+                self.decode(|| -> Option<u8> {iter.next()}, |sample: i16| {output(sample)})?;
+            }
+            Ok(())
+        }
+    }
+
+    impl StereoDecoder {
+        pub fn new() -> Self {
+            assert_eq!(NIBBLE_BUFFER_SIZE % INTERLEAVE_BYTES, 0);
+            Self {
+                current_channel: CurrentChannel::Left,
+                counter: 0,
+                core_l: DecoderCore::new(),
+                core_r: DecoderCore::new(),
+                nibble_l: Vec::<u8>::new(),
+                nibble_r: Vec::<u8>::new(),
+                sample_l: Vec::<i16>::new(),
+                sample_r: Vec::<i16>::new(),
+            }
+        }
+
+        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            // 每 INTERLEAVE_BYTES 字节数一个声道
+            while let Some(nibble) = input() {
+                match self.current_channel{
+                    CurrentChannel::Left => {
+                        self.nibble_l.push(nibble);
+                        self.counter += 1;
+                        if self.counter as usize == INTERLEAVE_BYTES {
+                            self.counter = 0;
+                            self.current_channel = CurrentChannel::Right;
+                        }
                     },
-                    |sample: i16| {
-                        output(sample)
-                    })?
-            } else {
-                Ok(())
+                    CurrentChannel::Right => {
+                        self.nibble_r.push(nibble);
+                        self.counter += 1;
+                        if self.counter as usize == INTERLEAVE_BYTES {
+                            self.counter = 0;
+                            self.current_channel = CurrentChannel::Left;
+                        }
+                    },
+                }
+                if self.nibble_l.len() >= NIBBLE_BUFFER_SIZE &&
+                   self.nibble_r.len() >= NIBBLE_BUFFER_SIZE {
+                    let iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
+                    let iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
+                    let mut feeder_l = iter_l.clone().take(NIBBLE_BUFFER_SIZE);
+                    let mut feeder_r = iter_r.clone().take(NIBBLE_BUFFER_SIZE);
+                    self.core_l.decode(|| -> Option<u8> {feeder_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
+                    self.core_r.decode(|| -> Option<u8> {feeder_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
+                    self.nibble_l = iter_l.skip(NIBBLE_BUFFER_SIZE).collect();
+                    self.nibble_r = iter_r.skip(NIBBLE_BUFFER_SIZE).collect();
+                }
+                let iter_l = mem::replace(&mut self.sample_l, Vec::<i16>::new()).into_iter();
+                let iter_r = mem::replace(&mut self.sample_r, Vec::<i16>::new()).into_iter();
+                for stereo in iter_l.zip(iter_r) {
+                    output(stereo.0);
+                    output(stereo.1);
+                }
+            }
+            Ok(())
+        }
+
+        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            // 每 INTERLEAVE_BYTES 字节数一个声道，两边填零，确保两边都达到 INTERLEAVE_BYTES
+            while match self.current_channel {
+                CurrentChannel::Left => {
+                    if self.counter == 0 {
+                        false
+                    } else {
+                        self.nibble_l.push(0);
+                        self.counter += 1;
+                        if self.counter as usize == INTERLEAVE_BYTES {
+                            self.counter = 0;
+                            self.current_channel = CurrentChannel::Right;
+                        }
+                        true
+                    }
+                },
+                CurrentChannel::Right => {
+                    self.nibble_r.push(0);
+                    self.counter += 1;
+                    if self.counter as usize== INTERLEAVE_BYTES {
+                        self.counter = 0;
+                        self.current_channel = CurrentChannel::Left;
+                        false
+                    } else {
+                        true
+                    }
+                },
+            }{}
+            if self.nibble_l.len() > 0 &&
+               self.nibble_r.len() > 0 {
+                let mut iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
+                let mut iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
+                self.core_l.decode(|| -> Option<u8> {iter_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
+                self.core_r.decode(|| -> Option<u8> {iter_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
+                self.core_l.flush(|sample:i16|{self.sample_l.push(sample)})?;
+                self.core_r.flush(|sample:i16|{self.sample_r.push(sample)})?;
+                self.nibble_l = Vec::<u8>::new();
+                self.nibble_r = Vec::<u8>::new();
+            }
+            let iter_l = mem::replace(&mut self.sample_l, Vec::<i16>::new()).into_iter();
+            let iter_r = mem::replace(&mut self.sample_r, Vec::<i16>::new()).into_iter();
+            for stereo in iter_l.zip(iter_r) {
+                output(stereo.0);
+                output(stereo.1);
+            }
+            Ok(())
+        }
+    }
+
+
+    impl AdpcmDecoder for Decoder {
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+            match fmt_chunk.channels {
+                1 => Ok(Decoder::Mono(DecoderCore::new())),
+                2 => Ok(Decoder::Stereo(StereoDecoder::new())),
+                other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-IMA decoder."))),
+            }
+        }
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error>{
+            match self {
+                Decoder::Mono(ref mut dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
+                Decoder::Stereo(ref mut dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
+            }
+        }
+        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            match self {
+                Decoder::Mono(ref mut dec) => dec.flush(|sample:i16|{output(sample)}),
+                Decoder::Stereo(ref mut dec) => dec.flush(|sample:i16|{output(sample)}),
             }
         }
     }
 }
 
+
 pub mod ms {
     // 巨硬的 ADPCM
-    use std::{io::{self}, cmp::min};
+    use std::io;
 
-    use super::AdpcmEncoder;
-    use super::AdpcmDecoder;
+    use super::{AdpcmEncoder, AdpcmDecoder};
+    use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
 
-    const AdaptationTable: [i32; 16] = [
+    const ADAPTATIONTABLE: [i16; 16] = [
         230, 230, 230, 230, 307, 409, 512, 614,
         768, 614, 512, 409, 307, 230, 230, 230
     ];
 
     #[derive(Debug, Clone, Copy)]
-    struct AdpcmCoefSet {
-        coef1: i16,
-        coef2: i16,
-    };
+    pub struct AdpcmCoeffSet {
+        pub coeff1: i16,
+        pub coeff2: i16,
+    }
 
-    const AdpcmCoefSet: [AdpcmCoefSet; 7] = [
-        AdpcmCoefSet{coef1: 256, coef2: 0   },
-        AdpcmCoefSet{coef1: 512, coef2: -256},
-        AdpcmCoefSet{coef1: 0  , coef2: 0   },
-        AdpcmCoefSet{coef1: 192, coef2: 64  },
-        AdpcmCoefSet{coef1: 240, coef2: 0   },
-        AdpcmCoefSet{coef1: 460, coef2: -208},
-        AdpcmCoefSet{coef1: 392, coef2: -232},
-    ]
+    const DEF_COEFF_TABLE: [AdpcmCoeffSet; 7] = [
+        AdpcmCoeffSet{coeff1: 256, coeff2: 0   },
+        AdpcmCoeffSet{coeff1: 512, coeff2: -256},
+        AdpcmCoeffSet{coeff1: 0  , coeff2: 0   },
+        AdpcmCoeffSet{coeff1: 192, coeff2: 64  },
+        AdpcmCoeffSet{coeff1: 240, coeff2: 0   },
+        AdpcmCoeffSet{coeff1: 460, coeff2: -208},
+        AdpcmCoeffSet{coeff1: 392, coeff2: -232},
+    ];
 
+    const INTERLEAVE_BYTES: usize = 1;
+    const BLOCK_SIZE: usize = 1024;
+    const HEADER_SIZE: usize = 7;
+    const NIBBLE_BUFFER_SIZE: usize = BLOCK_SIZE - HEADER_SIZE;
+    const SAMPLES_PER_BLOCK: usize = NIBBLE_BUFFER_SIZE * 2;
 
+    impl AdpcmCoeffSet{
+        pub fn new() -> Self {
+            Self {
+                coeff1: 0,
+                coeff2: 0,
+            }
+        }
+
+        pub fn calculate_coefficient(data: &[i16]) -> Self {
+            let mut alpha = 0.0f64;
+            let mut beta = 0.0f64;
+            let mut gamma = 0.0f64;
+            let mut m = 0.0f64;
+            let mut n = 0.0f64;
+            for i in 2..data.len() {
+                alpha += data[i - 1] as f64 * data[i - 1] as f64;
+                beta += data[i - 1] as f64 * data[i - 2] as f64;
+                gamma += data[i - 2] as f64 * data[i - 2] as f64;
+                m += data[i] as f64 * data[i - 1] as f64;
+                n += data[i] as f64 * data[i - 2] as f64;
+            }
+            Self {
+                coeff1: ((m * gamma - n * beta) * 256.0 / (alpha * gamma - beta * beta)) as i16,
+                coeff2: ((m * beta - n * alpha) * 256.0 / (beta * beta - alpha * gamma)) as i16,
+            }
+        }
+
+        pub fn get_closest_coefficient_index(&self, coeff_table: &[AdpcmCoeffSet; 7]) -> u8 {
+            let mut diff: u32 = 0xFFFFFFFF;
+            let mut index = 0u8;
+            for (i, coeff) in coeff_table.iter().enumerate() {
+                let dx = (coeff.coeff1 - self.coeff1) as i32;
+                let dy = (coeff.coeff2 - self.coeff2) as i32;
+                let length_sq = (dx * dx + dy * dy) as u32;
+                if length_sq < diff {
+                    diff = length_sq;
+                    index = i as u8;
+                }
+            }
+            index
+        }
+    }
+
+    pub fn trim_to_nibble(c: i8) -> u8 {
+        (c.clamp(-8, 7) & 0x0F) as u8
+    }
+
+    /*
+
+    #[derive(Clone, Copy)]
+    pub struct EncoderBlock {
+        predictor: u8,
+        delta: i16,
+        sample1: i16,
+        sample2: i16,
+        nibbles: [u8; NIBBLE_BUFFER_SIZE],
+        num_nibbles: usize
+    }
+
+    impl EncoderBlock {
+        pub fn new() -> Self {
+            Self {
+                predictor: 0,
+                delta: 0,
+                sample1: 0,
+                sample2: 0,
+                nibbles: [0u8; NIBBLE_BUFFER_SIZE],
+                num_nibbles: 0,
+            }
+        }
+
+        pub fn to_le_bytes(&self) -> Vec<u8> {
+            let mut ret = Vec::<u8>::with_capacity(256);
+            ret.push(self.predictor);
+            ret.extend(&self.delta.to_le_bytes());
+            ret.extend(&self.sample1.to_le_bytes());
+            ret.extend(&self.sample2.to_le_bytes());
+            ret.extend(&self.nibbles);
+            ret
+        }
+
+        pub fn is_full(&self) -> bool {
+            self.num_nibbles as usize >= self.nibbles.len()
+        }
+
+        pub fn push_nibble(&mut self, nibble: u8) -> Result<(), io::Error> {
+            if !self.is_full() {
+                self.nibbles[self.num_nibbles as usize] = nibble;
+                self.num_nibbles += 1;
+                Ok(())
+            } else {
+                Err(io::Error::new(io::ErrorKind::StorageFull, format!("The nibble buffer is full.")))
+            }
+        }
+
+        pub fn fill_nibble(&mut self) {
+            while !self.is_full() {
+                self.nibbles[self.num_nibbles as usize] = 0;
+                self.num_nibbles += 1;
+            }
+        }
+
+        pub fn clear(&mut self) {
+            self.num_nibbles = 0;
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct Encoder {
+        coeff_table: [AdpcmCoeffSet; 7],
+        block: EncoderBlock,
+        delta: i16,
+        sample1: i16,
+        sample2: i16,
+        nibble_flag: bool,
+        input_buffer: [i16; SAMPLES_PER_BLOCK as usize],
+        num_samples: u16,
+        total_samples: u64,
+        is_first_block: bool,
+    }
+
+    impl Encoder {
+        pub fn is_full(&self) -> bool {
+            self.num_samples as usize >= self.input_buffer.len()
+        }
+
+        pub fn push_sample(&mut self, sample: i16) -> Result<(), io::Error> {
+            if !self.is_full() {
+                self.input_buffer[self.num_samples as usize] = sample;
+                self.num_samples += 1;
+                Ok(())
+            } else {
+                Err(io::Error::new(io::ErrorKind::StorageFull, format!("The nibble buffer is full.")))
+            }
+        }
+
+        pub fn fill_samples(&mut self) {
+            while !self.is_full() {
+                self.input_buffer[self.num_samples as usize] = 0;
+                self.num_samples += 1;
+            }
+        }
+
+        pub fn clear(&mut self) {
+            self.num_samples = 0;
+        }
+    }
+
+    impl AdpcmEncoder for Encoder {
+        fn new() -> Self {
+            Self {
+                coeff_table: DEF_COEFF_TABLE,
+                block: EncoderBlock::new(),
+                delta: 0,
+                sample1: 0,
+                sample2: 0,
+                nibble_flag: false,
+                input_buffer: [0i16; SAMPLES_PER_BLOCK as usize],
+                num_samples: 0,
+                total_samples: 0,
+                is_first_block: true,
+            }
+        }
+
+        // 编码逻辑：每次吃一整个大块，吃饱后拉出同样的一个大块，以此循环。
+        // 输入 None 后停止循环，此时使用 `flush()` 可以拉出最后一个大块。
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            loop {
+                while !self.is_full() { // 先吃满一整个块
+                    match input() {
+                        Some(sample) => {
+                            self.push_sample(sample)?;
+                            self.total_samples += 1;
+                        },
+                        None => return Ok(()),
+                    }
+                }
+                let index = AdpcmCoeffSet::calculate_coefficient(&self.input_buffer).get_closest_coefficient_index(&self.coeff_table);
+                let coeff = self.coeff_table[index as usize];
+                self.block.sample2 = self.input_buffer[0];
+                self.block.sample1 = self.input_buffer[1];
+                if self.is_first_block {
+                    self.delta = ((coeff.coeff1 as i32 * self.block.sample1 as i32 +
+                                   coeff.coeff2 as i32 * self.block.sample2 as i32) / 256) as i16 - self.input_buffer[2];
+                    self.delta /= 4;
+                    if self.delta <= 0 {self.delta = -self.delta + 1;}
+                    self.is_first_block = false;
+                }
+                self.block.delta = self.delta;
+                self.block.predictor = index;
+                self.sample1 = self.block.sample1;
+                self.sample2 = self.block.sample2;
+                let mut nibble = 0u8;
+                let mut i = 3usize;
+                while i < SAMPLES_PER_BLOCK as usize {
+                    let predictor = ((coeff.coeff1 as i32 * self.sample1 as i32 + coeff.coeff2 as i32 * self.sample2 as i32) / 256) as i16;
+                    let sample_diff = self.input_buffer[i] - predictor;
+                    let mut error_delta = (sample_diff / self.delta).clamp(-8, 7) as i8;
+                    let remainder = sample_diff % self.delta;
+                    if remainder > self.delta / 2 {error_delta += 1;}
+                    error_delta = error_delta.clamp(-8, 7);
+                    let new_sample = predictor + error_delta as i16 * self.delta;
+                    self.delta = (self.delta as i32 * ADAPTATIONTABLE[trim_to_nibble(error_delta) as usize] as i32 / 256) as i16;
+                    if self.delta < 1 {self.delta = 1}
+                    self.sample2 = self.sample1;
+                    self.sample1 = new_sample;
+                    i += 1;
+                    if !self.nibble_flag {
+                        self.nibble_flag = true;
+                        nibble = trim_to_nibble(error_delta);
+                    } else {
+                        self.nibble_flag = false;
+                        nibble = (nibble << 4) | trim_to_nibble(error_delta);
+                        if !self.block.is_full() {
+                            self.block.push_nibble(nibble)?;
+                        } else {
+                            for nibble in self.block.to_le_bytes() {
+                                output(nibble);
+                            }
+                            self.block.clear();
+                            self.clear();
+                        }
+                    }
+                }
+            }
+        }
+        fn get_required_fmt_chunk_size(&mut self) -> usize {
+            16 + 2 + AdpcmImaData::sizeof();
+        }
+        fn yield_extension_data(&self, channels: u16) -> Option<FmtExtension> {
+            Some(FmtExtension::new_adpcm_ms(AdpcmMsData{
+                samples_per_block: (SAMPLES_PER_BLOCK * channels as usize) as u16,
+                num_coeff: 7,
+                coeffs: self.coeff_table,
+            }))
+        }
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            self.fill_samples();
+            self.encode(
+                || -> Option<i16> {None},
+                |nibble: u8|{output(nibble)})?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct DecoderBlock {
+        pub predictor: u8,
+        pub delta: i32,
+        pub sample1: i32,
+        pub sample2: i32,
+        pub coeff: AdpcmCoeffSet,
+    }
+
+    impl DecoderBlock {
+        pub fn new() -> Self {
+            Self {
+                predictor: 0,
+                delta: 0,
+                sample1: 0,
+                sample2: 0,
+                coeff: AdpcmCoeffSet::new(),
+            }
+        }
+
+        pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
+            let predictor = ((self.sample1 as i32 * self.coeff.coeff1 as i32 +
+                              self.sample2 as i32 * self.coeff.coeff2 as i32) / 256) +
+                (if nibble & 0x08 != 0 {nibble - 0x10} else {nibble}) as i32 * self.delta as i32;
+
+            self.sample2 = self.sample1;
+            self.sample1 = predictor.clamp(-32768, 32767) as i16;
+
+            //FFmpeg 的源码里，delta 是 i32，它的数值可能会变得夸张的大，还得做限制
+            self.delta = ((ADAPTATIONTABLE[nibble as usize] as i32 * self.delta as i32) >> 8).clamp(16, 32767) as i16;
+
+            // 返回值
+            self.sample1
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Decoder {
+        coeff_table: [AdpcmCoeffSet; 7],
+        samples_per_block: u16,
+        block: DecoderBlock,
+        buffer: [u8; HEADER_SIZE as usize],
+        bufsize: usize,
+        header_init: bool,
+        bytes_read: usize,
+    }
+
+    impl AdpcmDecoder for Decoder {
+        fn new(extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            // 从 `fmt ` 块的扩展块里读取初始系数和系数表，以及块大小。
+            let adpcm_ms = if let Some(extension_data) = extension_data {
+                if let ExtensionData::AdpcmMs(adpcm_ms) = extension_data.data {
+                    Ok(adpcm_ms)
+                } else {
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk extension data, the data is not for ADPCM-MS, got {:?}", extension_data)))
+                }
+            } else {
+                Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk, the extension data is needed")))
+            }?;
+            if adpcm_ms.num_coeff != 7 {
+                // 系数表其实是钦定的，但是钦定的系数表也要写入到 `fmt ` 的扩展块里，并且解码的时候也要从扩展块里读取它。
+                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk extension data, `num_coeff` must be 7 ")));
+            }
+            Self {
+                coeff_table: adpcm_ms.coeffs,
+                samples_per_block: adpcm_ms.samples_per_block,
+                block: DecoderBlock::new(),
+                buffer: [0u8; HEADER_SIZE as usize],
+                bufsize: 0,
+                header_init: false,
+                bytes_read: 0,
+            }
+        }
+
+        // 解码就不需要分块了，只要读取了头部就可以一直解码。
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            loop {
+                if !self.header_init {
+                    while self.bufsize < HEADER_SIZE {
+                        if let Some(nibble) = input() {
+                            self.buffer[self.bufsize as usize] = nibble;
+                            self.bufsize += 1;
+                            self.bytes_read += 1;
+                        } else {
+                            return Ok(())
+                        }
+                    }
+                    self.block.predictor = self.buffer[0];
+                    self.block.delta = i16::from_le_bytes([self.buffer[1], self.buffer[2]]) as i32;
+                    self.block.sample1 = i16::from_le_bytes([self.buffer[3], self.buffer[4]]);
+                    self.block.sample2 = i16::from_le_bytes([self.buffer[5], self.buffer[6]]);
+                    if self.block.predictor as usize >= self.coeff_table.len() {
+                        self.bufsize = 0;
+                        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("`block.predictor` = {:?}", self.block)));
+                    }
+                    self.block.coeff = self.coeff_table[self.block.predictor as usize];
+                    self.header_init = true;
+                    output(self.block.sample2 as i16);
+                    output(self.block.sample1 as i16);
+                }
+                if self.header_init {
+                    if let Some(nibble) = input() {
+                        self.bytes_read += 1;
+
+                        // 看了一下 FFmpeg 的源码，一个 nibble 可以展开为两个样本，而对于立体声的情况，一个 nibble 展开的是两个声道
+                        output(self.block.expand_nibble(nibble >> 4));
+                        output(self.block.expand_nibble(nibble & 0x0F));
+
+                        // 读了一个块的数据了，恢复状态重新读头
+                        if self.bytes_read >= BLOCK_SIZE {
+                            self.bufsize = 0;
+                            self.bytes_read = 0;
+                            self.header_init = false;
+                        }
+                    } else {
+                        return Ok(())
+                    }
+                }
+            }
+        }
+        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            if self.bytes_read > 0 && self.bytes_read < BLOCK_SIZE as usize {
+                let mut zeroes = Vec::<u8>::new();
+                zeroes.resize(BLOCK_SIZE as usize - self.bytes_read, 0);
+                let mut iter = zeroes.into_iter();
+                self.decode(
+                    || -> Option<u8> {iter.next()},
+                    |sample: i16|{output(sample)})?;
+            }
+            Ok(())
+        }
+    }
+
+    impl std::fmt::Debug for EncoderBlock {
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("EncoderBlock")
+                .field("predictor", &self.predictor)
+                .field("delta", &self.delta)
+                .field("sample1", &self.sample1)
+                .field("sample2", &self.sample2)
+                .field("nibbles", &format_args!("[u8; {}]", self.nibbles.len()))
+                .field("num_nibbles", &self.num_nibbles)
+                .finish()
+        }
+    }
+
+    impl std::fmt::Debug for Encoder{
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Encoder")
+                .field("coeff_table", &self.coeff_table)
+                .field("block", &self.block)
+                .field("input_buffer", &format_args!("[i16; {}]", self.input_buffer.len()))
+                .field("num_samples", &self.num_samples)
+                .finish()
+        }
+    }
+    */
 }
+
