@@ -158,7 +158,7 @@ impl WaveWriter {
             self.spec.guess_channel_mask()?;
         }
 
-        let mut fmt_extension = FmtChunkExtension::None;
+        let mut fmt_extension = None;
         let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
         ext |= self.spec.channels > 2;
 
@@ -188,7 +188,13 @@ impl WaveWriter {
                 }
             },
             DataFormat::Adpcm(sub_format) => {
-                fmt_extension = FmtChunkExtension::AdpcmData(FmtChunkAdpcmData{samples_per_block: 0});
+                const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
+                const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
+                fmt_extension = match sub_format {
+                    TAG_ADPCM_MS => Some(FmtExtension::new_adpcm_ms(AdpcmMsData::new()),
+                    TAG_ADPCM_IMA => Some(FmtExtension::new_adpcm_ima(AdpcmImaData::new(0)),
+                    _ => None,
+                }
                 self.block_size = 0x400;
                 self.spec.bits_per_sample = 4;
                 (*sub_format) as u16
@@ -207,8 +213,8 @@ impl WaveWriter {
         };
 
         if ext {
-            fmt_extension = FmtChunkExtension::Extensible(FmtChunkExtensible {
-                ext_len: 22,
+            fmt_extension = FmtExtension::new_extensible(Extensible {
+                ext_len: Extensible::sizeof(),
                 valid_bits_per_sample: self.spec.bits_per_sample,
                 channel_mask: self.spec.channel_mask,
                 sub_format: match self.spec.sample_format {

@@ -231,10 +231,13 @@ impl WaveReader {
             None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide any \"data\" chunk"))),
         };
 
-        let channel_mask = match fmt__chunk.extension {
-            FmtChunkExtension::Extensible(extensible) => extensible.channel_mask,
-            _ => wavcore::guess_channel_mask(fmt__chunk.channels)?,
-        };
+        let mut channel_mask: u32 = 0;
+        if let Some(extension) = fmt__chunk.extension {
+            channel_mask = match extension.data {
+                ExtensionData::Extensible(extensible) => extensible.channel_mask,
+                _ => wavcore::guess_channel_mask(fmt__chunk.channels)?,
+            };
+        }
 
         let block_size = fmt__chunk.block_align;
         let num_frames = data_size / block_size as u64;
