@@ -938,9 +938,6 @@ pub mod ima {
 
     use super::AdpcmEncoder;
     use super::AdpcmDecoder;
-    
-    const IMAADPCM_ALIGNMENT: usize = 16;
-    const IMAADPCMWAVENCODER_HEADER_SIZE: usize = 60;
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
