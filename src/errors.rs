@@ -9,6 +9,7 @@ pub struct IOErrorInfo {
 #[derive(Debug, Clone)]
 pub enum AudioReadError {
     IncompleteFile(u64), // 不完整的文件
+    IncompleteData(String), // 不完整的数据
     InvalidArguments(String), // 错误的参数
     IOError(IOErrorInfo), // 读写错误，应停止处理
     FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
@@ -26,6 +27,7 @@ impl std::fmt::Display for AudioReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
+            Self::IncompleteData(info) => write!(f, "Incomplete data: {info}"),
             Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
             Self::FormatError(info) => write!(f, "Invalid format: {info}"),
