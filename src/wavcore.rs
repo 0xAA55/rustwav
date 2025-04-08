@@ -622,6 +622,8 @@ impl FmtChunk {
                         },
                         other => panic!("Unexpected extension data in the `fmt ` chunk: {:?}", other),
                     }
+                } else {
+                    Int // 我们还是宽松的，0xFFFE 也允许没有扩展数据。
                 }
             },
             (3, 32) => Float,
@@ -697,13 +699,16 @@ impl FmtExtension {
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
-        ext_len.write_le(writer)?;
-        if let Some(data) = self.data {
-            match data {
-                ExtensionData::AdpcmMs(data) => data.write(writer)?,
-                ExtensionData::AdpcmIma(data) => data.write(writer)?,
-                ExtensionData::Extensible(data) => data.write(writer)?,
+        self.ext_len.write_le(writer)?;
+        if self.ext_len != 0 { // 这里我们也是宽松的，允许在这里存个表示长度为 0 的数值。
+            match self.data {
+                ExtensionData::Nodata => Err(AudioWriteError::InvalidArguments(format!("There should be data in {} bytes to be written, but the data is `Nodata`.", self.ext_len))),
+                ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
+                ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
+                ExtensionData::Extensible(data) => Ok(data.write(writer)?),
             }
+        } else {
+            Ok(())
         }
     }
 }
