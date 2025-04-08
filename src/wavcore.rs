@@ -25,15 +25,8 @@ pub enum DataFormat{
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 pub enum AdpcmSubFormat {
-    Bs = 0xFFF6,        // 不能用
-    Oki = 0xFFF7,       // 不能用
-    Oki6258 = 0xFFF8,   // 不能用
-    Yma = 0xFFF9,       // 不能用
-    Ymb = 0xFFFA,       // 不能用
-    Ymz = 0xFFFB,       // 不能用
-    Aica = 0xFFFC,      // 不能用
     Ima = 0x0011,       // 能用
-    Ms = 0x0010,        // 能用
+    Ms = 0x0002,        // 能用
 }
 
 impl std::convert::Into<u16> for AdpcmSubFormat {
@@ -57,14 +50,8 @@ impl std::fmt::Display for DataFormat {
 impl std::fmt::Display for AdpcmSubFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Bs => write!(f, "ADPCM-BS"),
-            Self::Oki => write!(f, "ADPCM-OKI"),
-            Self::Oki6258 => write!(f, "ADPCM-OKI6258"),
-            Self::Yma => write!(f, "ADPCM-YMA"),
-            Self::Ymb => write!(f, "ADPCM-YMB"),
-            Self::Ymz => write!(f, "ADPCM-YMZ"),
-            Self::Aica => write!(f, "ADPCM-AICA"),
             Self::Ima => write!(f, "ADPCM-IMA"),
+            Self::Ms => write!(f, "ADPCM-MS"),
        }
     }
 }
