@@ -4,14 +4,14 @@
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
-use crate::{EncBS, EncOKI, EncOKI6258, EncYMA, EncYMB, EncYMZ, EncAICA, EncIMA};
 use crate::AudioWriteError;
 use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
 use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::{ChunkWriter};
-use crate::{FmtChunk, FmtExtension, AdpcmMsData, AdpcmImaData, Extensible};
+use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, Extensible};
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
+use crate::{EncIMA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{SharedWriter, string_io::*};
@@ -76,21 +76,7 @@ impl WaveWriter {
                 Encoder::new(PcmEncoder::new(spec.sample_rate, sample_type)?)
             },
             Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima, Ms};
-                let is_stereo = match spec.channels {
-                    1 => false,
-                    _ => true,
-                };
                 match sub_format {
-                    Bs => Encoder::new(AdpcmEncoderWrap::<EncBS>::new(spec.sample_rate, is_stereo)),
-                    Oki => Encoder::new(AdpcmEncoderWrap::<EncOKI>::new(spec.sample_rate, is_stereo)),
-                    Oki6258 => Encoder::new(AdpcmEncoderWrap::<EncOKI6258>::new(spec.sample_rate, is_stereo)),
-                    Yma => Encoder::new(AdpcmEncoderWrap::<EncYMA>::new(spec.sample_rate, is_stereo)),
-                    Ymb => Encoder::new(AdpcmEncoderWrap::<EncYMB>::new(spec.sample_rate, is_stereo)),
-                    Ymz => Encoder::new(AdpcmEncoderWrap::<EncYMZ>::new(spec.sample_rate, is_stereo)),
-                    Aica => Encoder::new(AdpcmEncoderWrap::<EncAICA>::new(spec.sample_rate, is_stereo)),
-                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(spec.sample_rate, is_stereo)),
-                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(spec.sample_rate, is_stereo)),
                 }
             },
             Mp3 => {

@@ -8,9 +8,10 @@ use crate::readwrite;
 use crate::{AudioReadError};
 use crate::{Spec};
 use crate::{ChunkHeader};
-use crate::{FmtChunk, FmtExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{FmtChunk, ExtensionData};
+use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
-use crate::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA, DecIMA};
+use crate::{DecIMA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::FileHasher;
 use crate::{SampleType};
@@ -329,25 +330,13 @@ impl WaveReader {
 
 fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact_data: &[u8]) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
-    use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima};
-    const TAG_BS: u16 = Bs as u16;
-    const TAG_OKI: u16 = Oki as u16;
-    const TAG_OKI6258: u16 = Oki6258 as u16;
-    const TAG_YMA: u16 = Yma as u16;
-    const TAG_YMB: u16 = Ymb as u16;
-    const TAG_YMZ: u16 = Ymz as u16;
-    const TAG_AICA: u16 = Aica as u16;
+    use AdpcmSubFormat::{Ima, Ms};
     const TAG_IMA: u16 = Ima as u16;
+    const TAG_MS: u16 = Ms as u16;
     match fmt.format_tag {
         1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
-        TAG_BS => Ok(Box::new(AdpcmDecoderWrap::<DecBS>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_OKI => Ok(Box::new(AdpcmDecoderWrap::<DecOKI>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_OKI6258 => Ok(Box::new(AdpcmDecoderWrap::<DecOKI6258>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_YMA => Ok(Box::new(AdpcmDecoderWrap::<DecYMA>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_YMB => Ok(Box::new(AdpcmDecoderWrap::<DecYMB>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_YMZ => Ok(Box::new(AdpcmDecoderWrap::<DecYMZ>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_AICA => Ok(Box::new(AdpcmDecoderWrap::<DecAICA>::new(reader, data_offset, data_length, fmt)?)),
         TAG_IMA => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt)?)),
+        // TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt)?)),
         0x0055 => {
             #[cfg(not(feature = "mp3dec"))]
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
