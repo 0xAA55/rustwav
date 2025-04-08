@@ -667,18 +667,8 @@ where E: adpcm::AdpcmEncoder {
     }
 
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let interleave_bytes = self.get_interleave_bytes();
-        if self.is_stereo {
-            while self.buffer_l.len() < self.buffer_r.len() { self.buffer_l.push(0); }
-            while self.buffer_r.len() < self.buffer_l.len() { self.buffer_r.push(0); }
-            let lpad = (interleave_bytes - self.buffer_l.len() % interleave_bytes) % interleave_bytes;
-            let rpad = (interleave_bytes - self.buffer_r.len() % interleave_bytes) % interleave_bytes;
-            for _ in 0..lpad {self.buffer_l.push(0);}
-            for _ in 0..rpad {self.buffer_r.push(0);}
-        } else {
-            let lpad = (interleave_bytes - self.buffer_l.len() % interleave_bytes) % interleave_bytes;
-            for _ in 0..lpad {self.buffer_l.push(0);}
-        }
+        self.encoder_l.flush(|byte: u8|{ self.buffer_l.push(byte);})?;
+        self.encoder_r.flush(|byte: u8|{ self.buffer_r.push(byte);})?;
         self.flush_buffers(writer)?;
         Ok(writer.flush()?)
     }
