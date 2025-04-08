@@ -6,6 +6,7 @@ use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Reader, Writer, SharedWriter, string_io::*};
 use crate::SampleType;
 use crate::{StringCodecMaps, SavageStringCodecs};
+use crate::adpcm::ms::AdpcmCoeffSet;
 
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy)]
@@ -547,8 +548,8 @@ pub enum ExtensionData{
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmMsData{
     pub samples_per_block: u16,
-    pub num_coef: u16,
-    pub coeffs: [(i16, i16); 7],
+    pub num_coeff: u16,
+    pub coeffs: [AdpcmCoeffSet; 7],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -716,15 +717,15 @@ impl AdpcmMsData {
     pub fn new() -> Self {
         Self {
             samples_per_block: 0,
-            num_coef: 7,
+            num_coeff: 7,
             coeffs: [
-                (256, 0   ),
-                (512, -256),
-                (0  , 0   ),
-                (192, 64  ),
-                (240, 0   ),
-                (460, -208),
-                (392, -232),
+                AdpcmCoeffSet{coeff1: 256, coeff2: 0   },
+                AdpcmCoeffSet{coeff1: 512, coeff2: -256},
+                AdpcmCoeffSet{coeff1: 0  , coeff2: 0   },
+                AdpcmCoeffSet{coeff1: 192, coeff2: 64  },
+                AdpcmCoeffSet{coeff1: 240, coeff2: 0   },
+                AdpcmCoeffSet{coeff1: 460, coeff2: -208},
+                AdpcmCoeffSet{coeff1: 392, coeff2: -232},
             ],
         }
     }
@@ -733,29 +734,28 @@ impl AdpcmMsData {
         32
     }
 
-    pub fn read(reader: &mut Reader) -> Result<Self, AudioReadError> {
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
             samples_per_block: u16::read_le(reader)?,
-            num_coef: u16::read_le(reader)?,
+            num_coeff: u16::read_le(reader)?,
             coeffs: [
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
-                (u16::read_le(reader)?, u16::read_le(reader)?),
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
+                AdpcmCoeffSet{coeff1: i16::read_le(reader)?, coeff2: i16::read_le(reader)?},
             ],
         })
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.samples_per_block.write_le(writer)?;
-        self.num_coef.write_le(writer)?;
+        self.num_coeff.write_le(writer)?;
         for coeff in self.coeffs {
-            let (coef1, coef2) = coeff;
-            coef1.write_le(writer)?;
-            coef2.write_le(writer)?;
+            coeff.coeff1.write_le(writer)?;
+            coeff.coeff2.write_le(writer)?;
         }
         Ok(())
     }
