@@ -989,6 +989,7 @@ pub mod ima {
     ];
 
     const MAX_BLOCK_SIZE: u16 = 512;
+    const INTERLEAVE_BYTES: u16 = 4;
 
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder {
@@ -1061,7 +1062,7 @@ pub mod ima {
                     self.nibble_index = 0;
                     output(self.nibble[0] | (self.nibble[1] << 4));
                     self.num_outputs += 1;
-                    if self.num_outputs >= self.get_block_size() {
+                    if self.num_outputs >= MAX_BLOCK_SIZE {
                         // 到达块大小上限，重置编码器
                         self.prev_sample = sample;
                         self.header_written = false;
@@ -1073,7 +1074,7 @@ pub mod ima {
         }
 
         fn get_interleave_bytes(&self) -> usize {
-            4
+            INTERLEAVE_BYTES as usize
         }
         fn get_header_bytes(&self) -> usize {
             4
@@ -1137,7 +1138,7 @@ pub mod ima {
                 sample_val: 0,
                 stepsize_index: 0,
                 ready: false,
-                buffer: [0u8; 4],
+                buffer: [0u8; INTERLEAVE_BYTES],
                 bufsize: 0,
                 input_count: 0,
             })
@@ -1147,7 +1148,7 @@ pub mod ima {
             loop {
                 if !self.ready {
                     // 先吃四个字节用来初始化，并输出第一个样本。
-                    while self.bufsize < 4 {
+                    while self.bufsize < INTERLEAVE_BYTES {
                         match input() {
                             Some(byte) => {
                                 self.push_buf(byte);
@@ -1167,7 +1168,7 @@ pub mod ima {
                 }
                 if self.ready {
                     // 完成初始化后，每吃一个字节输出两个样本。
-                    while self.bufsize < 4 {
+                    while self.bufsize < INTERLEAVE_BYTES {
                         match input() {
                             Some(byte) => {
                                 self.push_buf(byte);
@@ -1187,7 +1188,7 @@ pub mod ima {
                     output(self.decode_sample((b4 >> 0) & 0xF));
                     output(self.decode_sample((b4 >> 4) & 0xF));
                     self.bufsize = 0;
-                    if self.input_count >= self.get_block_size() {
+                    if self.input_count >= MAX_BLOCK_SIZE {
                         self.input_count = 0;
                         self.ready = false;
                     }
@@ -1196,7 +1197,7 @@ pub mod ima {
         }
 
         fn get_interleave_bytes(&self) -> usize {
-            4
+            INTERLEAVE_BYTES as usize
         }
         fn get_header_bytes(&self) -> usize {
             4
