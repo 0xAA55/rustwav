@@ -259,17 +259,24 @@ where D: adpcm::AdpcmDecoder {
             false => {
                 while self.buffer_l.len() == 0 {
                     if self.is_end_of_data()? {
-                        return Ok(None);
-                    } 
-                    // 利用迭代器，每个声道只给它一个数据
-                    let mut l_iter = [u8::read_le(&mut self.reader)?].into_iter();
-                    self.decoder_l.decode(
-                        || -> Option<u8> {l_iter.next()},
-                        |sample: i16| {self.buffer_l.push(sample);})?;
+                        // 如果读完了数据就调用 flush
+                        self.decoder_l.flush(|sample: i16| {self.buffer_l.push(sample);})?;
+                        break;
+                    } else {
+                        // 利用迭代器，每个声道只给它一个数据
+                        let mut l_iter = [u8::read_le(&mut self.reader)?].into_iter();
+                        self.decoder_l.decode(
+                            || -> Option<u8> {l_iter.next()},
+                            |sample: i16| {self.buffer_l.push(sample);})?;
+                    }
                 }
-                let sample = S::from(self.buffer_l[0]);
-                self.buffer_l = self.buffer_l[1..].to_vec();
-                Ok(Some(sample))
+                if self.buffer_l.len() {
+                    let sample = S::from(self.buffer_l[0]);
+                    self.buffer_l = self.buffer_l[1..].to_vec();
+                    Ok(Some(sample))
+                } else {
+                    Ok(None)
+                }
             },
             true => {
                 match self.decode_stereo::<S>()? {
@@ -309,24 +316,32 @@ where D: adpcm::AdpcmDecoder {
                 // 这个时候要左右一起读，因为声道数据是左右交替的
                 while self.buffer_l.len() == 0 || self.buffer_r.len() == 0 {
                     if self.is_end_of_data()? {
-                        return Ok(None);
-                    } 
-                    // 利用迭代器，每个声道只给它一个块的数据
-                    let mut l_iter = self.safe_read_bytes().into_iter();
-                    let mut r_iter = self.safe_read_bytes().into_iter();
-                    self.decoder_l.decode(
-                        || -> Option<u8> {l_iter.next()},
-                        |sample: i16| {self.buffer_l.push(sample);})?;
-                    self.decoder_r.decode(
-                        || -> Option<u8> {r_iter.next()},
-                        |sample: i16| {self.buffer_r.push(sample);})?;
+                        // 如果读完了数据就调用 flush
+                        self.decoder_l.flush(|sample: i16| {self.buffer_l.push(sample);})?;
+                        self.decoder_r.flush(|sample: i16| {self.buffer_r.push(sample);})?;
+                        break;
+                    } else {
+                        // 利用迭代器，每个声道只给它一个块的数据
+                        let mut l_iter = self.safe_read_bytes().into_iter();
+                        let mut r_iter = self.safe_read_bytes().into_iter();
+                        self.decoder_l.decode(
+                            || -> Option<u8> {l_iter.next()},
+                            |sample: i16| {self.buffer_l.push(sample);})?;
+                        self.decoder_r.decode(
+                            || -> Option<u8> {r_iter.next()},
+                            |sample: i16| {self.buffer_r.push(sample);})?;
+                    }
                 }
-                let (l, r) = (self.buffer_l[0], self.buffer_r[0]);
-                let (l, r) = (S::from(l), S::from(r));
-                // 滚动数据
-                self.buffer_l = self.buffer_l[1..].to_vec();
-                self.buffer_r = self.buffer_r[1..].to_vec();
-                Ok(Some((l, r)))
+                if self.buffer_l.len() && self.buffer_r.len() {
+                    let (l, r) = (self.buffer_l[0], self.buffer_r[0]);
+                    let (l, r) = (S::from(l), S::from(r));
+                    // 滚动数据
+                    self.buffer_l = self.buffer_l[1..].to_vec();
+                    self.buffer_r = self.buffer_r[1..].to_vec();
+                    Ok(Some((l, r)))
+                } else {
+                    Ok(None)
+                }
             },
         }
     }
