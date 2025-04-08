@@ -73,14 +73,18 @@ impl WaveWriter {
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(PcmEncoder::new(spec.sample_rate, sample_type)?)
+                Encoder::new(Box::new(PcmEncoder::new(spec.sample_rate, sample_type)?))
             },
             Adpcm(sub_format) => {
+                use AdpcmSubFormat::{Ima, Ms};
                 match sub_format {
+                    Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(spec.channels, spec.sample_rate)?)),
+                    // Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
+                    Ms => panic!("`AdpcmEncoderWrap::<EncMS>` unimplemented."),
                 }
             },
             Mp3 => {
-                Encoder::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)
+                Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?))
             },
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
