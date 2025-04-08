@@ -1082,6 +1082,22 @@ pub mod ima {
         fn get_block_size(&self) -> u16 {
             MAX_BLOCK_SIZE
         }
+        fn flush(&mut self, output: impl FnMut(u8)) -> Result<(), io::Error> {
+            let pad = INTERLEAVE_BYTES - self.num_outputs % INTERLEAVE_BYTES;
+            if pad != 0 && pad != INTERLEAVE_BYTES {
+                let mut pad = Vec::<i16>::new();
+                pad.resize(pad_size, 0);
+                let iter = pad.into_iter();
+                self.encode(
+                    || -> Option<i16> {
+                        iter.next()
+                    },
+                    |nibble: u8| {
+                        output(nibble)
+                    })?
+            }
+            Ok(())
+        }
     }
 
     // 解码器逻辑
@@ -1207,6 +1223,23 @@ pub mod ima {
         }
         fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
             Some(FmtExtension::new_adpcm_ima(ExtensionData::AdpcmIma::new(self.get_block_size() * channels)))
+        }
+        fn flush(&mut self, output: impl FnMut(i16)) -> Result<(), io::Error> {
+            if (self.ready, self.bufsize > 0, self.bufsize < INTERLEAVE_BYTES) == (true, true, true) {
+                let pad_size = INTERLEAVE_BYTES - self.bufsize;
+                let mut pad = Vec::<u8>::new();
+                pad.resize(pad_size, 0);
+                let iter = pad.into_iter();
+                self.decode(
+                    || -> Option<u8> {
+                        iter.next()
+                    },
+                    |sample: i16| {
+                        output(sample)
+                    })?
+            } else {
+                Ok(())
+            }
         }
     }
 }
