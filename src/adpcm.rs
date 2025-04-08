@@ -173,12 +173,12 @@ pub mod bs {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 step_size: 10,
                 history: 0,
                 nibble: 0,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -334,13 +334,13 @@ pub mod oki {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 history: 0,
                 step_hist: 0,
                 nibble: 0,
                 oki_highpass: false,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -429,13 +429,13 @@ pub mod oki6258 {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 history: 0,
                 step_hist: 0,
                 nibble: 4,
                 oki_highpass: false,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -569,12 +569,12 @@ pub mod yma {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 history: 0,
                 step_hist: 0,
                 nibble: 0,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -686,12 +686,12 @@ pub mod ymb {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 step_size: 127,
                 history: 0,
                 nibble: 0,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -809,12 +809,12 @@ pub mod ymz {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 step_size: 127,
                 history: 0,
                 nibble: 0,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -902,12 +902,12 @@ pub mod aica {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 step_size: 127,
                 history: 0,
                 nibble: 4,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -1122,15 +1122,15 @@ pub mod ima {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new() -> Self {
-            Self {
+        fn new(_extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
+            Ok(Self {
                 sample_val: 0,
                 stepsize_index: 0,
                 ready: false,
                 buffer: [0u8; 4],
                 bufsize: 0,
                 input_count: 0,
-            }
+            })
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -1193,6 +1193,9 @@ pub mod ima {
         }
         fn get_block_size(&self) -> u16 {
             MAX_BLOCK_SIZE
+        }
+        fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
+            Some(FmtExtension::new_adpcm_ima(ExtensionData::AdpcmIma::new(self.get_block_size() * channels)))
         }
     }
 }
