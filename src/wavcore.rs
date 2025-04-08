@@ -575,7 +575,7 @@ impl FmtChunk {
             extension: None,
         };
         if chunk_size > 16 {
-            ret.extension = FmtExtension::read(reader, format_tag)?;
+            ret.extension = Some(FmtExtension::read(reader, ret.format_tag)?);
         }
         Ok(ret)
     }
@@ -635,23 +635,23 @@ impl FmtChunk {
 }
 
 impl FmtExtension {
-    pub fn new_adpcm_ms(adpcm_ms: AdpcmMs) -> Self {
+    pub fn new_adpcm_ms(adpcm_ms: AdpcmMsData) -> Self {
         Self {
-            ext_len: AdpcmMsData::sizeof(),
+            ext_len: AdpcmMsData::sizeof() as u16,
             data: ExtensionData::AdpcmMs(adpcm_ms),
         }
     }
 
-    pub fn new_adpcm_ima(adpcm_ima: AdpcmIma) -> Self {
+    pub fn new_adpcm_ima(adpcm_ima: AdpcmImaData) -> Self {
         Self {
-            ext_len: AdpcmMsData::sizeof(),
+            ext_len: AdpcmImaData::sizeof() as u16,
             data: ExtensionData::AdpcmIma(adpcm_ima),
         }
     }
 
-    pub fn new_adpcm_ima(extensible: Extensible) -> Self {
+    pub fn new_extensible(extensible: Extensible) -> Self {
         Self {
-            ext_len: Extensible::sizeof(),
+            ext_len: Extensible::sizeof() as u16,
             data: ExtensionData::Extensible(extensible),
         }
     }
@@ -663,26 +663,31 @@ impl FmtExtension {
     pub fn read(reader: &mut Reader, format_tag: u16) -> Result<Self, AudioReadError> {
         const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
+        let ext_len = u16::read_le(reader)?;
         Ok(Self{
-            ext_len: u16::read_le(reader)?,
+            ext_len,
             data: match format_tag {
                 TAG_ADPCM_MS => {
-                    if ext_len >= AdpcmMsData::sizeof() {
-                        Some(ExtensionData::AdpcmMs(AdpcmMsData::read(reader)?));
+                    if ext_len as usize >= AdpcmMsData::sizeof() {
+                        Ok(ExtensionData::AdpcmMs(AdpcmMsData::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!("The extension data for ADPCM-MS should be bigger than {}, got {ext_len}", AdpcmMsData::sizeof())))
                     }
                 },
                 TAG_ADPCM_IMA => {
-                    if ext_len >= AdpcmImaData::sizeof() {
-                        Some(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?));
+                    if ext_len as usize >= AdpcmImaData::sizeof() {
+                        Ok(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!("The extension data for ADPCM-IMA should be bigger than {}, got {ext_len}", AdpcmImaData::sizeof())))
                     }
                 },
                 0xFFFE => {
-                    if ext_len >= Extensible::sizeof() {
-                        Some(ExtensionData::Extensible(Extensible::read(reader)?));
+                    if ext_len as usize >= Extensible::sizeof() {
+                        Ok(ExtensionData::Extensible(Extensible::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!("The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}", Extensible::sizeof())))
                     }
                 },
-                _ => (),
-            },
         })
     }
 
