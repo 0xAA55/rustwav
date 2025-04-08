@@ -193,9 +193,9 @@ pub struct Encoder { // 它就只是负责帮存储一个 `EncoderToImpl`，然�
 }
 
 impl Encoder {
-    pub fn new(encoder: impl EncoderToImpl + 'static) -> Self {
+    pub fn new(encoder: Box<dyn EncoderToImpl>) -> Self {
         Self {
-            encoder: Box::new(encoder),
+            encoder,
         }
     }
 
@@ -514,118 +514,53 @@ impl EncoderToImpl for PcmEncoder {
 #[derive(Debug, Clone)]
 pub struct AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
+    channels: u16,
     sample_rate: u32,
     samples_written: u64,
     bytes_written: u64,
-    is_stereo: bool,
-    encoder_l: E,
-    encoder_r: E,
-    buffer_l: Vec<u8>,
-    buffer_r: Vec<u8>,
+    encoder: E,
+    nibbles: Vec<u8>,
 }
 
 const MAX_BUFFER_USAGE: usize = 1024;
 
 impl<E> AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
-    pub fn new(sample_rate: u32, is_stereo: bool) -> Self {
-        Self {
+    pub fn new(channels: u16, sample_rate: u32) -> Result<Self, AudioWriteError> {
+        Ok(Self {
+            channels,
             sample_rate,
             samples_written: 0,
             bytes_written: 0,
-            is_stereo,
-            encoder_l: E::new(),
-            encoder_r: E::new(),
-            buffer_l: Vec::<u8>::new(),
-            buffer_r: Vec::<u8>::new(),
-        }
-    }
-
-    fn get_interleave_bytes(&self) -> usize {
-        self.encoder_l.get_interleave_bytes()
-    }
-
-    fn get_block_size(&self) -> u16 {
-        self.encoder_l.get_block_size()
-    }
-
-    fn yield_extension_data(&self, channels: u16) -> Option<FmtExtension> {
-        self.encoder_l.yield_extension_data(channels)
+            encoder: E::new(channels)?,
+            nibbles: Vec::<u8>::new(),
+        })
     }
 
     fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut interleaved = Vec::<u8>::new();
-        let interleave_bytes = self.get_interleave_bytes();
-        if self.is_stereo {
-            let min_len = cmp::min(self.buffer_l.len(), self.buffer_r.len());
-            if min_len >= interleave_bytes {
-                let mut written = 0;
-                for i in (0..min_len).step_by(interleave_bytes) {
-                    if i + interleave_bytes <= min_len {
-                        for j in 0..interleave_bytes {
-                            interleaved.push(self.buffer_l[i + j]);
-                        }
-                        for j in 0..interleave_bytes {
-                            interleaved.push(self.buffer_r[i + j]);
-                        }
-                        written += interleave_bytes;
-                    }
-                }
-                writer.write_all(&interleaved)?;
-                self.bytes_written += interleaved.len() as u64;
-                if self.buffer_l.len() > written {
-                    self.buffer_l = self.buffer_l[written..].to_vec();
-                } else {
-                    self.buffer_l.clear();
-                }
-                if self.buffer_r.len() > written {
-                    self.buffer_r = self.buffer_r[written..].to_vec();
-                } else {
-                    self.buffer_r.clear();
-                }
-            }
-        } else {
-            writer.write_all(&self.buffer_l)?;
-            self.buffer_l.clear();
-        }
+        writer.write_all(&self.nibbles)?;
+        self.nibbles = Vec::<u8>::new();
         Ok(())
     }
 
     pub fn write_samples(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {
-        if self.is_stereo {
-            let mut monos = utils::interleaved_samples_to_multiple_monos(samples, 2)?;
-            let mono_r = monos.pop().unwrap();
-            let mono_l = monos.pop().unwrap();
-            let mut mono_l = mono_l.into_iter();
-            let mut mono_r = mono_r.into_iter();
-            self.encoder_l.encode(|| -> Option<i16> { mono_l.next() }, |byte: u8|{ self.buffer_l.push(byte); })?;
-            self.encoder_r.encode(|| -> Option<i16> { mono_r.next() }, |byte: u8|{ self.buffer_r.push(byte); })?;
-            if self.buffer_l.len() > MAX_BUFFER_USAGE || self.buffer_r.len() > MAX_BUFFER_USAGE {
-                self.flush_buffers(writer)?;
-            }
-        } else {
-            let mut iter = samples.iter().copied();
-            self.encoder_l.encode(|| -> Option<i16> { iter.next()}, |byte: u8|{ self.buffer_l.push(byte); })?;
-            if self.buffer_l.len() >= MAX_BUFFER_USAGE {
-                self.flush_buffers(writer)?;
-            }
+        let mut iter = samples.iter().copied();
+        self.encoder.encode(|| -> Option<i16> { iter.next()}, |byte: u8|{ self.nibbles.push(byte); })?;
+        if self.nibbles.len() >= MAX_BUFFER_USAGE {
+            self.flush_buffers(writer)?;
         }
         self.samples_written += samples.len() as u64;
         Ok(())
     }
 
     pub fn write_multiple_stereos(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {
-        if self.is_stereo == false {
-            return Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned()));
+        if self.channels != 2 {
+            return Err(AudioWriteError::InvalidArguments(format!("This encoder only accepts {} channel audio data", self.channels)));
         }
-        let (lv, rv) = utils::stereos_to_dual_mono(stereos);
-        let (ll, rl) = (lv.len(), rv.len());
-        let (mut li, mut ri) = (lv.into_iter(), rv.into_iter());
-        self.encoder_l.encode(|| -> Option<i16> { li.next() }, |byte: u8|{ self.buffer_l.push(byte);})?;
-        self.encoder_r.encode(|| -> Option<i16> { ri.next() }, |byte: u8|{ self.buffer_r.push(byte);})?;
-        self.samples_written += ll as u64;
-        self.samples_written += rl as u64;
-        if self.buffer_l.len() >= MAX_BUFFER_USAGE || self.buffer_r.len() >= MAX_BUFFER_USAGE {
+        let mut iter = utils::multiple_stereos_to_interleaved_samples(stereos).into_iter();
+        self.encoder.encode(|| -> Option<i16> {iter.next()}, |byte: u8|{ self.nibbles.push(byte);})?;
+        self.samples_written += stereos.len() as u64 * 2;
+        if self.nibbles.len() >= MAX_BUFFER_USAGE {
             self.flush_buffers(writer)?;
         }
         Ok(())
@@ -636,26 +571,14 @@ impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     fn get_bit_rate(&self, channels: u16) -> u32 {
         if self.samples_written == 0 {
-            self.sample_rate * 8 // 估算
+            self.sample_rate * channels as u32 * 8 // 估算
         } else {
             (self.bytes_written / (self.samples_written / (self.sample_rate as u64 * channels as u64))) as u32 * 8
         }
     }
 
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-        fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
-        fmt.block_align = self.get_block_size() * fmt.channels;
-        let mut extension_length: u16 = 0;
-        if let Some(extension) = fmt.extension {
-            extension_length = extension.get_length();
-        }
-        let extension = self.yield_extension_data(fmt.channels);
-        if let Some(new_ext) = extension{
-            let new_length = new_ext.get_length();
-            if new_length != extension_length {
-                return Err(AudioWriteError::InvalidArguments(format!("The extension data length of your ADPCM encoder yielded ({new_length}) is different than the initialized `fmt ` chunk extension data length ({extension_length}), so it's unable to update the `fmt ` chunk in the file.")));
-            }
-        }
+        Ok(self.encoder.modify_fmt_chunk(fmt)?)
     }
 
     fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
@@ -667,8 +590,7 @@ where E: adpcm::AdpcmEncoder {
     }
 
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.encoder_l.flush(|byte: u8|{ self.buffer_l.push(byte);})?;
-        self.encoder_r.flush(|byte: u8|{ self.buffer_r.push(byte);})?;
+        self.encoder.flush(|nibble: u8|{ self.nibbles.push(nibble);})?;
         self.flush_buffers(writer)?;
         Ok(writer.flush()?)
     }
