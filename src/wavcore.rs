@@ -32,6 +32,7 @@ pub enum AdpcmSubFormat {
     Ymz = 0xFFFB,       // 不能用
     Aica = 0xFFFC,      // 不能用
     Ima = 0x0011,       // 能用
+    Ms = 0x0010,        // 能用
 }
 
 impl std::convert::Into<u16> for AdpcmSubFormat {
