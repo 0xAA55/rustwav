@@ -76,7 +76,7 @@ impl WaveWriter {
                 Encoder::new(PcmEncoder::new(spec.sample_rate, sample_type)?)
             },
             Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima};
+                use AdpcmSubFormat::{Bs, Oki, Oki6258, Yma, Ymb, Ymz, Aica, Ima, Ms};
                 let is_stereo = match spec.channels {
                     1 => false,
                     _ => true,
@@ -90,6 +90,7 @@ impl WaveWriter {
                     Ymz => Encoder::new(AdpcmEncoderWrap::<EncYMZ>::new(spec.sample_rate, is_stereo)),
                     Aica => Encoder::new(AdpcmEncoderWrap::<EncAICA>::new(spec.sample_rate, is_stereo)),
                     Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(spec.sample_rate, is_stereo)),
+                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(spec.sample_rate, is_stereo)),
                 }
             },
             Mp3 => {
