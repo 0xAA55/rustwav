@@ -146,11 +146,12 @@ impl WaveWriter {
         }
 
         let mut fmt_extension = None;
-        let mut ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
-        ext |= self.spec.channels > 2;
+        let mut ext = false;
 
         let format_tag = match &self.data_format {
             DataFormat::Pcm => {
+                ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
+                ext |= self.spec.channels > 2;
                 use SampleFormat::{Unknown, Float, UInt, Int};
                 // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
                 match self.spec.sample_format {
@@ -200,8 +201,7 @@ impl WaveWriter {
         };
 
         if ext {
-            fmt_extension = FmtExtension::new_extensible(Extensible {
-                ext_len: Extensible::sizeof(),
+            fmt_extension = Some(FmtExtension::new_extensible(Extensible {
                 valid_bits_per_sample: self.spec.bits_per_sample,
                 channel_mask: self.spec.channel_mask,
                 sub_format: match self.spec.sample_format {
@@ -209,7 +209,7 @@ impl WaveWriter {
                     Float => GUID_IEEE_FLOAT_FORMAT,
                     other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other))),
                 },
-            });
+            }));
         }
 
         self.fmt__chunk = FmtChunk {
