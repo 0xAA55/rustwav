@@ -71,8 +71,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
     match spec.channels {
         1 => {
-            for stereo in wavereader.mono_iter::<i16>()? {
-                wavewriter.write_mono(stereo)?;
+            for mono in wavereader.mono_iter::<i16>()? {
+                wavewriter.write_mono(mono)?;
             }
         },
         2 => {
