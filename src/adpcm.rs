@@ -59,6 +59,7 @@ pub type AdpcmEncoderYMB     = ymb::Encoder;
 pub type AdpcmEncoderYMZ     = ymz::Encoder;
 pub type AdpcmEncoderAICA    = aica::Encoder;
 pub type AdpcmEncoderIMA     = ima::Encoder;
+pub type AdpcmEncoderMS      = ms::Encoder;
 
 pub type AdpcmDecoderBS      = bs::Decoder;
 pub type AdpcmDecoderOKI     = oki::Decoder;
@@ -68,6 +69,7 @@ pub type AdpcmDecoderYMB     = ymb::Decoder;
 pub type AdpcmDecoderYMZ     = ymz::Decoder;
 pub type AdpcmDecoderAICA    = aica::Decoder;
 pub type AdpcmDecoderIMA     = ima::Decoder;
+pub type AdpcmDecoderMS      = ms::Decoder;
 
 pub type EncBS      = AdpcmEncoderBS;
 pub type EncOKI     = AdpcmEncoderOKI;
@@ -77,6 +79,7 @@ pub type EncYMB     = AdpcmEncoderYMB;
 pub type EncYMZ     = AdpcmEncoderYMZ;
 pub type EncAICA    = AdpcmEncoderAICA;
 pub type EncIMA     = AdpcmEncoderIMA;
+pub type EncMS      = AdpcmEncoderMS;
 
 pub type DecBS      = AdpcmDecoderBS;
 pub type DecOKI     = AdpcmDecoderOKI;
@@ -86,6 +89,7 @@ pub type DecYMB     = AdpcmDecoderYMB;
 pub type DecYMZ     = AdpcmDecoderYMZ;
 pub type DecAICA    = AdpcmDecoderAICA;
 pub type DecIMA     = AdpcmDecoderIMA;
+pub type DecMS      = AdpcmDecoderMS;
 
 pub mod bs {
     // Encode and decode algorithms for
@@ -1200,4 +1204,33 @@ pub mod ima {
     }
 }
 
+pub mod ms {
+    // 巨硬的 ADPCM
+    use std::{io::{self}, cmp::min};
 
+    use super::AdpcmEncoder;
+    use super::AdpcmDecoder;
+
+    const AdaptationTable: [i32; 16] = [
+        230, 230, 230, 230, 307, 409, 512, 614,
+        768, 614, 512, 409, 307, 230, 230, 230
+    ];
+
+    #[derive(Debug, Clone, Copy)]
+    struct AdpcmCoefSet {
+        coef1: i16,
+        coef2: i16,
+    };
+
+    const AdpcmCoefSet: [AdpcmCoefSet; 7] = [
+        AdpcmCoefSet{coef1: 256, coef2: 0   },
+        AdpcmCoefSet{coef1: 512, coef2: -256},
+        AdpcmCoefSet{coef1: 0  , coef2: 0   },
+        AdpcmCoefSet{coef1: 192, coef2: 64  },
+        AdpcmCoefSet{coef1: 240, coef2: 0   },
+        AdpcmCoefSet{coef1: 460, coef2: -208},
+        AdpcmCoefSet{coef1: 392, coef2: -232},
+    ]
+
+
+}
