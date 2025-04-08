@@ -527,6 +527,7 @@ pub struct FmtExtension {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExtensionData{
+    Nodata,
     AdpcmMs(AdpcmMsData),
     AdpcmIma(AdpcmImaData),
     Extensible(Extensible),
@@ -688,6 +689,8 @@ impl FmtExtension {
                         Err(AudioReadError::IncompleteData(format!("The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}", Extensible::sizeof())))
                     }
                 },
+                _ => Ok(ExtensionData::Nodata),
+            }?,
         })
     }
 
