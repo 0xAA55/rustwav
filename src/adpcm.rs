@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use std::{io, fmt::Debug};
+use crate::FmtExtension;
 
 pub trait AdpcmEncoder: Debug {
     fn new() -> Self;
@@ -15,10 +16,13 @@ pub trait AdpcmEncoder: Debug {
     fn get_block_size(&self) -> u16 {
         512
     }
+    fn yield_extension_data(channels: u16) -> Option<FmtExtension> {
+        None
+    }
 }
 
 pub trait AdpcmDecoder: Debug {
-    fn new() -> Self;
+    fn new(extension_data: Option<FmtExtension>) -> Result<Self, io::Error>;
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
     fn get_interleave_bytes(&self) -> usize {
         4
