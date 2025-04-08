@@ -180,13 +180,10 @@ impl WaveWriter {
                 }
             },
             DataFormat::Adpcm(sub_format) => {
-                const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
-                const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
                 fmt_extension = match sub_format {
-                    TAG_ADPCM_MS => Some(FmtExtension::new_adpcm_ms(AdpcmMsData::new()),
-                    TAG_ADPCM_IMA => Some(FmtExtension::new_adpcm_ima(AdpcmImaData::new(0)),
-                    _ => None,
-                }
+                    AdpcmSubFormat::Ms => Some(FmtExtension::new_adpcm_ms(AdpcmMsData::new())),
+                    AdpcmSubFormat::Ima => Some(FmtExtension::new_adpcm_ima(AdpcmImaData::new(0))),
+                };
                 self.block_size = 0x400;
                 self.spec.bits_per_sample = 4;
                 (*sub_format) as u16
