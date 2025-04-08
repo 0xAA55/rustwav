@@ -8,7 +8,7 @@ use crate::AudioWriteError;
 use crate::WaveSampleType;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
-use crate::{FmtChunk, FmtChunkExtension};
+use crate::{FmtChunk, FmtExtension};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 
 // 编码器，接收样本格式 S，编码为文件要的格式

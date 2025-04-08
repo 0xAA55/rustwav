@@ -8,7 +8,7 @@ use crate::readwrite;
 use crate::{AudioReadError};
 use crate::{Spec};
 use crate::{ChunkHeader};
-use crate::{FmtChunk, FmtChunkExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::{FmtChunk, FmtExtension, BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
 use crate::{DecBS, DecOKI, DecOKI6258, DecYMA, DecYMB, DecYMZ, DecAICA, DecIMA};
 use crate::{StringCodecMaps, SavageStringCodecs};
