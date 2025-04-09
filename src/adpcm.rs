@@ -901,10 +901,11 @@ pub mod ms {
                                     enc.compress_sample(self.buffer[0]) |
                                     enc.compress_sample(self.buffer[1]) << 4
                                 );
-                                bytes_yield += 1;
+                                self.bytes_yield += 1;
                             }
-                            if bytes_yield >= self.max_block_bytes() {
+                            if self.bytes_yield >= self.max_block_bytes() {
                                 enc.unready();
+                                self.bytes_yield = 0;
                             }
                         },
                         Stereo(ref mut enc) => {
@@ -918,10 +919,11 @@ pub mod ms {
                                     enc.compress_sample(self.buffer[2]) |
                                     enc.compress_sample(self.buffer[3]) << 4
                                 );
-                                bytes_yield += 2;
+                                self.bytes_yield += 2;
                             }
-                            if bytes_yield >= self.max_block_bytes() {
+                            if self.bytes_yield >= self.max_block_bytes() {
                                 enc.unready();
+                                self.bytes_yield = 0;
                             }
                         },
                     }
