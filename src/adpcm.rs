@@ -597,9 +597,11 @@ pub mod ima {
 
 pub mod ms {
     // 巨硬的 ADPCM
+    // https://ffmpeg.org/doxygen/3.1/adpcmenc_8c_source.html
+    // https://ffmpeg.org/doxygen/3.1/adpcm_8c_source.html
     use std::io;
 
-    use super::{AdpcmEncoder, AdpcmDecoder};
+    use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
     use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
 
     const ADAPTATIONTABLE: [i16; 16] = [
@@ -623,7 +625,6 @@ pub mod ms {
         AdpcmCoeffSet{coeff1: 392, coeff2: -232},
     ];
 
-    const INTERLEAVE_BYTES: usize = 1;
     const BLOCK_SIZE: usize = 1024;
     const HEADER_SIZE: usize = 7;
     const NIBBLE_BUFFER_SIZE: usize = BLOCK_SIZE - HEADER_SIZE;
@@ -634,6 +635,14 @@ pub mod ms {
             Self {
                 coeff1: 0,
                 coeff2: 0,
+            }
+        }
+
+        pub fn get(&self, index: usize) -> i16 {
+            match index {
+                1 => self.coeff1,
+                2 => self.coeff2,
+                o => panic!("Index must be 1 or 2, not {o}"),
             }
         }
 
@@ -660,8 +669,8 @@ pub mod ms {
             let mut diff: u32 = 0xFFFFFFFF;
             let mut index = 0u8;
             for (i, coeff) in coeff_table.iter().enumerate() {
-                let dx = (coeff.coeff1 - self.coeff1) as i32;
-                let dy = (coeff.coeff2 - self.coeff2) as i32;
+                let dx = (coeff.get(1) - self.coeff1) as i32;
+                let dy = (coeff.get(2) - self.coeff2) as i32;
                 let length_sq = (dx * dx + dy * dy) as u32;
                 if length_sq < diff {
                     diff = length_sq;
@@ -676,6 +685,321 @@ pub mod ms {
         (c.clamp(-8, 7) & 0x0F) as u8
     }
 
+    #[derive(Debug, Clone, Copy)]
+    pub struct EncoderCore {
+        predictor: i32,
+        sample1: i16,
+        sample2: i16,
+        coeff: AdpcmCoeffSet,
+        delta: i32,
+        ready: bool,
+    }
+
+    impl EncoderCore {
+        pub fn new() -> Self {
+            Self {
+                predictor: 0,
+                sample1: 0,
+                sample2: 0,
+                coeff: ADAPTATIONTABLE[0],
+                delta: 16,
+                ready: false,
+            }
+        }
+
+        pub fn is_ready(&self) -> bool {
+            self.ready
+        }
+
+        pub fn unready(&mut self) {
+            if self.delta < 16 {
+                self.delta = 16;
+            }
+            self.ready = false;
+        }
+
+        pub fn compress_sample(&mut self, sample: i16) -> u8 {
+            let predictor = (
+                self.sample1 as i32 * self.coeff.get(1) as i32 +
+                self.sample2 as i32 * self.coeff.get(2) as i32) / 256;
+            let nibble = sample as i32 - predictor;
+            let bias = if nibble >= 0 {
+                self.delta / 2
+            } else {
+                -self.delta / 2
+            };
+            let nibble = ((nibble + bias) / self.delta).clamp(-8, 7) & 0x0F;
+            let predictor = predictor + if nibble & 0x08 != 0 {nibble.wrapping_sub(0x10)} else {nibble}) * self.delta;
+            self.sample2 = self.sample1;
+            self.sample1 = predictor.clamp(-32768, 32767) as i16;
+            self.delta = (ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8;
+            if self.delta < 16 {
+                self.delta = 16;
+            }
+
+            nibble as u8
+        }
+
+        pub fn get_ready(&mut self, samples: [i16; 2]) -> (u8, i16, i16, i16) {
+            self.sample2 = samples[0];
+            self.sample1 = samples[1];
+            self.ready = true;
+            (0u8, self.delta as i16, self.sample1, self.sample2)
+        }
+    }
+
+    fn output_le_i16(val: i16, output: impl FnMut(u8)) {
+        let bytes = val.to_le_bytes();
+        output(bytes[0]);
+        output(bytes[1]);
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct StereoEncoder {
+        core_l: EncoderCore,
+        core_r: EncoderCore,
+        current_channel: CurrentChannel,
+        ready: bool,
+    }
+
+    impl StereoEncoder {
+        pub fn new () -> Self{
+            Self {
+                core_l: EncoderCore::new(),
+                core_r: EncoderCore::new(),
+                current_channel: CurrentChannel::Left,
+                ready: false,
+            }
+        }
+
+        pub fn is_ready(&self) -> bool {
+            self.ready
+        }
+
+        pub fn unready(&mut self) {
+            core_l.unready();
+            core_r.unready();
+        }
+
+        pub fn compress_sample(&mut self, sample: i16) -> u8 {
+            match self.current_channel {
+                CurrentChannel::Left => {
+                    self.current_channel = CurrentChannel::Right;
+                    core_l.compress_sample(sample)
+                },
+                CurrentChannel::Right => {
+                    self.current_channel = CurrentChannel::Left;
+                    core_r.compress_sample(sample)
+                },
+            }
+        }
+
+        pub fn get_ready(&mut self, samples: [i16; 4]) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
+            let ready1 = self.core_l.get_ready([samples[0], samples[2]]);
+            let ready2 = self.core_r.get_ready([samples[1], samples[3]]);
+            self.ready = true;
+            (ready1.0, ready2.0, ready1.1, ready2.1, ready1.2, ready2.2, ready1.3, ready2.3)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Encoder{
+        channels: Channels,
+        coeff_table: [AdpcmCoeffSet; 7],
+        bytes_yield: usize,
+        buffer: [i16; 4],
+        bufsize: usize,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Channels{
+        Mono(EncoderCore),
+        Stereo(StereoEncoder),
+    }
+
+    impl Encoder {
+        pub fn max_block_bytes(&self) -> usize {
+            match self.channels {
+                Mono(_): BLOCK_SIZE,
+                Stereo(_): BLOCK_SIZE * 2,
+            }
+        }
+    }
+
+    impl AdpcmEncoder for Encoder {
+        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
+            match channels {
+                1 => {
+                    Ok(Self {
+                        channels: Mono(EncoderCore::new()),
+                        coeff_table: DEF_COEFF_TABLE,
+                        bytes_yield: 0,
+                        buffer: [0i16; 4],
+                        bufsize: 0,
+                    })
+                },
+                2 => {
+                    Ok(Self {
+                        channels: Stereo(StereoEncoder::new()),
+                        coeff_table: DEF_COEFF_TABLE,
+                        bytes_yield: 0,
+                        buffer: [0i16; 4],
+                        bufsize: 0,
+                    })
+                },
+                o => {
+                    Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}")))
+                }
+            }
+        }
+
+        fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error> {
+            while let Some(sample) = input() {
+                let ready = match self.channels {
+                    Mono(ref mut enc) => enc.is_ready(),
+                    Stereo(ref mut enc) => enc.is_ready(),
+                };
+                if !ready {
+                    self.buffer[self.bufsize] = sample;
+                    self.bufsize += 1;
+                    match self.channels {
+                        Mono(ref mut enc) => {
+                            if self.bufsize >= 2 {
+                                self.bufsize = 0;
+                                let header = enc.get_ready([self.buffer[0], self.buffer[1]]);
+                                output(header.0);
+                                output_le_i16(header.1, |byte:u8|{output(byte)});
+                                output_le_i16(header.2, |byte:u8|{output(byte)});
+                                output_le_i16(header.3, |byte:u8|{output(byte)});
+                                self.bytes_yield += 7;
+                            }
+                        },
+                        Stereo(ref mut enc) => {
+                            if self.bufsize >= 4 {
+                                self.bufsize = 0;
+                                let header = enc.get_ready([self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]]);
+                                output(header.0);
+                                output(header.1);
+                                output_le_i16(header.2, |byte:u8|{output(byte)});
+                                output_le_i16(header.3, |byte:u8|{output(byte)});
+                                output_le_i16(header.4, |byte:u8|{output(byte)});
+                                output_le_i16(header.5, |byte:u8|{output(byte)});
+                                output_le_i16(header.6, |byte:u8|{output(byte)});
+                                output_le_i16(header.7, |byte:u8|{output(byte)});
+                                self.bytes_yield += 14;
+                            }
+                        },
+                    }
+                } else {
+                    self.buffer[self.bufsize] = sample;
+                    self.bufsize += 1;
+                    match self.channels {
+                        Mono(ref mut enc) => {
+                            if self.bufsize >= 2 {
+                                self.bufsize = 0;
+                                output (
+                                    enc.compress_sample(self.buffer[0]) |
+                                    enc.compress_sample(self.buffer[1]) << 4
+                                );
+                                bytes_yield += 1;
+                            }
+                            if bytes_yield >= self.max_block_bytes() {
+                                enc.unready();
+                            }
+                        },
+                        Stereo(ref mut enc) => {
+                            if self.bufsize >= 4 {
+                                self.bufsize = 0;
+                                output (
+                                    enc.compress_sample(self.buffer[0]) |
+                                    enc.compress_sample(self.buffer[1]) << 4
+                                );
+                                output (
+                                    enc.compress_sample(self.buffer[2]) |
+                                    enc.compress_sample(self.buffer[3]) << 4
+                                );
+                                bytes_yield += 2;
+                            }
+                            if bytes_yield >= self.max_block_bytes() {
+                                enc.unready();
+                            }
+                        },
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        fn get_required_fmt_chunk_size(&mut self) -> usize {
+            16 + 2 + AdpcmMsData::sizeof()
+        }
+
+        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+            fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
+            fmt_chunk.bits_per_sample = 4;
+            fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
+            if let Some(ref mut extension) = fmt_chunk.extension {
+                if let ExtensionData::AdpcmMs(ref mut adpcm_ms) = extension.data {
+                    adpcm_ms.samples_per_block = (BLOCK_SIZE as u16 - 7 * fmt_chunk.channels) * fmt_chunk.channels * 2;
+                    adpcm_ms.num_coeff = 7;
+                    adpcm_ms.coeffs = self.coeff_table;
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA")))
+                }
+            } else {
+                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-IMA, must store the extension data in the `fmt ` chunk")))
+            }
+        }
+        fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
+            Ok(())
+        }
+    }
+
+
+// for (i = 0; i < avctx->channels; i++) {
+//     int predictor = 0;
+//     *dst++ = predictor;
+//     c->status[i].coeff1 = ff_adpcm_AdaptCoeff1[predictor];
+//     c->status[i].coeff2 = ff_adpcm_AdaptCoeff2[predictor];
+// }
+// for (i = 0; i < avctx->channels; i++) {
+//     if (c->status[i].idelta < 16)
+//         c->status[i].idelta = 16;
+//     bytestream_put_le16(&dst, c->status[i].idelta);
+// }
+// for (i = 0; i < avctx->channels; i++)
+//     c->status[i].sample2= *samples++;
+// for (i = 0; i < avctx->channels; i++) {
+//     c->status[i].sample1 = *samples++;
+//     bytestream_put_le16(&dst, c->status[i].sample1);
+// }
+// for (i = 0; i < avctx->channels; i++)
+//     bytestream_put_le16(&dst, c->status[i].sample2);
+// 
+// if (avctx->trellis > 0) {
+//     int n = avctx->block_align - 7 * avctx->channels;
+//     FF_ALLOC_OR_GOTO(avctx, buf, 2 * n, error);
+//     if (avctx->channels == 1) {
+//         adpcm_compress_trellis(avctx, samples, buf, &c->status[0], n);
+//         for (i = 0; i < n; i += 2)
+//             *dst++ = (buf[i] << 4) | buf[i + 1];
+//     } else {
+//         adpcm_compress_trellis(avctx, samples,     buf,     &c->status[0], n);
+//         adpcm_compress_trellis(avctx, samples + 1, buf + n, &c->status[1], n);
+//         for (i = 0; i < n; i++)
+//             *dst++ = (buf[i] << 4) | buf[n + i];
+//     }
+//     av_free(buf);
+// } else {
+//     for (i = 7 * avctx->channels; i < avctx->block_align; i++) {
+//         int nibble;
+//         nibble  = adpcm_ms_compress_sample(&c->status[ 0], *samples++) << 4;
+//         nibble |= adpcm_ms_compress_sample(&c->status[st], *samples++);
+//         *dst++  = nibble;
+//     }
+// }
+// break;
     /*
 
     #[derive(Clone, Copy)]
