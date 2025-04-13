@@ -1130,7 +1130,7 @@ pub mod ms {
             }
         }
         fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
-            Ok(())
+            panic!("flush() not implemented.")
         }
     }
 
