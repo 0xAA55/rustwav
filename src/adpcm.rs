@@ -3,6 +3,145 @@
 use std::{io, fmt::Debug};
 use crate::{FmtChunk};
 
+macro_rules! define_copiable_buffer {
+    ($name:ident, $name_intoiter:ident, $type:ty, $size:expr) => {
+        #[derive(Debug, Clone, Copy)]
+        struct $name {
+            pub buffer: [$type; $size],
+            buf_used: usize,
+        }
+
+        #[derive(Debug, Clone, Copy)]
+        struct $name_intoiter {
+            pub buffer: [$type; $size],
+            buf_used: usize,
+            iter_index: usize,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            pub fn new() -> Self {
+                Self {
+                    buffer: [0 as $type; $size],
+                    buf_used: 0,
+                }
+            }
+
+            pub fn len(&self) -> usize {
+                self.buf_used
+            }
+
+            pub fn is_full(&self) -> bool {
+                self.buf_used == self.buffer.len()
+            }
+
+            #[track_caller]
+            pub fn last(&mut self) -> &mut $type {
+                if self.buf_used == 0 {
+                    panic!("{} is empty.", stringify!($name));
+                }
+                &mut self.buffer[self.buf_used - 1]
+            }
+
+            #[track_caller]
+            pub fn push(&mut self, data: $type) {
+                if self.buf_used >= self.buffer.len() {
+                    panic!("{} is full. Max size is {}.", stringify!($name), $size);
+                } else {
+                    self.buffer[self.buf_used] = data;
+                    self.buf_used += 1;
+                }
+            }
+
+            pub fn clear(&mut self) {
+                self.buf_used = 0;
+            }
+
+            pub fn iter(&self) -> impl Iterator<Item = &$type> {
+                self.buffer.iter()
+            }
+
+            pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut $type> {
+                self.buffer.iter_mut()
+            }
+        }
+
+        #[allow(dead_code)]
+        impl Iterator for $name_intoiter {
+            type Item = $type;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                if self.iter_index < self.buf_used {
+                    let ret = Some(self.buffer[self.iter_index]);
+                    self.iter_index += 1;
+                    ret
+                } else {
+                    None
+                }
+            }
+
+            fn nth(&mut self, n: usize) -> Option<Self::Item> {
+                self.iter_index += n;
+                self.next()
+            }
+        }
+
+        #[allow(dead_code)]
+        impl IntoIterator for $name {
+            type Item = $type;
+            type IntoIter = $name_intoiter;
+
+            fn into_iter(self) -> Self::IntoIter {
+                Self::IntoIter {
+                    buffer: self.buffer,
+                    buf_used: self.buf_used,
+                    iter_index: 0,
+                }
+            }
+        }
+
+        #[allow(dead_code)]
+        impl std::ops::Index<usize> for $name {
+            type Output = $type;
+
+            fn index(&self, index: usize) -> &Self::Output {
+                if index >= self.buf_used {
+                    panic!(
+                        "Index out of bounds: {} >= {}",
+                        index, self.buf_used
+                    );
+                }
+                &self.buffer[index]
+            }
+        }
+
+        #[allow(dead_code)]
+        impl std::ops::IndexMut<usize> for $name {
+            fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+                if index >= self.buf_used {
+                    panic!(
+                        "Index out of bounds: {} >= {}",
+                        index, self.buf_used
+                    );
+                }
+                &mut self.buffer[index]
+            }
+        }
+
+        #[allow(dead_code)]
+        impl std::iter::FromIterator<$type> for $name {
+            fn from_iter<T: IntoIterator<Item = $type>>(iter: T) -> Self {
+                let mut iter = iter.into_iter();
+                let mut ret = Self::new();
+                while let Some(data) = iter.next() {
+                    ret.push(data);
+                }
+                ret
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum CurrentChannel {
     Left,
