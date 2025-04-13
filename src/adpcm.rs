@@ -390,34 +390,24 @@ pub mod ima {
                 match self.current_channel{
                     CurrentChannel::Left => {
                         self.current_channel = CurrentChannel::Right;
-                        self.buffer_l.push(sample);
+                        self.sample_l.push(sample);
                     },
                     CurrentChannel::Right => {
                         self.current_channel = CurrentChannel::Left;
-                        self.buffer_r.push(sample);
+                        self.sample_r.push(sample);
                     },
                 }
-                if self.buffer_l.len() >= SAMPLE_BUFFER_SIZE &&
-                   self.buffer_r.len() >= SAMPLE_BUFFER_SIZE {
-                    let iter_l = mem::replace(&mut self.buffer_l, Vec::<i16>::new()).into_iter();
-                    let iter_r = mem::replace(&mut self.buffer_r, Vec::<i16>::new()).into_iter();
-                    let mut feeder_l = iter_l.clone().take(SAMPLE_BUFFER_SIZE);
-                    let mut feeder_r = iter_r.clone().take(SAMPLE_BUFFER_SIZE);
-                    self.core_l.encode(|| -> Option<i16> {feeder_l.next()}, |nibble:u8|{self.nibble_l.push(nibble)})?;
-                    self.core_r.encode(|| -> Option<i16> {feeder_r.next()}, |nibble:u8|{self.nibble_r.push(nibble)})?;
-                    self.buffer_l = iter_l.skip(SAMPLE_BUFFER_SIZE).collect();
-                    self.buffer_r = iter_r.skip(SAMPLE_BUFFER_SIZE).collect();
+                if self.sample_l.is_full() && self.sample_r.is_full() {
+                    let mut iter_l = mem::replace(&mut self.sample_l, EncoderSampleBuffer::new()).into_iter();
+                    let mut iter_r = mem::replace(&mut self.sample_r, EncoderSampleBuffer::new()).into_iter();
+                    self.core_l.encode(|| -> Option<i16> {iter_l.next()}, |nibble:u8|{self.nibble_l.push(nibble)})?;
+                    self.core_r.encode(|| -> Option<i16> {iter_r.next()}, |nibble:u8|{self.nibble_r.push(nibble)})?;
                 }
-                while self.nibble_l.len() >= INTERLEAVE_BYTES &&
-                      self.nibble_r.len() >= INTERLEAVE_BYTES {
-                    let iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
-                    let iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
-                    let feeder_l = iter_l.clone().take(INTERLEAVE_BYTES);
-                    let feeder_r = iter_r.clone().take(INTERLEAVE_BYTES);
-                    for nibble in feeder_l {output(nibble);}
-                    for nibble in feeder_r {output(nibble);}
-                    self.nibble_l = iter_l.skip(INTERLEAVE_BYTES).collect();
-                    self.nibble_r = iter_r.skip(INTERLEAVE_BYTES).collect();
+                while self.nibble_l.len() >= INTERLEAVE_BYTES && self.nibble_r.len() >= INTERLEAVE_BYTES {
+                    for i in 0..INTERLEAVE_BYTES {output(self.nibble_l[i]);}
+                    for i in 0..INTERLEAVE_BYTES {output(self.nibble_r[i]);}
+                    self.nibble_l = mem::replace(&mut self.nibble_l, EncoderNibbleBuffer::new()).into_iter().skip(INTERLEAVE_BYTES).collect();
+                    self.nibble_r = mem::replace(&mut self.nibble_r, EncoderNibbleBuffer::new()).into_iter().skip(INTERLEAVE_BYTES).collect();
                 }
             }
             Ok(())
