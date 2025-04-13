@@ -474,6 +474,9 @@ pub mod ima {
         }
     }
 
+    define_copiable_buffer!(DecoderNibbleBuffer, DecoderNibbleBufferIntoIter, u8, INTERLEAVE_BYTES);
+    define_copiable_buffer!(DecoderSampleBuffer, DecoderSampleBufferIntoIter, i16, INTERLEAVE_SAMPLES);
+
     // 解码器逻辑
     // data 里面是交错存储的 u32
     // 对于每个声道，第一个 u32 用于初始化解码器
@@ -483,27 +486,8 @@ pub mod ima {
         sample_val: i16,
         stepsize_index: i8,
         ready: bool,
-        buffer: [u8; 4],
-        bufsize: usize,
+        nibble_buffer: DecoderNibbleBuffer,
         input_count: usize,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct StereoDecoder {
-        current_channel: CurrentChannel,
-        counter: u8,
-        core_l: DecoderCore,
-        core_r: DecoderCore,
-        nibble_l: Vec<u8>,
-        nibble_r: Vec<u8>,
-        sample_l: Vec<i16>,
-        sample_r: Vec<i16>,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum Decoder {
-        Mono(DecoderCore),
-        Stereo(StereoDecoder),
     }
 
     impl DecoderCore{
@@ -512,8 +496,7 @@ pub mod ima {
                 sample_val: 0,
                 stepsize_index: 0,
                 ready: false,
-                buffer: [0u8; INTERLEAVE_BYTES],
-                bufsize: 0,
+                nibble_buffer: DecoderNibbleBuffer::new(),
                 input_count: 0,
             }
         }
@@ -535,11 +518,6 @@ pub mod ima {
             self.sample_val = predict as i16;
             self.stepsize_index = idx;
             self.sample_val
-        }
-
-        fn push_buf(&mut self, byte: u8) {
-            self.buffer[self.bufsize as usize] = byte;
-            self.bufsize += 1;
         }
 
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
