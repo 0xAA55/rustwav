@@ -585,55 +585,61 @@ pub mod ima {
         }
     }
 
+    #[derive(Debug, Clone, Copy)]
+    pub struct StereoDecoder {
+        current_channel: CurrentChannel,
+        core_l: DecoderCore,
+        core_r: DecoderCore,
+        nibble_l: DecoderNibbleBuffer,
+        nibble_r: DecoderNibbleBuffer,
+        sample_l: DecoderSampleBuffer,
+        sample_r: DecoderSampleBuffer,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Decoder {
+        Mono(DecoderCore),
+        Stereo(StereoDecoder),
+    }
+
     impl StereoDecoder {
         pub fn new() -> Self {
-            assert_eq!(NIBBLE_BUFFER_SIZE % INTERLEAVE_BYTES, 0);
             Self {
                 current_channel: CurrentChannel::Left,
-                counter: 0,
                 core_l: DecoderCore::new(),
                 core_r: DecoderCore::new(),
-                nibble_l: Vec::<u8>::new(),
-                nibble_r: Vec::<u8>::new(),
-                sample_l: Vec::<i16>::new(),
-                sample_r: Vec::<i16>::new(),
+                nibble_l: DecoderNibbleBuffer::new(),
+                nibble_r: DecoderNibbleBuffer::new(),
+                sample_l: DecoderSampleBuffer::new(),
+                sample_r: DecoderSampleBuffer::new(),
             }
         }
 
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            // 每 INTERLEAVE_BYTES 字节数一个声道
             while let Some(nibble) = input() {
                 match self.current_channel{
                     CurrentChannel::Left => {
                         self.nibble_l.push(nibble);
-                        self.counter += 1;
-                        if self.counter as usize == INTERLEAVE_BYTES {
-                            self.counter = 0;
+                        if self.nibble_l.is_full() {
                             self.current_channel = CurrentChannel::Right;
                         }
                     },
                     CurrentChannel::Right => {
                         self.nibble_r.push(nibble);
-                        self.counter += 1;
-                        if self.counter as usize == INTERLEAVE_BYTES {
-                            self.counter = 0;
+                        if self.nibble_r.is_full() {
                             self.current_channel = CurrentChannel::Left;
+                            // 此时该处理了。
                         }
                     },
                 }
-                if self.nibble_l.len() >= NIBBLE_BUFFER_SIZE &&
-                   self.nibble_r.len() >= NIBBLE_BUFFER_SIZE {
-                    let iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
-                    let iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
-                    let mut feeder_l = iter_l.clone().take(NIBBLE_BUFFER_SIZE);
-                    let mut feeder_r = iter_r.clone().take(NIBBLE_BUFFER_SIZE);
-                    self.core_l.decode(|| -> Option<u8> {feeder_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
-                    self.core_r.decode(|| -> Option<u8> {feeder_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
-                    self.nibble_l = iter_l.skip(NIBBLE_BUFFER_SIZE).collect();
-                    self.nibble_r = iter_r.skip(NIBBLE_BUFFER_SIZE).collect();
+                if self.nibble_l.is_full() && self.nibble_r.is_full() {
+                    let mut iter_l = mem::replace(&mut self.nibble_l, DecoderNibbleBuffer::new()).into_iter();
+                    let mut iter_r = mem::replace(&mut self.nibble_r, DecoderNibbleBuffer::new()).into_iter();
+                    self.core_l.decode(|| -> Option<u8> {iter_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
+                    self.core_r.decode(|| -> Option<u8> {iter_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
                 }
-                let iter_l = mem::replace(&mut self.sample_l, Vec::<i16>::new()).into_iter();
-                let iter_r = mem::replace(&mut self.sample_r, Vec::<i16>::new()).into_iter();
+                let iter_l = mem::replace(&mut self.sample_l, DecoderSampleBuffer::new()).into_iter();
+                let iter_r = mem::replace(&mut self.sample_r, DecoderSampleBuffer::new()).into_iter();
                 for stereo in iter_l.zip(iter_r) {
                     output(stereo.0);
                     output(stereo.1);
