@@ -262,8 +262,8 @@ pub mod ima {
     pub struct EncoderCore {
         prev_sample: i16,
         stepsize_index: i8,
-        nibble: [u8; 2],
-        nibble_index: u8,
+        nibble: u8,
+        half_byte_written: bool,
         header_written: bool,
         num_outputs: usize,
     }
@@ -290,8 +290,8 @@ pub mod ima {
             Self {
                 prev_sample: 0,
                 stepsize_index: 0,
-                nibble: [0u8; 2],
-                nibble_index: 0,
+                nibble: 0,
+                half_byte_written: false,
                 header_written: false,
                 num_outputs: 0,
             }
