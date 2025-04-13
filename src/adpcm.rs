@@ -460,8 +460,20 @@ pub mod ima {
                 Encoder::Stereo(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
             }
         }
-        fn get_required_fmt_chunk_size(&mut self) -> usize {
-            16 + 2 + AdpcmImaData::sizeof()
+        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> FmtChunk {
+            assert_eq!(bits_per_sample, 4);
+            let block_align = BLOCK_SIZE as u16 * channels;
+            FmtChunk {
+                format_tag: 0x0011,
+                channels,
+                sample_rate,
+                byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
+                block_align,
+                bits_per_sample,
+                extension: Some(FmtExtension::new_adpcm_ima(AdpcmImaData{
+                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16 * channels) * channels * 2,
+                })),
+            }
         }
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
@@ -1080,8 +1092,22 @@ pub mod ms {
             Ok(())
         }
 
-        fn get_required_fmt_chunk_size(&mut self) -> usize {
-            16 + 2 + AdpcmMsData::sizeof()
+        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> FmtChunk {
+            assert_eq!(bits_per_sample, 4);
+            let block_align = BLOCK_SIZE as u16;
+            FmtChunk {
+                format_tag: 0x0002,
+                channels,
+                sample_rate,
+                byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
+                block_align,
+                bits_per_sample,
+                extension: Some(FmtExtension::new_adpcm_ms(AdpcmMsData{
+                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16 * channels) * channels * 2,
+                    num_coeff: 7,
+                    coeffs: DEF_COEFF_TABLE,
+                })),
+            }
         }
 
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
