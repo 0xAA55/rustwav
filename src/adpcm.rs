@@ -151,8 +151,17 @@ pub enum CurrentChannel {
 pub trait AdpcmEncoder: Debug {
     fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
     fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
-    fn get_required_fmt_chunk_size(&mut self) -> usize {
-        16
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> FmtChunk {
+        let block_align = (bits_per_sample as u32 * channels as u32 / 8) as u16;
+        FmtChunk {
+            format_tag: 1,
+            channels,
+            sample_rate,
+            byte_rate: sample_rate * block_align as u32,
+            block_align,
+            bits_per_sample,
+            extension: None,
+        }
     }
     fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
         Ok(())
