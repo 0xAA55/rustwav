@@ -216,7 +216,7 @@ pub mod ima {
     use std::{io, cmp::min, mem};
 
     use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
-    use crate::{FmtChunk, ExtensionData, AdpcmImaData};
+    use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmImaData};
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
@@ -254,9 +254,10 @@ pub mod ima {
     ];
 
     const BLOCK_SIZE: usize = 512;
+    const HEADER_SIZE: usize = 4;
     const INTERLEAVE_BYTES: usize = 4;
-    const SAMPLE_BUFFER_SIZE: usize = 512;
-    const NIBBLE_BUFFER_SIZE: usize = 512;
+    const INTERLEAVE_SAMPLES: usize = INTERLEAVE_BYTES * 2;
+    const NIBBLE_BUFFER_SIZE: usize = HEADER_SIZE + INTERLEAVE_BYTES;
 
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
