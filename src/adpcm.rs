@@ -1390,7 +1390,7 @@ pub mod ms {
         samples_per_block: u16,
         block: DecoderBlock,
         buffer: [u8; HEADER_SIZE as usize],
-        bufsize: usize,
+        buf_used: usize,
         header_init: bool,
         bytes_read: usize,
     }
@@ -1416,7 +1416,7 @@ pub mod ms {
                 samples_per_block: adpcm_ms.samples_per_block,
                 block: DecoderBlock::new(),
                 buffer: [0u8; HEADER_SIZE as usize],
-                bufsize: 0,
+                buf_used: 0,
                 header_init: false,
                 bytes_read: 0,
             }
@@ -1426,10 +1426,10 @@ pub mod ms {
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             loop {
                 if !self.header_init {
-                    while self.bufsize < HEADER_SIZE {
+                    while self.buf_used < HEADER_SIZE {
                         if let Some(nibble) = input() {
-                            self.buffer[self.bufsize as usize] = nibble;
-                            self.bufsize += 1;
+                            self.buffer[self.buf_used as usize] = nibble;
+                            self.buf_used += 1;
                             self.bytes_read += 1;
                         } else {
                             return Ok(())
@@ -1440,7 +1440,7 @@ pub mod ms {
                     self.block.sample1 = i16::from_le_bytes([self.buffer[3], self.buffer[4]]);
                     self.block.sample2 = i16::from_le_bytes([self.buffer[5], self.buffer[6]]);
                     if self.block.predictor as usize >= self.coeff_table.len() {
-                        self.bufsize = 0;
+                        self.buf_used = 0;
                         return Err(io::Error::new(io::ErrorKind::InvalidData, format!("`block.predictor` = {:?}", self.block)));
                     }
                     self.block.coeff = self.coeff_table[self.block.predictor as usize];
@@ -1458,7 +1458,7 @@ pub mod ms {
 
                         // 读了一个块的数据了，恢复状态重新读头
                         if self.bytes_read >= BLOCK_SIZE {
-                            self.bufsize = 0;
+                            self.buf_used = 0;
                             self.bytes_read = 0;
                             self.header_init = false;
                         }
