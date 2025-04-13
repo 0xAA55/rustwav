@@ -1041,7 +1041,10 @@ pub mod ms {
             }
         }
         fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
-            panic!("flush() not implemented.")
+            while self.bytes_yield > 0 {
+                let mut iter = [0i16].into_iter();
+                self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?;
+            }
         }
     }
 
