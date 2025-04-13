@@ -530,6 +530,7 @@ pub enum ExtensionData{
     Nodata,
     AdpcmMs(AdpcmMsData),
     AdpcmIma(AdpcmImaData),
+    Mp3(Mp3Data),
     Extensible(Extensible),
 }
 
@@ -543,6 +544,15 @@ pub struct AdpcmMsData{
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmImaData{
     pub samples_per_block: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Mp3Data{
+    pub id: u16,
+    pub flags: u32,
+    pub block_size: u16,
+    pub frames_per_block: u16,
+    pub codec_delay: u16,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -652,6 +662,13 @@ impl FmtExtension {
         }
     }
 
+    pub fn new_mp3(mp3: Mp3Data) -> Self {
+        Self {
+            ext_len: Mp3Data::sizeof() as u16,
+            data: ExtensionData::Mp3(mp3),
+        }
+    }
+
     pub fn new_extensible(extensible: Extensible) -> Self {
         Self {
             ext_len: Extensible::sizeof() as u16,
@@ -682,6 +699,13 @@ impl FmtExtension {
                         Ok(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?))
                     } else {
                         Err(AudioReadError::IncompleteData(format!("The extension data for ADPCM-IMA should be bigger than {}, got {ext_len}", AdpcmImaData::sizeof())))
+                    }
+                },
+                0x0055 => {
+                    if ext_len as usize >= Mp3Data::sizeof() {
+                        Ok(ExtensionData::Mp3(Mp3Data::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!("The extension data for Mpeg Layer III should be bigger than {}, got {ext_len}", Mp3Data::sizeof())))
                     }
                 },
                 0xFFFE => {
@@ -780,6 +804,45 @@ impl AdpcmImaData {
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.samples_per_block.write_le(writer)?;
+        Ok(())
+    }
+}
+
+impl Mp3Data {
+    const MPEGLAYER3_FLAG_PADDING_ISO: u32 = 0x00000000;
+    const MPEGLAYER3_FLAG_PADDING_ON : u32 = 0x00000001;
+    const MPEGLAYER3_FLAG_PADDING_OFF: u32 = 0x00000002;
+
+    pub fn new(bitrate: u32, sample_rate: u32) -> Self {
+        Self {
+            id: 1,
+            flags: MPEGLAYER3_FLAG_PADDING_OFF,
+            block_size: 144 * bitrate / sample_rate,
+            frames_per_block: 1,
+            codec_delay: 0,
+        }
+    }
+
+    pub fn sizeof() -> usize {
+        12
+    }
+
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            id: u16::read_le(reader)?,
+            flags: u32::read_le(reader)?,
+            block_size: u16::read_le(reader)?,
+            frames_per_block: u16::read_le(reader)?,
+            codec_delay: u16::read_le(reader)?,
+        })
+    }
+
+    pub fn write(reader: &mut impl Reader) -> Result<(), AudioReadError> {
+        self.id.read_le(reader)?;
+        self.flags.read_le(reader)?;
+        self.block_size.read_le(reader)?;
+        self.frames_per_block.read_le(reader)?;
+        self.codec_delay.read_le(reader)?;
         Ok(())
     }
 }
