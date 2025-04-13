@@ -714,8 +714,6 @@ pub mod ms {
 
     const BLOCK_SIZE: usize = 1024;
     const HEADER_SIZE: usize = 7;
-    const NIBBLE_BUFFER_SIZE: usize = BLOCK_SIZE - HEADER_SIZE;
-    const SAMPLES_PER_BLOCK: usize = NIBBLE_BUFFER_SIZE * 2;
 
     impl AdpcmCoeffSet{
         pub fn new() -> Self {
@@ -788,7 +786,7 @@ pub mod ms {
                 predictor: 0,
                 sample1: 0,
                 sample2: 0,
-                coeff: ADAPTATIONTABLE[0],
+                coeff: DEF_COEFF_TABLE[0],
                 delta: 16,
                 ready: false,
             }
@@ -816,7 +814,7 @@ pub mod ms {
                 -self.delta / 2
             };
             let nibble = ((nibble + bias) / self.delta).clamp(-8, 7) & 0x0F;
-            let predictor = predictor + if nibble & 0x08 != 0 {nibble.wrapping_sub(0x10)} else {nibble}) * self.delta;
+            let predictor = predictor + if nibble & 0x08 != 0 {nibble.wrapping_sub(0x10)} else {nibble} * self.delta;
             self.sample2 = self.sample1;
             self.sample1 = predictor.clamp(-32768, 32767) as i16;
             self.delta = (ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8;
@@ -835,7 +833,7 @@ pub mod ms {
         }
     }
 
-    fn output_le_i16(val: i16, output: impl FnMut(u8)) {
+    fn output_le_i16(val: i16, mut output: impl FnMut(u8)) {
         let bytes = val.to_le_bytes();
         output(bytes[0]);
         output(bytes[1]);
@@ -864,19 +862,19 @@ pub mod ms {
         }
 
         pub fn unready(&mut self) {
-            core_l.unready();
-            core_r.unready();
+            self.core_l.unready();
+            self.core_r.unready();
         }
 
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             match self.current_channel {
                 CurrentChannel::Left => {
                     self.current_channel = CurrentChannel::Right;
-                    core_l.compress_sample(sample)
+                    self.core_l.compress_sample(sample)
                 },
                 CurrentChannel::Right => {
                     self.current_channel = CurrentChannel::Left;
-                    core_r.compress_sample(sample)
+                    self.core_r.compress_sample(sample)
                 },
             }
         }
@@ -889,13 +887,14 @@ pub mod ms {
         }
     }
 
+    define_copiable_buffer!(EncoderBuffer, EncoderBufferIntoIter, i16, 4);
+
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder{
         channels: Channels,
         coeff_table: [AdpcmCoeffSet; 7],
         bytes_yield: usize,
-        buffer: [i16; 4],
-        bufsize: usize,
+        buffer: EncoderBuffer,
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -904,34 +903,23 @@ pub mod ms {
         Stereo(StereoEncoder),
     }
 
-    impl Encoder {
-        pub fn max_block_bytes(&self) -> usize {
-            match self.channels {
-                Mono(_): BLOCK_SIZE,
-                Stereo(_): BLOCK_SIZE * 2,
-            }
-        }
-    }
-
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
+        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
             match channels {
                 1 => {
                     Ok(Self {
-                        channels: Mono(EncoderCore::new()),
+                        channels: Channels::Mono(EncoderCore::new()),
                         coeff_table: DEF_COEFF_TABLE,
                         bytes_yield: 0,
-                        buffer: [0i16; 4],
-                        bufsize: 0,
+                        buffer: EncoderBuffer::new(),
                     })
                 },
                 2 => {
                     Ok(Self {
-                        channels: Stereo(StereoEncoder::new()),
+                        channels: Channels::Stereo(StereoEncoder::new()),
                         coeff_table: DEF_COEFF_TABLE,
                         bytes_yield: 0,
-                        buffer: [0i16; 4],
-                        bufsize: 0,
+                        buffer: EncoderBuffer::new(),
                     })
                 },
                 o => {
@@ -940,30 +928,28 @@ pub mod ms {
             }
         }
 
-        fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 let ready = match self.channels {
-                    Mono(ref mut enc) => enc.is_ready(),
-                    Stereo(ref mut enc) => enc.is_ready(),
+                    Channels::Mono(ref mut enc) => enc.is_ready(),
+                    Channels::Stereo(ref mut enc) => enc.is_ready(),
                 };
                 if !ready {
-                    self.buffer[self.bufsize] = sample;
-                    self.bufsize += 1;
+                    self.buffer.push(sample);
                     match self.channels {
-                        Mono(ref mut enc) => {
-                            if self.bufsize >= 2 {
-                                self.bufsize = 0;
+                        Channels::Mono(ref mut enc) => {
+                            if self.buffer.len() >= 2 {
                                 let header = enc.get_ready([self.buffer[0], self.buffer[1]]);
                                 output(header.0);
                                 output_le_i16(header.1, |byte:u8|{output(byte)});
                                 output_le_i16(header.2, |byte:u8|{output(byte)});
                                 output_le_i16(header.3, |byte:u8|{output(byte)});
+                                self.buffer.clear();
                                 self.bytes_yield += 7;
                             }
                         },
-                        Stereo(ref mut enc) => {
-                            if self.bufsize >= 4 {
-                                self.bufsize = 0;
+                        Channels::Stereo(ref mut enc) => {
+                            if self.buffer.len() >= 4 {
                                 let header = enc.get_ready([self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]]);
                                 output(header.0);
                                 output(header.1);
@@ -973,31 +959,30 @@ pub mod ms {
                                 output_le_i16(header.5, |byte:u8|{output(byte)});
                                 output_le_i16(header.6, |byte:u8|{output(byte)});
                                 output_le_i16(header.7, |byte:u8|{output(byte)});
+                                self.buffer.clear();
                                 self.bytes_yield += 14;
                             }
                         },
                     }
                 } else {
-                    self.buffer[self.bufsize] = sample;
-                    self.bufsize += 1;
+                    self.buffer.push(sample);
                     match self.channels {
-                        Mono(ref mut enc) => {
-                            if self.bufsize >= 2 {
-                                self.bufsize = 0;
+                        Channels::Mono(ref mut enc) => {
+                            if self.buffer.len() >= 2 {
                                 output (
                                     enc.compress_sample(self.buffer[0]) |
                                     enc.compress_sample(self.buffer[1]) << 4
                                 );
+                                self.buffer.clear();
                                 self.bytes_yield += 1;
                             }
-                            if self.bytes_yield >= self.max_block_bytes() {
+                            if self.bytes_yield >= BLOCK_SIZE {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
                         },
-                        Stereo(ref mut enc) => {
-                            if self.bufsize >= 4 {
-                                self.bufsize = 0;
+                        Channels::Stereo(ref mut enc) => {
+                            if self.buffer.len() >= 4 {
                                 output (
                                     enc.compress_sample(self.buffer[0]) |
                                     enc.compress_sample(self.buffer[1]) << 4
@@ -1006,9 +991,10 @@ pub mod ms {
                                     enc.compress_sample(self.buffer[2]) |
                                     enc.compress_sample(self.buffer[3]) << 4
                                 );
+                                self.buffer.clear();
                                 self.bytes_yield += 2;
                             }
-                            if self.bytes_yield >= self.max_block_bytes() {
+                            if self.bytes_yield >= BLOCK_SIZE * 2 {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
