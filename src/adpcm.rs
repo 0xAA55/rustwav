@@ -269,23 +269,6 @@ pub mod ima {
         num_outputs: usize,
     }
 
-    #[derive(Debug, Clone)]
-    pub struct StereoEncoder {
-        current_channel: CurrentChannel,
-        core_l: EncoderCore,
-        core_r: EncoderCore,
-        buffer_l: Vec<i16>,
-        buffer_r: Vec<i16>,
-        nibble_l: Vec<u8>,
-        nibble_r: Vec<u8>,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum Encoder {
-        Mono(EncoderCore),
-        Stereo(StereoEncoder),
-    }
-
     impl EncoderCore{
         pub fn new() -> Self {
             Self {
@@ -369,16 +352,36 @@ pub mod ima {
         }
     }
 
+    define_copiable_buffer!(EncoderSampleBuffer, EncoderSampleBufferIntoIter, i16, INTERLEAVE_SAMPLES);
+    define_copiable_buffer!(EncoderNibbleBuffer, EncoderNibbleBufferIntoIter, u8, NIBBLE_BUFFER_SIZE);
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct StereoEncoder {
+        current_channel: CurrentChannel,
+        core_l: EncoderCore,
+        core_r: EncoderCore,
+        sample_l: EncoderSampleBuffer,
+        sample_r: EncoderSampleBuffer,
+        nibble_l: EncoderNibbleBuffer,
+        nibble_r: EncoderNibbleBuffer,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum Encoder {
+        Mono(EncoderCore),
+        Stereo(StereoEncoder),
+    }
+
     impl StereoEncoder {
         pub fn new() -> Self {
             Self {
                 current_channel: CurrentChannel::Left,
                 core_l: EncoderCore::new(),
                 core_r: EncoderCore::new(),
-                buffer_l: Vec::<i16>::new(),
-                buffer_r: Vec::<i16>::new(),
-                nibble_l: Vec::<u8>::new(),
-                nibble_r: Vec::<u8>::new(),
+                sample_l: EncoderSampleBuffer::new(),
+                sample_r: EncoderSampleBuffer::new(),
+                nibble_l: EncoderNibbleBuffer::new(),
+                nibble_r: EncoderNibbleBuffer::new(),
             }
         }
 
