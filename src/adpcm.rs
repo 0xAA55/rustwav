@@ -649,49 +649,9 @@ pub mod ima {
         }
 
         pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            // 每 INTERLEAVE_BYTES 字节数一个声道，两边填零，确保两边都达到 INTERLEAVE_BYTES
-            while match self.current_channel {
-                CurrentChannel::Left => {
-                    if self.counter == 0 {
-                        false
-                    } else {
-                        self.nibble_l.push(0);
-                        self.counter += 1;
-                        if self.counter as usize == INTERLEAVE_BYTES {
-                            self.counter = 0;
-                            self.current_channel = CurrentChannel::Right;
-                        }
-                        true
-                    }
-                },
-                CurrentChannel::Right => {
-                    self.nibble_r.push(0);
-                    self.counter += 1;
-                    if self.counter as usize== INTERLEAVE_BYTES {
-                        self.counter = 0;
-                        self.current_channel = CurrentChannel::Left;
-                        false
-                    } else {
-                        true
-                    }
-                },
-            }{}
-            if self.nibble_l.len() > 0 &&
-               self.nibble_r.len() > 0 {
-                let mut iter_l = mem::replace(&mut self.nibble_l, Vec::<u8>::new()).into_iter();
-                let mut iter_r = mem::replace(&mut self.nibble_r, Vec::<u8>::new()).into_iter();
-                self.core_l.decode(|| -> Option<u8> {iter_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
-                self.core_r.decode(|| -> Option<u8> {iter_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
-                self.core_l.flush(|sample:i16|{self.sample_l.push(sample)})?;
-                self.core_r.flush(|sample:i16|{self.sample_r.push(sample)})?;
-                self.nibble_l = Vec::<u8>::new();
-                self.nibble_r = Vec::<u8>::new();
-            }
-            let iter_l = mem::replace(&mut self.sample_l, Vec::<i16>::new()).into_iter();
-            let iter_r = mem::replace(&mut self.sample_r, Vec::<i16>::new()).into_iter();
-            for stereo in iter_l.zip(iter_r) {
-                output(stereo.0);
-                output(stereo.1);
+            while !self.core_l.on_new_block() || !self.core_r.on_new_block() {
+                let mut iter = [0u8].into_iter();
+                self.decode(|| -> Option<u8> {iter.next()}, |sample: i16| {output(sample)})?;
             }
             Ok(())
         }
