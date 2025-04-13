@@ -338,11 +338,13 @@ pub mod ima {
                     self.num_outputs += 4;
                     self.header_written = true;
                 }
-                self.nibble[self.nibble_index as usize] = self.encode_sample(sample);
-                self.nibble_index += 1;
-                if self.nibble_index >= 2 {
-                    self.nibble_index = 0;
-                    output(self.nibble[0] | (self.nibble[1] << 4));
+                if self.half_byte_written == false {
+                    self.nibble = self.encode_sample(sample);
+                    self.half_byte_written = true;
+                } else {
+                    self.nibble |= self.encode_sample(sample) << 4;
+                    self.half_byte_written = false;
+                    output(self.nibble);
                     self.num_outputs += 1;
                     if self.num_outputs >= BLOCK_SIZE {
                         // 到达块大小上限，重置编码器
