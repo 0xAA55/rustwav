@@ -474,7 +474,10 @@ impl<'a> ChunkWriter<'a> {
 
 impl Drop for ChunkWriter<'_> {
     fn drop(&mut self) {
-        let _ = self.on_drop();
+        match self.on_drop() {
+            Ok(_) => (),
+            Err(e) => println!("On `ChunkWriter::drop()`: {:?}", e),
+        }
     }
 }
 
