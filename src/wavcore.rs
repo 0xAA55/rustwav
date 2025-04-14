@@ -611,7 +611,7 @@ impl FmtChunk {
         Ok(ret)
     }
 
-    pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.format_tag.write_le(writer)?;
         self.channels.write_le(writer)?;
         self.sample_rate.write_le(writer)?;
