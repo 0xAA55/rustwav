@@ -531,7 +531,7 @@ pub enum ExtensionData{
     AdpcmMs(AdpcmMsData),
     AdpcmIma(AdpcmImaData),
     Mp3(Mp3Data),
-    Extensible(Extensible),
+    Extensible(ExtensibleData),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -556,7 +556,7 @@ pub struct Mp3Data{
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Extensible {
+pub struct ExtensibleData {
     pub valid_bits_per_sample: u16,
     pub channel_mask: u32,
     pub sub_format: GUID,
@@ -669,9 +669,9 @@ impl FmtExtension {
         }
     }
 
-    pub fn new_extensible(extensible: Extensible) -> Self {
+    pub fn new_extensible(extensible: ExtensibleData) -> Self {
         Self {
-            ext_len: Extensible::sizeof() as u16,
+            ext_len: ExtensibleData::sizeof() as u16,
             data: ExtensionData::Extensible(extensible),
         }
     }
@@ -709,10 +709,10 @@ impl FmtExtension {
                     }
                 },
                 0xFFFE => {
-                    if ext_len as usize >= Extensible::sizeof() {
-                        Ok(ExtensionData::Extensible(Extensible::read(reader)?))
+                    if ext_len as usize >= ExtensibleData::sizeof() {
+                        Ok(ExtensionData::Extensible(ExtensibleData::read(reader)?))
                     } else {
-                        Err(AudioReadError::IncompleteData(format!("The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}", Extensible::sizeof())))
+                        Err(AudioReadError::IncompleteData(format!("The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}", ExtensibleData::sizeof())))
                     }
                 },
                 _ => Ok(ExtensionData::Nodata),
@@ -848,7 +848,7 @@ impl Mp3Data {
     }
 }
 
-impl Extensible {
+impl ExtensibleData {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
         Ok(Self{
             valid_bits_per_sample: u16::read_le(reader)?,
