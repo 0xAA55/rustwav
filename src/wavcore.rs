@@ -612,20 +612,15 @@ impl FmtChunk {
     }
 
     pub fn write(&self, writer_shared: SharedWriter) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"fmt ")?;
-        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
-            self.format_tag.write_le(writer)?;
-            self.channels.write_le(writer)?;
-            self.sample_rate.write_le(writer)?;
-            self.byte_rate.write_le(writer)?;
-            self.block_align.write_le(writer)?;
-            self.bits_per_sample.write_le(writer)?;
-            if let Some(extension) = self.extension {
-                extension.write(writer)?;
-            }
-            Ok(())
-        })?;
-        cw.end()?;
+        self.format_tag.write_le(writer)?;
+        self.channels.write_le(writer)?;
+        self.sample_rate.write_le(writer)?;
+        self.byte_rate.write_le(writer)?;
+        self.block_align.write_le(writer)?;
+        self.bits_per_sample.write_le(writer)?;
+        if let Some(extension) = self.extension {
+            extension.write(writer)?;
+        }
         Ok(())
     }
 
