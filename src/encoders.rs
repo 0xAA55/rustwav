@@ -17,7 +17,6 @@ pub trait EncoderToImpl: Debug {
     fn get_bit_rate(&self, channels: u16) -> u32;
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
-    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 
     // 这些是最底层的函数，不关声道数，直接写样本，其中除了 f32 版以外都有默认实现。
@@ -561,7 +560,6 @@ pub struct AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     channels: u16,
     sample_rate: u32,
-    samples_written: u64,
     bytes_written: u64,
     encoder: E,
     nibbles: Vec<u8>,
@@ -575,7 +573,6 @@ where E: adpcm::AdpcmEncoder {
         Ok(Self {
             channels,
             sample_rate,
-            samples_written: 0,
             bytes_written: 0,
             encoder: E::new(channels)?,
             nibbles: Vec::<u8>::new(),
@@ -594,7 +591,6 @@ where E: adpcm::AdpcmEncoder {
         if self.nibbles.len() >= MAX_BUFFER_USAGE {
             self.flush_buffers(writer)?;
         }
-        self.samples_written += samples.len() as u64;
         Ok(())
     }
 
@@ -604,7 +600,6 @@ where E: adpcm::AdpcmEncoder {
         }
         let mut iter = utils::multiple_stereos_to_interleaved_samples(stereos).into_iter();
         self.encoder.encode(|| -> Option<i16> {iter.next()}, |byte: u8|{ self.nibbles.push(byte);})?;
-        self.samples_written += stereos.len() as u64 * 2;
         if self.nibbles.len() >= MAX_BUFFER_USAGE {
             self.flush_buffers(writer)?;
         }
@@ -623,23 +618,11 @@ where E: adpcm::AdpcmEncoder {
     }
 
     fn get_bit_rate(&self, channels: u16) -> u32 {
-        if self.samples_written == 0 {
-            self.sample_rate * channels as u32 * 8 // 估算
-        } else {
-            (self.bytes_written / (self.samples_written / (self.sample_rate as u64 * channels as u64))) as u32 * 8
-        }
+        self.sample_rate * channels as u32 * 4
     }
 
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         Ok(self.encoder.modify_fmt_chunk(fmt)?)
-    }
-
-    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
-        if self.samples_written <= 0xFFFFFFFFu64 {
-            Ok(Some((self.samples_written as u32).to_le_bytes().to_vec()))
-        } else {
-            Ok(Some(self.samples_written.to_le_bytes().to_vec()))
-        }
     }
 
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
@@ -710,7 +693,6 @@ pub mod MP3 {
     where S: SampleType {
         channels: u8,
         bitrate: u32,
-        samples_written: u64,
         encoder: SharedMp3Encoder,
         buffers: ChannelBuffers<S>,
     }
@@ -767,7 +749,6 @@ pub mod MP3 {
             Ok(Self {
                 channels,
                 bitrate: bitrate as u32 * 1000,
-                samples_written: 0,
                 encoder: encoder.clone(),
                 buffers: match channels {
                     1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
@@ -785,12 +766,10 @@ pub mod MP3 {
             match self.channels {
                 1 => {
                     self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples))?;
-                    self.samples_written += samples.len() as u64;
                     Ok(())
                 },
                 2 => {
                     self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?)?;
-                    self.samples_written += samples.len() as u64;
                     Ok(())
                 },
                 other => return Err(AudioWriteError::Unsupported(format!("Bad channels number: {other}"))),
@@ -802,7 +781,6 @@ pub mod MP3 {
             match self.channels{
                 1 => Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned())),
                 2 => {
-                    self.samples_written += stereos.len() as u64 * 2;
                     self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos))?;
                     Ok(())
                 },
@@ -1143,14 +1121,6 @@ pub mod MP3 {
 
         fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
             Ok(())
-        }
-
-        fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
-            if self.samples_written <= 0xFFFFFFFFu64 {
-                Ok(Some((self.samples_written as u32).to_le_bytes().to_vec()))
-            } else {
-                Ok(Some(self.samples_written.to_le_bytes().to_vec()))
-            }
         }
 
         fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
