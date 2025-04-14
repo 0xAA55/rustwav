@@ -35,7 +35,7 @@ pub struct WaveWriter {
     data_format: DataFormat,
     file_size_option: FileSizeOption,
     fmt_chunk_offset: u64,
-    num_frames: u64,
+    num_frames_written: u64,
     block_size: u16,
     data_offset: u64,
     sample_type: WaveSampleType,
@@ -94,7 +94,7 @@ impl WaveWriter {
             data_format,
             file_size_option,
             fmt_chunk_offset: 0,
-            num_frames: 0,
+            num_frames_written: 0,
             block_size,
             data_offset: 0,
             sample_type,
@@ -172,7 +172,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_samples(writer, samples)?)
             })?;
-            self.num_frames += (samples.len() / self.spec.channels as usize) as u64;
+            self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -189,7 +189,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_mono(writer, mono)?)
             })?;
-            self.num_frames += 1;
+            self.num_frames_written += 1;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -206,7 +206,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_multiple_mono(writer, monos)?)
             })?;
-            self.num_frames += monos.len() as u64;
+            self.num_frames_written += monos.len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -223,7 +223,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_stereo(writer, stereo)?)
             })?;
-            self.num_frames += 1;
+            self.num_frames_written += 1;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -240,7 +240,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_multiple_stereos(writer, stereos)?)
             })?;
-            self.num_frames += stereos.len() as u64;
+            self.num_frames_written += stereos.len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -257,7 +257,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_dual_mono(writer, mono1, mono2)?)
             })?;
-            self.num_frames += 1;
+            self.num_frames_written += 1;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -277,7 +277,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_multiple_dual_mono(writer, mono1, mono2)?)
             })?;
-            self.num_frames += mono1.len() as u64;
+            self.num_frames_written += mono1.len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -294,7 +294,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_frame(writer, frame)?)
             })?;
-            self.num_frames += 1;
+            self.num_frames_written += 1;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -308,7 +308,7 @@ impl WaveWriter {
             self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
                 Ok(self.encoder.write_multiple_frames(writer, frames, self.spec.channels)?)
             })?;
-            self.num_frames += frames.len() as u64;
+            self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished(String::from("samples")))
@@ -318,8 +318,8 @@ impl WaveWriter {
     pub fn spec(&self) -> &Spec{
         &self.spec
     }
-    pub fn get_num_frames(&self) -> u64 {
-        self.num_frames
+    pub fn get_num_frames_written(&self) -> u64 {
+        self.num_frames_written
     }
     pub fn get_frame_size(&self) -> u16 {
         self.block_size
@@ -459,8 +459,8 @@ impl WaveWriter {
                 writer.write_all(b"ds64")?;
                 28u32.write_le(writer)?; // ds64 段的长度
                 let riff_size = file_end_pos - 8;
-                let data_size = self.num_frames * self.block_size as u64;
-                let sample_count = self.num_frames / self.spec.channels as u64;
+                let data_size = self.num_frames_written * self.block_size as u64;
+                let sample_count = self.num_frames_written / self.spec.channels as u64;
                 riff_size.write_le(writer)?;
                 data_size.write_le(writer)?;
                 sample_count.write_le(writer)?;
