@@ -367,6 +367,16 @@ impl Spec {
             Ok(())
         }
     }
+
+    pub fn is_channel_mask_valid(&self) -> bool {
+        let mut counter: u16 = 0;
+        for i in 0..32 {
+            if ((1 << i) & self.channel_mask) != 0 {
+                counter += 1;
+            }
+        }
+        counter == self.channels
+    }
 }
 
 #[derive(Clone)]
