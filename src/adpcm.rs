@@ -62,12 +62,16 @@ pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mu
 }
 
 pub type AdpcmEncoderIMA     = ima::Encoder;
+pub type AdpcmEncoderMS      = ms::Encoder;
 
 pub type AdpcmDecoderIMA     = ima::Decoder;
+pub type AdpcmDecoderMS      = ms::Decoder;
 
 pub type EncIMA     = AdpcmEncoderIMA;
+pub type EncMS      = AdpcmEncoderMS;
 
 pub type DecIMA     = AdpcmDecoderIMA;
+pub type DecMS      = AdpcmDecoderMS;
 
 pub mod ima {
     use std::{io, cmp::min, mem};
@@ -727,6 +731,7 @@ pub mod ms {
         pub fn unready(&mut self) {
             self.core_l.unready();
             self.core_r.unready();
+            self.ready = false;
         }
 
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
@@ -913,63 +918,248 @@ pub mod ms {
     }
 
 
+    #[derive(Debug, Clone, Copy)]
+    pub struct DecoderCore {
         sample1: i16,
         sample2: i16,
+        coeff: AdpcmCoeffSet,
+        delta: i32,
+        ready: bool,
+        coeff_table: [AdpcmCoeffSet; 7],
+        header_buffer: CopiableBuffer<u8, 7>,
+        bytes_eaten: usize,
+        max_bytes_can_eat: usize,
     }
 
+    impl DecoderCore{
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample1: 0,
                 sample2: 0,
+                coeff: AdpcmCoeffSet::new(),
+                delta: 0,
+                ready: false,
+                coeff_table: match fmt_chunk.extension {
+                    None => DEF_COEFF_TABLE,
+                    Some(extension) => {
+                        if extension.ext_len < 12 {
+                            DEF_COEFF_TABLE
+                        } else {
+                            match extension.data {
+                                ExtensionData::AdpcmMs(adpcm_ms) => {
+                                    if adpcm_ms.num_coeff != 7 {
+                                        DEF_COEFF_TABLE
+                                    } else {
+                                        adpcm_ms.coeffs
+                                    }
+                                },
+                                _ => DEF_COEFF_TABLE,
+                            }
+                        }
+                    },
+                },
+                header_buffer: CopiableBuffer::<u8, 7>::new(),
+                bytes_eaten: 0,
+                max_bytes_can_eat: fmt_chunk.block_align as usize,
             }
         }
 
+        pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
+            let predictor = (
+                self.sample1 as i32 * self.coeff.get(1) as i32 +
+                self.sample2 as i32 * self.coeff.get(2) as i32) / 256;
+            let nibble = nibble as i32;
+            let predictor = predictor + if (nibble & 0x08) != 0 {nibble.wrapping_sub(0x10)} else {nibble} * self.delta;
 
+            self.sample2 = self.sample1;
+            self.sample1 = predictor.clamp(-32768, 32767) as i16;
+            self.delta = ((ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8).clamp(16, i32::MAX / 768);
 
+            self.sample1
         }
 
+        pub fn is_ready(&self) -> bool {
+            self.ready
         }
 
+        pub fn unready(&mut self) {
+            self.header_buffer.clear();
+            self.bytes_eaten = 0;
+            self.ready = false;
         }
 
+        pub fn get_bytes_eaten(&self) -> usize {
+            self.bytes_eaten
         }
 
+        pub fn get_ready(&mut self, predictor: u8, delta: i16, sample1: i16, sample2: i16, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            if predictor > 6 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {predictor} and it's greater than 6")));
             }
-        }
-
-
-    }
-
-            Self {
-            }
-        }
-
-        }
-        }
-        }
+            self.coeff = self.coeff_table[predictor as usize];
+            self.delta = delta as i32;
+            self.sample1 = sample1;
+            self.sample2 = sample2;
+            self.ready = true;
+            self.bytes_eaten += 7;
+            output(sample2);
+            output(sample1);
             Ok(())
         }
     }
 
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct StereoDecoder {
+        core_l: DecoderCore,
+        core_r: DecoderCore,
+        bytes_eaten: usize,
+        max_bytes_can_eat: usize,
+        ready: bool,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Decoder {
+        Mono(DecoderCore),
+        Stereo(StereoDecoder),
+    }
+
+    impl StereoDecoder {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
+            Self {
+                core_l: DecoderCore::new(fmt_chunk),
+                core_r: DecoderCore::new(fmt_chunk),
+                bytes_eaten: 0,
+                max_bytes_can_eat: fmt_chunk.block_align as usize,
+                ready: false,
             }
         }
 
-
+        pub fn is_ready(&self) -> bool {
+            self.ready
         }
 
+        pub fn unready(&mut self) {
+            self.core_l.unready();
+            self.core_r.unready();
+            self.bytes_eaten = 0;
+            self.ready = false;
+        }
+
+        pub fn get_bytes_eaten(&self) -> usize {
+            self.bytes_eaten
+        }
+
+        pub fn get_ready(&mut self,
+            predictor1: u8, predictor2: u8,
+            delta1: i16, delta2: i16,
+            sample1_1: i16, sample1_2: i16,
+            sample2_1: i16, sample2_2: i16, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            let mut sample_buffer = CopiableBuffer::<i16, 4>::new();
+            self.core_l.get_ready(predictor1, delta1, sample1_1, sample2_1, |sample:i16|{sample_buffer.push(sample);})?;
+            self.core_r.get_ready(predictor2, delta2, sample1_2, sample2_2, |sample:i16|{sample_buffer.push(sample);})?;
+            output(sample_buffer[0]);
+            output(sample_buffer[2]);
+            output(sample_buffer[1]);
+            output(sample_buffer[3]);
+            self.bytes_eaten = 14;
+            self.ready = true;
+            Ok(())
+        }
+    }
+
+    impl Decoder {
+        pub fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> {
+            match fmt_chunk.channels {
+                1 => Ok(Self::Mono(DecoderCore::new(fmt_chunk))),
+                2 => Ok(Self::Stereo(StereoDecoder::new(fmt_chunk))),
+                other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-MS decoder."))),
+            }
+        }
+
+        pub fn is_ready(&self) -> bool {
+            match self {
+                Self::Mono(mono) => mono.is_ready(),
+                Self::Stereo(stereo) => stereo.is_ready(),
+            }
+        }
+
+        pub fn unready(&mut self) {
+            match self {
+                Self::Mono(ref mut mono) => mono.unready(),
+                Self::Stereo(ref mut stereo) => stereo.unready(),
+            }
+        }
+
+        pub fn get_bytes_eaten(&self) -> usize {
+            match self {
+                Self::Mono(mono) => mono.get_bytes_eaten(),
+                Self::Stereo(stereo) => stereo.get_bytes_eaten(),
+            }
+        }
     }
 
     impl AdpcmDecoder for Decoder {
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+            Self::new(fmt_chunk)
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            while let Some(byte) = input() {
+                match self {
+                    Self::Mono(ref mut mono) => {
+                        if !mono.is_ready() {
+                            mono.header_buffer.push(byte);
+                            if mono.header_buffer.is_full() {
+                                mono.get_ready(
+                                    mono.header_buffer[0],
+                                    i16::from_le_bytes([mono.header_buffer[1], mono.header_buffer[2]]),
+                                    i16::from_le_bytes([mono.header_buffer[3], mono.header_buffer[4]]),
+                                    i16::from_le_bytes([mono.header_buffer[5], mono.header_buffer[6]]),
+                                    |sample:i16|{output(sample)})?;
+                            }
                         } else {
+                            output(mono.expand_nibble(byte >> 4));
+                            output(mono.expand_nibble(byte & 0x0F));
+                            mono.bytes_eaten += 1;
+                            if mono.bytes_eaten >= mono.max_bytes_can_eat {
+                                mono.unready();
+                            }
                         }
+                    },
+                    Self::Stereo(ref mut stereo) => {
+                        if !stereo.is_ready() {
+                            if !stereo.core_l.header_buffer.is_full() {
+                                stereo.core_l.header_buffer.push(byte);
+                            } else {
+                                stereo.core_r.header_buffer.push(byte);
+                            }
+                            if stereo.core_r.header_buffer.is_full() {
+                                let bytes = stereo.core_l.header_buffer.into_iter().chain(stereo.core_r.header_buffer.into_iter()).collect::<CopiableBuffer<u8, 14>>();
+                                assert!(bytes.is_full());
+                                stereo.get_ready(
+                                    bytes[0], bytes[1],
+                                    i16::from_le_bytes([bytes[2], bytes[3]]), i16::from_le_bytes([bytes[4], bytes[5]]),
+                                    i16::from_le_bytes([bytes[6], bytes[7]]), i16::from_le_bytes([bytes[8], bytes[9]]),
+                                    i16::from_le_bytes([bytes[10], bytes[11]]), i16::from_le_bytes([bytes[12], bytes[13]]),
+                                    |sample:i16|{output(sample)})?;
+                            }
+                        } else {
+                            output(stereo.core_l.expand_nibble(byte >> 4));
+                            output(stereo.core_r.expand_nibble(byte & 0x0F));
+                            stereo.bytes_eaten += 1;
+                            if stereo.bytes_eaten >= stereo.max_bytes_can_eat {
+                                stereo.unready();
+                            }
                         }
+                    },
                 }
             }
             Ok(())
         }
 
+        fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
+            Ok(())
         }
     }
 }
