@@ -145,20 +145,16 @@ impl WaveWriter {
         }
 
         // 使用编码器的 `new_fmt_chunk()` 生成 fmt 块的内容
-        self.fmt__chunk = encoder.new_fmt_chunk(self.spec.channels, self.spec.sample_rate, self.spec.bits_per_sample, match self.spec.is_channel_mask_valid() {
+        self.fmt__chunk = self.encoder.new_fmt_chunk(self.spec.channels, self.spec.sample_rate, self.spec.bits_per_sample, match self.spec.is_channel_mask_valid() {
             true => Some(self.spec.channel_mask),
             false => None
         })?;
 
-        // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
+        let mut cw = ChunkWriter::begin(self.writer.clone(), b"fmt ")?;
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+            // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
             self.fmt_chunk_offset = writer.stream_position()?;
-            Ok(())
-        })?;
-
-        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"fmt ")?;
-        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
-            self.fmt__chunk.write(self.writer.clone())?;
+            self.fmt__chunk.write(writer)?;
             Ok(())
         })?;
         cw.end()?;
