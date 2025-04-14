@@ -478,6 +478,9 @@ impl<'a> WaveWriter<'a> {
 
 impl Drop for WaveWriter<'_> {
     fn drop(&mut self) {
-        let _ = self.finalize();
+        match self.finalize() {
+            Ok(_) => (),
+            Err(e) => println!("On `WaveWriter::drop()`: {:?}", e),
+        }
     }
 }
