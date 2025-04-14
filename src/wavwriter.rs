@@ -35,6 +35,7 @@ pub struct WaveWriter {
     data_format: DataFormat,
     file_size_option: FileSizeOption,
     fmt_chunk_offset: u64,
+    fact_chunk_offset: u64,
     num_frames_written: u64,
     block_size: u16,
     data_offset: u64,
@@ -94,6 +95,7 @@ impl WaveWriter {
             data_format,
             file_size_option,
             fmt_chunk_offset: 0,
+            fact_chunk_offset: 0,
             num_frames_written: 0,
             block_size,
             data_offset: 0,
@@ -155,6 +157,23 @@ impl WaveWriter {
             // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
             self.fmt_chunk_offset = writer.stream_position()?;
             self.fmt__chunk.write(writer)?;
+            Ok(())
+        })?;
+        cw.end()?;
+
+        // 此处为 fact 块留出空间，之后要来这里修改的。
+        let mut cw = ChunkWriter::begin(self.writer.clone(), b"fact")?;
+        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+            // 此处获取 fact 块的位置
+            self.fact_chunk_offset = writer.stream_position()?;
+            match self.file_size_option {
+                FileSizeOption::NeverLargerThan4GB => {
+                    0u32.write_le(writer)?;
+                },
+                FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
+                    0u64.write_le(writer)?;
+                },
+            }
             Ok(())
         })?;
         cw.end()?;
@@ -399,6 +418,21 @@ impl WaveWriter {
             // 更新 fmt 头部信息，重新写入 fmt 头部
             self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
             self.fmt__chunk.write(writer)?;
+
+            // 写完 fmt 后，还要更新 fact 的数据
+            writer.seek(SeekFrom::Start(self.fact_chunk_offset))?;
+            let mut fact_data = self.num_frames_written * self.spec.channels as u64;
+            match self.file_size_option {
+                FileSizeOption::NeverLargerThan4GB => {
+                    if fact_data >= 0xFFFFFFFF {
+                        fact_data = 0xFFFFFFFF;
+                    } 
+                    (fact_data as u32).write_le(writer)?;
+                },
+                FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
+                    fact_data.write_le(writer)?;
+                },
+            }
 
             // 回到 data 末尾的位置
             writer.seek(SeekFrom::Start(end_of_data))?;
