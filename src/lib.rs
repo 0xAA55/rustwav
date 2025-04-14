@@ -13,9 +13,9 @@ pub mod wavwriter;
 pub mod utils;
 pub mod copiablebuf;
 
-pub use errors::{AudioError, AudioReadError, AudioWriteError};
+pub use errors::{AudioError, AudioReadError, AudioWriteError, IOErrorInfo};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
-pub use readwrite::{Reader, Writer, SharedWriter, string_io};
+pub use readwrite::{Reader, Writer, string_io};
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use encoders::EncoderToImpl;
 pub use encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap};
