@@ -614,11 +614,11 @@ where E: adpcm::AdpcmEncoder {
 
 impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         if channel_mask.is_some() {
             Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format.")))
         } else {
-            Ok(self.encoder.new_fmt_chunk(channels, sample_rate, bits_per_sample)?)
+            Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
         }
     }
 
