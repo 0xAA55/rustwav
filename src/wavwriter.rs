@@ -14,7 +14,7 @@ use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 use crate::{EncIMA, EncMS};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
-use crate::{SharedWriter, string_io::*};
+use crate::{Writer, string_io::*};
 use crate::WaveReader;
 
 #[cfg(feature = "mp3enc")]
@@ -29,8 +29,8 @@ pub enum FileSizeOption{
 }
 
 #[derive(Debug)]
-pub struct WaveWriter {
-    writer: SharedWriter,
+pub struct WaveWriter<'a> {
+    writer: Box<dyn Writer + 'a>,
     spec: Spec,
     data_format: DataFormat,
     file_size_option: FileSizeOption,
@@ -42,8 +42,8 @@ pub struct WaveWriter {
     sample_type: WaveSampleType,
     encoder: Encoder,
     text_encoding: StringCodecMaps,
-    riff_chunk: Option<ChunkWriter>,
-    data_chunk: Option<ChunkWriter>,
+    riff_chunk: Option<ChunkWriter<'a>>,
+    data_chunk: Option<ChunkWriter<'a>>,
     pub fmt__chunk: FmtChunk,
     pub bext_chunk: Option<BextChunk>,
     pub smpl_chunk: Option<SmplChunk>,
@@ -59,14 +59,14 @@ pub struct WaveWriter {
     finalized: bool,
 }
 
-impl WaveWriter {
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
-        let file_reader = BufWriter::new(File::create(filename)?);
-        let wave_writer = WaveWriter::from(SharedWriter::new(file_reader), spec, data_format, file_size_option)?;
+impl<'a> WaveWriter<'a> {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
+        let file_writer = BufWriter::new(File::create(filename)?);
+        let wave_writer = WaveWriter::from(Box::new(file_writer), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
-    pub fn from(writer: SharedWriter, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter, AudioWriteError> {
+    pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         use DataFormat::{Pcm, Adpcm, Mp3, OggVorbis, Flac};
         let sizeof_sample = spec.bits_per_sample / 8;
         let block_size = sizeof_sample * spec.channels;
@@ -89,7 +89,7 @@ impl WaveWriter {
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
         let mut ret = Self{
-            writer: writer.clone(),
+            writer,
             spec: *spec,
             data_format,
             file_size_option,
@@ -123,24 +123,19 @@ impl WaveWriter {
 
     fn write_header(&mut self) -> Result<(), AudioWriteError> {
         use SampleFormat::{Int, UInt, Float};
+        let writer_raw_ptr = &mut *self.writer as *mut dyn Writer;
 
-        self.riff_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"RIFF")?);
+        self.riff_chunk = Some(ChunkWriter::begin(unsafe { &mut *writer_raw_ptr }, b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            writer.write_all(b"WAVE")?;
-            Ok(())
-        })?;
+        self.writer.write_all(b"WAVE")?;
 
         // 如果说这个 WAV 文件是允许超过 4GB 的，那需要使用 RF64 格式，在 WAVE 后面留下一个 JUNK 块用来占坑。
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
-                let mut cw = ChunkWriter::begin(self.writer.clone(), b"JUNK")?;
-                self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                    writer.write_all(&[0u8; 28])?;
-                    Ok(())
-                })?;
+                let mut cw = ChunkWriter::begin(&mut self.writer, b"JUNK")?;
+                cw.writer.write_all(&[0u8; 28])?;
                 cw.end()?;
             },
         }
@@ -151,33 +146,32 @@ impl WaveWriter {
             false => None
         })?;
 
-        let mut cw = ChunkWriter::begin(self.writer.clone(), b"fmt ")?;
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+        // 此处存储 fmt 块
+        if true {
+            let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
             // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
-            self.fmt_chunk_offset = writer.stream_position()?;
-            self.fmt__chunk.write(writer)?;
-            Ok(())
-        })?;
-        cw.end()?;
+            self.fmt_chunk_offset = cw.writer.stream_position()?;
+            self.fmt__chunk.write(&mut cw.writer)?;
+            cw.end()?;
+        }
 
         // 此处为 fact 块留出空间，之后要来这里修改的。
-        let mut cw = ChunkWriter::begin(self.writer.clone(), b"fact")?;
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
+        if true {
+            let mut cw = ChunkWriter::begin(&mut self.writer, b"fact")?;
             // 此处获取 fact 块的位置
-            self.fact_chunk_offset = writer.stream_position()?;
+            self.fact_chunk_offset = cw.writer.stream_position()?;
             match self.file_size_option {
                 FileSizeOption::NeverLargerThan4GB => {
-                    0u32.write_le(writer)?;
+                    0u32.write_le(&mut cw.writer)?;
                 },
                 FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
-                    0u64.write_le(writer)?;
+                    0u64.write_le(&mut cw.writer)?;
                 },
             }
-            Ok(())
-        })?;
-        cw.end()?;
+            cw.end()?;
+        }
 
-        self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
+        self.data_chunk = Some(ChunkWriter::begin(unsafe { &mut *writer_raw_ptr }, b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
 
         Ok(())
@@ -187,9 +181,7 @@ impl WaveWriter {
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_samples(writer, samples)?)
-            })?;
+            self.encoder.write_samples(&mut self.writer, samples)?;
             self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
@@ -204,9 +196,7 @@ impl WaveWriter {
             if self.spec.channels != 1 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_mono(writer, mono)?)
-            })?;
+            self.encoder.write_mono(&mut self.writer, mono)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -221,9 +211,7 @@ impl WaveWriter {
             if self.spec.channels != 1 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_multiple_mono(writer, monos)?)
-            })?;
+            self.encoder.write_multiple_mono(&mut self.writer, monos)?;
             self.num_frames_written += monos.len() as u64;
             Ok(())
         } else {
@@ -238,9 +226,7 @@ impl WaveWriter {
             if self.spec.channels != 2 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_stereo(writer, stereo)?)
-            })?;
+            self.encoder.write_stereo(&mut self.writer, stereo)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -255,9 +241,7 @@ impl WaveWriter {
             if self.spec.channels != 2 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_multiple_stereos(writer, stereos)?)
-            })?;
+            self.encoder.write_multiple_stereos(&mut self.writer, stereos)?;
             self.num_frames_written += stereos.len() as u64;
             Ok(())
         } else {
@@ -272,9 +256,7 @@ impl WaveWriter {
             if self.spec.channels != 2 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_dual_mono(writer, mono1, mono2)?)
-            })?;
+            self.encoder.write_dual_mono(&mut self.writer, mono1, mono2)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -292,9 +274,7 @@ impl WaveWriter {
             if self.spec.channels != 2 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_multiple_dual_mono(writer, mono1, mono2)?)
-            })?;
+            self.encoder.write_multiple_dual_mono(&mut self.writer, mono1, mono2)?;
             self.num_frames_written += mono1.len() as u64;
             Ok(())
         } else {
@@ -309,9 +289,7 @@ impl WaveWriter {
             if self.spec.channels != frame.len() as u16 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write {} channel audio to {} channels audio file.", frame.len(), self.spec.channels)));
             }
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_frame(writer, frame)?)
-            })?;
+            self.encoder.write_frame(&mut self.writer, frame)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -323,9 +301,7 @@ impl WaveWriter {
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Ok(self.encoder.write_multiple_frames(writer, frames, self.spec.channels)?)
-            })?;
+            self.encoder.write_multiple_frames(&mut self.writer, frames, self.spec.channels)?;
             self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
@@ -392,14 +368,8 @@ impl WaveWriter {
             return Ok(());
         }
 
-        // data 块的最后位置
-        let mut end_of_data: u64 = 0;
-
         // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            self.encoder.finalize(writer)?;
-            Ok(())
-        })?;
+        self.encoder.finalize(&mut self.writer)?;
 
         // 结束写入 data
         if let Some(ref mut data_chunk) = self.data_chunk {
@@ -407,50 +377,44 @@ impl WaveWriter {
             self.data_chunk = None;
         }
 
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            // 记录 data 末尾的位置
-            end_of_data = writer.stream_position()?;
+        // 记录 data 末尾的位置
+        let end_of_data = self.writer.stream_position()?;
 
-            // 找到 fmt 块
-            writer.seek(SeekFrom::Start(self.fmt_chunk_offset))?;
+        // 找到 fmt 块
+        self.writer.seek(SeekFrom::Start(self.fmt_chunk_offset))?;
 
-            // 更新 fmt 头部信息，重新写入 fmt 头部
-            self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
-            self.fmt__chunk.write(writer)?;
+        // 更新 fmt 头部信息，重新写入 fmt 头部
+        self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
+        self.fmt__chunk.write(&mut self.writer)?;
 
-            // 写完 fmt 后，还要更新 fact 的数据
-            writer.seek(SeekFrom::Start(self.fact_chunk_offset))?;
-            let mut fact_data = self.num_frames_written * self.spec.channels as u64;
-            match self.file_size_option {
-                FileSizeOption::NeverLargerThan4GB => {
-                    if fact_data >= 0xFFFFFFFF {
-                        fact_data = 0xFFFFFFFF;
-                    } 
-                    (fact_data as u32).write_le(writer)?;
-                },
-                FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
-                    fact_data.write_le(writer)?;
-                },
-            }
+        // 写完 fmt 后，还要更新 fact 的数据
+        self.writer.seek(SeekFrom::Start(self.fact_chunk_offset))?;
+        let mut fact_data = self.num_frames_written * self.spec.channels as u64;
+        match self.file_size_option {
+            FileSizeOption::NeverLargerThan4GB => {
+                if fact_data >= 0xFFFFFFFF {
+                    fact_data = 0xFFFFFFFF;
+                } 
+                (fact_data as u32).write_le(&mut self.writer)?;
+            },
+            FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
+                fact_data.write_le(&mut self.writer)?;
+            },
+        }
 
-            // 回到 data 末尾的位置
-            writer.seek(SeekFrom::Start(end_of_data))?;
-            Ok(())
-        })?;
+        // 回到 data 末尾的位置
+        self.writer.seek(SeekFrom::Start(end_of_data))?;
 
         // 写入其它全部的结构体块
-        if let Some(chunk) = &self.bext_chunk { chunk.write(self.writer.clone(), &self.text_encoding)?; }
-        if let Some(chunk) = &self.smpl_chunk { chunk.write(self.writer.clone())?; }
-        if let Some(chunk) = &self.inst_chunk { chunk.write(self.writer.clone())?; }
-        if let Some(chunk) = &self.cue__chunk { chunk.write(self.writer.clone())?; }
-        if let Some(chunk) = &self.list_chunk { chunk.write(self.writer.clone(), &self.text_encoding)?; }
-        if let Some(chunk) = &self.acid_chunk { chunk.write(self.writer.clone())?; }
+        if let Some(chunk) = &self.bext_chunk { chunk.write(&mut self.writer, &self.text_encoding)?; }
+        if let Some(chunk) = &self.smpl_chunk { chunk.write(&mut self.writer)?; }
+        if let Some(chunk) = &self.inst_chunk { chunk.write(&mut self.writer)?; }
+        if let Some(chunk) = &self.cue__chunk { chunk.write(&mut self.writer)?; }
+        if let Some(chunk) = &self.list_chunk { chunk.write(&mut self.writer, &self.text_encoding)?; }
+        if let Some(chunk) = &self.acid_chunk { chunk.write(&mut self.writer)?; }
         if let Some(chunk) = &self.id3__chunk {
-            let mut cw = ChunkWriter::begin(self.writer.clone(), b"id3 ")?;
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                Id3::id3_write(&chunk, writer)?;
-                Ok(())
-            })?;
+            let mut cw = ChunkWriter::begin(&mut self.writer, b"id3 ")?;
+            Id3::id3_write(&chunk, &mut cw.writer)?;
             cw.end()?;
         }
 
@@ -466,64 +430,58 @@ impl WaveWriter {
             string_chunks_to_write.push((*b"Trkn", chunk));
         }
         for (flag, chunk) in string_chunks_to_write.iter() {
-            let mut cw = ChunkWriter::begin(self.writer.clone(), flag)?;
-            self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-                write_str(writer, chunk, &self.text_encoding)?;
-                Ok(())
-            })?;
+            let mut cw = ChunkWriter::begin(&mut self.writer, flag)?;
+            write_str(&mut cw.writer, chunk, &self.text_encoding)?;
             cw.end()?;
         }
 
         // 写入所有的 JUNK 块
         for junk in self.junk_chunks.iter() {
-            junk.write(self.writer.clone())?;
+            junk.write(&mut self.writer)?;
         }
 
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
         self.riff_chunk = None;
 
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
-            let file_end_pos = writer.stream_position()?;
-            let mut change_to_4gb_hreader = || -> Result<(), AudioWriteError> {
-                writer.seek(SeekFrom::Start(0))?;
-                writer.write_all(b"RF64")?;
-                0xFFFFFFFFu32.write_le(writer)?;
-                writer.write_all(b"WAVE")?;
-                writer.write_all(b"ds64")?;
-                28u32.write_le(writer)?; // ds64 段的长度
-                let riff_size = file_end_pos - 8;
-                let data_size = self.num_frames_written * self.block_size as u64;
-                let sample_count = self.num_frames_written / self.spec.channels as u64;
-                riff_size.write_le(writer)?;
-                data_size.write_le(writer)?;
-                sample_count.write_le(writer)?;
-                0u32.write_le(writer)?; // table length
-                Ok(())
-            };
-            match self.file_size_option {
-                FileSizeOption::NeverLargerThan4GB => {
-                    if file_end_pos > 0xFFFFFFFFu64 {
-                        Err(AudioWriteError::NotPreparedFor4GBFile)?;
-                    }
-                },
-                FileSizeOption::AllowLargerThan4GB => {
-                    if file_end_pos > 0xFFFFFFFFu64 {
-                        change_to_4gb_hreader()?;
-                    }
-                },
-                FileSizeOption::ForceUse4GBFormat => {
-                    change_to_4gb_hreader()?;
-                },
-            }
-            writer.flush()?;
+        let file_end_pos = self.writer.stream_position()?;
+        let mut change_to_4gb_hreader = || -> Result<(), AudioWriteError> {
+            self.writer.seek(SeekFrom::Start(0))?;
+            self.writer.write_all(b"RF64")?;
+            0xFFFFFFFFu32.write_le(&mut self.writer)?;
+            self.writer.write_all(b"WAVE")?;
+            self.writer.write_all(b"ds64")?;
+            28u32.write_le(&mut self.writer)?; // ds64 段的长度
+            let riff_size = file_end_pos - 8;
+            let data_size = self.num_frames_written * self.block_size as u64;
+            let sample_count = self.num_frames_written / self.spec.channels as u64;
+            riff_size.write_le(&mut self.writer)?;
+            data_size.write_le(&mut self.writer)?;
+            sample_count.write_le(&mut self.writer)?;
+            0u32.write_le(&mut self.writer)?; // table length
             Ok(())
-        })?;
+        };
+        match self.file_size_option {
+            FileSizeOption::NeverLargerThan4GB => {
+                if file_end_pos > 0xFFFFFFFFu64 {
+                    Err(AudioWriteError::NotPreparedFor4GBFile)?;
+                }
+            },
+            FileSizeOption::AllowLargerThan4GB => {
+                if file_end_pos > 0xFFFFFFFFu64 {
+                    change_to_4gb_hreader()?;
+                }
+            },
+            FileSizeOption::ForceUse4GBFormat => {
+                change_to_4gb_hreader()?;
+            },
+        }
+        self.writer.flush()?;
         self.finalized = true;
         Ok(())
     }
 }
 
-impl Drop for WaveWriter {
+impl Drop for WaveWriter<'_> {
     fn drop(&mut self) {
         self.finalize().unwrap();
     }
