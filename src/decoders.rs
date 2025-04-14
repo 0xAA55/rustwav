@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fmt::Debug, mem, cmp::min};
+use std::{fmt::Debug, mem, cmp::min, io::{self, SeekFrom}};
 
 use crate::adpcm;
-use crate::{AudioError, AudioReadError};
+use crate::{AudioError, AudioReadError, IOErrorInfo};
 use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
 use crate::Reader;
@@ -16,6 +16,7 @@ pub trait Decoder<S>: Debug
     // 必须实现
     fn get_channels(&self) -> u16;
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
+    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError>;
 
     // 可选实现
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
@@ -51,6 +52,7 @@ pub trait Decoder<S>: Debug
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.spec.channels }
+    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono() }
@@ -60,6 +62,7 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
     where S: SampleType,
           D: adpcm::AdpcmDecoder {
     fn get_channels(&self) -> u16 { self.channels }
+    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -69,6 +72,7 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 impl<S> Decoder<S> for MP3::Mp3Decoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.get_channels() }
+    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -80,6 +84,7 @@ where S: SampleType {
     reader: Box<dyn Reader>, // 数据读取器
     data_offset: u64,
     data_length: u64,
+    block_align: u16,
     spec: Spec,
     sample_decoder: fn(&mut dyn Reader) -> Result<S, AudioReadError>,
 }
@@ -96,6 +101,7 @@ where S: SampleType {
             reader,
             data_offset,
             data_length,
+            block_align: fmt.block_align,
             spec: spec.clone(),
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
         })
@@ -104,6 +110,16 @@ where S: SampleType {
     fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
         let end_of_data = self.data_offset + self.data_length;
         if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+    }
+
+    pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+        let total_frames = self.data_length / self.block_align as u64;
+        if frame_index >= total_frames {
+            Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound: {total_frames}"))))
+        } else {
+            self.reader.seek(SeekFrom::Start(frame_index * self.block_align as u64))?;
+            Ok(())
+        }
     }
 
     fn decode_sample<T>(&mut self) -> Result<Option<S>, AudioReadError>
@@ -206,6 +222,7 @@ where D: adpcm::AdpcmDecoder {
     reader: Box<dyn Reader>, // 数据读取器
     data_offset: u64,
     data_length: u64,
+    block_align: u16,
     decoder: D,
     samples: Vec<i16>,
 }
@@ -218,6 +235,7 @@ where D: adpcm::AdpcmDecoder {
             reader,
             data_offset,
             data_length,
+            block_align: fmt.block_align,
             decoder: D::new(&fmt)?,
             samples: Vec::<i16>::new(),
         })
@@ -262,6 +280,22 @@ where D: adpcm::AdpcmDecoder {
             }
         }
         Ok(())
+    }
+
+    pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+        let frames_per_block = self.decoder.frames_per_block() as u64;
+        let num_blocks_to_skip = frame_index / frames_per_block;
+        let total_blocks = self.data_length / self.block_align as u64;
+        let total_frames = total_blocks * frames_per_block;
+        if num_blocks_to_skip >= total_blocks {
+            Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound: {total_frames}"))))
+        } else {
+            self.reader.seek(SeekFrom::Start(num_blocks_to_skip * self.block_align as u64))?;
+            for _ in 0..(frame_index % (num_blocks_to_skip * frames_per_block)) {
+                let _ = self.decode_stereo::<i16>()?;
+            }
+            Ok(())
+        }
     }
 
     pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
@@ -346,18 +380,18 @@ where D: adpcm::AdpcmDecoder {
 
 #[cfg(feature = "mp3dec")]
 pub mod MP3 {
-    use std::{io::{Read, SeekFrom}, fmt::Debug};
+    use std::{io::{self, Read, SeekFrom}, fmt::Debug};
     use rmp3::{DecoderOwned, Frame};
-    use crate::errors::AudioReadError;
-    use crate::readwrite::Reader;
-    use crate::sampleutils::{SampleType};
+    use crate::{AudioReadError, IOErrorInfo};
+    use crate::Reader;
+    use crate::SampleType;
 
     pub struct Mp3Decoder {
         target_sample_format: u32,
         target_channels: u16,
         the_decoder: DecoderOwned<Vec<u8>>,
         cur_frame: Option<Mp3AudioData>,
-        frame_index: u64,
+        sample_pos: u64,
     }
 
     impl Debug for Mp3Decoder{
@@ -367,7 +401,7 @@ pub mod MP3 {
                 .field("target_channels", &self.target_channels)
                 .field("the_decoder", &format_args!("DecoderOwned<Vec<u8>>"))
                 .field("cur_frame", &self.cur_frame)
-                .field("frame_index", &self.frame_index)
+                .field("sample_pos", &self.sample_pos)
                 .finish()
         }
     }
@@ -410,16 +444,24 @@ pub mod MP3 {
                 target_channels,
                 the_decoder,
                 cur_frame: None,
-                frame_index: 0,
+                sample_pos: 0,
             };
             ret.cur_frame = ret.get_next_frame();
             Ok(ret)
         }
 
+        fn reset(&mut self) {
+            self.the_decoder.set_position(0);
+            self.cur_frame = self.get_next_frame();
+            self.sample_pos = 0;
+        }
+
         fn get_next_frame(&mut self) -> Option<Mp3AudioData> {
             while let Some(frame) = self.the_decoder.next() {
                 if let Frame::Audio(audio) = frame {
-                    self.frame_index += 1;
+                    if let Some(cur_frame) = &self.cur_frame {
+                        self.sample_pos += cur_frame.sample_count as u64;
+                    }
                     return Some(Mp3AudioData{
                         bitrate: audio.bitrate(),
                         channels: audio.channels(),
@@ -432,6 +474,27 @@ pub mod MP3 {
                 }
             }
             None
+        }
+
+        pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+            if self.sample_pos > frame_index {
+                self.reset();
+            }
+            loop {
+                if let Some(cur_frame) = &self.cur_frame {
+                    if self.sample_pos + (cur_frame.sample_count as u64) > frame_index {
+                        break;
+                    } else {
+                        self.cur_frame = self.get_next_frame();
+                    }
+                } else {
+                    return Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound."))))
+                }
+            }
+            for _ in 0..(frame_index - self.sample_pos) {
+                let _ = self.decode_stereo_raw()?;
+            }
+            Ok(())
         }
 
         pub fn get_channels(&self) -> u16 {
