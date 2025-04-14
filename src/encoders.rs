@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use crate::adpcm;
 use crate::AudioWriteError;
 use crate::WaveSampleType;
+use crate::SpeakerPosition;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
 use crate::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
@@ -519,7 +520,7 @@ impl EncoderToImpl for PcmEncoder {
             extension: extensible,
         })
     }
-    
+
     fn get_bit_rate(&self, channels: u16) -> u32 {
         channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
@@ -601,11 +602,16 @@ where E: adpcm::AdpcmEncoder {
 impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-        if channel_mask.is_some() {
-            Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format.")))
-        } else {
-            Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
+        if let Some(channel_mask) = channel_mask {
+            const MonoMask: u32 = SpeakerPosition::FrontCenter as u32;
+            const StereoMask: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
+            match (channels, channel_mask) {
+                (1, MonoMask) => (),
+                (2, StereoMask) => (),
+                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format."))),
+            }
         }
+        Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
     }
 
     fn get_bit_rate(&self, channels: u16) -> u32 {
