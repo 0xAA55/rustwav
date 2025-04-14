@@ -1,4 +1,4 @@
-use std::{io, ops::{Index, IndexMut}, iter::FromIterator, fmt::Debug};
+use std::{ops::{Index, IndexMut}, iter::FromIterator, fmt::Debug};
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
 impl<T> CopiableItem for T where T: Default + Clone + Copy + Debug + Sized {}
