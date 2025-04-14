@@ -1136,11 +1136,12 @@ pub mod ms {
                 Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-IMA, must store the extension data in the `fmt ` chunk")))
             }
         }
-        fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while self.bytes_yield > 0 {
                 let mut iter = [0i16].into_iter();
                 self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?;
             }
+            Ok(())
         }
     }
 
