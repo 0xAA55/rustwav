@@ -478,6 +478,6 @@ impl<'a> WaveWriter<'a> {
 
 impl Drop for WaveWriter<'_> {
     fn drop(&mut self) {
-        self.finalize().unwrap();
+        let _ = self.finalize();
     }
 }
