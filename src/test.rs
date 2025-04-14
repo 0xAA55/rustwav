@@ -11,6 +11,7 @@ pub mod wavcore;
 pub mod wavreader;
 pub mod wavwriter;
 pub mod utils;
+pub mod copiablebuf;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
@@ -31,6 +32,7 @@ pub use wavcore::{BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use filehasher::FileHasher;
+pub use copiablebuf::{CopiableBuffer, CopiableBufferIter, CopiableBufferIterMut, CopiableBufferIntoIter};
 
 #[cfg(feature = "mp3dec")]
 pub use decoders::MP3::Mp3Decoder;
