@@ -144,84 +144,11 @@ impl WaveWriter {
             },
         }
 
-        // 准备写入 fmt 块
-        if self.spec.channel_mask == 0 {
-            self.spec.guess_channel_mask()?;
-        }
-
-        let mut fmt_extension = None;
-        let mut ext = false;
-
-        let format_tag = match &self.data_format {
-            DataFormat::Pcm => {
-                ext = self.spec.channel_mask != self.spec.guess_channel_mask()?;
-                ext |= self.spec.channels > 2;
-                use SampleFormat::{Unknown, Float, UInt, Int};
-                // 如果声道掩码不等于猜测的声道掩码，则说明需要 0xFFFE 的扩展格式
-                match self.spec.sample_format {
-                    Unknown => return Err(AudioWriteError::InvalidArguments("Please check `spec.sample_format` is not set to `Unknown`".to_owned())),
-                    Int | UInt => {
-                        match ext {
-                            false => 1,
-                            true => 0xFFFE,
-                        }
-                    },
-                    Float => {
-                        match ext {
-                            false => 3,
-                            true => {
-                                match self.spec.bits_per_sample {
-                                    32 | 64 => 0xFFFE,
-                                    other => return Err(AudioWriteError::InvalidArguments(format!("Could not save {} bits IEEE float numbers.", other))),
-                                }
-                            },
-                        }
-                    },
-                }
-            },
-            DataFormat::Adpcm(sub_format) => {
-                fmt_extension = match sub_format {
-                    AdpcmSubFormat::Ms => Some(FmtExtension::new_adpcm_ms(AdpcmMsData::new())),
-                    AdpcmSubFormat::Ima => Some(FmtExtension::new_adpcm_ima(AdpcmImaData::new(0))),
-                };
-                self.block_size = 0x400;
-                self.spec.bits_per_sample = 4;
-                (*sub_format) as u16
-            },
-            DataFormat::Mp3 => {
-                self.block_size = 1;
-                self.spec.bits_per_sample = 0;
-                0x0055
-            },
-            DataFormat::OggVorbis => {
-                0x674f
-            },
-            DataFormat::Flac => {
-                0xF1AC
-            }
-        };
-
-        if ext {
-            fmt_extension = Some(FmtExtension::new_extensible(ExtensibleData {
-                valid_bits_per_sample: self.spec.bits_per_sample,
-                channel_mask: self.spec.channel_mask,
-                sub_format: match self.spec.sample_format {
-                    Int | UInt => GUID_PCM_FORMAT,
-                    Float => GUID_IEEE_FLOAT_FORMAT,
-                    other => return Err(AudioWriteError::InvalidArguments(format!("\"{:?}\" was given for specifying the sample format", other))),
-                },
-            }));
-        }
-
-        self.fmt__chunk = FmtChunk {
-            format_tag,
-            channels: self.spec.channels,
-            sample_rate: self.spec.sample_rate,
-            byte_rate: self.encoder.get_bit_rate(self.spec.channels) / 8,
-            block_align: self.block_size,
-            bits_per_sample: self.spec.bits_per_sample,
-            extension: fmt_extension,
-        };
+        // 使用编码器的 `new_fmt_chunk()` 生成 fmt 块的内容
+        self.fmt__chunk = encoder.new_fmt_chunk(self.spec.channels, self.spec.sample_rate, self.spec.bits_per_sample, match self.spec.is_channel_mask_valid() {
+            true => Some(self.spec.channel_mask),
+            false => None
+        })?;
 
         // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
         self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
@@ -229,7 +156,12 @@ impl WaveWriter {
             Ok(())
         })?;
 
-        self.fmt__chunk.write(self.writer.clone())?;
+        let mut cw = ChunkWriter::begin(writer_shared.clone(), b"fmt ")?;
+        writer_shared.escorted_write(|writer| -> Result<(), io::Error> {
+            self.fmt__chunk.write(self.writer.clone())?;
+            Ok(())
+        })?;
+        cw.end()?;
 
         self.data_chunk = Some(ChunkWriter::begin(self.writer.clone(), b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
