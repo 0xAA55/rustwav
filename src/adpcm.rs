@@ -34,17 +34,11 @@ pub trait AdpcmEncoder: Debug {
 
 pub trait AdpcmDecoder: Debug {
     fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
+    fn get_block_size(&self) -> usize;
+    fn frames_per_block(&self) -> usize;
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
     fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
         Ok(())
-    }
-}
-
-pub fn get_num_samples(fact_data: &Vec<u8>) -> Result<u64, io::Error> {
-    match fact_data.len() {
-        4 => Ok(u32::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3]]) as u64),
-        8 => Ok(u64::from_le_bytes([fact_data[0], fact_data[1], fact_data[2], fact_data[3], fact_data[4], fact_data[5], fact_data[6], fact_data[7]])),
-        other => Err(io::Error::new(io::ErrorKind::InvalidData, format!("fact data size should be 4 or 8, not {other}."))),
     }
 }
 
@@ -354,16 +348,18 @@ pub mod ima {
         ready: bool,
         nibble_buffer: DecoderNibbleBuffer,
         input_count: usize,
+        block_size: usize,
     }
 
     impl DecoderCore{
-        pub fn new() -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample_val: 0,
                 stepsize_index: 0,
                 ready: false,
                 nibble_buffer: DecoderNibbleBuffer::new(),
                 input_count: 0,
+                block_size: (fmt_chunk.block_align / fmt_chunk.channels) as usize,
             }
         }
 
@@ -430,7 +426,7 @@ pub mod ima {
                     output(self.decode_sample((b4 >> 0) & 0xF));
                     output(self.decode_sample((b4 >> 4) & 0xF));
                     self.nibble_buffer.clear();
-                    if self.input_count >= BLOCK_SIZE {
+                    if self.input_count >= self.block_size {
                         self.input_count = 0;
                         self.ready = false;
                     }
@@ -460,6 +456,7 @@ pub mod ima {
         nibble_r: DecoderNibbleBuffer,
         sample_l: DecoderSampleBuffer,
         sample_r: DecoderSampleBuffer,
+        block_size: usize,
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -469,15 +466,16 @@ pub mod ima {
     }
 
     impl StereoDecoder {
-        pub fn new() -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 current_channel: CurrentChannel::Left,
-                core_l: DecoderCore::new(),
-                core_r: DecoderCore::new(),
+                core_l: DecoderCore::new(fmt_chunk),
+                core_r: DecoderCore::new(fmt_chunk),
                 nibble_l: DecoderNibbleBuffer::new(),
                 nibble_r: DecoderNibbleBuffer::new(),
                 sample_l: DecoderSampleBuffer::new(),
                 sample_r: DecoderSampleBuffer::new(),
+                block_size: (fmt_chunk.block_align / fmt_chunk.channels) as usize,
             }
         }
 
@@ -527,10 +525,24 @@ pub mod ima {
     impl AdpcmDecoder for Decoder {
         fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
             match fmt_chunk.channels {
-                1 => Ok(Decoder::Mono(DecoderCore::new())),
-                2 => Ok(Decoder::Stereo(StereoDecoder::new())),
+                1 => Ok(Decoder::Mono(DecoderCore::new(fmt_chunk))),
+                2 => Ok(Decoder::Stereo(StereoDecoder::new(fmt_chunk))),
                 other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-IMA decoder."))),
             }
+        }
+        fn get_block_size(&self) -> usize {
+            match self {
+                Decoder::Mono(dec) => dec.block_size,
+                Decoder::Stereo(dec) => dec.block_size,
+            }
+        }
+        fn frames_per_block(&self) -> usize {
+            // 每个字节存两个样本
+            // 有效解码字节数是 BLOCK_SIZE - HEADER_SIZE
+            // 单声道时，块大小就是 BLOCK_SIZE
+            // 立体声的时候，块大小翻倍，但是要两个样本才能算一个音频帧
+            // 因此无论是否单声道立体声，这里的计算公式相同
+            (self.get_block_size() - HEADER_SIZE) * 2
         }
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error>{
             match self {
@@ -926,7 +938,7 @@ pub mod ms {
         delta: i32,
         ready: bool,
         coeff_table: [AdpcmCoeffSet; 7],
-        header_buffer: CopiableBuffer<u8, 7>,
+        header_buffer: CopiableBuffer<u8, HEADER_SIZE>,
         bytes_eaten: usize,
         max_bytes_can_eat: usize,
     }
@@ -992,6 +1004,10 @@ pub mod ms {
             self.bytes_eaten
         }
 
+        pub fn get_max_bytes_can_eat(&self) -> usize {
+            self.max_bytes_can_eat
+        }
+
         pub fn get_ready(&mut self, predictor: u8, delta: i16, sample1: i16, sample2: i16, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             if predictor > 6 {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {predictor} and it's greater than 6")));
@@ -1050,6 +1066,10 @@ pub mod ms {
             self.bytes_eaten
         }
 
+        pub fn get_max_bytes_can_eat(&self) -> usize {
+            self.max_bytes_can_eat
+        }
+
         pub fn get_ready(&mut self,
             predictor1: u8, predictor2: u8,
             delta1: i16, delta2: i16,
@@ -1062,7 +1082,7 @@ pub mod ms {
             output(sample_buffer[2]);
             output(sample_buffer[1]);
             output(sample_buffer[3]);
-            self.bytes_eaten = 14;
+            self.bytes_eaten += 14;
             self.ready = true;
             Ok(())
         }
@@ -1097,11 +1117,38 @@ pub mod ms {
                 Self::Stereo(stereo) => stereo.get_bytes_eaten(),
             }
         }
+
+        pub fn get_max_bytes_can_eat(&self) -> usize {
+            match self {
+                Self::Mono(mono) => mono.get_max_bytes_can_eat(),
+                Self::Stereo(stereo) => stereo.get_max_bytes_can_eat(),
+            }
+        }
+
+        pub fn get_channels(&self) -> usize {
+            match self {
+                Self::Mono(_) => 1,
+                Self::Stereo(_) => 2,
+            }
+        }
     }
 
     impl AdpcmDecoder for Decoder {
         fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
             Self::new(fmt_chunk)
+        }
+
+        fn get_block_size(&self) -> usize {
+            self.get_max_bytes_can_eat() / self.get_channels()
+        }
+
+        fn frames_per_block(&self) -> usize {
+            // 每个字节存两个样本
+            // 有效解码字节数是 BLOCK_SIZE - HEADER_SIZE
+            // 单声道时，块大小就是 BLOCK_SIZE
+            // 立体声的时候，块大小翻倍，但是要两个样本才能算一个音频帧
+            // 因此无论是否单声道立体声，这里的计算公式相同
+            (self.get_block_size() - HEADER_SIZE) * 2
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
