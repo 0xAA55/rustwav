@@ -134,7 +134,7 @@ impl<'a> WaveWriter<'a> {
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
-                let mut cw = ChunkWriter::begin(&mut self.writer, b"JUNK")?;
+                let cw = ChunkWriter::begin(&mut self.writer, b"JUNK")?;
                 cw.writer.write_all(&[0u8; 28])?;
                 cw.end()?;
             },
@@ -147,29 +147,25 @@ impl<'a> WaveWriter<'a> {
         })?;
 
         // 此处存储 fmt 块
-        if true {
-            let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
-            // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
-            self.fmt_chunk_offset = cw.writer.stream_position()?;
-            self.fmt__chunk.write(&mut cw.writer)?;
-            cw.end()?;
-        }
+        let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
+        // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
+        self.fmt_chunk_offset = cw.writer.stream_position()?;
+        self.fmt__chunk.write(&mut cw.writer)?;
+        cw.end()?;
 
         // 此处为 fact 块留出空间，之后要来这里修改的。
-        if true {
-            let mut cw = ChunkWriter::begin(&mut self.writer, b"fact")?;
-            // 此处获取 fact 块的位置
-            self.fact_chunk_offset = cw.writer.stream_position()?;
-            match self.file_size_option {
-                FileSizeOption::NeverLargerThan4GB => {
-                    0u32.write_le(&mut cw.writer)?;
-                },
-                FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
-                    0u64.write_le(&mut cw.writer)?;
-                },
-            }
-            cw.end()?;
+        let mut cw = ChunkWriter::begin(&mut self.writer, b"fact")?;
+        // 此处获取 fact 块的位置
+        self.fact_chunk_offset = cw.writer.stream_position()?;
+        match self.file_size_option {
+            FileSizeOption::NeverLargerThan4GB => {
+                0u32.write_le(&mut cw.writer)?;
+            },
+            FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
+                0u64.write_le(&mut cw.writer)?;
+            },
         }
+        cw.end()?;
 
         self.data_chunk = Some(ChunkWriter::begin(unsafe { &mut *writer_raw_ptr }, b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
@@ -372,8 +368,7 @@ impl<'a> WaveWriter<'a> {
         self.encoder.finalize(&mut self.writer)?;
 
         // 结束写入 data
-        if let Some(ref mut data_chunk) = self.data_chunk {
-            data_chunk.end()?;
+        if self.data_chunk.is_some() {
             self.data_chunk = None;
         }
 
