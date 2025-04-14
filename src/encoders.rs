@@ -603,11 +603,11 @@ impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         if let Some(channel_mask) = channel_mask {
-            const MonoMask: u32 = SpeakerPosition::FrontCenter as u32;
-            const StereoMask: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
+            const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
+            const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
             match (channels, channel_mask) {
-                (1, MonoMask) => (),
-                (2, StereoMask) => (),
+                (1, MONO_MASK) => (),
+                (2, STEREO_MASK) => (),
                 _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format."))),
             }
         }
