@@ -1158,7 +1158,29 @@ pub mod ms {
             Ok(())
         }
 
-        fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            match self {
+                Self::Mono(ref mut mono) => {
+                    if mono.bytes_eaten > 0 && mono.bytes_eaten < mono.max_bytes_can_eat {
+                        let mut food = {
+                            let mut food = Vec::<u8>::new();
+                            food.resize(mono.max_bytes_can_eat - mono.bytes_eaten, 0);
+                            food.into_iter()
+                        };
+                        self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
+                    }
+                },
+                Self::Stereo(ref mut stereo) => {
+                    if stereo.bytes_eaten > 0 && stereo.bytes_eaten < stereo.max_bytes_can_eat {
+                        let mut food = {
+                            let mut food = Vec::<u8>::new();
+                            food.resize(stereo.max_bytes_can_eat - stereo.bytes_eaten, 0);
+                            food.into_iter()
+                        };
+                        self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
+                    }
+                },
+            }
             Ok(())
         }
     }
