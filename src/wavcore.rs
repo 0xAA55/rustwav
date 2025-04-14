@@ -152,12 +152,22 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 #[allow(clippy::upper_case_acronyms)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
 pub const GUID_PCM_FORMAT: GUID = GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
 pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
+
+impl Debug for GUID {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_tuple(&format!("GUID"))
+            .field(&format_args!("{:08x}-{:04x}-{:04x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                self.0, self.1, self.2, self.3[0], self.3[1], self.3[2], self.3[3], self.3[4], self.3[5], self.3[6], self.3[7]))
+            .finish()
+    }
+}
+
 // TODO
 // 其实还有：GUID_DRM、GUID_LAW、GUID_MULAW、GUID_ADPCM
 // 视情况实现
