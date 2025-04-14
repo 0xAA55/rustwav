@@ -8,13 +8,14 @@ use crate::AudioWriteError;
 use crate::WaveSampleType;
 use crate::{SampleType, i24, u24};
 use crate::Writer;
-use crate::FmtChunk;
+use crate::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
 pub trait EncoderToImpl: Debug {
     fn get_bit_rate(&self, channels: u16) -> u32;
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
     fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
@@ -155,6 +156,11 @@ impl EncoderToImpl for () {
     }
 
     // 这个方法用户必须实现
+    fn new_fmt_chunk(&mut self, _channels: u16, _sample_rate: u32, _bits_per_sample: u16, _channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+        panic!("Must implement `new_fmt_chunk()` for your encoder.");
+    }
+
+    // 这个方法用户必须实现
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         panic!("Must implement `update_fmt_chunk()` for your encoder.");
     }
@@ -197,6 +203,10 @@ impl Encoder {
         Self {
             encoder,
         }
+    }
+
+    pub fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+        self.encoder.new_fmt_chunk(channels, sample_rate, bits_per_sample, channel_mask)
     }
 
     pub fn get_bit_rate(&self, channels: u16) -> u32 {
@@ -484,6 +494,41 @@ impl PcmEncoder {
 }
 
 impl EncoderToImpl for PcmEncoder {
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+        use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64, Unknown};
+        let bytes_per_sample = bits_per_sample / 8;
+        let byte_rate = sample_rate * channels as u32 * bytes_per_sample as u32;
+        let extensible = match channel_mask {
+            None => None,
+            Some(channel_mask) => Some(FmtExtension::new_extensible(ExtensibleData {
+                valid_bits_per_sample: bits_per_sample,
+                channel_mask,
+                sub_format: match self.sample_type {
+                    U8 | S16 | S24 | S32 | S64 => GUID_PCM_FORMAT,
+                    F32 | F64 => GUID_IEEE_FLOAT_FORMAT,
+                    other => return Err(AudioWriteError::Unsupported(format!("\"{:?}\" was given for the extensible format PCM to specify the sample format", other))),
+                },
+            })),
+        };
+        Ok(FmtChunk {
+            format_tag: if extensible.is_some() {
+                0xFFFE
+            } else {
+                match self.sample_type {
+                    S8 | U16 | U24 | U32 | U64 => return Err(AudioWriteError::Unsupported(format!("PCM format does not support {} samples.", self.sample_type))),
+                    U8 | S16 | S24 | S32 | S64 => 1,
+                    F32 | F64 => 3,
+                    Unknown => panic!("Can't encode \"Unknown\" format to PCM."),
+                }
+            },
+            channels,
+            sample_rate,
+            byte_rate,
+            block_align: bytes_per_sample * channels,
+            bits_per_sample,
+            extension: extensible,
+        })
+    }
     fn get_bit_rate(&self, channels: u16) -> u32 {
         channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
@@ -555,7 +600,7 @@ where E: adpcm::AdpcmEncoder {
 
     pub fn write_multiple_stereos(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {
         if self.channels != 2 {
-            return Err(AudioWriteError::InvalidArguments(format!("This encoder only accepts {} channel audio data", self.channels)));
+            return Err(AudioWriteError::Unsupported(format!("This encoder only accepts {} channel audio data", self.channels)));
         }
         let mut iter = utils::multiple_stereos_to_interleaved_samples(stereos).into_iter();
         self.encoder.encode(|| -> Option<i16> {iter.next()}, |byte: u8|{ self.nibbles.push(byte);})?;
@@ -569,6 +614,14 @@ where E: adpcm::AdpcmEncoder {
 
 impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
 where E: adpcm::AdpcmEncoder {
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+        if channel_mask.is_some() {
+            Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format.")))
+        } else {
+            Ok(self.encoder.new_fmt_chunk(channels, sample_rate, bits_per_sample)?)
+        }
+    }
+
     fn get_bit_rate(&self, channels: u16) -> u32 {
         if self.samples_written == 0 {
             self.sample_rate * channels as u32 * 8 // 估算
@@ -627,7 +680,7 @@ pub mod MP3 {
     use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
     use crate::Writer;
     use crate::{SampleType, i24, u24};
-    use crate::FmtChunk;
+    use crate::{FmtChunk, FmtExtension, Mp3Data};
     use crate::AudioWriteError;
     use crate::EncoderToImpl;
     use crate::utils::{self, sample_conv, stereos_conv};
@@ -674,7 +727,7 @@ pub mod MP3 {
             match channels {
                 1 => mp3_builder.set_mode(Mode::Mono)?,
                 2 => mp3_builder.set_mode(Mode::JointStereo)?,
-                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other))),
+                other => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {}", other))),
             }
 
             mp3_builder.set_num_channels(channels)?;
@@ -719,7 +772,7 @@ pub mod MP3 {
                 buffers: match channels {
                     1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
                     2 => ChannelBuffers::<S>::Stereo(BufferStereo::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
-                    other => return Err(AudioWriteError::InvalidArguments(format!("Bad channel number: {}", other))),
+                    other => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {}", other))),
                 },
             })
         }
@@ -740,7 +793,7 @@ pub mod MP3 {
                     self.samples_written += samples.len() as u64;
                     Ok(())
                 },
-                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
+                other => return Err(AudioWriteError::Unsupported(format!("Bad channels number: {other}"))),
             }
         }
 
@@ -1068,12 +1121,27 @@ pub mod MP3 {
 
     impl<S> EncoderToImpl for Mp3Encoder<S>
     where S: SampleType {
+        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+            if channel_mask.is_some() {
+                Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the MP3 format.")))
+            } else {
+                Ok(FmtChunk{
+                    format_tag: 0x0055,
+                    channels,
+                    sample_rate,
+                    byte_rate: self.bitrate / 8,
+                    block_align: 1,
+                    bits_per_sample: 0,
+                    extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, sample_rate))),
+                })
+            }
+        }
+
         fn get_bit_rate(&self, channels: u16) -> u32 {
             self.bitrate as u32 * channels as u32
         }
 
-        fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-            fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
+        fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
             Ok(())
         }
 
