@@ -292,18 +292,21 @@ pub mod ima {
                 other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-IMA encoder."))),
             }
         }
+
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
                 Encoder::Mono(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
                 Encoder::Stereo(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
             }
         }
+
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
                 Encoder::Mono(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
                 Encoder::Stereo(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
             }
         }
+
         fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
             assert_eq!(bits_per_sample, 4);
             let block_align = BLOCK_SIZE as u16 * channels;
@@ -319,6 +322,7 @@ pub mod ima {
                 })),
             })
         }
+
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
