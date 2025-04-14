@@ -11,7 +11,7 @@ use crate::{ChunkWriter};
 use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, ExtensibleData};
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
-use crate::{EncIMA};
+use crate::{EncIMA, EncMS};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{SharedWriter, string_io::*};
@@ -80,8 +80,7 @@ impl WaveWriter {
                 use AdpcmSubFormat::{Ima, Ms};
                 match sub_format {
                     Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(spec.channels, spec.sample_rate)?)),
-                    // Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
-                    Ms => panic!("`AdpcmEncoderWrap::<EncMS>` unimplemented."),
+                    Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
                 }
             },
             Mp3 => {
