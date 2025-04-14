@@ -165,11 +165,6 @@ impl EncoderToImpl for () {
     }
 
     // 这个方法用户必须实现
-    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
-        panic!("Must implement `provide_fact_data()` for your encoder.");
-    }
-
-    // 这个方法用户必须实现
     fn finalize(&mut self, _writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         panic!("Must implement `finalize()` for your encoder to flush the data.");
     }
@@ -214,10 +209,6 @@ impl Encoder {
 
     pub fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         self.encoder.update_fmt_chunk(fmt)
-    }
-
-    pub fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
-        self.encoder.provide_fact_data()
     }
 
     pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
@@ -528,15 +519,15 @@ impl EncoderToImpl for PcmEncoder {
             extension: extensible,
         })
     }
+    
     fn get_bit_rate(&self, channels: u16) -> u32 {
         channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
+
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         Ok(())
     }
-    fn provide_fact_data(&self) -> Result<Option<Vec<u8>>, AudioWriteError> {
-        Ok(None)
-    }
+
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
     }
