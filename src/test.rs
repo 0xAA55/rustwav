@@ -27,7 +27,7 @@ pub use adpcm::{DecIMA};
 pub use wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
 pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 pub use wavcore::{ChunkWriter, ChunkHeader};
-pub use wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, Extensible};
+pub use wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, ExtensibleData, Mp3Data};
 pub use wavcore::{BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
