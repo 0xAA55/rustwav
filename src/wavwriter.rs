@@ -395,14 +395,11 @@ impl WaveWriter {
 
             // 找到 fmt 块
             writer.seek(SeekFrom::Start(self.fmt_chunk_offset))?;
-            Ok(())
-        })?;
 
-        // 更新 fmt 头部信息，重新写入 fmt 头部
-        self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
-        self.fmt__chunk.write(self.writer.clone())?;
+            // 更新 fmt 头部信息，重新写入 fmt 头部
+            self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
+            self.fmt__chunk.write(writer)?;
 
-        self.writer.escorted_write(|writer| -> Result<(), AudioWriteError> {
             // 回到 data 末尾的位置
             writer.seek(SeekFrom::Start(end_of_data))?;
             Ok(())
