@@ -729,6 +729,7 @@ impl FmtExtension {
                 ExtensionData::Nodata => Err(AudioWriteError::InvalidArguments(format!("There should be data in {} bytes to be written, but the data is `Nodata`.", self.ext_len))),
                 ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
                 ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
+                ExtensionData::Mp3(data) => Ok(data.write(writer)?),
                 ExtensionData::Extensible(data) => Ok(data.write(writer)?),
             }
         } else {
@@ -809,15 +810,15 @@ impl AdpcmImaData {
 }
 
 impl Mp3Data {
-    const MPEGLAYER3_FLAG_PADDING_ISO: u32 = 0x00000000;
-    const MPEGLAYER3_FLAG_PADDING_ON : u32 = 0x00000001;
-    const MPEGLAYER3_FLAG_PADDING_OFF: u32 = 0x00000002;
+    pub const MPEGLAYER3_FLAG_PADDING_ISO: u32 = 0x00000000;
+    pub const MPEGLAYER3_FLAG_PADDING_ON : u32 = 0x00000001;
+    pub const MPEGLAYER3_FLAG_PADDING_OFF: u32 = 0x00000002;
 
     pub fn new(bitrate: u32, sample_rate: u32) -> Self {
         Self {
             id: 1,
-            flags: MPEGLAYER3_FLAG_PADDING_OFF,
-            block_size: 144 * bitrate / sample_rate,
+            flags: Self::MPEGLAYER3_FLAG_PADDING_OFF,
+            block_size: (144 * bitrate / sample_rate) as u16,
             frames_per_block: 1,
             codec_delay: 0,
         }
@@ -837,12 +838,12 @@ impl Mp3Data {
         })
     }
 
-    pub fn write(reader: &mut impl Reader) -> Result<(), AudioReadError> {
-        self.id.read_le(reader)?;
-        self.flags.read_le(reader)?;
-        self.block_size.read_le(reader)?;
-        self.frames_per_block.read_le(reader)?;
-        self.codec_delay.read_le(reader)?;
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.id.write_le(writer)?;
+        self.flags.write_le(writer)?;
+        self.block_size.write_le(writer)?;
+        self.frames_per_block.write_le(writer)?;
+        self.codec_delay.write_le(writer)?;
         Ok(())
     }
 }
