@@ -416,7 +416,7 @@ impl<'a> ChunkWriter<'a> {
     }
 
     // 结束写入 Chunk，更新 Chunk Size
-    pub fn end(&mut self) -> Result<(), AudioWriteError> {
+    pub fn on_drop(&mut self) -> Result<(), AudioWriteError> {
         if self.ended {
             Ok(())
         } else {
@@ -457,6 +457,10 @@ impl<'a> ChunkWriter<'a> {
         }
     }
 
+    pub fn end(mut self) -> Result<(), AudioWriteError> {
+        self.on_drop()
+    }
+
     // 取得 Chunk 的数据部分的开始位置
     pub fn get_chunk_start_pos(&self) -> u64 {
         self.chunk_start
@@ -470,7 +474,7 @@ impl<'a> ChunkWriter<'a> {
 
 impl Drop for ChunkWriter<'_> {
     fn drop(&mut self) {
-        self.end().unwrap();
+        self.on_drop().unwrap();
     }
 }
 
@@ -915,7 +919,7 @@ impl BextChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"bext")?;
+        let cw = ChunkWriter::begin(writer, b"bext")?;
         write_str_sized(cw.writer, &self.description, 256, text_encoding)?;
         write_str_sized(cw.writer, &self.originator, 32, text_encoding)?;
         write_str_sized(cw.writer, &self.originator_ref, 32, text_encoding)?;
@@ -976,7 +980,7 @@ impl SmplChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"smpl")?;
+        let cw = ChunkWriter::begin(writer, b"smpl")?;
         self.manufacturer.write_le(cw.writer)?;
         self.product.write_le(cw.writer)?;
         self.sample_period.write_le(cw.writer)?;
@@ -1042,7 +1046,7 @@ impl InstChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"INST")?;
+        let cw = ChunkWriter::begin(writer, b"INST")?;
         self.base_note.write_le(cw.writer)?;
         self.detune.write_le(cw.writer)?;
         self.gain.write_le(cw.writer)?;
@@ -1086,7 +1090,7 @@ impl CueChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"cue ")?;
+        let cw = ChunkWriter::begin(writer, b"cue ")?;
         self.num_cues.write_le(cw.writer)?;
         for cue in self.cues.iter() {
             cue.write(cw.writer)?;
@@ -1185,7 +1189,7 @@ impl ListChunk {
             }
             let mut flag = [0u8; 4];
             {let mut w: &mut[u8] = &mut flag; w}.write(key.as_bytes())?;
-            let mut cw = ChunkWriter::begin(writer, &flag)?;
+            let cw = ChunkWriter::begin(writer, &flag)?;
             let mut val = val.clone();
             val.push('\0');
             write_str(cw.writer, &val, text_encoding)?;
@@ -1241,19 +1245,19 @@ impl AdtlChunk {
     pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
         match self {
             Self::Labl(labl) => {
-                let mut cw = ChunkWriter::begin(writer, b"labl")?;
+                let cw = ChunkWriter::begin(writer, b"labl")?;
                 labl.identifier.write_le(cw.writer)?;
                 write_str(cw.writer, &labl.data, text_encoding)?;
                 cw.end()?;
             },
             Self::Note(note) => {
-                let mut cw = ChunkWriter::begin(writer, b"note")?;
+                let cw = ChunkWriter::begin(writer, b"note")?;
                 note.identifier.write_le(cw.writer)?;
                 write_str(cw.writer, &note.data, text_encoding)?;
                 cw.end()?;
             },
             Self::Ltxt(ltxt) => {
-                let mut cw = ChunkWriter::begin(writer, b"ltxt")?;
+                let cw = ChunkWriter::begin(writer, b"ltxt")?;
                 ltxt.identifier.write_le(cw.writer)?;
                 ltxt.sample_length.write_le(cw.writer)?;
                 write_str_sized(cw.writer, &ltxt.purpose_id, 4, text_encoding)?;
@@ -1320,7 +1324,7 @@ impl AcidChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"acid")?;
+        let cw = ChunkWriter::begin(writer, b"acid")?;
         self.flags.write_le(cw.writer)?;
         self.root_node.write_le(cw.writer)?;
         self.reserved1.write_le(cw.writer)?;
@@ -1357,7 +1361,7 @@ impl JunkChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        let mut cw = ChunkWriter::begin(writer, b"JUNK")?;
+        let cw = ChunkWriter::begin(writer, b"JUNK")?;
         match self {
             Self::FullZero(size) => cw.writer.write_all(&vec![0u8; *size as usize])?,
             Self::SomeData(data) => cw.writer.write_all(data)?,
