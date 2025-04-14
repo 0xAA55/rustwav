@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, SeekFrom}, collections::HashMap};
+use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, collections::HashMap};
 
 use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Reader, Writer, SharedWriter, string_io::*};
@@ -35,8 +35,8 @@ impl std::convert::Into<u16> for AdpcmSubFormat {
     }
 }
 
-impl std::fmt::Display for DataFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for DataFormat {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Pcm => write!(f, "PCM"),
             Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
@@ -47,8 +47,8 @@ impl std::fmt::Display for DataFormat {
     }
 }
 
-impl std::fmt::Display for AdpcmSubFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for AdpcmSubFormat {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Ima => write!(f, "ADPCM-IMA"),
             Self::Ms => write!(f, "ADPCM-MS"),
@@ -64,8 +64,8 @@ pub enum SampleFormat {
     Int,
 }
 
-impl std::fmt::Display for SampleFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for SampleFormat {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             SampleFormat::Unknown => write!(f, "Unknown"),
             SampleFormat::Float => write!(f, "Floating Point Number"),
@@ -92,8 +92,8 @@ pub enum WaveSampleType {
     F64,
 }
 
-impl std::fmt::Display for WaveSampleType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for WaveSampleType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match self {
             Unknown => write!(f, "Unknown"),
@@ -216,8 +216,8 @@ pub enum SpeakerPosition {
     TopBackRight = 0x20000,
 }
 
-impl std::fmt::Display for SpeakerPosition {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for SpeakerPosition {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             SpeakerPosition::FrontLeft           => write!(f, "front_left"),
             SpeakerPosition::FrontRight          => write!(f, "front_right"),
@@ -369,7 +369,7 @@ pub struct ChunkWriter {
 }
 
 impl std::fmt::Debug for ChunkWriter {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("ChunkWriter")
             .field("writer_shared", &self.writer_shared)
             .field("flag", &format!("{}", String::from_utf8_lossy(&self.flag)))
@@ -1480,7 +1480,7 @@ pub mod Id3{
     }
 
     impl std::fmt::Debug for Tag {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct("Tag")
                 .finish_non_exhaustive()
         }
