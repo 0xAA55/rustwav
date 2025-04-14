@@ -1,9 +1,20 @@
 #![allow(dead_code)]
 
+use std::{io::{self, ErrorKind}, fmt::{Formatter, Display}, error};
+
 #[derive(Debug, Clone)]
 pub struct IOErrorInfo {
-    pub kind: std::io::ErrorKind,
+    pub kind: ErrorKind,
     pub message: String,
+}
+
+impl IOErrorInfo {
+    pub fn new(kind: ErrorKind, message: String) -> Self {
+        Self {
+            kind,
+            message,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -21,10 +32,10 @@ pub enum AudioReadError {
     OtherReason(String), // 不知道的问题
 }
 
-impl std::error::Error for AudioReadError {}
+impl error::Error for AudioReadError {}
 
-impl std::fmt::Display for AudioReadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for AudioReadError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
             Self::IncompleteData(info) => write!(f, "Incomplete data: {info}"),
@@ -41,8 +52,8 @@ impl std::fmt::Display for AudioReadError {
     }
 }
 
-impl From<std::io::Error> for AudioReadError {
-    fn from(ioerr: std::io::Error) -> Self {
+impl From<io::Error> for AudioReadError {
+    fn from(ioerr: io::Error) -> Self {
         AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
     }
 }
@@ -55,13 +66,13 @@ impl From<crate::adpcm::ima::ImaAdpcmError> for AudioReadError {
     }
 }
 
-impl From<AudioReadError> for std::io::Error {
+impl From<AudioReadError> for io::Error {
     fn from(err: AudioReadError) -> Self {
         match err {
             AudioReadError::IOError(ioerr) => {
-                std::io::Error::from(ioerr.kind)
+                io::Error::from(ioerr.kind)
             },
-            other => panic!("When converting `AudioReadError` to `std::io::Error`, the given error is unrelated: {:?}", other),
+            other => panic!("When converting `AudioReadError` to `io::Error`, the given error is unrelated: {:?}", other),
         }
     }
 }
@@ -84,10 +95,10 @@ pub enum AudioWriteError {
     OtherReason(String), // 不知道的问题
 }
 
-impl std::error::Error for AudioWriteError {}
+impl error::Error for AudioWriteError {}
 
-impl std::fmt::Display for AudioWriteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for AudioWriteError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
@@ -107,19 +118,19 @@ impl std::fmt::Display for AudioWriteError {
     }
 }
 
-impl From<std::io::Error> for AudioWriteError {
-    fn from(ioerr: std::io::Error) -> Self {
+impl From<io::Error> for AudioWriteError {
+    fn from(ioerr: io::Error) -> Self {
         AudioWriteError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
     }
 }
 
-impl From<AudioWriteError> for std::io::Error {
+impl From<AudioWriteError> for io::Error {
     fn from(err: AudioWriteError) -> Self {
         match err {
             AudioWriteError::IOError(ioerr) => {
-                std::io::Error::from(ioerr.kind)
+                io::Error::from(ioerr.kind)
             },
-            other => panic!("When converting `AudioWriteError` to `std::io::Error`, the given error is unrelated: {:?}", other),
+            other => panic!("When converting `AudioWriteError` to `io::Error`, the given error is unrelated: {:?}", other),
         }
     }
 }
@@ -132,10 +143,10 @@ pub enum AudioError {
     InvalidArguments(String), // 不知道的样本的格式
 }
 
-impl std::error::Error for AudioError {}
+impl error::Error for AudioError {}
 
-impl std::fmt::Display for AudioError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for AudioError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
        match self {
            Self::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
            Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
