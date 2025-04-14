@@ -474,7 +474,7 @@ impl<'a> ChunkWriter<'a> {
 
 impl Drop for ChunkWriter<'_> {
     fn drop(&mut self) {
-        self.on_drop().unwrap();
+        let _ = self.on_drop();
     }
 }
 
