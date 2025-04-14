@@ -62,16 +62,12 @@ pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mu
 }
 
 pub type AdpcmEncoderIMA     = ima::Encoder;
-// pub type AdpcmEncoderMS      = ms::Encoder;
 
 pub type AdpcmDecoderIMA     = ima::Decoder;
-// pub type AdpcmDecoderMS      = ms::Decoder;
 
 pub type EncIMA     = AdpcmEncoderIMA;
-// pub type EncMS      = AdpcmEncoderMS;
 
 pub type DecIMA     = AdpcmDecoderIMA;
-// pub type DecMS      = AdpcmDecoderMS;
 
 pub mod ima {
     use std::{io, cmp::min, mem};
@@ -917,403 +913,63 @@ pub mod ms {
     }
 
 
-// for (i = 0; i < avctx->channels; i++) {
-//     int predictor = 0;
-//     *dst++ = predictor;
-//     c->status[i].coeff1 = ff_adpcm_AdaptCoeff1[predictor];
-//     c->status[i].coeff2 = ff_adpcm_AdaptCoeff2[predictor];
-// }
-// for (i = 0; i < avctx->channels; i++) {
-//     if (c->status[i].idelta < 16)
-//         c->status[i].idelta = 16;
-//     bytestream_put_le16(&dst, c->status[i].idelta);
-// }
-// for (i = 0; i < avctx->channels; i++)
-//     c->status[i].sample2= *samples++;
-// for (i = 0; i < avctx->channels; i++) {
-//     c->status[i].sample1 = *samples++;
-//     bytestream_put_le16(&dst, c->status[i].sample1);
-// }
-// for (i = 0; i < avctx->channels; i++)
-//     bytestream_put_le16(&dst, c->status[i].sample2);
-// 
-// if (avctx->trellis > 0) {
-//     int n = avctx->block_align - 7 * avctx->channels;
-//     FF_ALLOC_OR_GOTO(avctx, buf, 2 * n, error);
-//     if (avctx->channels == 1) {
-//         adpcm_compress_trellis(avctx, samples, buf, &c->status[0], n);
-//         for (i = 0; i < n; i += 2)
-//             *dst++ = (buf[i] << 4) | buf[i + 1];
-//     } else {
-//         adpcm_compress_trellis(avctx, samples,     buf,     &c->status[0], n);
-//         adpcm_compress_trellis(avctx, samples + 1, buf + n, &c->status[1], n);
-//         for (i = 0; i < n; i++)
-//             *dst++ = (buf[i] << 4) | buf[n + i];
-//     }
-//     av_free(buf);
-// } else {
-//     for (i = 7 * avctx->channels; i < avctx->block_align; i++) {
-//         int nibble;
-//         nibble  = adpcm_ms_compress_sample(&c->status[ 0], *samples++) << 4;
-//         nibble |= adpcm_ms_compress_sample(&c->status[st], *samples++);
-//         *dst++  = nibble;
-//     }
-// }
-// break;
-    /*
-
-    #[derive(Clone, Copy)]
-    pub struct EncoderBlock {
-        predictor: u8,
-        delta: i16,
         sample1: i16,
         sample2: i16,
-        nibbles: [u8; NIBBLE_BUFFER_SIZE],
-        num_nibbles: usize
     }
 
-    impl EncoderBlock {
-        pub fn new() -> Self {
             Self {
-                predictor: 0,
-                delta: 0,
                 sample1: 0,
                 sample2: 0,
-                nibbles: [0u8; NIBBLE_BUFFER_SIZE],
-                num_nibbles: 0,
             }
         }
 
-        pub fn to_le_bytes(&self) -> Vec<u8> {
-            let mut ret = Vec::<u8>::with_capacity(256);
-            ret.push(self.predictor);
-            ret.extend(&self.delta.to_le_bytes());
-            ret.extend(&self.sample1.to_le_bytes());
-            ret.extend(&self.sample2.to_le_bytes());
-            ret.extend(&self.nibbles);
-            ret
+
+
         }
 
-        pub fn is_full(&self) -> bool {
-            self.num_nibbles as usize >= self.nibbles.len()
         }
 
-        pub fn push_nibble(&mut self, nibble: u8) -> Result<(), io::Error> {
-            if !self.is_full() {
-                self.nibbles[self.num_nibbles as usize] = nibble;
-                self.num_nibbles += 1;
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::StorageFull, format!("The nibble buffer is full.")))
+        }
+
+        }
+
             }
         }
 
-        pub fn fill_nibble(&mut self) {
-            while !self.is_full() {
-                self.nibbles[self.num_nibbles as usize] = 0;
-                self.num_nibbles += 1;
-            }
-        }
 
-        pub fn clear(&mut self) {
-            self.num_nibbles = 0;
-        }
     }
 
-    #[derive(Clone, Copy)]
-    pub struct Encoder {
-        coeff_table: [AdpcmCoeffSet; 7],
-        block: EncoderBlock,
-        delta: i16,
-        sample1: i16,
-        sample2: i16,
-        nibble_flag: bool,
-        input_buffer: [i16; SAMPLES_PER_BLOCK as usize],
-        num_samples: u16,
-        total_samples: u64,
-        is_first_block: bool,
-    }
-
-    impl Encoder {
-        pub fn is_full(&self) -> bool {
-            self.num_samples as usize >= self.input_buffer.len()
-        }
-
-        pub fn push_sample(&mut self, sample: i16) -> Result<(), io::Error> {
-            if !self.is_full() {
-                self.input_buffer[self.num_samples as usize] = sample;
-                self.num_samples += 1;
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::StorageFull, format!("The nibble buffer is full.")))
-            }
-        }
-
-        pub fn fill_samples(&mut self) {
-            while !self.is_full() {
-                self.input_buffer[self.num_samples as usize] = 0;
-                self.num_samples += 1;
-            }
-        }
-
-        pub fn clear(&mut self) {
-            self.num_samples = 0;
-        }
-    }
-
-    impl AdpcmEncoder for Encoder {
-        fn new() -> Self {
             Self {
-                coeff_table: DEF_COEFF_TABLE,
-                block: EncoderBlock::new(),
-                delta: 0,
-                sample1: 0,
-                sample2: 0,
-                nibble_flag: false,
-                input_buffer: [0i16; SAMPLES_PER_BLOCK as usize],
-                num_samples: 0,
-                total_samples: 0,
-                is_first_block: true,
             }
         }
 
-        // 编码逻辑：每次吃一整个大块，吃饱后拉出同样的一个大块，以此循环。
-        // 输入 None 后停止循环，此时使用 `flush()` 可以拉出最后一个大块。
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            loop {
-                while !self.is_full() { // 先吃满一整个块
-                    match input() {
-                        Some(sample) => {
-                            self.push_sample(sample)?;
-                            self.total_samples += 1;
-                        },
-                        None => return Ok(()),
-                    }
-                }
-                let index = AdpcmCoeffSet::calculate_coefficient(&self.input_buffer).get_closest_coefficient_index(&self.coeff_table);
-                let coeff = self.coeff_table[index as usize];
-                self.block.sample2 = self.input_buffer[0];
-                self.block.sample1 = self.input_buffer[1];
-                if self.is_first_block {
-                    self.delta = ((coeff.coeff1 as i32 * self.block.sample1 as i32 +
-                                   coeff.coeff2 as i32 * self.block.sample2 as i32) / 256) as i16 - self.input_buffer[2];
-                    self.delta /= 4;
-                    if self.delta <= 0 {self.delta = -self.delta + 1;}
-                    self.is_first_block = false;
-                }
-                self.block.delta = self.delta;
-                self.block.predictor = index;
-                self.sample1 = self.block.sample1;
-                self.sample2 = self.block.sample2;
-                let mut nibble = 0u8;
-                let mut i = 3usize;
-                while i < SAMPLES_PER_BLOCK as usize {
-                    let predictor = ((coeff.coeff1 as i32 * self.sample1 as i32 + coeff.coeff2 as i32 * self.sample2 as i32) / 256) as i16;
-                    let sample_diff = self.input_buffer[i] - predictor;
-                    let mut error_delta = (sample_diff / self.delta).clamp(-8, 7) as i8;
-                    let remainder = sample_diff % self.delta;
-                    if remainder > self.delta / 2 {error_delta += 1;}
-                    error_delta = error_delta.clamp(-8, 7);
-                    let new_sample = predictor + error_delta as i16 * self.delta;
-                    self.delta = (self.delta as i32 * ADAPTATIONTABLE[trim_to_nibble(error_delta) as usize] as i32 / 256) as i16;
-                    if self.delta < 1 {self.delta = 1}
-                    self.sample2 = self.sample1;
-                    self.sample1 = new_sample;
-                    i += 1;
-                    if !self.nibble_flag {
-                        self.nibble_flag = true;
-                        nibble = trim_to_nibble(error_delta);
-                    } else {
-                        self.nibble_flag = false;
-                        nibble = (nibble << 4) | trim_to_nibble(error_delta);
-                        if !self.block.is_full() {
-                            self.block.push_nibble(nibble)?;
-                        } else {
-                            for nibble in self.block.to_le_bytes() {
-                                output(nibble);
-                            }
-                            self.block.clear();
-                            self.clear();
-                        }
-                    }
-                }
-            }
         }
-        fn get_required_fmt_chunk_size(&mut self) -> usize {
-            16 + 2 + AdpcmImaData::sizeof();
         }
-        fn yield_extension_data(&self, channels: u16) -> Option<FmtExtension> {
-            Some(FmtExtension::new_adpcm_ms(AdpcmMsData{
-                samples_per_block: (SAMPLES_PER_BLOCK * channels as usize) as u16,
-                num_coeff: 7,
-                coeffs: self.coeff_table,
-            }))
         }
-        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            self.fill_samples();
-            self.encode(
-                || -> Option<i16> {None},
-                |nibble: u8|{output(nibble)})?;
             Ok(())
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
-    pub struct DecoderBlock {
-        pub predictor: u8,
-        pub delta: i32,
-        pub sample1: i32,
-        pub sample2: i32,
-        pub coeff: AdpcmCoeffSet,
-    }
-
-    impl DecoderBlock {
-        pub fn new() -> Self {
-            Self {
-                predictor: 0,
-                delta: 0,
-                sample1: 0,
-                sample2: 0,
-                coeff: AdpcmCoeffSet::new(),
             }
         }
 
-        pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
-            let predictor = ((self.sample1 as i32 * self.coeff.coeff1 as i32 +
-                              self.sample2 as i32 * self.coeff.coeff2 as i32) / 256) +
-                (if nibble & 0x08 != 0 {nibble - 0x10} else {nibble}) as i32 * self.delta as i32;
 
-            self.sample2 = self.sample1;
-            self.sample1 = predictor.clamp(-32768, 32767) as i16;
-
-            //FFmpeg 的源码里，delta 是 i32，它的数值可能会变得夸张的大，还得做限制
-            self.delta = ((ADAPTATIONTABLE[nibble as usize] as i32 * self.delta as i32) >> 8).clamp(16, 32767) as i16;
-
-            // 返回值
-            self.sample1
         }
-    }
 
-    #[derive(Debug, Clone)]
-    pub struct Decoder {
-        coeff_table: [AdpcmCoeffSet; 7],
-        samples_per_block: u16,
-        block: DecoderBlock,
-        buffer: [u8; HEADER_SIZE as usize],
-        buf_used: usize,
-        header_init: bool,
-        bytes_read: usize,
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(extension_data: Option<FmtExtension>) -> Result<Self, io::Error> {
-            // 从 `fmt ` 块的扩展块里读取初始系数和系数表，以及块大小。
-            let adpcm_ms = if let Some(extension_data) = extension_data {
-                if let ExtensionData::AdpcmMs(adpcm_ms) = extension_data.data {
-                    Ok(adpcm_ms)
-                } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk extension data, the data is not for ADPCM-MS, got {:?}", extension_data)))
-                }
-            } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk, the extension data is needed")))
-            }?;
-            if adpcm_ms.num_coeff != 7 {
-                // 系数表其实是钦定的，但是钦定的系数表也要写入到 `fmt ` 的扩展块里，并且解码的时候也要从扩展块里读取它。
-                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("ADPCM-MS: When parsing `fmt ` chunk extension data, `num_coeff` must be 7 ")));
-            }
-            Self {
-                coeff_table: adpcm_ms.coeffs,
-                samples_per_block: adpcm_ms.samples_per_block,
-                block: DecoderBlock::new(),
-                buffer: [0u8; HEADER_SIZE as usize],
-                buf_used: 0,
-                header_init: false,
-                bytes_read: 0,
-            }
         }
 
-        // 解码就不需要分块了，只要读取了头部就可以一直解码。
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            loop {
-                if !self.header_init {
-                    while self.buf_used < HEADER_SIZE {
-                        if let Some(nibble) = input() {
-                            self.buffer[self.buf_used as usize] = nibble;
-                            self.buf_used += 1;
-                            self.bytes_read += 1;
                         } else {
-                            return Ok(())
                         }
-                    }
-                    self.block.predictor = self.buffer[0];
-                    self.block.delta = i16::from_le_bytes([self.buffer[1], self.buffer[2]]) as i32;
-                    self.block.sample1 = i16::from_le_bytes([self.buffer[3], self.buffer[4]]);
-                    self.block.sample2 = i16::from_le_bytes([self.buffer[5], self.buffer[6]]);
-                    if self.block.predictor as usize >= self.coeff_table.len() {
-                        self.buf_used = 0;
-                        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("`block.predictor` = {:?}", self.block)));
-                    }
-                    self.block.coeff = self.coeff_table[self.block.predictor as usize];
-                    self.header_init = true;
-                    output(self.block.sample2 as i16);
-                    output(self.block.sample1 as i16);
-                }
-                if self.header_init {
-                    if let Some(nibble) = input() {
-                        self.bytes_read += 1;
-
-                        // 看了一下 FFmpeg 的源码，一个 nibble 可以展开为两个样本，而对于立体声的情况，一个 nibble 展开的是两个声道
-                        output(self.block.expand_nibble(nibble >> 4));
-                        output(self.block.expand_nibble(nibble & 0x0F));
-
-                        // 读了一个块的数据了，恢复状态重新读头
-                        if self.bytes_read >= BLOCK_SIZE {
-                            self.buf_used = 0;
-                            self.bytes_read = 0;
-                            self.header_init = false;
                         }
-                    } else {
-                        return Ok(())
-                    }
                 }
-            }
-        }
-        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            if self.bytes_read > 0 && self.bytes_read < BLOCK_SIZE as usize {
-                let mut zeroes = Vec::<u8>::new();
-                zeroes.resize(BLOCK_SIZE as usize - self.bytes_read, 0);
-                let mut iter = zeroes.into_iter();
-                self.decode(
-                    || -> Option<u8> {iter.next()},
-                    |sample: i16|{output(sample)})?;
             }
             Ok(())
         }
-    }
 
-    impl std::fmt::Debug for EncoderBlock {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("EncoderBlock")
-                .field("predictor", &self.predictor)
-                .field("delta", &self.delta)
-                .field("sample1", &self.sample1)
-                .field("sample2", &self.sample2)
-                .field("nibbles", &format_args!("[u8; {}]", self.nibbles.len()))
-                .field("num_nibbles", &self.num_nibbles)
-                .finish()
         }
     }
-
-    impl std::fmt::Debug for Encoder{
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("Encoder")
-                .field("coeff_table", &self.coeff_table)
-                .field("block", &self.block)
-                .field("input_buffer", &format_args!("[i16; {}]", self.input_buffer.len()))
-                .field("num_samples", &self.num_samples)
-                .finish()
-        }
-    }
-    */
 }
-
