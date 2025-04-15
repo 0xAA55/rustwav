@@ -16,6 +16,7 @@ use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{Writer, string_io::*};
 use crate::WaveReader;
+use crate::hacks;
 
 #[cfg(feature = "mp3enc")]
 use crate::encoders::MP3::Mp3Encoder;
@@ -123,9 +124,8 @@ impl<'a> WaveWriter<'a> {
 
     fn write_header(&mut self) -> Result<(), AudioWriteError> {
         use SampleFormat::{Int, UInt, Float};
-        let writer_raw_ptr = &mut *self.writer as *mut dyn Writer;
 
-        self.riff_chunk = Some(ChunkWriter::begin(unsafe { &mut *writer_raw_ptr }, b"RIFF")?);
+        self.riff_chunk = Some(ChunkWriter::begin(hacks::force_borrow!(*self.writer, dyn Writer), b"RIFF")?);
 
         // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
         self.writer.write_all(b"WAVE")?;
@@ -167,7 +167,7 @@ impl<'a> WaveWriter<'a> {
         }
         cw.end()?;
 
-        self.data_chunk = Some(ChunkWriter::begin(unsafe { &mut *writer_raw_ptr }, b"data")?);
+        self.data_chunk = Some(ChunkWriter::begin(hacks::force_borrow!(*self.writer, dyn Writer), b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
 
         Ok(())
