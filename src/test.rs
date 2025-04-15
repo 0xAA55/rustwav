@@ -82,7 +82,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader.mono_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter.write_monos(&block)?;
@@ -93,7 +93,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader.stereo_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter.write_stereos(&block)?;
@@ -104,7 +104,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader.frame_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter.write_frames(&block)?;
@@ -152,7 +152,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader_2.mono_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_monos(&block)?;
@@ -163,7 +163,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader_2.stereo_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_stereos(&block)?;
@@ -174,7 +174,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 loop {
                     let iter = wavereader_2.frame_iter::<i16>()?;
                     let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
-                    if block.len() == 0 {
+                    if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_frames(&block)?;

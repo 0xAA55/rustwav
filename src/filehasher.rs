@@ -33,3 +33,9 @@ impl Write for FileHasher {
     	Ok(())
     }
 }
+
+impl Default for FileHasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}

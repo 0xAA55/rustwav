@@ -608,7 +608,7 @@ where E: adpcm::AdpcmEncoder {
             match (channels, channel_mask) {
                 (1, MONO_MASK) => (),
                 (2, STEREO_MASK) => (),
-                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format."))),
+                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
             }
         }
         Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
@@ -662,6 +662,7 @@ pub mod MP3 {
     use crate::{SampleType, i24, u24};
     use crate::{FmtChunk, FmtExtension, Mp3Data};
     use crate::AudioWriteError;
+    use crate::SpeakerPosition;
     use crate::EncoderToImpl;
     use crate::utils::{self, sample_conv, stereos_conv};
     use mp3lame_encoder::{Builder, Encoder, Mode, MonoPcm, DualPcm, FlushNoGap};
@@ -680,8 +681,8 @@ pub mod MP3 {
         pub fn escorted_encode<T, F, E>(&self, mut action: F) -> Result<T, E>
         where F: FnMut(&mut Encoder) -> Result<T, E> {
             let mut guard = self.0.lock().unwrap();
-            let mut encoder = guard.deref_mut();
-            (action)(&mut encoder)
+            let encoder = guard.deref_mut();
+            (action)(encoder)
         }
     }
 
@@ -761,15 +762,9 @@ pub mod MP3 {
                 self.buffers.flush(writer)?;
             }
             match self.channels {
-                1 => {
-                    self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples))?;
-                    Ok(())
-                },
-                2 => {
-                    self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?)?;
-                    Ok(())
-                },
-                other => return Err(AudioWriteError::Unsupported(format!("Bad channels number: {other}"))),
+                1 => self.buffers.add_multiple_samples_m(writer, &sample_conv::<T, S>(samples)),
+                2 => self.buffers.add_multiple_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?),
+                other => Err(AudioWriteError::Unsupported(format!("Bad channels number: {other}"))),
             }
         }
 
@@ -777,11 +772,8 @@ pub mod MP3 {
         where T: SampleType {
             match self.channels{
                 1 => Err(AudioWriteError::InvalidArguments("This encoder is not for stereo audio".to_owned())),
-                2 => {
-                    self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos))?;
-                    Ok(())
-                },
-                other => return Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
+                2 => self.buffers.add_multiple_samples_s(writer, &stereos_conv::<T, S>(stereos)),
+                other => Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {other}"))),
             }
         }
 
@@ -1097,23 +1089,28 @@ pub mod MP3 {
     impl<S> EncoderToImpl for Mp3Encoder<S>
     where S: SampleType {
         fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-            if channel_mask.is_some() {
-                Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the MP3 format.")))
-            } else {
-                Ok(FmtChunk{
-                    format_tag: 0x0055,
-                    channels,
-                    sample_rate,
-                    byte_rate: self.bitrate / 8,
-                    block_align: 1,
-                    bits_per_sample: 0,
-                    extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, sample_rate))),
-                })
+            if let Some(channel_mask) = channel_mask {
+                const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
+                const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
+                match (channels, channel_mask) {
+                    (1, MONO_MASK) => (),
+                    (2, STEREO_MASK) => (),
+                    _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the MP3 format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
+                }
             }
+            Ok(FmtChunk{
+                format_tag: 0x0055,
+                channels,
+                sample_rate,
+                byte_rate: self.bitrate / 8,
+                block_align: 1,
+                bits_per_sample: 0,
+                extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, sample_rate))),
+            })
         }
 
         fn get_bit_rate(&self, channels: u16) -> u32 {
-            self.bitrate as u32 * channels as u32
+            self.bitrate * channels as u32
         }
 
         fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -1121,34 +1118,34 @@ pub mod MP3 {
         }
 
         fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-            Ok(self.finish(writer)?)
+            self.finish(writer)
         }
 
-        fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_i32(&mut self, writer: &mut dyn Writer, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_i64(&mut self, writer: &mut dyn Writer, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples__u8(&mut self, writer: &mut dyn Writer, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_u16(&mut self, writer: &mut dyn Writer, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_u24(&mut self, writer: &mut dyn Writer, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_u32(&mut self, writer: &mut dyn Writer, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_u64(&mut self, writer: &mut dyn Writer, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
-        fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &samples)}
+        fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_i32(&mut self, writer: &mut dyn Writer, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_i64(&mut self, writer: &mut dyn Writer, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples__u8(&mut self, writer: &mut dyn Writer, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_u16(&mut self, writer: &mut dyn Writer, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_u24(&mut self, writer: &mut dyn Writer, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_u32(&mut self, writer: &mut dyn Writer, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_u64(&mut self, writer: &mut dyn Writer, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
+        fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(writer, samples)}
 
-        fn write_multiple_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_i32(&mut self, writer: &mut dyn Writer, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_i64(&mut self, writer: &mut dyn Writer, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos__u8(&mut self, writer: &mut dyn Writer, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_u16(&mut self, writer: &mut dyn Writer, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_u24(&mut self, writer: &mut dyn Writer, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_u32(&mut self, writer: &mut dyn Writer, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
-        fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos)}
+        fn write_multiple_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_i32(&mut self, writer: &mut dyn Writer, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_i64(&mut self, writer: &mut dyn Writer, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos__u8(&mut self, writer: &mut dyn Writer, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_u16(&mut self, writer: &mut dyn Writer, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_u24(&mut self, writer: &mut dyn Writer, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_u32(&mut self, writer: &mut dyn Writer, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
+        fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, stereos)}
     }
 
     impl Debug for SharedMp3Encoder {

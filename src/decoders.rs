@@ -21,14 +21,8 @@ pub trait Decoder<S>: Debug
     // 可选实现
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
         match self.get_channels() {
-            1 => Ok(match self.decode_frame()? {
-                Some(samples) => Some((samples[0], samples[0])),
-                None => None,
-            }),
-            2 => Ok(match self.decode_frame()? {
-                Some(samples) => Some((samples[0], samples[1])),
-                None => None,
-            }),
+            1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
+            2 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[1]))),
             other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 2 channels."))),
         }
     }
@@ -36,14 +30,8 @@ pub trait Decoder<S>: Debug
     // 可选实现
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
         match self.get_channels() {
-            1 => Ok(match self.decode_frame()? {
-                Some(samples) => Some(samples[0]),
-                None => None,
-            }),
-            2 => Ok(match self.decode_frame()? {
-                Some(samples) => Some(samples[0] / S::from(2) + samples[1] / S::from(2)),
-                None => None,
-            }),
+            1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
+            2 => Ok(self.decode_frame()?.map(|samples| S::average(samples[0], samples[1]))),
             other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 1 channels."))),
         }
     }
@@ -102,7 +90,7 @@ where S: SampleType {
             data_offset,
             data_length,
             block_align: fmt.block_align,
-            spec: spec.clone(),
+            spec: *spec,
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
         })
     }
@@ -160,6 +148,7 @@ where S: SampleType {
     }
 
     // 这个函数返回的 decoder 只负责读取和转换格式，不负责判断是否读到末尾
+    #[allow(clippy::type_complexity)]
     fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
         match wave_sample_type {
@@ -248,7 +237,7 @@ where D: adpcm::AdpcmDecoder {
 impl<D> AdpcmDecoderWrap<D>
 where D: adpcm::AdpcmDecoder {
     pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
-        let decoder =  D::new(&fmt)?;
+        let decoder =  D::new(fmt)?;
         let total_frames = if total_samples == 0 {
             let frames_per_block = decoder.frames_per_block() as u64;
             let total_blocks = data_length / fmt.block_align as u64;
@@ -284,8 +273,7 @@ where D: adpcm::AdpcmDecoder {
             if cur_pos < end_of_data {
                 let remains = end_of_data - cur_pos;
                 let to_read = min(remains, self.block_align as u64);
-                let mut buf = Vec::<u8>::new();
-                buf.resize(to_read as usize, 0);
+                let mut buf = vec![0u8; to_read as usize];
                 self.reader.read_exact(&mut buf)?;
                 let mut iter = buf.into_iter();
                 self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {sample_decoded += 1; self.samples.push(sample)})?;
@@ -334,11 +322,11 @@ where D: adpcm::AdpcmDecoder {
         match self.channels {
             1 => {
                 // 确保解码出至少一个样本来
-                if self.samples.len() == 0 {
+                if self.samples.is_empty() {
                     self.feed_until_output(1)?;
                 }
                 // 确保不了，说明到头了。
-                if self.samples.len() == 0 {
+                if self.samples.is_empty() {
                     Ok(None)
                 } else {
                     // 内部状态检查
@@ -381,11 +369,11 @@ where D: adpcm::AdpcmDecoder {
             }
             2 => {
                 // 确保解码出至少两个样本来
-                if self.samples.len() == 0 {
+                if self.samples.is_empty() {
                     self.feed_until_output(2)?;
                 }
                 // 确保不了，说明到头了。
-                if self.samples.len() == 0 {
+                if self.samples.is_empty() {
                     Ok(None)
                 } else {
                     // 内部状态检查
@@ -487,8 +475,7 @@ pub mod MP3 {
     impl Mp3Decoder {
         pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, target_channels: u16, data_offset: u64, data_length: u64, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader = reader;
-            let mut mp3_raw_data = Vec::<u8>::new();
-            mp3_raw_data.resize(data_length as usize, 0u8);
+            let mut mp3_raw_data = vec![0u8; data_length as usize];
             reader.seek(SeekFrom::Start(data_offset))?;
             reader.read_exact(&mut mp3_raw_data)?;
             let the_decoder = rmp3::DecoderOwned::new(mp3_raw_data);
