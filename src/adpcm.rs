@@ -623,40 +623,6 @@ pub mod ms {
                 o => panic!("Index must be 1 or 2, not {o}"),
             }
         }
-
-        pub fn calculate_coefficient(data: &[i16]) -> Self {
-            let mut alpha = 0.0f64;
-            let mut beta = 0.0f64;
-            let mut gamma = 0.0f64;
-            let mut m = 0.0f64;
-            let mut n = 0.0f64;
-            for i in 2..data.len() {
-                alpha += data[i - 1] as f64 * data[i - 1] as f64;
-                beta += data[i - 1] as f64 * data[i - 2] as f64;
-                gamma += data[i - 2] as f64 * data[i - 2] as f64;
-                m += data[i] as f64 * data[i - 1] as f64;
-                n += data[i] as f64 * data[i - 2] as f64;
-            }
-            Self {
-                coeff1: ((m * gamma - n * beta) * 256.0 / (alpha * gamma - beta * beta)) as i16,
-                coeff2: ((m * beta - n * alpha) * 256.0 / (beta * beta - alpha * gamma)) as i16,
-            }
-        }
-
-        pub fn get_closest_coefficient_index(&self, coeff_table: &[AdpcmCoeffSet; 7]) -> u8 {
-            let mut diff: u32 = 0xFFFFFFFF;
-            let mut index = 0u8;
-            for (i, coeff) in coeff_table.iter().enumerate() {
-                let dx = (coeff.get(1) - self.coeff1) as i32;
-                let dy = (coeff.get(2) - self.coeff2) as i32;
-                let length_sq = (dx * dx + dy * dy) as u32;
-                if length_sq < diff {
-                    diff = length_sq;
-                    index = i as u8;
-                }
-            }
-            index
-        }
     }
 
     pub fn trim_to_nibble(c: i8) -> u8 {
