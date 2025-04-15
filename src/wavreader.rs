@@ -490,11 +490,9 @@ where S: SampleType {
     type Item = Vec<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = match self.decoder.decode_frame() {
-            Ok(sample) => sample,
-            Err(err) => panic!("{:?}", err),
-        };
-        ret
+        self.decoder.decode_frame().unwrap()
+    }
+
     }
 }
 
@@ -527,11 +525,9 @@ where S: SampleType {
     type Item = (S, S);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = match self.decoder.decode_stereo() {
-            Ok(sample) => sample,
-            Err(err) => panic!("{:?}", err),
-        };
-        ret
+        self.decoder.decode_stereo().unwrap()
+    }
+
     }
 }
 
@@ -564,10 +560,8 @@ where S: SampleType {
     type Item = S;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = match self.decoder.decode_mono() {
-            Ok(sample) => sample,
-            Err(err) => panic!("{:?}", err),
-        };
-        ret
+        self.decoder.decode_mono().unwrap()
+    }
+
     }
 }
