@@ -270,8 +270,9 @@ where D: adpcm::AdpcmDecoder {
         let end_of_data = self.data_offset + self.data_length;
         let mut sample_decoded = 0u64;
         while self.samples.len() < wanted_length {
-            let remains = end_of_data - self.reader.stream_position()?;
-            if remains > 0 {
+            let cur_pos = self.reader.stream_position()?;
+            if cur_pos < end_of_data {
+                let remains = end_of_data - cur_pos;
                 let to_read = min(remains, self.block_align as u64);
                 let mut buf = Vec::<u8>::new();
                 buf.resize(to_read as usize, 0);
