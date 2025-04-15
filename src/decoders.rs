@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fmt::Debug, cmp::min, io::{self, SeekFrom}};
+use std::{fmt::Debug, cmp::min, io::SeekFrom};
 
 use crate::adpcm;
-use crate::{AudioError, AudioReadError, IOErrorInfo};
+use crate::{AudioError, AudioReadError};
 use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
 use crate::Reader;
