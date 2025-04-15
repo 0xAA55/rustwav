@@ -358,8 +358,10 @@ impl<'a> WaveWriter<'a> {
         // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
         self.encoder.finalize(&mut self.writer)?;
 
-        // 结束写入 data
-        if self.data_chunk.is_some() {
+        // 结束写入 data，并记录 data 的长度
+        let mut data_size = 0u64;
+        if let Some(data_chunk) = &self.data_chunk {
+            data_size = self.writer.stream_position()? - data_chunk.get_chunk_start_pos();
             self.data_chunk = None;
         }
 
@@ -375,13 +377,10 @@ impl<'a> WaveWriter<'a> {
 
         // 写完 fmt 后，还要更新 fact 的数据
         self.writer.seek(SeekFrom::Start(self.fact_chunk_offset))?;
-        let mut fact_data = self.num_frames_written * self.spec.channels as u64;
+        let fact_data = self.num_frames_written * self.spec.channels as u64;
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => {
-                if fact_data >= 0xFFFFFFFF {
-                    fact_data = 0xFFFFFFFF;
-                } 
-                (fact_data as u32).write_le(&mut self.writer)?;
+                (fact_data.clamp(0, 0xFFFFFFFF) as u32).write_le(&mut self.writer)?;
             },
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 fact_data.write_le(&mut self.writer)?;
@@ -438,8 +437,7 @@ impl<'a> WaveWriter<'a> {
             self.writer.write_all(b"ds64")?;
             28u32.write_le(&mut self.writer)?; // ds64 段的长度
             let riff_size = file_end_pos - 8;
-            let data_size = self.num_frames_written * self.block_size as u64;
-            let sample_count = self.num_frames_written / self.spec.channels as u64;
+            let sample_count = fact_data;
             riff_size.write_le(&mut self.writer)?;
             data_size.write_le(&mut self.writer)?;
             sample_count.write_le(&mut self.writer)?;
