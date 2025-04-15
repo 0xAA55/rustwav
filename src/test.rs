@@ -51,8 +51,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     let transfer_by_blocks = true;
-    let transfer_block_size = 1024usize;
-    let mut frame_transfered = 0usize;
+    let transfer_block_size = 10240usize;
 
     println!("======== TEST 1 ========");
 
@@ -77,6 +76,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
     if transfer_by_blocks {
+        let mut frame_transfered = 0usize;
         match spec.channels {
             1 => {
                 loop {
@@ -146,6 +146,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     if transfer_by_blocks {
+        let mut frame_transfered = 0usize;
         match spec.channels {
             1 => {
                 loop {
