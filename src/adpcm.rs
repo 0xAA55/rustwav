@@ -671,7 +671,7 @@ pub mod ms {
             };
             let nibble = (nibble + bias) / self.delta;
             let nibble = nibble.clamp(-8, 7) & 0x0F;
-            let predictor = predictor + if nibble & 0x08 != 0 {nibble.wrapping_sub(0x10)} else {nibble} * self.delta;
+            let predictor = predictor + if nibble & 0x08 != 0 {nibble | 0xFFFFFFF0u32 as i32} else {nibble} * self.delta;
             self.sample2 = self.sample1;
             self.sample1 = predictor.clamp(-32768, 32767) as i16;
             self.delta = (ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8;
