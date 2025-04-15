@@ -493,6 +493,9 @@ where S: SampleType {
         self.decoder.decode_frame().unwrap()
     }
 
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
+        self.next()
     }
 }
 
@@ -528,6 +531,9 @@ where S: SampleType {
         self.decoder.decode_stereo().unwrap()
     }
 
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
+        self.next()
     }
 }
 
@@ -563,5 +569,8 @@ where S: SampleType {
         self.decoder.decode_mono().unwrap()
     }
 
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
+        self.next()
     }
 }
