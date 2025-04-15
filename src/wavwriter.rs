@@ -1,14 +1,12 @@
 #![allow(non_snake_case)]
-#![allow(dead_code)]
 #![allow(unused_imports)]
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
 use crate::AudioWriteError;
-use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType};
-use crate::{GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
+use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::{ChunkWriter};
-use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, ExtensibleData};
+use crate::FmtChunk;
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
 use crate::{EncIMA, EncMS};
@@ -38,9 +36,7 @@ pub struct WaveWriter<'a> {
     fmt_chunk_offset: u64,
     fact_chunk_offset: u64,
     num_frames_written: u64,
-    block_size: u16,
     data_offset: u64,
-    sample_type: WaveSampleType,
     encoder: Encoder,
     text_encoding: StringCodecMaps,
     riff_chunk: Option<ChunkWriter<'a>>,
@@ -69,13 +65,10 @@ impl<'a> WaveWriter<'a> {
 
     pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         use DataFormat::{Pcm, Adpcm, Mp3, OggVorbis, Flac};
-        let sizeof_sample = spec.bits_per_sample / 8;
-        let block_size = sizeof_sample * spec.channels;
-        let sample_type = spec.get_sample_type();
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(Box::new(PcmEncoder::new(spec.sample_rate, sample_type)?))
+                Encoder::new(Box::new(PcmEncoder::new(spec.sample_rate, spec.get_sample_type())?))
             },
             Adpcm(sub_format) => {
                 use AdpcmSubFormat::{Ima, Ms};
@@ -97,9 +90,7 @@ impl<'a> WaveWriter<'a> {
             fmt_chunk_offset: 0,
             fact_chunk_offset: 0,
             num_frames_written: 0,
-            block_size,
             data_offset: 0,
-            sample_type,
             encoder,
             text_encoding: StringCodecMaps::new(),
             fmt__chunk: FmtChunk::new(),
@@ -308,11 +299,11 @@ impl<'a> WaveWriter<'a> {
     pub fn spec(&self) -> &Spec{
         &self.spec
     }
+    pub fn get_data_format(&self) -> DataFormat {
+        self.data_format
+    }
     pub fn get_num_frames_written(&self) -> u64 {
         self.num_frames_written
-    }
-    pub fn get_frame_size(&self) -> u16 {
-        self.block_size
     }
     pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
         self.bext_chunk = Some(chunk.clone());
