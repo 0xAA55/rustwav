@@ -645,7 +645,7 @@ pub mod ms {
                 predictor: 0,
                 sample1: 0,
                 sample2: 0,
-                coeff: DEF_COEFF_TABLE[0],
+                coeff: AdpcmCoeffSet::new(),
                 delta: 16,
                 ready: false,
             }
