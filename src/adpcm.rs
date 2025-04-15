@@ -892,9 +892,9 @@ pub mod ms {
                 block_align,
                 bits_per_sample,
                 extension: Some(FmtExtension::new_adpcm_ms(AdpcmMsData{
-                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16 * channels) * channels * 2,
-                    num_coeff: 7,
-                    coeffs: DEF_COEFF_TABLE,
+                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * channels,
+                    num_coeff: self.coeff_table.len() as u16,
+                    coeffs: self.coeff_table,
                 })),
             })
         }
@@ -905,8 +905,8 @@ pub mod ms {
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32 / 8;
             if let Some(ref mut extension) = fmt_chunk.extension {
                 if let ExtensionData::AdpcmMs(ref mut adpcm_ms) = extension.data {
-                    adpcm_ms.samples_per_block = (BLOCK_SIZE as u16 - 7 * fmt_chunk.channels) * fmt_chunk.channels * 2;
-                    adpcm_ms.num_coeff = 7;
+                    adpcm_ms.samples_per_block = (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * fmt_chunk.channels;
+                    adpcm_ms.num_coeff = self.coeff_table.len() as u16;
                     adpcm_ms.coeffs = self.coeff_table;
                     Ok(())
                 } else {
