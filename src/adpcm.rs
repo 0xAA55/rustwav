@@ -179,7 +179,7 @@ pub mod ima {
                     self.num_outputs += 4;
                     self.header_written = true;
                 }
-                if self.half_byte_written == false {
+                if !self.half_byte_written {
                     self.nibble = self.encode_sample(sample);
                     self.half_byte_written = true;
                 } else {
@@ -202,10 +202,16 @@ pub mod ima {
             let aligned_size = ((self.num_outputs - 1) / INTERLEAVE_BYTES + 1) * INTERLEAVE_BYTES;
             let pad_size = aligned_size - self.num_outputs;
             if pad_size != 0 {
-                let mut iter = {let mut pad = Vec::<i16>::new(); pad.resize(pad_size, 0); pad.into_iter()};
+                let mut iter = vec![0i16; pad_size].into_iter();
                 self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?
             }
             Ok(())
+        }
+    }
+
+    impl Default for EncoderCore {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -271,11 +277,17 @@ pub mod ima {
         }
 
         pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            while self.sample_l.len() > 0 || self.sample_r.len() > 0 {
+            while !self.sample_l.is_empty() || !self.sample_r.is_empty() {
                 let mut iter = [0i16].into_iter();
                 self.encode(|| -> Option<i16> {iter.next()}, |nibble:u8|{output(nibble)})?;
             }
             Ok(())
+        }
+    }
+
+    impl Default for StereoEncoder {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -327,10 +339,10 @@ pub mod ima {
                     adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4) * fmt_chunk.channels * 2;
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA")))
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA: {:?}", extension)))
                 }
             } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-IMA, must store the extension data in the `fmt ` chunk")))
+                Err(io::Error::new(io::ErrorKind::InvalidData, "For ADPCM-IMA, the extension data in the `fmt ` chunk is needed".to_owned()))
             }
         }
     }
@@ -352,7 +364,7 @@ pub mod ima {
         block_size: usize,
     }
 
-    impl DecoderCore{
+    impl DecoderCore {
         pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample_val: 0,
@@ -406,14 +418,14 @@ pub mod ima {
                     if self.nibble_buffer.is_full() {
                         // 每读取 4 个字节解 8 个码
                         let (b1, b2, b3, b4) = (self.nibble_buffer[0], self.nibble_buffer[1], self.nibble_buffer[2], self.nibble_buffer[3]);
-                        output(self.decode_sample((b1 >> 0) & 0xF));
-                        output(self.decode_sample((b1 >> 4) & 0xF));
-                        output(self.decode_sample((b2 >> 0) & 0xF));
-                        output(self.decode_sample((b2 >> 4) & 0xF));
-                        output(self.decode_sample((b3 >> 0) & 0xF));
-                        output(self.decode_sample((b3 >> 4) & 0xF));
-                        output(self.decode_sample((b4 >> 0) & 0xF));
-                        output(self.decode_sample((b4 >> 4) & 0xF));
+                        output(self.decode_sample(b1 & 0xF));
+                        output(self.decode_sample(b1 >> 4));
+                        output(self.decode_sample(b2 & 0xF));
+                        output(self.decode_sample(b2 >> 4));
+                        output(self.decode_sample(b3 & 0xF));
+                        output(self.decode_sample(b3 >> 4));
+                        output(self.decode_sample(b4 & 0xF));
+                        output(self.decode_sample(b4 >> 4));
                         self.nibble_buffer.clear();
                         if self.input_count >= self.block_size {
                             self.unready()
@@ -624,6 +636,12 @@ pub mod ms {
             }
         }
     }
+    
+    impl Default for AdpcmCoeffSet {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     pub fn trim_to_nibble(c: i8) -> u8 {
         (c.clamp(-8, 7) & 0x0F) as u8
@@ -692,6 +710,12 @@ pub mod ms {
         }
     }
 
+    impl Default for EncoderCore {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     fn output_le_i16(val: i16, mut output: impl FnMut(u8)) {
         let bytes = val.to_le_bytes();
         output(bytes[0]);
@@ -750,6 +774,12 @@ pub mod ms {
                 ready1.2, ready2.2,
                 ready1.3, ready2.3
             )
+        }
+    }
+
+    impl Default for StereoEncoder {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -899,10 +929,10 @@ pub mod ms {
                     adpcm_ms.coeffs = self.coeff_table;
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-MS")))
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-MS: {:?}", extension)))
                 }
             } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-MS, must store the extension data in the `fmt ` chunk")))
+                Err(io::Error::new(io::ErrorKind::InvalidData, "For ADPCM-MS, must store the extension data in the `fmt ` chunk".to_owned()))
             }
         }
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
@@ -926,6 +956,14 @@ pub mod ms {
         header_buffer: CopiableBuffer<u8, HEADER_SIZE>,
         bytes_eaten: usize,
         max_bytes_can_eat: usize,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct DecoderBreakfast {
+        predictor: u8,
+        delta: i16,
+        sample1: i16,
+        sample2: i16,
     }
 
     impl DecoderCore{
@@ -993,19 +1031,36 @@ pub mod ms {
             self.max_bytes_can_eat
         }
 
-        pub fn get_ready(&mut self, predictor: u8, delta: i16, sample1: i16, sample2: i16, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            if predictor > 6 {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {predictor} and it's greater than 6")));
+        pub fn get_ready(&mut self, breakfast: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            if breakfast.predictor > 6 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {} and it's greater than 6", breakfast.predictor)));
             }
-            self.coeff = self.coeff_table[predictor as usize];
-            self.delta = delta as i32;
-            self.sample1 = sample1;
-            self.sample2 = sample2;
+            self.coeff = self.coeff_table[breakfast.predictor as usize];
+            self.delta = breakfast.delta as i32;
+            self.sample1 = breakfast.sample1;
+            self.sample2 = breakfast.sample2;
             self.ready = true;
             self.bytes_eaten += 7;
-            output(sample2);
-            output(sample1);
+            output(breakfast.sample2);
+            output(breakfast.sample1);
             Ok(())
+        }
+    }
+
+    impl DecoderBreakfast {
+        pub fn from_bytes_mono(bytes: &[u8; 7]) -> Self {
+            Self {
+                predictor: bytes[0],
+                delta: i16::from_le_bytes([bytes[1], bytes[2]]),
+                sample1: i16::from_le_bytes([bytes[3], bytes[4]]),
+                sample2: i16::from_le_bytes([bytes[5], bytes[6]]),
+            }
+        }
+
+        pub fn from_bytes_stereo(bytes: &[u8; 14]) -> (Self, Self) {
+            let l = Self::from_bytes_mono(&[bytes[0], bytes[2], bytes[3], bytes[6], bytes[7], bytes[10], bytes[11]]);
+            let r = Self::from_bytes_mono(&[bytes[1], bytes[4], bytes[5], bytes[8], bytes[9], bytes[12], bytes[13]]);
+            (l, r)
         }
     }
 
@@ -1055,14 +1110,10 @@ pub mod ms {
             self.max_bytes_can_eat
         }
 
-        pub fn get_ready(&mut self,
-            predictor1: u8, predictor2: u8,
-            delta1: i16, delta2: i16,
-            sample1_1: i16, sample1_2: i16,
-            sample2_1: i16, sample2_2: i16, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn get_ready(&mut self, breakfast_l: &DecoderBreakfast, breakfast_r: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut sample_buffer = CopiableBuffer::<i16, 4>::new();
-            self.core_l.get_ready(predictor1, delta1, sample1_1, sample2_1, |sample:i16|{sample_buffer.push(sample);})?;
-            self.core_r.get_ready(predictor2, delta2, sample1_2, sample2_2, |sample:i16|{sample_buffer.push(sample);})?;
+            self.core_l.get_ready(breakfast_l, |sample:i16|{sample_buffer.push(sample);})?;
+            self.core_r.get_ready(breakfast_r, |sample:i16|{sample_buffer.push(sample);})?;
             output(sample_buffer[0]);
             output(sample_buffer[2]);
             output(sample_buffer[1]);
@@ -1147,12 +1198,8 @@ pub mod ms {
                         if !mono.is_ready() {
                             mono.header_buffer.push(byte);
                             if mono.header_buffer.is_full() {
-                                mono.get_ready(
-                                    mono.header_buffer[0],
-                                    i16::from_le_bytes([mono.header_buffer[1], mono.header_buffer[2]]),
-                                    i16::from_le_bytes([mono.header_buffer[3], mono.header_buffer[4]]),
-                                    i16::from_le_bytes([mono.header_buffer[5], mono.header_buffer[6]]),
-                                    |sample:i16|{output(sample)})?;
+                                let breakfast = DecoderBreakfast::from_bytes_mono(mono.header_buffer.to_array());
+                                mono.get_ready(&breakfast, |sample:i16|{output(sample)})?;
                             }
                         } else {
                             output(mono.expand_nibble(byte >> 4));
@@ -1172,13 +1219,8 @@ pub mod ms {
                             }
                             if stereo.core_r.header_buffer.is_full() {
                                 let bytes = stereo.core_l.header_buffer.into_iter().chain(stereo.core_r.header_buffer.into_iter()).collect::<CopiableBuffer<u8, 14>>();
-                                assert!(bytes.is_full());
-                                stereo.get_ready(
-                                    bytes[0], bytes[1],
-                                    i16::from_le_bytes([bytes[2], bytes[3]]), i16::from_le_bytes([bytes[4], bytes[5]]),
-                                    i16::from_le_bytes([bytes[6], bytes[7]]), i16::from_le_bytes([bytes[8], bytes[9]]),
-                                    i16::from_le_bytes([bytes[10], bytes[11]]), i16::from_le_bytes([bytes[12], bytes[13]]),
-                                    |sample:i16|{output(sample)})?;
+                                let (breakfast_l, breakfast_r) = DecoderBreakfast::from_bytes_stereo(&bytes.into_array());
+                                stereo.get_ready(&breakfast_l, &breakfast_r, |sample:i16|{output(sample)})?;
                             }
                         } else {
                             output(stereo.core_l.expand_nibble(byte >> 4));
@@ -1198,21 +1240,13 @@ pub mod ms {
             match self {
                 Self::Mono(ref mut mono) => {
                     if mono.bytes_eaten > 0 && mono.bytes_eaten < mono.max_bytes_can_eat {
-                        let mut food = {
-                            let mut food = Vec::<u8>::new();
-                            food.resize(mono.max_bytes_can_eat - mono.bytes_eaten, 0);
-                            food.into_iter()
-                        };
+                        let mut food = vec![0; mono.max_bytes_can_eat - mono.bytes_eaten].into_iter();
                         self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
                     }
                 },
                 Self::Stereo(ref mut stereo) => {
                     if stereo.bytes_eaten > 0 && stereo.bytes_eaten < stereo.max_bytes_can_eat {
-                        let mut food = {
-                            let mut food = Vec::<u8>::new();
-                            food.resize(stereo.max_bytes_can_eat - stereo.bytes_eaten, 0);
-                            food.into_iter()
-                        };
+                        let mut food = vec![0; stereo.max_bytes_can_eat - stereo.bytes_eaten].into_iter();
                         self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
                     }
                 },

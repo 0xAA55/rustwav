@@ -69,7 +69,7 @@ where T: CopiableItem {
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         CopiableBufferIter::<T, N> {
-            refbuf: &self,
+            refbuf: self,
             iter_index: 0,
         }
     }
@@ -97,8 +97,19 @@ where T: CopiableItem {
         self.len() == 0
     }
 
+    pub fn to_array(&self) -> &[T; N] {
+        &self.buffer
+    }
+
     pub fn into_array(self) -> [T; N] {
         self.buffer
+    }
+}
+
+impl<T, const N: usize> Default for CopiableBuffer<T, N>
+where T: CopiableItem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -136,9 +147,9 @@ where T: CopiableItem {
 impl<T, const N: usize> FromIterator<T> for CopiableBuffer<T, N>
 where T: CopiableItem {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
+        let iter = iter.into_iter();
         let mut ret = Self::new();
-        while let Some(data) = iter.next() {
+        for data in iter {
             ret.push(data);
         }
         ret

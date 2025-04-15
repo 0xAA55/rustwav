@@ -60,13 +60,13 @@ pub mod string_io {
     use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
     pub fn read_bytes<T: Read>(r: &mut T, size: usize) -> Result<Vec<u8>, io::Error> {
-        let mut buf = vec![0; size];
+        let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
         Ok(buf)
     }
 
     pub fn read_str<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
-        let mut buf = vec![0; size];
+        let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
@@ -86,15 +86,15 @@ pub mod string_io {
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
 
-    pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &String, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
-        let mut data = text_encoding.encode(&data);
+    pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &str, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
+        let mut data = text_encoding.encode(data);
         data.resize(size, 0);
         w.write_all(&data)?;
         Ok(())
     }
 
-    pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &String, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
-        let data = text_encoding.encode(&data);
+    pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
+        let data = text_encoding.encode(data);
         w.write_all(&data)?;
         Ok(())
     }

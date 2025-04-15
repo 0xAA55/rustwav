@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, collections::HashMap};
+use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, convert::From, collections::HashMap};
 
 use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Reader, Writer, string_io::*};
@@ -29,9 +29,9 @@ pub enum AdpcmSubFormat {
     Ms = 0x0002,        // 能用
 }
 
-impl std::convert::Into<u16> for AdpcmSubFormat {
-    fn into(self) -> u16 {
-        self as u16
+impl From<AdpcmSubFormat> for u16 {
+    fn from(val: AdpcmSubFormat) -> Self {
+        val as u16
     }
 }
 
@@ -161,7 +161,7 @@ pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80,
 
 impl Debug for GUID {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-        fmt.debug_tuple(&format!("GUID"))
+        fmt.debug_tuple("GUID")
             .field(&format_args!("{:08x}-{:04x}-{:04x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
                 self.0, self.1, self.2, self.3[0], self.3[1], self.3[2], self.3[3], self.3[4], self.3[5], self.3[6], self.3[7]))
             .finish()
@@ -224,6 +224,12 @@ pub enum SpeakerPosition {
     TopBackLeft = 0x8000,
     TopBackCenter = 0x10000,
     TopBackRight = 0x20000,
+}
+
+impl From<SpeakerPosition> for u32 {
+    fn from(val: SpeakerPosition) -> Self {
+        val as u32
+    }
 }
 
 impl Display for SpeakerPosition {
@@ -432,7 +438,7 @@ impl<'a> ChunkWriter<'a> {
                     },
                     other => {
                         let chunk_flag = String::from_utf8_lossy(other);
-                        return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)).into());
+                        return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)));
                     },
                 }
             }
@@ -518,6 +524,12 @@ impl ChunkHeader {
 
     pub fn seek_to_next_chunk(&self, reader: &mut dyn Reader) -> Result<u64, AudioReadError> {
         Ok(reader.seek(SeekFrom::Start(self.next_chunk_pos()))?)
+    }
+}
+
+impl Default for ChunkHeader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -652,6 +664,12 @@ impl FmtChunk {
 
     pub fn get_sample_type(&self) -> WaveSampleType {
         get_sample_type(self.bits_per_sample, self.get_sample_format())
+    }
+}
+
+impl Default for FmtChunk {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -791,6 +809,12 @@ impl AdpcmMsData {
             coeff.coeff2.write_le(writer)?;
         }
         Ok(())
+    }
+}
+
+impl Default for AdpcmMsData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1190,8 +1214,8 @@ impl ListChunk {
             if key.len() != 4 {
                 return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
             }
-            let mut flag = [0u8; 4];
-            {let mut w: &mut[u8] = &mut flag; w}.write(key.as_bytes())?;
+            let bytes = key.as_bytes();
+            let flag = [bytes[0], bytes[1], bytes[2], bytes[3]];
             let cw = ChunkWriter::begin(writer, &flag)?;
             let mut val = val.clone();
             val.push('\0');

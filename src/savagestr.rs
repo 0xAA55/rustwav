@@ -266,9 +266,9 @@ pub mod text_encoding{
             let mut is_alt_name = false;
             loop {
                 match self.coder_map.get(&format_name) {
-                    Some(coder) => return Some(&coder),
+                    Some(coder) => return Some(coder),
                     None => {
-                        if is_alt_name == false {
+                        if !is_alt_name {
                             match self.codename_alt.get(&format_name) {
                                 Some(alt_name) => {
                                     format_name = alt_name.to_owned();

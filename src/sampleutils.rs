@@ -48,7 +48,7 @@ impl i24{
         u16::from_le_bytes([self.0, self.1])
     }
     fn as_u8(&self) -> u8 {
-        self.0 as u8
+        self.0
     }
 }
 
@@ -211,7 +211,7 @@ impl u24{
         u16::from_le_bytes([self.0, self.1])
     }
     fn as_u8(&self) -> u8 {
-        self.0 as u8
+        self.0
     }
 }
 

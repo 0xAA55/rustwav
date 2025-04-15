@@ -26,7 +26,7 @@ where S: SampleType {
 }
 
 pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
-    if data.len() == 0 {
+    if data.is_empty() {
         None
     } else {
         let lengths = data.iter().map(|item| item.len()).collect::<Vec<usize>>();
@@ -55,13 +55,13 @@ where S: SampleType {
                 false => Err(AudioWriteError::FrameChannelsNotSame),
                 true => {
                     ret.resize(length, {let mut mono = Vec::<S>::new(); mono.resize(frames.len(), S::new()); mono});
-                    for (position, frame) in frames.into_iter().enumerate() {
+                    for (position, frame) in frames.iter().enumerate() {
                         if let Some(channels) = channels {
                             if channels as usize != frame.len() {
                                 return Err(AudioWriteError::WrongChannels(format!("The channels is {channels} but the frames include a {} channel frame.", frame.len())));
                             }
                         }
-                        for (channel, sample) in frame.into_iter().enumerate() {
+                        for (channel, sample) in frame.iter().enumerate() {
                             ret[channel][position] = *sample;
                         }
                     }
@@ -84,8 +84,8 @@ where S: SampleType {
                     ret.resize(length * monos.len(), S::new());
                     let mut write_position = 0usize;
                     for position in 0..length {
-                        for channel in 0..monos.len() {
-                            ret[write_position] = monos[channel][position];
+                        for channel in monos {
+                            ret[write_position] = channel[position];
                             write_position += 1;
                         }
                     }
@@ -104,7 +104,7 @@ where S: SampleType {
 pub fn multiple_stereos_to_interleaved_samples<S>(stereos: &[(S, S)]) -> Vec<S>
 where S: SampleType {
     let mut ret = Vec::<S>::with_capacity(stereos.len() * 2);
-    for (l, r) in stereos.into_iter() {
+    for (l, r) in stereos.iter() {
         ret.push(*l);
         ret.push(*r);
     }
@@ -115,7 +115,7 @@ pub fn multiple_stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {
     let mut ret_l = Vec::<S>::with_capacity(stereos.len());
     let mut ret_r = Vec::<S>::with_capacity(stereos.len());
-    for (l, r) in stereos.into_iter() {
+    for (l, r) in stereos.iter() {
         ret_l.push(*l);
         ret_r.push(*r);
     }
@@ -130,7 +130,7 @@ where S: SampleType {
     let channels = channels as usize;
     let mut ret = Vec::<Vec<S>>::new();
     ret.resize(channels, Vec::<S>::new());
-    for (index, sample) in samples.into_iter().enumerate() {
+    for (index, sample) in samples.iter().enumerate() {
         let channel = index % channels;
         ret[channel].push(*sample);
     }
@@ -183,7 +183,7 @@ where S: SampleType,
       D: SampleType {
 
     let mut ret = Vec::<(D, D)>::with_capacity(frame.len());
-    for f in frame.into_iter() {
+    for f in frame.iter() {
         ret.push(stereo_conv(*f));
     }
     ret

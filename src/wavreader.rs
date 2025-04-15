@@ -131,7 +131,7 @@ impl WaveReader {
             chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
                 b"JUNK" => {
-                    let mut junk = vec![0; chunk.size as usize];
+                    let mut junk = vec![0u8; chunk.size as usize];
                     reader.read_exact(&mut junk)?;
                     junk_chunks.push(JunkChunk::from(junk));
                 }
@@ -140,8 +140,7 @@ impl WaveReader {
                     fmt__chunk = Some(FmtChunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
-                    let mut buf = Vec::<u8>::new();
-                    buf.resize(chunk.size as usize, 0u8);
+                    let mut buf = vec![0u8; chunk.size as usize];
                     reader.read_exact(&mut buf)?;
                     fact_data = match buf.len() {
                         4 => u32::from_le_bytes(buf.into_iter().collect::<CopiableBuffer<u8, 4>>().into_array()) as u64,
@@ -335,19 +334,20 @@ where S: SampleType {
         TAG_IMA => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         0x0055 => {
-            #[cfg(not(feature = "mp3dec"))]
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
-            #[cfg(feature = "mp3dec")]
-            {Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length, fact_data)?))}
+            if cfg!(feature = "mp3dec") {
+                Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length, fact_data)?))
+            } else {
+                Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))
+            }
         },
         0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
+            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
         0xF1AC => { // FLAC
             // #[cfg(not(feature = "flac"))]
-            return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")));
+            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
         },
-        other => return Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
+        other => Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
     }
 }
 
@@ -391,7 +391,7 @@ impl WaveDataReader {
                 datahash = hasher.hash(&mut r, data_offset, data_size)?;
                 reader = Some(r);
                 let tdir = tempfile::TempDir::new()?;
-                filepath = Some(tdir.path().join(&format!("{:x}.tmp", datahash)));
+                filepath = Some(tdir.path().join(format!("{:x}.tmp", datahash)));
                 tempdir = Some(tdir);
                 offset = 0;
                 have_source_file = false;
@@ -467,7 +467,7 @@ where S: SampleType {
         Ok(Self {
             data_offset,
             data_length,
-            spec: spec.clone(),
+            spec: *spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -505,7 +505,7 @@ where S: SampleType {
         Ok(Self {
             data_offset,
             data_length,
-            spec: spec.clone(),
+            spec: *spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -543,7 +543,7 @@ where S: SampleType {
         Ok(Self {
             data_offset,
             data_length,
-            spec: spec.clone(),
+            spec: *spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
