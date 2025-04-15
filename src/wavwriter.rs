@@ -399,7 +399,7 @@ impl<'a> WaveWriter<'a> {
         if let Some(chunk) = &self.acid_chunk { chunk.write(&mut self.writer)?; }
         if let Some(chunk) = &self.id3__chunk {
             let mut cw = ChunkWriter::begin(&mut self.writer, b"id3 ")?;
-            Id3::id3_write(&chunk, &mut cw.writer)?;
+            Id3::id3_write(chunk, &mut cw.writer)?;
             cw.end()?;
         }
 
