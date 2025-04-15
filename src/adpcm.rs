@@ -428,6 +428,14 @@ pub mod ima {
             (self.ready, self.input_count == 0) == (false, true)
         }
 
+        pub fn unready(&mut self) {
+            self.sample_val = 0;
+            self.stepsize_index = 0;
+            self.nibble_buffer.clear();
+            self.input_count = 0;
+            self.ready = false;
+        }
+
         pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while !self.on_new_block() {
                 let mut iter = [0u8].into_iter();
@@ -467,6 +475,16 @@ pub mod ima {
                 sample_r: DecoderSampleBuffer::new(),
                 block_size: (fmt_chunk.block_align / fmt_chunk.channels) as usize,
             }
+        }
+
+        pub fn unready(&mut self) {
+            self.current_channel = CurrentChannel::Left;
+            self.core_l.unready();
+            self.core_r.unready();
+            self.nibble_l.clear();
+            self.nibble_r.clear();
+            self.sample_l.clear();
+            self.sample_r.clear();
         }
 
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -533,6 +551,12 @@ pub mod ima {
             // 立体声的时候，块大小翻倍，但是要两个样本才能算一个音频帧
             // 因此无论是否单声道立体声，这里的计算公式相同
             (self.get_block_size() - HEADER_SIZE) * 2
+        }
+        fn reset_states(&mut self) {
+            match self {
+                Decoder::Mono(ref mut dec) => dec.unready(),
+                Decoder::Stereo(ref mut dec) => dec.unready(),
+            }
         }
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error>{
             match self {
