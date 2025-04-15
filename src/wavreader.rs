@@ -1,21 +1,22 @@
-#![allow(dead_code)]
 #![allow(non_snake_case)]
+#![allow(dead_code)]
 
-use std::{fs::File, path::{Path, PathBuf}, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
+use std::{fs::File, path::PathBuf, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
 
 use crate::wavcore;
 use crate::readwrite;
-use crate::{AudioReadError};
-use crate::{Spec};
-use crate::{ChunkHeader};
+use crate::AudioReadError;
+use crate::Spec;
+use crate::ChunkHeader;
 use crate::{FmtChunk, ExtensionData};
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
 use crate::{DecIMA, DecMS};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::FileHasher;
-use crate::{SampleType};
+use crate::SampleType;
 use crate::{Reader, string_io::*};
+use crate::CopiableBuffer;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::MP3::Mp3Decoder;
@@ -29,14 +30,8 @@ pub enum WaveDataSource {
 
 #[derive(Debug)]
 pub struct WaveReader {
-    riff_len: u64,
     spec: Spec,
     fmt__chunk: FmtChunk, // fmt 块，这个块一定会有
-    fact_data: Vec<u8>, // fact 块的参数
-    data_offset: u64, // 音频数据的位置
-    data_size: u64, // 音频数据的大小
-    block_size: u16, // 每一帧音频的字节数
-    num_frames: u64, // 总帧数
     data_chunk: WaveDataReader,
     text_encoding: StringCodecMaps,
     bext_chunk: Option<BextChunk>,
@@ -87,7 +82,6 @@ impl WaveReader {
 
         let text_encoding = StringCodecMaps::new();
 
-        let mut riff_len = 0u64;
         let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。
         let mut isRF64 = false;
         let mut data_size = 0u64;
@@ -96,7 +90,7 @@ impl WaveReader {
         let chunk = ChunkHeader::read(&mut reader)?;
         match &chunk.flag {
             b"RIFF" => {
-                riff_len = chunk.size as u64;
+                let riff_len = chunk.size as u64;
                 riff_end = reader.stream_position()? + riff_len;
             },
             b"RF64" => {
@@ -152,7 +146,7 @@ impl WaveReader {
                     if chunk.size < 28 {
                         return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")))
                     }
-                    riff_len = u64::read_le(&mut reader)?;
+                    let riff_len = u64::read_le(&mut reader)?;
                     data_size = u64::read_le(&mut reader)?;
                     let _sample_count = u64::read_le(&mut reader)?;
                     // 后面就是 table 了，用来重新给每个 Chunk 提供 64 位的长度值（data 除外）
@@ -240,8 +234,6 @@ impl WaveReader {
             };
         }
 
-        let block_size = fmt__chunk.block_align;
-        let num_frames = data_size / block_size as u64;
         let spec = Spec {
             channels: fmt__chunk.channels,
             channel_mask,
@@ -255,14 +247,9 @@ impl WaveReader {
         };
         let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size)?;
         Ok(Self {
-            riff_len,
             spec,
             fmt__chunk,
             fact_data,
-            data_offset,
-            data_size,
-            block_size,
-            num_frames,
             data_chunk,
             text_encoding,
             bext_chunk,
@@ -354,14 +341,6 @@ where S: SampleType {
     }
 }
 
-// 莽夫式 PathBuf 转换为字符串
-fn savage_path_buf_to_string(filepath: &Path) -> String {
-    match filepath.to_str() {
-        Some(pathstr) => pathstr.to_string(),
-        None => format!("{:?}", filepath), // 要是不能转换成 UTF-8 字符串，那就爱怎么样怎么样吧
-    }
-}
-
 pub fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf)?;
@@ -429,7 +408,7 @@ impl WaveDataReader {
         let filepath = filepath.unwrap();
 
         // 没有原始文件名，只有一个 Reader，那就从 Reader 那里把 WAV 文件肚子里的 data chunk 复制到一个临时文件里。
-        if ! have_source_file {
+        if !have_source_file {
 
             // 根据临时文件名创建临时文件
             let mut file = BufWriter::new(File::create(&filepath)?);
