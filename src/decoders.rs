@@ -52,7 +52,7 @@ pub trait Decoder<S>: Debug
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.spec.channels }
-    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono() }
@@ -112,10 +112,24 @@ where S: SampleType {
         if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
     }
 
-    pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+    pub fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> {
+        Ok((self.reader.stream_position()? - self.data_offset) / (self.block_align as u64))
+    } 
+
+    pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
         let total_frames = self.data_length / self.block_align as u64;
-        if frame_index >= total_frames {
-            Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound: {total_frames}"))))
+        let frame_index = match seek_from{
+            SeekFrom::Start(fi) => fi,
+            SeekFrom::Current(cur) => {
+                (self.get_cur_frame_index()? as i64 + cur) as u64
+            },
+            SeekFrom::End(end) => {
+                (total_frames as i64 + end) as u64
+            }
+        };
+        if frame_index > total_frames {
+            self.reader.seek(SeekFrom::Start(self.data_offset + self.data_length))?;
+            Ok(())
         } else {
             self.reader.seek(SeekFrom::Start(frame_index * self.block_align as u64))?;
             Ok(())
