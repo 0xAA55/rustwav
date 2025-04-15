@@ -659,14 +659,6 @@ pub mod ms {
             self.ready = false;
         }
 
-        fn clip_intp2(a: i32, p: i32) -> i32 {
-            if ((a as u32 + (1 << p)) & !((2 << p) - 1)) != 0 {
-                (a >> 31) ^ ((1 << p) - 1)
-            } else {
-                a
-            }
-        }
-
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             let predictor = (
                 self.sample1 as i32 * self.coeff.get(1) as i32 +
@@ -677,7 +669,8 @@ pub mod ms {
             } else {
                 -self.delta / 2
             };
-            let nibble = Self::clip_intp2((nibble + bias) / self.delta, 3) & 0x0F;
+            let nibble = (nibble + bias) / self.delta;
+            let nibble = nibble.clamp(-8, 7) & 0x0F;
             let predictor = predictor + if nibble & 0x08 != 0 {nibble.wrapping_sub(0x10)} else {nibble} * self.delta;
             self.sample2 = self.sample1;
             self.sample1 = predictor.clamp(-32768, 32767) as i16;
