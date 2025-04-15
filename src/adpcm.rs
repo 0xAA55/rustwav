@@ -656,9 +656,6 @@ pub mod ms {
         }
 
         pub fn unready(&mut self) {
-            if self.delta < 16 {
-                self.delta = 16;
-            }
             self.ready = false;
         }
 
