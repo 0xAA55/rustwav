@@ -730,6 +730,7 @@ pub mod ms {
         pub fn unready(&mut self) {
             self.core_l.unready();
             self.core_r.unready();
+            self.current_channel = CurrentChannel::Left;
             self.ready = false;
         }
 
