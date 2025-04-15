@@ -36,6 +36,7 @@ pub trait AdpcmDecoder: Debug {
     fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
     fn get_block_size(&self) -> usize;
     fn frames_per_block(&self) -> usize;
+    fn reset_states(&mut self); // 重置状态。当解码器那边要 seek 然后重新解码的时候，这个时候这边要重置状态。
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
     fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
         Ok(())
