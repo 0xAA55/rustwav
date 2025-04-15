@@ -834,8 +834,8 @@ pub mod ms {
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
-                                let l = enc.compress_sample(self.buffer[0]);
-                                let h = enc.compress_sample(self.buffer[1]);
+                                let h = enc.compress_sample(self.buffer[0]);
+                                let l = enc.compress_sample(self.buffer[1]);
                                 output(l | (h << 4));
                                 self.buffer.clear();
                                 self.bytes_yield += 1;
@@ -847,10 +847,10 @@ pub mod ms {
                         },
                         Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() == 4 {
-                                let l1 = enc.compress_sample(self.buffer[0]);
-                                let h1 = enc.compress_sample(self.buffer[1]);
-                                let l2 = enc.compress_sample(self.buffer[2]);
-                                let h2 = enc.compress_sample(self.buffer[3]);
+                                let h1 = enc.compress_sample(self.buffer[0]);
+                                let l1 = enc.compress_sample(self.buffer[1]);
+                                let h2 = enc.compress_sample(self.buffer[2]);
+                                let l2 = enc.compress_sample(self.buffer[3]);
                                 output(l1 | (h1 << 4));
                                 output(l2 | (h2 << 4));
                                 self.buffer.clear();
