@@ -16,7 +16,7 @@ pub trait Decoder<S>: Debug
     // 必须实现
     fn get_channels(&self) -> u16;
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
-    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError>;
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError>;
 
     // 可选实现
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
