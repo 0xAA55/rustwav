@@ -910,10 +910,10 @@ pub mod ms {
                     adpcm_ms.coeffs = self.coeff_table;
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA")))
+                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-MS")))
                 }
             } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-IMA, must store the extension data in the `fmt ` chunk")))
+                Err(io::Error::new(io::ErrorKind::InvalidData, format!("For ADPCM-MS, must store the extension data in the `fmt ` chunk")))
             }
         }
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
