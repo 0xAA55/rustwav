@@ -12,6 +12,7 @@ pub mod wavreader;
 pub mod wavwriter;
 pub mod utils;
 pub mod copiablebuf;
+pub mod hacks;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError, IOErrorInfo};
 pub use savagestr::{StringCodecMaps, SavageStringCodecs};
