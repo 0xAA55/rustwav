@@ -1147,6 +1147,10 @@ pub mod ms {
             (self.get_block_size() - HEADER_SIZE) * 2
         }
 
+        fn reset_states(&mut self) {
+            self.unready()
+        }
+
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 match self {
