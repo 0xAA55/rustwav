@@ -51,7 +51,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     let transfer_by_blocks = true;
-    let transfer_block_size = 10240usize;
+    let transfer_block_size = 1024usize;
 
     println!("======== TEST 1 ========");
 
