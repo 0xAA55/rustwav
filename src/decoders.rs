@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fmt::Debug, mem, cmp::min, io::{self, SeekFrom}};
+use std::{fmt::Debug, cmp::min, io::{self, SeekFrom}};
 
 use crate::adpcm;
 use crate::{AudioError, AudioReadError, IOErrorInfo};
