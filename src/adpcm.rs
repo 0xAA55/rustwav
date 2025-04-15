@@ -879,8 +879,11 @@ pub mod ms {
         }
 
         fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
-            assert_eq!(bits_per_sample, 4);
-            let block_align = BLOCK_SIZE as u16;
+            if bits_per_sample != 4 {
+                eprintln!("For ADPCM-MS, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored.");
+            }
+            let bits_per_sample = 4u16;
+            let block_align = BLOCK_SIZE as u16 * channels;
             Ok(FmtChunk {
                 format_tag: 0x0002,
                 channels,
