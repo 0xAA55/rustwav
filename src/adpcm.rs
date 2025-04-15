@@ -800,8 +800,8 @@ pub mod ms {
                     Channels::Mono(ref mut enc) => enc.is_ready(),
                     Channels::Stereo(ref mut enc) => enc.is_ready(),
                 };
+                self.buffer.push(sample);
                 if !ready {
-                    self.buffer.push(sample);
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
@@ -831,36 +831,32 @@ pub mod ms {
                         },
                     }
                 } else {
-                    self.buffer.push(sample);
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
-                                output (
-                                    enc.compress_sample(self.buffer[0]) |
-                                    enc.compress_sample(self.buffer[1]) << 4
-                                );
+                                let l = enc.compress_sample(self.buffer[0]);
+                                let h = enc.compress_sample(self.buffer[1]);
+                                output(l | (h << 4));
                                 self.buffer.clear();
                                 self.bytes_yield += 1;
                             }
-                            if self.bytes_yield >= BLOCK_SIZE {
+                            if self.bytes_yield == BLOCK_SIZE {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
                         },
                         Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() == 4 {
-                                output (
-                                    enc.compress_sample(self.buffer[0]) |
-                                    enc.compress_sample(self.buffer[1]) << 4
-                                );
-                                output (
-                                    enc.compress_sample(self.buffer[2]) |
-                                    enc.compress_sample(self.buffer[3]) << 4
-                                );
+                                let l1 = enc.compress_sample(self.buffer[0]);
+                                let h1 = enc.compress_sample(self.buffer[1]);
+                                let l2 = enc.compress_sample(self.buffer[2]);
+                                let h2 = enc.compress_sample(self.buffer[3]);
+                                output(l1 | (h1 << 4));
+                                output(l2 | (h2 << 4));
                                 self.buffer.clear();
                                 self.bytes_yield += 2;
                             }
-                            if self.bytes_yield >= BLOCK_SIZE * 2 {
+                            if self.bytes_yield == BLOCK_SIZE * 2 {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
