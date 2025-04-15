@@ -841,7 +841,7 @@ pub mod ms {
                     self.buffer.push(sample);
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
-                            if self.buffer.len() >= 2 {
+                            if self.buffer.len() == 2 {
                                 output (
                                     enc.compress_sample(self.buffer[0]) |
                                     enc.compress_sample(self.buffer[1]) << 4
@@ -855,7 +855,7 @@ pub mod ms {
                             }
                         },
                         Channels::Stereo(ref mut enc) => {
-                            if self.buffer.len() >= 4 {
+                            if self.buffer.len() == 4 {
                                 output (
                                     enc.compress_sample(self.buffer[0]) |
                                     enc.compress_sample(self.buffer[1]) << 4
