@@ -62,7 +62,7 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
     where S: SampleType,
           D: adpcm::AdpcmDecoder {
     fn get_channels(&self) -> u16 { self.channels }
-    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -237,8 +237,11 @@ where D: adpcm::AdpcmDecoder {
     data_offset: u64,
     data_length: u64,
     block_align: u16,
+    frame_index: u64,
+    frames_decoded: u64,
     decoder: D,
     samples: Vec<i16>,
+    first_frame_of_samples: u64,
 }
 
 impl<D> AdpcmDecoderWrap<D>
@@ -250,8 +253,11 @@ where D: adpcm::AdpcmDecoder {
             data_offset,
             data_length,
             block_align: fmt.block_align,
+            frame_index: 0,
+            frames_decoded: 0,
             decoder: D::new(&fmt)?,
             samples: Vec::<i16>::new(),
+            first_frame_of_samples: 0,
         })
     }
 
@@ -296,18 +302,27 @@ where D: adpcm::AdpcmDecoder {
         Ok(())
     }
 
-    pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+    pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
         let frames_per_block = self.decoder.frames_per_block() as u64;
-        let num_blocks_to_skip = frame_index / frames_per_block;
         let total_blocks = self.data_length / self.block_align as u64;
         let total_frames = total_blocks * frames_per_block;
-        if num_blocks_to_skip >= total_blocks {
-            Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound: {total_frames}"))))
-        } else {
-            self.reader.seek(SeekFrom::Start(num_blocks_to_skip * self.block_align as u64))?;
-            for _ in 0..(frame_index % (num_blocks_to_skip * frames_per_block)) {
-                let _ = self.decode_stereo::<i16>()?;
+        let frame_index = match seek_from{
+            SeekFrom::Start(fi) => fi,
+            SeekFrom::Current(cur) => {
+                (self.frame_index as i64 + cur) as u64
+            },
+            SeekFrom::End(end) => {
+                (total_frames as i64 + end) as u64
             }
+        };
+        self.samples.clear();
+        let block_index = frame_index / frames_per_block;
+        if block_index >= total_blocks {
+            Ok(())
+        } else {
+            self.reader.seek(SeekFrom::Start(block_index * self.block_align as u64))?;
+            self.first_frame_of_samples = block_index * frames_per_block;
+            self.frame_index = frame_index;
             Ok(())
         }
     }
