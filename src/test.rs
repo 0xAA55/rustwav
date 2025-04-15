@@ -50,6 +50,10 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
+    let transfer_by_blocks = true;
+    let transfer_block_size = 1024usize;
+    let mut frame_transfered = 0usize;
+
     println!("======== TEST 1 ========");
 
     // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
@@ -72,20 +76,58 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Ms), NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
-    match spec.channels {
-        1 => {
-            for mono in wavereader.mono_iter::<i16>()? {
-                wavewriter.write_mono(mono)?;
+    if transfer_by_blocks {
+        match spec.channels {
+            1 => {
+                loop {
+                    let iter = wavereader.mono_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter.write_monos(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
+            },
+            2 => {
+                loop {
+                    let iter = wavereader.stereo_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter.write_stereos(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
+            },
+            _ => {
+                loop {
+                    let iter = wavereader.frame_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter.write_frames(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
             }
-        },
-        2 => {
-            for stereo in wavereader.stereo_iter::<i16>()? {
-                wavewriter.write_stereo(stereo)?;
-            }
-        },
-        _ => {
-            for frame in wavereader.frame_iter::<i16>()? {
-                wavewriter.write_frame(&frame)?;
+        }
+    } else {
+        match spec.channels {
+            1 => {
+                for mono in wavereader.mono_iter::<i16>()? {
+                    wavewriter.write_mono(mono)?;
+                }
+            },
+            2 => {
+                for stereo in wavereader.stereo_iter::<i16>()? {
+                    wavewriter.write_stereo(stereo)?;
+                }
+            },
+            _ => {
+                for frame in wavereader.frame_iter::<i16>()? {
+                    wavewriter.write_frame(&frame)?;
+                }
             }
         }
     }
@@ -103,20 +145,58 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
     let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-    match spec.channels {
-        1 => {
-            for stereo in wavereader_2.mono_iter::<i16>()? {
-                wavewriter_2.write_mono(stereo)?;
+    if transfer_by_blocks {
+        match spec.channels {
+            1 => {
+                loop {
+                    let iter = wavereader_2.mono_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter_2.write_monos(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
+            },
+            2 => {
+                loop {
+                    let iter = wavereader_2.stereo_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter_2.write_stereos(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
+            },
+            _ => {
+                loop {
+                    let iter = wavereader_2.frame_iter::<i16>()?;
+                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
+                    if block.len() == 0 {
+                        break;
+                    }
+                    wavewriter_2.write_frames(&block)?;
+                    frame_transfered += transfer_block_size;
+                }
             }
-        },
-        2 => {
-            for stereo in wavereader_2.stereo_iter::<i16>()? {
-                wavewriter_2.write_stereo(stereo)?;
-            }
-        },
-        _ => {
-            for frame in wavereader_2.frame_iter::<i16>()? {
-                wavewriter_2.write_frame(&frame)?;
+        }
+    } else {
+        match spec.channels {
+            1 => {
+                for mono in wavereader_2.mono_iter::<i16>()? {
+                    wavewriter_2.write_mono(mono)?;
+                }
+            },
+            2 => {
+                for stereo in wavereader_2.stereo_iter::<i16>()? {
+                    wavewriter_2.write_stereo(stereo)?;
+                }
+            },
+            _ => {
+                for frame in wavereader_2.frame_iter::<i16>()? {
+                    wavewriter_2.write_frame(&frame)?;
+                }
             }
         }
     }
