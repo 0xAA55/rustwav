@@ -301,13 +301,21 @@ where D: adpcm::AdpcmDecoder {
                 (total_frames as i64 + end) as u64
             }
         };
-        self.samples.clear();
         let block_index = frame_index / frames_per_block;
-        if block_index >= total_blocks {
+        self.samples.clear();
+        self.decoder.reset_states();
+        if frame_index >= total_frames {
+            let end_of_data = self.data_offset + self.data_length;
+            self.reader.seek(SeekFrom::Start(end_of_data))?;
+            self.first_frame_of_samples = total_frames;
+            self.frames_decoded = total_frames;
+            self.frame_index = frame_index;
             Ok(())
         } else {
-            self.reader.seek(SeekFrom::Start(block_index * self.block_align as u64))?;
+            let block_pos = self.data_offset + block_index * self.block_align as u64;
+            self.reader.seek(SeekFrom::Start(block_pos))?;
             self.first_frame_of_samples = block_index * frames_per_block;
+            self.frames_decoded = self.first_frame_of_samples;
             self.frame_index = frame_index;
             Ok(())
         }
