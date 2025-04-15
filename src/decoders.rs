@@ -550,7 +550,7 @@ pub mod MP3 {
                         self.cur_frame = self.get_next_frame();
                     }
                 } else {
-                    return Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::InvalidInput, format!("Frame index {frame_index} exceeded the bound."))))
+                    return Ok(())
                 }
             }
             for _ in 0..(frame_index - self.sample_pos) {
