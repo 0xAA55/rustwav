@@ -96,6 +96,10 @@ where T: CopiableItem {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    pub fn into_array(self) -> [T; N] {
+        self.buffer
+    }
 }
 
 impl<T, const N: usize> Index<usize> for CopiableBuffer<T, N>
