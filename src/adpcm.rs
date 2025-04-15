@@ -689,11 +689,13 @@ pub mod ms {
             nibble as u8
         }
 
-        pub fn get_ready(&mut self, samples: [i16; 2]) -> (u8, i16, i16, i16) {
+        pub fn get_ready(&mut self, samples: &[i16; 2], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, i16, i16, i16) {
+            let predictor = 0u8;
+            self.coeff = coeff_table[predictor as usize];
             self.sample2 = samples[0];
             self.sample1 = samples[1];
             self.ready = true;
-            (0u8, self.delta as i16, self.sample1, self.sample2)
+            (predictor, self.delta as i16, self.sample1, self.sample2)
         }
     }
 
@@ -744,11 +746,16 @@ pub mod ms {
             }
         }
 
-        pub fn get_ready(&mut self, samples: [i16; 4]) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
-            let ready1 = self.core_l.get_ready([samples[0], samples[2]]);
-            let ready2 = self.core_r.get_ready([samples[1], samples[3]]);
+        pub fn get_ready(&mut self, samples: &[i16; 4], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
+            let ready1 = self.core_l.get_ready(&[samples[0], samples[2]], coeff_table);
+            let ready2 = self.core_r.get_ready(&[samples[1], samples[3]], coeff_table);
             self.ready = true;
-            (ready1.0, ready2.0, ready1.1, ready2.1, ready1.2, ready2.2, ready1.3, ready2.3)
+            (
+                ready1.0, ready2.0,
+                ready1.1, ready2.1,
+                ready1.2, ready2.2,
+                ready1.3, ready2.3
+            )
         }
     }
 
@@ -803,8 +810,8 @@ pub mod ms {
                     self.buffer.push(sample);
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
-                            if self.buffer.len() >= 2 {
-                                let header = enc.get_ready([self.buffer[0], self.buffer[1]]);
+                            if self.buffer.len() == 2 {
+                                let header = enc.get_ready(&[self.buffer[0], self.buffer[1]], &self.coeff_table);
                                 output(header.0);
                                 output_le_i16(header.1, |byte:u8|{output(byte)});
                                 output_le_i16(header.2, |byte:u8|{output(byte)});
@@ -815,7 +822,7 @@ pub mod ms {
                         },
                         Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() >= 4 {
-                                let header = enc.get_ready([self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]]);
+                                let header = enc.get_ready(&[self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]], &self.coeff_table);
                                 output(header.0);
                                 output(header.1);
                                 output_le_i16(header.2, |byte:u8|{output(byte)});
