@@ -71,8 +71,8 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 #[cfg(feature = "mp3dec")]
 impl<S> Decoder<S> for MP3::Mp3Decoder
     where S: SampleType {
-    fn get_channels(&self) -> u16 { self.get_channels() }
-    fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> { self.seek(frame_index) }
+    fn get_channels(&self) -> u16 { MP3::Mp3Decoder::get_channels(self) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -511,7 +511,25 @@ pub mod MP3 {
             None
         }
 
-        pub fn seek(&mut self, frame_index: u64) -> Result<(), AudioReadError> {
+        pub fn get_cur_frame_index(&self) -> u64 {
+            if let Some(frame) = &self.cur_frame {
+                self.sample_pos + (frame.buffer_index as u64)
+            } else {
+                0u64
+            }
+        }
+
+        pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
+            let frame_index = match seek_from{
+                SeekFrom::Start(fi) => fi,
+                SeekFrom::Current(cur) => {
+                    (self.get_cur_frame_index() as i64 + cur) as u64
+                },
+                SeekFrom::End(_end) => {
+                    // 摆烂。哈哈哈
+                    return Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::NotSeekable, format!("Can't seek MP3 stream from the end."))))
+                }
+            };
             if self.sample_pos > frame_index {
                 self.reset();
             }
