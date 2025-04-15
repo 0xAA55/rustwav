@@ -285,6 +285,7 @@ where D: adpcm::AdpcmDecoder {
 
     pub fn feed_until_output(&mut self, wanted_length: usize) -> Result<(), AudioReadError>{
         let end_of_data = self.data_offset + self.data_length;
+        let mut sample_decoded = 0u64;
         while self.samples.len() < wanted_length {
             let remains = end_of_data - self.reader.stream_position()?;
             if remains > 0 {
@@ -293,12 +294,13 @@ where D: adpcm::AdpcmDecoder {
                 buf.resize(to_read as usize, 0);
                 self.reader.read_exact(&mut buf)?;
                 let mut iter = buf.into_iter();
-                self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {self.frames_decoded += 1; self.samples.push(sample)})?;
+                self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {sample_decoded += 1; self.samples.push(sample)})?;
             } else {
-                self.decoder.flush(|sample: i16| {self.frames_decoded += 1; self.samples.push(sample)})?;
+                self.decoder.flush(|sample: i16| {sample_decoded += 1; self.samples.push(sample)})?;
                 break;
             }
         }
+        self.frames_decoded += sample_decoded / self.channels as u64;
         Ok(())
     }
 
