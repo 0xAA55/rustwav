@@ -266,23 +266,6 @@ where D: adpcm::AdpcmDecoder {
         if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
     }
 
-    fn read_byte(&mut self) -> Option<u8> {
-        match self.is_end_of_data() {
-            Ok(val) => {
-                match val {
-                    true => None,
-                    false => {
-                        match u8::read_le(&mut self.reader) {
-                            Ok(byte) => Some(byte),
-                            Err(_) => None,
-                        }
-                    },
-                }
-            },
-            Err(_) => None,
-        }
-    }
-
     pub fn feed_until_output(&mut self, wanted_length: usize) -> Result<(), AudioReadError>{
         let end_of_data = self.data_offset + self.data_length;
         let mut sample_decoded = 0u64;
