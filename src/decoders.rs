@@ -333,25 +333,36 @@ where D: adpcm::AdpcmDecoder {
     where S: SampleType {
         match self.channels {
             1 => {
-                self.feed_until_output(1)?;
-                let mut iter = mem::replace(&mut self.samples, Vec::<i16>::new()).into_iter();
-                let ret = iter.next();
-                self.samples = iter.collect();
-                if let Some(ret) = ret {
-                    Ok(Some(S::from(ret)))
-                } else {
+                // 确保解码出至少一个样本来
+                if self.samples.len() == 0 {
+                    self.feed_until_output(1)?;
+                }
+                // 确保不了，说明到头了。
+                if self.samples.len() == 0 {
                     Ok(None)
+                } else {
+                    // 内部状态检查
+                    if self.frame_index < self.first_frame_of_samples {
+                        panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
+                    } else if self.frame_index < self.frames_decoded {
+                        let ret = self.samples[(self.frame_index - self.first_frame_of_samples) as usize];
+                        self.frame_index += 1;
+                        Ok(Some(S::from(ret)))
+                    } else {
+                        // 需要继续解码下一个块
+                        self.first_frame_of_samples += self.samples.len() as u64;
+                        self.samples.clear();
+                        self.decode_mono::<S>()
+                    }
                 }
             }
             2 => {
-                self.feed_until_output(2)?;
-                let mut iter = mem::replace(&mut self.samples, Vec::<i16>::new()).into_iter();
-                let l = iter.next();
-                let r = iter.next();
-                self.samples = iter.collect();
-                match (l, r) {
-                    (Some(l), Some(r)) => Ok(Some(S::from(((l as i32 + r as i32) / 2) as i16))),
-                    _ => Ok(None) //TODO
+                let ret = self.decode_stereo::<S>()?;
+                match ret {
+                    None => Ok(None),
+                    Some((l, r)) => {
+                        Ok(Some(S::average(l, r)))
+                    }
                 }
             },
             other => Err(AudioReadError::Unsupported(format!("Unsupported channels {other}"))),
@@ -362,26 +373,36 @@ where D: adpcm::AdpcmDecoder {
     where S: SampleType {
         match self.channels {
             1 => {
-                self.feed_until_output(1)?;
-                let mut iter = mem::replace(&mut self.samples, Vec::<i16>::new()).into_iter();
-                let ret = iter.next();
-                self.samples = iter.collect();
-                if let Some(ret) = ret {
-                    let ret = S::from(ret);
-                    Ok(Some((ret, ret)))
-                } else {
-                    Ok(None)
+                let ret = self.decode_mono::<S>()?;
+                match ret {
+                    None => Ok(None),
+                    Some(ret) => Ok(Some((ret, ret)))
                 }
             }
             2 => {
-                self.feed_until_output(2)?;
-                let mut iter = mem::replace(&mut self.samples, Vec::<i16>::new()).into_iter();
-                let l = iter.next();
-                let r = iter.next();
-                self.samples = iter.collect();
-                match (l, r) {
-                    (Some(l), Some(r)) => Ok(Some((S::from(l), S::from(r)))),
-                    _ => Ok(None)
+                // 确保解码出至少两个样本来
+                if self.samples.len() == 0 {
+                    self.feed_until_output(2)?;
+                }
+                // 确保不了，说明到头了。
+                if self.samples.len() == 0 {
+                    Ok(None)
+                } else {
+                    // 内部状态检查
+                    if self.frame_index < self.first_frame_of_samples {
+                        panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
+                    } else if self.frame_index < self.frames_decoded {
+                        let index = ((self.frame_index - self.first_frame_of_samples) * 2) as usize;
+                        self.frame_index += 1;
+                        let l = self.samples[index];
+                        let r = self.samples[index + 1];
+                        Ok(Some((S::from(l), S::from(r))))
+                    } else {
+                        // 需要继续解码下一个块
+                        self.first_frame_of_samples += (self.samples.len() / 2) as u64;
+                        self.samples.clear();
+                        self.decode_stereo::<S>()
+                    }
                 }
             },
             other => Err(AudioReadError::Unsupported(format!("Unsupported channels {other}"))),
