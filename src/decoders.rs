@@ -239,6 +239,7 @@ where D: adpcm::AdpcmDecoder {
     block_align: u16,
     frame_index: u64,
     frames_decoded: u64,
+    total_frames: u64,
     decoder: D,
     samples: Vec<i16>,
     first_frame_of_samples: u64,
@@ -246,7 +247,15 @@ where D: adpcm::AdpcmDecoder {
 
 impl<D> AdpcmDecoderWrap<D>
 where D: adpcm::AdpcmDecoder {
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk) -> Result<Self, AudioReadError> {
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        let decoder =  D::new(&fmt)?;
+        let total_frames = if total_samples == 0 {
+            let frames_per_block = decoder.frames_per_block() as u64;
+            let total_blocks = data_length / fmt.block_align as u64;
+            total_blocks * frames_per_block
+        } else {
+            total_samples / fmt.channels as u64
+        };
         Ok(Self {
             channels: fmt.channels,
             reader,
@@ -255,7 +264,8 @@ where D: adpcm::AdpcmDecoder {
             block_align: fmt.block_align,
             frame_index: 0,
             frames_decoded: 0,
-            decoder: D::new(&fmt)?,
+            total_frames,
+            decoder,
             samples: Vec::<i16>::new(),
             first_frame_of_samples: 0,
         })
@@ -290,25 +300,23 @@ where D: adpcm::AdpcmDecoder {
 
     pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
         let frames_per_block = self.decoder.frames_per_block() as u64;
-        let total_blocks = self.data_length / self.block_align as u64;
-        let total_frames = total_blocks * frames_per_block;
         let frame_index = match seek_from{
             SeekFrom::Start(fi) => fi,
             SeekFrom::Current(cur) => {
                 (self.frame_index as i64 + cur) as u64
             },
             SeekFrom::End(end) => {
-                (total_frames as i64 + end) as u64
+                (self.total_frames as i64 + end) as u64
             }
         };
         let block_index = frame_index / frames_per_block;
         self.samples.clear();
         self.decoder.reset_states();
-        if frame_index >= total_frames {
+        if frame_index >= self.total_frames {
             let end_of_data = self.data_offset + self.data_length;
             self.reader.seek(SeekFrom::Start(end_of_data))?;
-            self.first_frame_of_samples = total_frames;
-            self.frames_decoded = total_frames;
+            self.first_frame_of_samples = self.total_frames;
+            self.frames_decoded = self.total_frames;
             self.frame_index = frame_index;
             Ok(())
         } else {
@@ -424,9 +432,9 @@ where D: adpcm::AdpcmDecoder {
 
 #[cfg(feature = "mp3dec")]
 pub mod MP3 {
-    use std::{io::{self, Read, SeekFrom}, fmt::Debug};
+    use std::{io::{Read, SeekFrom}, fmt::Debug};
     use rmp3::{DecoderOwned, Frame};
-    use crate::{AudioReadError, IOErrorInfo};
+    use crate::{AudioReadError};
     use crate::Reader;
     use crate::SampleType;
 
@@ -436,6 +444,7 @@ pub mod MP3 {
         the_decoder: DecoderOwned<Vec<u8>>,
         cur_frame: Option<Mp3AudioData>,
         sample_pos: u64,
+        total_frames: u64,
     }
 
     impl Debug for Mp3Decoder{
@@ -476,7 +485,7 @@ pub mod MP3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, target_channels: u16, data_offset: u64, data_length: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, target_channels: u16, data_offset: u64, data_length: u64, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader = reader;
             let mut mp3_raw_data = Vec::<u8>::new();
             mp3_raw_data.resize(data_length as usize, 0u8);
@@ -489,8 +498,12 @@ pub mod MP3 {
                 the_decoder,
                 cur_frame: None,
                 sample_pos: 0,
+                total_frames: total_samples,
             };
             ret.cur_frame = ret.get_next_frame();
+            if let Some(ref mp3frame) = ret.cur_frame {
+                ret.total_frames /= mp3frame.channels as u64;
+            }
             Ok(ret)
         }
 
@@ -534,9 +547,8 @@ pub mod MP3 {
                 SeekFrom::Current(cur) => {
                     (self.get_cur_frame_index() as i64 + cur) as u64
                 },
-                SeekFrom::End(_end) => {
-                    // 摆烂。哈哈哈
-                    return Err(AudioReadError::IOError(IOErrorInfo::new(io::ErrorKind::NotSeekable, format!("Can't seek MP3 stream from the end."))))
+                SeekFrom::End(end) => {
+                    (self.total_frames as i64 + end) as u64
                 }
             };
             if self.sample_pos > frame_index {
