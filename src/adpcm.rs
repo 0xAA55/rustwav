@@ -313,7 +313,7 @@ pub mod ima {
                 block_align,
                 bits_per_sample,
                 extension: Some(FmtExtension::new_adpcm_ima(AdpcmImaData{
-                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16 * channels) * channels * 2,
+                    samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * channels * 2,
                 })),
             })
         }
@@ -324,7 +324,7 @@ pub mod ima {
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
             if let Some(ref mut extension) = fmt_chunk.extension {
                 if let ExtensionData::AdpcmIma(ref mut adpcm_ima) = extension.data {
-                    adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4 * fmt_chunk.channels) * fmt_chunk.channels * 2;
+                    adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4) * fmt_chunk.channels * 2;
                     Ok(())
                 } else {
                     Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA")))
