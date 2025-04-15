@@ -288,14 +288,14 @@ where D: adpcm::AdpcmDecoder {
         while self.samples.len() < wanted_length {
             let remains = end_of_data - self.reader.stream_position()?;
             if remains > 0 {
-                let to_read = min(remains, 1024);
+                let to_read = min(remains, self.block_align as u64);
                 let mut buf = Vec::<u8>::new();
                 buf.resize(to_read as usize, 0);
                 self.reader.read_exact(&mut buf)?;
-                let mut iter = mem::replace(&mut buf, Vec::<u8>::new()).into_iter();
-                self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {self.samples.push(sample);})?;
+                let mut iter = buf.into_iter();
+                self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {self.frames_decoded += 1; self.samples.push(sample)})?;
             } else {
-                self.decoder.flush(|sample: i16| {self.samples.push(sample);})?;
+                self.decoder.flush(|sample: i16| {self.frames_decoded += 1; self.samples.push(sample)})?;
                 break;
             }
         }
