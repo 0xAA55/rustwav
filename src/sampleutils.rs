@@ -330,8 +330,10 @@ pub trait SampleType:
 Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> +
 AddAssign + SubAssign + MulAssign + DivAssign +
 Debug + Sized + Clone + Copy + 'static {
+    type Longer;
     fn new() -> Self;
     fn from(v: impl SampleType) -> Self;
+    fn average(s1: Self, s2: Self) -> Self;
     fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
     fn to_i32(&self) -> i32;
@@ -369,11 +371,15 @@ impl SampleFrom for f32 {fn to(s: impl SampleType) -> Self { s.to_f32() }}
 impl SampleFrom for f64 {fn to(s: impl SampleType) -> Self { s.to_f64() }}
 
 impl SampleType for i8{
+    type Longer = i16;
     fn new() -> Self {
         0i8
     }
     fn from(v: impl SampleType) -> i8{
         v.to_i8()
+    }
+    fn average(s1: i8, s2: i8) -> i8 {
+        ((s1 as i16 + s2 as i16) / 2) as i8
     }
     fn to_i8(&self) -> i8{
         *self
@@ -442,11 +448,15 @@ impl SampleType for i8{
 }
 
 impl SampleType for i16{
+    type Longer = i24;
     fn new() -> Self {
         0i16
     }
     fn from(v: impl SampleType) -> i16{
         v.to_i16()
+    }
+    fn average(s1: i16, s2: i16) -> i16 {
+        ((s1 as i32 + s2 as i32) / 2) as i16
     }
     fn to_i8(&self) -> i8{
         (*self >> 8) as i8
@@ -513,11 +523,15 @@ impl SampleType for i16{
 }
 
 impl SampleType for i24 {
+    type Longer = i32;
     fn new() -> Self {
         Self::from_le_bytes(&[0, 0, 0])
     }
     fn from(v: impl SampleType) -> i24{
         v.to_i24()
+    }
+    fn average(s1: i24, s2: i24) -> i24 {
+        ((s1.as_i32() + s2.as_i32()) / 2).as_i24()
     }
     fn to_i8(&self) -> i8 {
         self.get_highest_i8()
@@ -590,11 +604,15 @@ impl SampleType for i24 {
 }
 
 impl SampleType for i32{
+    type Longer = i64;
     fn new() -> Self {
         0i32
     }
     fn from(v: impl SampleType) -> i32{
         v.to_i32()
+    }
+    fn average(s1: i32, s2: i32) -> i32 {
+        ((s1 as i64 + s2 as i64) / 2) as i32
     }
     fn to_i8(&self) -> i8{
         (*self >> 24) as i8
@@ -662,11 +680,15 @@ impl SampleType for i32{
 }
 
 impl SampleType for i64{
+    type Longer = i128;
     fn new() -> Self {
         0i64
     }
     fn from(v: impl SampleType) -> i64{
         v.to_i64()
+    }
+    fn average(s1: i64, s2: i64) -> i64 {
+        ((s1 as i128 + s2 as i128) / 2) as i64
     }
     fn to_i8(&self) -> i8{
         (*self >> 56) as i8
@@ -734,11 +756,15 @@ impl SampleType for i64{
 }
 
 impl SampleType for u8{
+    type Longer = u16;
     fn new() -> Self {
         0x80u8
     }
     fn from(v: impl SampleType) -> u8{
         v.to_u8()
+    }
+    fn average(s1: u8, s2: u8) -> u8 {
+        ((s1 as u16 + s2 as u16) / 2) as u8
     }
     fn to_i8(&self) -> i8{
         self.wrapping_sub(0x80) as i8
@@ -807,11 +833,15 @@ impl SampleType for u8{
 }
 
 impl SampleType for u16{
+    type Longer = u24;
     fn new() -> Self {
         0x8000u16
     }
     fn from(v: impl SampleType) -> u16{
         v.to_u16()
+    }
+    fn average(s1: u16, s2: u16) -> u16 {
+        ((s1 as u32 + s2 as u32) / 2) as u16
     }
     fn to_i8(&self) -> i8{
         self.to_i16().to_i8()
@@ -879,11 +909,15 @@ impl SampleType for u16{
 }
 
 impl SampleType for u24 {
+    type Longer = u32;
     fn new() -> Self {
         Self::from_le_bytes(&[0x00, 0x00, 0x80])
     }
     fn from(v: impl SampleType) -> u24{
         v.to_u24()
+    }
+    fn average(s1: u24, s2: u24) -> u24 {
+        ((s1.as_u32() + s2.as_u32()) / 2).as_u24()
     }
     fn to_i8(&self) -> i8 {
         self.0.to_i8()
@@ -950,11 +984,15 @@ impl SampleType for u24 {
 }
 
 impl SampleType for u32{
+    type Longer = u64;
     fn new() -> Self {
         0x80000000u32
     }
     fn from(v: impl SampleType) -> u32{
         v.to_u32()
+    }
+    fn average(s1: u32, s2: u32) -> u32 {
+        ((s1 as u64 + s2 as u64) / 2) as u32
     }
     fn to_i8(&self) -> i8{
         self.to_i32().to_i8()
@@ -1022,11 +1060,15 @@ impl SampleType for u32{
 }
 
 impl SampleType for u64{
+    type Longer = u128;
     fn new() -> Self {
         0x80000000_00000000u64
     }
     fn from(v: impl SampleType) -> u64{
         v.to_u64()
+    }
+    fn average(s1: u64, s2: u64) -> u64 {
+        ((s1 as u128 + s2 as u128) / 2) as u64
     }
     fn to_i8(&self) -> i8{
         self.to_i64().to_i8()
@@ -1093,11 +1135,15 @@ impl SampleType for u64{
 }
 
 impl SampleType for f32{
+    type Longer = f64;
     fn new() -> Self {
         0.0
     }
     fn from(v: impl SampleType) -> f32{
         v.to_f32()
+    }
+    fn average(s1: f32, s2: f32) -> f32 {
+        (s1 + s2) * 0.5
     }
     fn to_i8(&self) -> i8{
         (self.clamp(-1.0, 1.0) * (i8::MAX as f32)) as i8
@@ -1164,11 +1210,15 @@ impl SampleType for f32{
 }
 
 impl SampleType for f64{
+    type Longer = f64;
     fn new() -> Self {
         0.0
     }
     fn from(v: impl SampleType) -> f64{
         v.to_f64()
+    }
+    fn average(s1: f64, s2: f64) -> f64 {
+        (s1 + s2) * 0.5
     }
     fn to_i8(&self) -> i8{
         (self.clamp(-1.0, 1.0) * (i8::MAX as f64)) as i8
