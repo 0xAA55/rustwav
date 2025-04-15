@@ -32,6 +32,7 @@ pub enum WaveDataSource {
 pub struct WaveReader {
     spec: Spec,
     fmt__chunk: FmtChunk, // fmt 块，这个块一定会有
+    fact_data: u64, // 总样本数
     data_chunk: WaveDataReader,
     text_encoding: StringCodecMaps,
     bext_chunk: Option<BextChunk>,
@@ -106,7 +107,7 @@ impl WaveReader {
 
         let mut fmt__chunk: Option<FmtChunk> = None;
         let mut data_offset = 0u64;
-        let mut fact_data = Vec::<u8>::new();
+        let mut fact_data = 0u64;
         let mut bext_chunk: Option<BextChunk> = None;
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
@@ -139,8 +140,17 @@ impl WaveReader {
                     fmt__chunk = Some(FmtChunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
-                    fact_data.resize(chunk.size as usize, 0u8);
-                    reader.read_exact(&mut fact_data)?;
+                    let mut buf = Vec::<u8>::new();
+                    buf.resize(chunk.size as usize, 0u8);
+                    reader.read_exact(&mut buf)?;
+                    fact_data = match buf.len() {
+                        4 => u32::from_le_bytes(buf.into_iter().collect::<CopiableBuffer<u8, 4>>().into_array()) as u64,
+                        8 => u64::from_le_bytes(buf.into_iter().collect::<CopiableBuffer<u8, 8>>().into_array()),
+                        o => {
+                            eprintln!("Bad fact chunk size: {o}");
+                            0
+                        }
+                    };
                 },
                 b"ds64" => {
                     if chunk.size < 28 {
@@ -303,32 +313,32 @@ impl WaveReader {
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
     pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
     where S: SampleType {
-        FrameIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, &self.fact_data)
+        FrameIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
     where S: SampleType {
-        StereoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, &self.fact_data)
+        StereoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
     where S: SampleType {
-        MonoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, &self.fact_data)
+        MonoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
 }
 
-fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, _fact_data: &[u8]) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
     use AdpcmSubFormat::{Ima, Ms};
     const TAG_IMA: u16 = Ima as u16;
     const TAG_MS: u16 = Ms as u16;
     match fmt.format_tag {
         1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
-        TAG_IMA => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt)?)),
-        TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt)?)),
+        TAG_IMA => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         0x0055 => {
             #[cfg(not(feature = "mp3dec"))]
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")));
             #[cfg(feature = "mp3dec")]
-            {Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length)?))}
+            {Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length, fact_data)?))}
         },
         0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
             return Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")));
@@ -446,19 +456,19 @@ where S: SampleType {
     data_offset: u64, // 音频数据在文件中的位置
     data_length: u64, // 音频数据的总大小
     spec: Spec,
-    fact_data: Vec<u8>, // fact 数据，部分解码器需要
+    fact_data: u64, // 音频总样本数量
     decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
 impl<S> FrameIter<S>
 where S: SampleType {
-    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: &[u8]) -> Result<Self, AudioReadError> {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,
             data_length,
             spec: spec.clone(),
-            fact_data: fact_data.to_vec(),
+            fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
@@ -484,19 +494,19 @@ where S: SampleType {
     data_offset: u64, // 音频数据在文件中的位置
     data_length: u64, // 音频数据的总大小
     spec: Spec,
-    fact_data: Vec<u8>, // fact 数据，部分解码器需要
+    fact_data: u64, // 音频总样本数量
     decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
 impl<S> StereoIter<S>
 where S: SampleType {
-    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: &[u8]) -> Result<Self, AudioReadError> {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,
             data_length,
             spec: spec.clone(),
-            fact_data: fact_data.to_vec(),
+            fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
@@ -522,19 +532,19 @@ where S: SampleType {
     data_offset: u64, // 音频数据在文件中的位置
     data_length: u64, // 音频数据的总大小
     spec: Spec,
-    fact_data: Vec<u8>, // fact 数据，部分解码器需要
+    fact_data: u64, // 音频总样本数量
     decoder: Box<dyn Decoder<S>>, // 解码器
 }
 
 impl<S> MonoIter<S>
 where S: SampleType {
-    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: &[u8]) -> Result<Self, AudioReadError> {
+    fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_offset,
             data_length,
             spec: spec.clone(),
-            fact_data: fact_data.to_vec(),
+            fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
