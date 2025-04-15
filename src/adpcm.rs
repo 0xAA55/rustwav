@@ -384,55 +384,44 @@ pub mod ima {
         }
 
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
-            loop {
+            while let Some(byte) = input() {
                 if !self.ready {
                     // 先吃四个字节用来初始化，并输出第一个样本。
-                    while !self.nibble_buffer.is_full() {
-                        match input() {
-                            Some(byte) => {
-                                self.nibble_buffer.push(byte);
-                                self.input_count += 1;
-                            },
-                            None => return Ok(()),
+                    self.nibble_buffer.push(byte);
+                    self.input_count += 1;
+                    if self.nibble_buffer.is_full() {
+                        self.sample_val = i16::from_le_bytes([self.nibble_buffer[0], self.nibble_buffer[1]]);
+                        self.stepsize_index = self.nibble_buffer[2] as i8;
+                        if self.nibble_buffer[3] != 0 {
+                            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Reserved byte for ADPCM-IMA must be zero, not 0x{:02x}", self.nibble_buffer[3])));
                         }
+                        self.nibble_buffer.clear();
+                        self.ready = true;
+                        output(self.sample_val);
                     }
-                    self.sample_val = i16::from_le_bytes([self.nibble_buffer[0], self.nibble_buffer[1]]);
-                    self.stepsize_index = self.nibble_buffer[2] as i8;
-                    if self.nibble_buffer[3] != 0 {
-                        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Reserved byte for ADPCM-IMA must be zero, not 0x{:x}", self.nibble_buffer[3])));
-                    }
-                    self.nibble_buffer.clear();
-                    self.ready = true;
-                    output(self.sample_val);
-                }
-                if self.ready {
+                } else {
                     // 完成初始化后，每吃一个字节输出两个样本。
-                    while !self.nibble_buffer.is_full() {
-                        match input() {
-                            Some(byte) => {
-                                self.nibble_buffer.push(byte);
-                                self.input_count += 1;
-                            },
-                            None => return Ok(()),
+                    self.nibble_buffer.push(byte);
+                    self.input_count += 1;
+                    if self.nibble_buffer.is_full() {
+                        // 每读取 4 个字节解 8 个码
+                        let (b1, b2, b3, b4) = (self.nibble_buffer[0], self.nibble_buffer[1], self.nibble_buffer[2], self.nibble_buffer[3]);
+                        output(self.decode_sample((b1 >> 0) & 0xF));
+                        output(self.decode_sample((b1 >> 4) & 0xF));
+                        output(self.decode_sample((b2 >> 0) & 0xF));
+                        output(self.decode_sample((b2 >> 4) & 0xF));
+                        output(self.decode_sample((b3 >> 0) & 0xF));
+                        output(self.decode_sample((b3 >> 4) & 0xF));
+                        output(self.decode_sample((b4 >> 0) & 0xF));
+                        output(self.decode_sample((b4 >> 4) & 0xF));
+                        self.nibble_buffer.clear();
+                        if self.input_count >= self.block_size {
+                            self.unready()
                         }
-                    }
-                    // 每读取 4 个字节解 8 个码
-                    let (b1, b2, b3, b4) = (self.nibble_buffer[0], self.nibble_buffer[1], self.nibble_buffer[2], self.nibble_buffer[3]);
-                    output(self.decode_sample((b1 >> 0) & 0xF));
-                    output(self.decode_sample((b1 >> 4) & 0xF));
-                    output(self.decode_sample((b2 >> 0) & 0xF));
-                    output(self.decode_sample((b2 >> 4) & 0xF));
-                    output(self.decode_sample((b3 >> 0) & 0xF));
-                    output(self.decode_sample((b3 >> 4) & 0xF));
-                    output(self.decode_sample((b4 >> 0) & 0xF));
-                    output(self.decode_sample((b4 >> 4) & 0xF));
-                    self.nibble_buffer.clear();
-                    if self.input_count >= self.block_size {
-                        self.input_count = 0;
-                        self.ready = false;
                     }
                 }
             }
+            Ok(())
         }
 
         pub fn on_new_block(&self) -> bool {
