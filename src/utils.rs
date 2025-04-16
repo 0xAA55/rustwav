@@ -77,7 +77,6 @@ where S: SampleType {
     }
 }
 
-
 pub fn multiple_monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
 where S: SampleType {
     Ok(multiple_monos_to_multiple_frames(monos)?.into_iter().flatten().collect())
@@ -99,6 +98,16 @@ where S: SampleType {
         Err(AudioWriteError::InvalidArguments("Channels must not be zero".to_owned()))
     } else {
         Ok((0..channels).map(|channel| -> Vec<S> {samples.iter().skip(channel as usize).step_by(channels as usize).copied().collect()}).collect())
+    }
+}
+
+pub fn dual_mono_to_multiple_stereos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<(S, S)>, AudioWriteError>
+where S: SampleType {
+    let (l, r) = dual_monos;
+    if l.len() != r.len() {
+        Err(AudioWriteError::MultipleMonosAreNotSameSize)
+    } else {
+        Ok(l.into_iter().zip(r.into_iter()).map(|(l, r): (&S, &S)| -> (S, S) {(*l, *r)}).collect())
     }
 }
 
