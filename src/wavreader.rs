@@ -343,6 +343,10 @@ where S: SampleType {
         0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
+        0x704F => {
+            // #[cfg(not(feature = "opus"))]
+            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))
+        },
         0xF1AC => { // FLAC
             // #[cfg(not(feature = "flac"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
