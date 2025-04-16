@@ -17,7 +17,8 @@ use crate::WaveReader;
 use crate::hacks;
 
 #[cfg(feature = "mp3enc")]
-use crate::encoders::MP3::Mp3Encoder;
+use crate::Mp3Encoder;
+
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]
@@ -77,9 +78,7 @@ impl<'a> WaveWriter<'a> {
                     Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
                 }
             },
-            Mp3 => {
-                Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?))
-            },
+            Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
         let mut ret = Self{

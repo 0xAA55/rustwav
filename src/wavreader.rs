@@ -19,7 +19,7 @@ use crate::{Reader, string_io::*};
 use crate::CopiableBuffer;
 
 #[cfg(feature = "mp3dec")]
-use crate::decoders::MP3::Mp3Decoder;
+use crate::Mp3Decoder;
 
 #[derive(Debug)]
 pub enum WaveDataSource {
