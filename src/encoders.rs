@@ -996,27 +996,12 @@ pub mod mp3 {
         }
 
         fn to_left_right(&self) -> (Vec<S>, Vec<S>) {
-            let mut vl = Vec::<S>::with_capacity(self.max_samples);
-            let mut vr = Vec::<S>::with_capacity(self.max_samples);
-            for (l, r) in self.dual_pcm.iter() {
-                vl.push(*l);
-                vr.push(*r);
-            }
-            (vl, vr)
+            utils::multiple_stereos_to_dual_mono(&self.dual_pcm)
         }
 
         fn convert_dual_pcm<T>(&self) -> (Vec<T>, Vec<T>)
         where T: SampleType {
-            let mut vl = Vec::<T>::with_capacity(self.max_samples);
-            let mut vr = Vec::<T>::with_capacity(self.max_samples);
-            for s in self.dual_pcm.iter() {
-                let (l, r) = *s;
-                let l = T::from(l);
-                let r = T::from(r);
-                vl.push(l);
-                vr.push(r);
-            }
-            (vl, vr)
+            utils::multiple_stereos_to_dual_mono(&stereos_conv(&self.dual_pcm))
         }
 
         fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
