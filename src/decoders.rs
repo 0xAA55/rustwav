@@ -419,7 +419,7 @@ where D: adpcm::AdpcmDecoder {
 
 
 #[cfg(feature = "mp3dec")]
-pub mod MP3 {
+pub mod mp3 {
     use std::{io::{Read, SeekFrom}, fmt::Debug};
     use rmp3::{DecoderOwned, Frame};
     use crate::{AudioReadError};

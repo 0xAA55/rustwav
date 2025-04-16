@@ -36,10 +36,11 @@ pub use filehasher::FileHasher;
 pub use copiablebuf::{CopiableBuffer, CopiableBufferIter, CopiableBufferIterMut, CopiableBufferIntoIter};
 
 #[cfg(feature = "mp3dec")]
-pub use decoders::MP3::Mp3Decoder;
+pub use decoders::mp3::Mp3Decoder;
 
 #[cfg(feature = "mp3enc")]
-pub use encoders::MP3::Mp3Encoder;
+pub use encoders::mp3::Mp3Encoder;
+
 
 use std::env::args;
 use std::error::Error;
