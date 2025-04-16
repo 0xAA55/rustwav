@@ -78,39 +78,35 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
     if transfer_by_blocks {
-        let mut frame_transfered = 0usize;
         match spec.channels {
             1 => {
+                let mut iter = wavereader.mono_iter::<i16>()?;
                 loop {
-                    let iter = wavereader.mono_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
+                    let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter.write_monos(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             },
             2 => {
+                let mut iter = wavereader.stereo_iter::<i16>()?;
                 loop {
-                    let iter = wavereader.stereo_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
+                    let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter.write_stereos(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             },
             _ => {
+                let mut iter = wavereader.frame_iter::<i16>()?;
                 loop {
-                    let iter = wavereader.frame_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
+                    let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter.write_frames(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             }
         }
@@ -148,39 +144,35 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     if transfer_by_blocks {
-        let mut frame_transfered = 0usize;
         match spec.channels {
             1 => {
+                let mut iter = wavereader_2.mono_iter::<i16>()?;
                 loop {
-                    let iter = wavereader_2.mono_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<i16>>();
+                    let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_monos(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             },
             2 => {
+                let mut iter = wavereader_2.stereo_iter::<i16>()?;
                 loop {
-                    let iter = wavereader_2.stereo_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<(i16, i16)>>();
+                    let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_stereos(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             },
             _ => {
+                let mut iter = wavereader_2.frame_iter::<i16>()?;
                 loop {
-                    let iter = wavereader_2.frame_iter::<i16>()?;
-                    let block = iter.skip(frame_transfered).take(transfer_block_size).collect::<Vec<Vec<i16>>>();
+                    let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
                     if block.is_empty() {
                         break;
                     }
                     wavewriter_2.write_frames(&block)?;
-                    frame_transfered += transfer_block_size;
                 }
             }
         }
