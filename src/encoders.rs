@@ -960,12 +960,10 @@ pub mod mp3 {
     impl<S> BufferStereo<S>
     where S: SampleType{
         pub fn new(encoder: SharedMp3Encoder, max_samples: usize) -> Self {
-            let mut dual_pcm = Vec::<(S, S)>::new();
             let s0 = <S as SampleType>::from(0);
-            dual_pcm.resize(max_samples, (s0, s0));
             Self {
                 encoder,
-                dual_pcm,
+                dual_pcm: vec![(s0, s0); max_samples],
                 cur_samples: 0,
                 max_samples,
             }
