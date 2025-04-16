@@ -399,7 +399,6 @@ impl Debug for ChunkWriter<'_> {
             .field("flag", &format!("{}", String::from_utf8_lossy(&self.flag)))
             .field("pos_of_chunk_len", &self.pos_of_chunk_len)
             .field("chunk_start", &self.chunk_start)
-            .field("ended", &self.ended)
             .finish()
     }
 }
@@ -421,43 +420,35 @@ impl<'a> ChunkWriter<'a> {
 
     // 结束写入 Chunk，更新 Chunk Size
     pub fn end(mut self) -> Result<(), AudioWriteError> {
-        if self.ended {
-            Ok(())
-        } else {
-            // 此处存在一个情况：块的大小是 u32 类型，但是如果实际写入的块的大小超过这个大小就会存不下。
-            // 对于 RIFF 和 data 段，因为 ds64 段里专门留了字段用于存储 u64 的块大小，所以这里写入 0xFFFFFFFF。
-            // 对于其它段，其实 ds64 的 table 字段就是专门为其它段提供 u64 的块大小的存储的，但是你要增加 table 的数量，就会增加 ds64 段的长度
-            // 目前不考虑预留长度给 ds64 用于存储长度过长的段。非 RIFF、RF64、data 的段不允许超过 0xFFFFFFFF 大小，否则报错。
-            let mut chunk_size = self.get_chunk_data_size()?;
-            if chunk_size >= 0xFFFFFFFFu64 {
-                match &self.flag {
-                    b"RIFF" | b"data" => {
-                        chunk_size = 0xFFFFFFFF;
-                    },
-                    other => {
-                        let chunk_flag = String::from_utf8_lossy(other);
-                        return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)));
-                    },
-                }
+        // 此处存在一个情况：块的大小是 u32 类型，但是如果实际写入的块的大小超过这个大小就会存不下。
+        // 对于 RIFF 和 data 段，因为 ds64 段里专门留了字段用于存储 u64 的块大小，所以这里写入 0xFFFFFFFF。
+        // 对于其它段，其实 ds64 的 table 字段就是专门为其它段提供 u64 的块大小的存储的，但是你要增加 table 的数量，就会增加 ds64 段的长度
+        // 目前不考虑预留长度给 ds64 用于存储长度过长的段。非 RIFF、RF64、data 的段不允许超过 0xFFFFFFFF 大小，否则报错。
+        let mut chunk_size = self.get_chunk_data_size()?;
+        if chunk_size >= 0xFFFFFFFFu64 {
+            match &self.flag {
+                b"RIFF" | b"data" => {
+                    chunk_size = 0xFFFFFFFF;
+                },
+                other => {
+                    let chunk_flag = String::from_utf8_lossy(other);
+                    return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)));
+                },
             }
-            Ok(self.end_and_write_size(chunk_size as u32)?)
         }
+        Ok(self.end_and_write_size(chunk_size as u32)?)
     }
 
     // 放弃写入 Chunk，写一个假的 Chunk 大小
     pub fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), AudioWriteError> {
-        if self.ended {
-            Ok(())
-        } else {
-            let end_of_chunk = self.writer.stream_position()?;
-            self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
-            chunk_size_to_write.write_le(self.writer)?;
-            self.writer.seek(SeekFrom::Start(end_of_chunk))?;
-            if end_of_chunk & 1 > 0 {
-                0u8.write_le(self.writer)?;
-            }
-            Ok(())
+        let end_of_chunk = self.writer.stream_position()?;
+        self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
+        chunk_size_to_write.write_le(self.writer)?;
+        self.writer.seek(SeekFrom::Start(end_of_chunk))?;
+        if end_of_chunk & 1 > 0 {
+            0u8.write_le(self.writer)?;
         }
+        Ok(())
     }
 
     // 取得 Chunk 的数据部分的开始位置
