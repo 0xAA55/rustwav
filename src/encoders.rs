@@ -876,7 +876,7 @@ pub mod mp3 {
                 self.cur_samples += 1;
                 Ok(())
             } else {
-                Err(AudioWriteError::BufferIsFull)
+                Err(AudioWriteError::BufferIsFull(format!("The buffer is full (max = {} samples)", self.max_samples)))
             }
         }
 
@@ -981,7 +981,7 @@ pub mod mp3 {
                 self.cur_samples += 1;
                 Ok(())
             } else {
-                Err(AudioWriteError::BufferIsFull)
+                Err(AudioWriteError::BufferIsFull(format!("The buffer is full (max = {} samples)", self.max_samples)))
             }
         }
 
