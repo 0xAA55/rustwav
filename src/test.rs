@@ -84,8 +84,9 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
-    let transfer_by_blocks = true;
-    let transfer_block_size = 4096usize;
+    let transfer_block_size = 65536usize;
+
+    let mut resampler = Resampler::new(transfer_block_size);
 
     println!("======== TEST 1 ========");
 
@@ -111,55 +112,35 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Ms), NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
-    if transfer_by_blocks {
-        match spec.channels {
-            1 => {
-                let mut iter = wavereader.mono_iter::<i16>()?;
-                loop {
-                    let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter.write_monos(&block)?;
+    match spec.channels {
+        1 => {
+            let mut iter = wavereader.mono_iter::<i16>()?;
+            loop {
+                let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            2 => {
-                let mut iter = wavereader.stereo_iter::<i16>()?;
-                loop {
-                    let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter.write_stereos(&block)?;
-                }
-            },
-            _ => {
-                let mut iter = wavereader.frame_iter::<i16>()?;
-                loop {
-                    let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter.write_frames(&block)?;
-                }
+                wavewriter.write_monos(&block)?;
             }
-        }
-    } else {
-        match spec.channels {
-            1 => {
-                for mono in wavereader.mono_iter::<i16>()? {
-                    wavewriter.write_mono(mono)?;
+        },
+        2 => {
+            let mut iter = wavereader.stereo_iter::<i16>()?;
+            loop {
+                let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            2 => {
-                for stereo in wavereader.stereo_iter::<i16>()? {
-                    wavewriter.write_stereo(stereo)?;
+                wavewriter.write_stereos(&block)?;
+            }
+        },
+        _ => {
+            let mut iter = wavereader.frame_iter::<i16>()?;
+            loop {
+                let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            _ => {
-                for frame in wavereader.frame_iter::<i16>()? {
-                    wavewriter.write_frame(&frame)?;
-                }
+                wavewriter.write_frames(&block)?;
             }
         }
     }
@@ -174,7 +155,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
     println!("======== TEST 2 ========");
 
-    let spec = Spec {
+    let spec2 = Spec {
         channels: spec.channels,
         channel_mask: 0,
         sample_rate: 48000,
@@ -183,57 +164,45 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     };
 
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
-    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Opus, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec2, DataFormat::Opus, NeverLargerThan4GB).unwrap();
 
-    if transfer_by_blocks {
-        match spec.channels {
-            1 => {
-                let mut iter = wavereader_2.mono_iter::<i16>()?;
-                loop {
-                    let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter_2.write_monos(&block)?;
+    match spec2.channels {
+        1 => {
+            let mut iter = wavereader_2.mono_iter::<i16>()?;
+            loop {
+                let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            2 => {
-                let mut iter = wavereader_2.stereo_iter::<i16>()?;
-                loop {
-                    let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter_2.write_stereos(&block)?;
-                }
-            },
-            _ => {
-                let mut iter = wavereader_2.frame_iter::<i16>()?;
-                loop {
-                    let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
-                    if block.is_empty() {
-                        break;
-                    }
-                    wavewriter_2.write_frames(&block)?;
-                }
+                let block = do_resample(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
+                wavewriter_2.write_monos(&block)?;
             }
-        }
-    } else {
-        match spec.channels {
-            1 => {
-                for mono in wavereader_2.mono_iter::<i16>()? {
-                    wavewriter_2.write_mono(mono)?;
+        },
+        2 => {
+            let mut iter = wavereader_2.stereo_iter::<i16>()?;
+            loop {
+                let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            2 => {
-                for stereo in wavereader_2.stereo_iter::<i16>()? {
-                    wavewriter_2.write_stereo(stereo)?;
+                let block = utils::multiple_stereos_to_dual_mono(&block);
+                let l = do_resample(&mut resampler, &block.0, spec.sample_rate, spec2.sample_rate);
+                let r = do_resample(&mut resampler, &block.1, spec.sample_rate, spec2.sample_rate);
+                let block = utils::dual_mono_to_multiple_stereos(&(l, r))?;
+                wavewriter_2.write_stereos(&block)?;
+            }
+        },
+        _ => {
+            let mut iter = wavereader_2.frame_iter::<i16>()?;
+            loop {
+                let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
+                if block.is_empty() {
+                    break;
                 }
-            },
-            _ => {
-                for frame in wavereader_2.frame_iter::<i16>()? {
-                    wavewriter_2.write_frame(&frame)?;
-                }
+                let monos = utils::multiple_frames_to_multiple_monos(&block, Some(spec2.channels))?;
+                let monos = monos.into_iter().map(|mono|{do_resample(&mut resampler, &mono, spec.sample_rate, spec2.sample_rate)}).collect::<Vec<Vec<i16>>>();
+                let block = utils::multiple_monos_to_multiple_frames(&monos)?;
+                wavewriter_2.write_frames(&block)?;
             }
         }
     }
