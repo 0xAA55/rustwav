@@ -1,27 +1,10 @@
 use crate::{AudioWriteError};
 use crate::{SampleType};
 
-pub fn multiple_frames_to_tuples<S>(frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioWriteError>
+pub fn multiple_stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {
-    let mut tuples = Vec::<(S, S)>::with_capacity(frames.len());
-    for frame in frames.iter() {
-        match frame.len() {
-            1 => tuples.push((frame[0], frame[0])),
-            2 => tuples.push((frame[0], frame[1])),
-            _ => return Err(AudioWriteError::FrameChannelsNotSame),
-        }
-    }
-    Ok(tuples)
-}
-
-pub fn stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
-where S: SampleType {
-    let mut l = Vec::<S>::with_capacity(stereos.len());
-    let mut r = Vec::<S>::with_capacity(stereos.len());
-    for stereo in stereos.iter() {
-        l.push(stereo.0);
-        r.push(stereo.1);
-    }
+    let l = stereos.iter().map(|(l, _r): &(S, S)| -> S {*l}).collect();
+    let r = stereos.iter().map(|(_l, r): &(S, S)| -> S {*r}).collect();
     (l, r)
 }
 
@@ -29,71 +12,75 @@ pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
     if data.is_empty() {
         None
     } else {
-        let lengths = data.iter().map(|item| item.len()).collect::<Vec<usize>>();
+        let lengths: Vec<usize> = data.iter().map(|item| item.len()).collect();
         let first = lengths[0];
-        for i in lengths.iter() {
-            if *i != first {
-                return Some((false, 0));
+        Some((lengths.iter().all(|&item| item == first), first))
+    }
+}
+
+pub fn multiple_frames_to_tuples<S>(frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioWriteError>
+where S: SampleType {
+    match is_same_len(frames) {
+        None => Ok(Vec::<(S, S)>::new()),
+        Some((equal, channels)) => {
+            match equal {
+                false => Err(AudioWriteError::FrameChannelsNotSame),
+                true => {
+                    match channels {
+                        1 => Ok(frames.iter().map(|frame: &Vec<S>| -> (S, S) {(frame[0], frame[0])}).collect()),
+                        2 => Ok(frames.iter().map(|frame: &Vec<S>| -> (S, S) {(frame[0], frame[1])}).collect()),
+                        o => Err(AudioWriteError::WrongChannels(format!("{o}"))),
+                    }
+                }
             }
         }
-        Some((true, first))
     }
 }
 
 pub fn multiple_frames_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
 where S: SampleType {
-    Ok(stereos_to_dual_mono(&multiple_frames_to_tuples(frames)?))
+    Ok(multiple_stereos_to_dual_mono(&multiple_frames_to_tuples(frames)?))
 }
 
 pub fn multiple_frames_to_multiple_monos<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<Vec<S>>, AudioWriteError>
 where S: SampleType {
-    let mut ret = Vec::<Vec<S>>::new();
     match is_same_len(frames) {
-        None => Ok(ret),
+        None => Ok(Vec::<Vec<S>>::new()),
         Some((equal, length)) => {
             match equal {
                 false => Err(AudioWriteError::FrameChannelsNotSame),
                 true => {
-                    ret.resize(length, {let mut mono = Vec::<S>::new(); mono.resize(frames.len(), S::new()); mono});
-                    for (position, frame) in frames.iter().enumerate() {
-                        if let Some(channels) = channels {
-                            if channels as usize != frame.len() {
-                                return Err(AudioWriteError::WrongChannels(format!("The channels is {channels} but the frames include a {} channel frame.", frame.len())));
-                            }
-                        }
-                        for (channel, sample) in frame.iter().enumerate() {
-                            ret[channel][position] = *sample;
+                    if let Some(channels) = channels {
+                        if channels as usize != length {
+                            return Err(AudioWriteError::WrongChannels(format!("The channels is {channels} but the frames are {length} channels")));
                         }
                     }
-                    Ok(ret)
+                    Ok((0..length).map(|channel| -> Vec<S> {frames.iter().map(|frame: &Vec<S>| -> S {frame[channel]}).collect()}).collect())
                 }
             }
         }
     }
 }
 
-pub fn multiple_monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
+pub fn multiple_monos_to_multiple_frames<S>(monos: &[Vec<S>]) -> Result<Vec<Vec<S>>, AudioWriteError>
 where S: SampleType {
-    let mut ret = Vec::<S>::new();
     match is_same_len(monos) {
-        None => Ok(ret),
+        None => Ok(Vec::<Vec<S>>::new()),
         Some((equal, length)) => {
             match equal {
                 false => Err(AudioWriteError::MultipleMonosAreNotSameSize),
                 true => {
-                    ret.resize(length * monos.len(), S::new());
-                    let mut write_position = 0usize;
-                    for position in 0..length {
-                        for channel in monos {
-                            ret[write_position] = channel[position];
-                            write_position += 1;
-                        }
-                    }
-                    Ok(ret)
+                    Ok((0..length).map(|position: usize| -> Vec<S> {monos.iter().map(|channel: &Vec<S>| -> S {channel[position]}).collect()}).collect())
                 }
             }
         }
     }
+}
+
+
+pub fn multiple_monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
+where S: SampleType {
+    Ok(multiple_monos_to_multiple_frames(monos)?.into_iter().flatten().collect())
 }
 
 pub fn multiple_frames_to_interleaved_samples<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<S>, AudioWriteError>
@@ -103,74 +90,30 @@ where S: SampleType {
 
 pub fn multiple_stereos_to_interleaved_samples<S>(stereos: &[(S, S)]) -> Vec<S>
 where S: SampleType {
-    let mut ret = Vec::<S>::with_capacity(stereos.len() * 2);
-    for (l, r) in stereos.iter() {
-        ret.push(*l);
-        ret.push(*r);
-    }
-    ret
-}
-
-pub fn multiple_stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
-where S: SampleType {
-    let mut ret_l = Vec::<S>::with_capacity(stereos.len());
-    let mut ret_r = Vec::<S>::with_capacity(stereos.len());
-    for (l, r) in stereos.iter() {
-        ret_l.push(*l);
-        ret_r.push(*r);
-    }
-    (ret_l, ret_r)
+    stereos.iter().flat_map(|(l, r): &(S, S)| -> [S; 2] {[*l, *r]}).collect()
 }
 
 pub fn interleaved_samples_to_multiple_monos<S>(samples: &[S], channels: u16) -> Result<Vec<Vec<S>>, AudioWriteError>
 where S: SampleType {
     if channels == 0 {
-        return Err(AudioWriteError::InvalidArguments("Channels must not be zero".to_owned()));
-    }
-    let channels = channels as usize;
-    let mut ret = Vec::<Vec<S>>::new();
-    ret.resize(channels, Vec::<S>::new());
-    for (index, sample) in samples.iter().enumerate() {
-        let channel = index % channels;
-        ret[channel].push(*sample);
-    }
-    match is_same_len(&ret) {
-        None => Ok(ret),
-        Some((equal, _)) => {
-            match equal {
-                false => Err(AudioWriteError::MultipleMonosAreNotSameSize),
-                true => Ok(ret)
-            }
-        }
+        Err(AudioWriteError::InvalidArguments("Channels must not be zero".to_owned()))
+    } else {
+        Ok((0..channels).map(|channel| -> Vec<S> {samples.iter().skip(channel as usize).step_by(channels as usize).copied().collect()}).collect())
     }
 }
 
 pub fn interleaved_samples_to_stereos<S>(samples: &[S]) -> Result<Vec<(S, S)>, AudioWriteError>
 where S: SampleType {
     if (samples.len() & 1) != 0 {
-        return Err(AudioWriteError::NotStereo);
+        Err(AudioWriteError::NotStereo)
+    } else {
+        Ok((0..(samples.len() / 2)).map(|position| -> (S, S) {(samples[position * 2], samples[position * 2 + 1])}).collect())
     }
-    let stereo_len = samples.len() / 2;
-    let mut ret = Vec::<(S, S)>::with_capacity(stereo_len);
-    for i in 0..stereo_len {
-        ret.push((samples[i * 2], samples[i * 2 + 1]));
-    }
-    Ok(ret)
 }
 
 // 样本类型缩放转换
 // 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
-pub fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
-where S: SampleType,
-      D: SampleType {
-
-    let mut ret = Vec::<D>::with_capacity(frame.len());
-    for f in frame.iter() {
-        ret.push(D::from(*f));
-    }
-    ret
-}
-
+#[inline(always)]
 pub fn stereo_conv<S, D>(frame: (S, S)) -> (D, D)
 where S: SampleType,
       D: SampleType {
@@ -178,15 +121,18 @@ where S: SampleType,
     (D::from(l), D::from(r))
 }
 
+pub fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
+where S: SampleType,
+      D: SampleType {
+
+    frame.iter().map(|sample: &S| -> D {D::from(*sample)}).collect()
+}
+
 pub fn stereos_conv<S, D>(frame: &[(S, S)]) -> Vec<(D, D)>
 where S: SampleType,
       D: SampleType {
 
-    let mut ret = Vec::<(D, D)>::with_capacity(frame.len());
-    for f in frame.iter() {
-        ret.push(stereo_conv(*f));
-    }
-    ret
+    frame.iter().map(|stereo: &(S, S)| -> (D, D) {stereo_conv(*stereo)}).collect()
 }
 
 // 样本类型缩放转换批量版
@@ -194,9 +140,5 @@ pub fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
 where S: SampleType,
       D: SampleType {
 
-    let mut ret = Vec::<Vec<D>>::with_capacity(frames.len());
-    for f in frames.iter() {
-        ret.push(sample_conv(f));
-    }
-    ret
+    frames.iter().map(|frame: &Vec<S>| -> Vec<D> {sample_conv(frame)}).collect()
 }
