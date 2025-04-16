@@ -12,6 +12,9 @@ use crate::Reader;
 #[cfg(feature = "mp3dec")]
 use crate::Mp3Decoder;
 
+#[cfg(feature = "opus")]
+use crate::OpusDecoder;
+
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
@@ -63,6 +66,16 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 impl<S> Decoder<S> for Mp3Decoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { Mp3Decoder::get_channels(self) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+}
+
+#[cfg(feature = "opus")]
+impl<S> Decoder<S> for OpusDecoder
+    where S: SampleType {
+    fn get_channels(&self) -> u16 { OpusDecoder::get_channels(self) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -427,6 +440,7 @@ pub mod mp3 {
     use rmp3::{DecoderOwned, Frame};
     use crate::{AudioReadError};
     use crate::Reader;
+    use crate::FmtChunk;
     use crate::SampleType;
 
     pub struct Mp3Decoder {
@@ -476,15 +490,15 @@ pub mod mp3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, target_sample_format: u32, target_channels: u16, data_offset: u64, data_length: u64, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader = reader;
             let mut mp3_raw_data = vec![0u8; data_length as usize];
             reader.seek(SeekFrom::Start(data_offset))?;
             reader.read_exact(&mut mp3_raw_data)?;
             let the_decoder = rmp3::DecoderOwned::new(mp3_raw_data);
             let mut ret = Self {
-                target_sample_format,
-                target_channels,
+                target_sample_format: fmt.sample_rate,
+                target_channels: fmt.channels,
                 the_decoder,
                 cur_frame: None,
                 sample_pos: 0,
@@ -666,13 +680,200 @@ pub mod mp3 {
 
 #[cfg(feature = "opus")]
 pub mod opus {
+    use std::io::SeekFrom;
 
-    use opus::{Decoder};
+    use crate::Reader;
+    use crate::FmtChunk;
+    use crate::AudioReadError;
+    use crate::SampleType;
 
+    use opus::{Decoder, Channels};
 
     #[derive(Debug)]
     pub struct OpusDecoder {
+        reader: Box<dyn Reader>,
         decoder: Decoder,
+        channels: u16,
+        sample_rate: u32,
+        data_offset: u64,
+        data_length: u64,
+        total_frames: u64,
+        block_align: usize,
+        decoded_samples: Vec<f32>,
+        decoded_samples_index: usize,
+        frame_index: u64,
+        block_frame_counts: Vec<u16>,
+    }
+
+    impl OpusDecoder {
+        pub fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+            let channels = fmt.channels;
+            let sample_rate = fmt.sample_rate;
+            let opus_channels = match channels {
+                1 => Channels::Mono,
+                2 => Channels::Stereo,
+                o => return Err(AudioReadError::InvalidArguments(format!("Bad channels: {o} for the opus decoder."))),
+            };
+            let decoder = Decoder::new(sample_rate, opus_channels)?;
+            reader.seek(SeekFrom::Start(data_offset))?;
+            Ok(Self{
+                reader,
+                decoder,
+                channels,
+                sample_rate,
+                data_offset,
+                data_length,
+                total_frames: total_samples / channels as u64,
+                block_align: fmt.block_align as usize,
+                decoded_samples: Vec::<f32>::new(),
+                decoded_samples_index: 0,
+                frame_index: 0,
+                block_frame_counts: Vec::<u16>::new(),
+            })
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            self.channels
+        }
+
+        pub fn get_sample_rate(&self) -> u32 {
+            self.sample_rate
+        }
+
+        fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
+            let end_of_data = self.data_offset + self.data_length;
+            if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+        }
+
+        fn get_num_samples_in_ms(&self, ms_val: f32) -> usize {
+            (self.sample_rate as f32 * ms_val / 1000.0) as usize * self.channels as usize
+        }
+
+        fn decode_block(&mut self) -> Result<(), AudioReadError> {
+            if self.is_end_of_data()? {
+                self.decoded_samples = vec![0.0; 0];
+                self.decoded_samples_index = 0;
+                return Ok(());
+            }
+            let block_index = ((self.reader.stream_position()? - self.data_offset) / self.block_align as u64) as usize;
+            let mut buf = vec![0u8; self.block_align];
+            self.reader.read_exact(&mut buf)?;
+            self.decoded_samples = vec![0.0; self.get_num_samples_in_ms(60.0) * self.channels as usize];
+            let samples = self.decoder.decode_float(&buf, &mut self.decoded_samples, false)? * self.channels as usize;
+            self.decoded_samples.truncate(samples);
+            self.decoded_samples_index = 0;
+            let cur_frames = samples as u16 / self.channels;
+            if block_index == self.block_frame_counts.len() {
+                self.block_frame_counts.push(cur_frames);
+            } else if block_index < self.block_frame_counts.len() {
+                self.block_frame_counts[block_index] = cur_frames;
+            } else {
+                self.block_frame_counts.resize(block_index + 1, 0);
+                self.block_frame_counts[block_index] = cur_frames;
+            }
+            Ok(())
+        }
+
+        pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
+            let frame_index = match seek_from{
+                SeekFrom::Start(fi) => fi,
+                SeekFrom::Current(cur) => {
+                    (self.frame_index as i64 + cur) as u64
+                },
+                SeekFrom::End(end) => {
+                    (self.total_frames as i64 + end) as u64
+                }
+            };
+            let mut block_frames = 0u64;
+            let mut bi = 0usize;
+            loop {
+                self.reader.seek(SeekFrom::Start(self.data_offset + (bi * self.block_align) as u64))?;
+                if self.is_end_of_data()? {
+                    self.frame_index = frame_index;
+                    self.decoded_samples.clear();
+                    self.decoded_samples_index = 0;
+                    break;
+                }
+                if bi >= self.block_frame_counts.len() {
+                    self.decode_block()?;
+                }
+                let cur_block_samples = self.block_frame_counts[bi] as u64;
+                bi += 1;
+                if block_frames <= frame_index && block_frames + cur_block_samples > frame_index {
+                    self.frame_index = frame_index;
+                    self.decoded_samples_index = (frame_index - block_frames) as usize * self.channels as usize;
+                    break;
+                }
+                block_frames += cur_block_samples;
+            }
+            Ok(())
+        }
+
+        fn decode_sample(&mut self) -> Result<Option<f32>, AudioReadError> {
+            if self.decoded_samples_index >= self.decoded_samples.len() {
+                self.decode_block()?;
+            }
+            if self.decoded_samples.len() == 0 {
+                Ok(None)
+            } else {
+                let ret = self.decoded_samples[self.decoded_samples_index];
+                self.decoded_samples_index += 1;
+                Ok(Some(ret))
+            }
+        }
+
+        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where S: SampleType {
+            match self.channels {
+                1 => {
+                    let s = self.decode_sample()?;
+                    if let Some(s) = s {self.frame_index += 1; Ok(Some(S::from(s)))} else {Ok(None)}
+                },
+                2 => {
+                    let l = self.decode_sample()?;
+                    let r = self.decode_sample()?;
+                    let l = if let Some(l) = l {S::from(l)} else {return Ok(None);};
+                    let r = if let Some(r) = r {S::from(r)} else {return Ok(None);};
+                    self.frame_index += 1;
+                    Ok(Some(S::average(l, r)))
+                },
+                o => Err(AudioReadError::DataCorrupted(format!("Bad channels: {o} for the opus decoder."))),
+            }
+        }
+
+        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+        where S: SampleType {
+            match self.channels {
+                1 => {
+                    let s = self.decode_sample()?;
+                    if let Some(s) = s {self.frame_index += 1; let s = S::from(s); Ok(Some((s, s)))} else {Ok(None)}
+                }
+                2 => {
+                    let l = self.decode_sample()?;
+                    let r = self.decode_sample()?;
+                    let l = if let Some(l) = l {S::from(l)} else {return Ok(None);};
+                    let r = if let Some(r) = r {S::from(r)} else {return Ok(None);};
+                    self.frame_index += 1;
+                    Ok(Some((l, r)))
+                },
+                o => Err(AudioReadError::DataCorrupted(format!("Bad channels: {o} for the opus decoder."))),
+            }
+        }
+
+        pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+        where S: SampleType {
+            let stereo = self.decode_stereo::<S>()?;
+            match stereo {
+                None => Ok(None),
+                Some((l, r)) => {
+                    match self.channels {
+                        1 => Ok(Some(vec![S::from(l)])),
+                        2 => Ok(Some(vec![S::from(l), S::from(r)])),
+                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
+                    }
+                },
+            }
+        }
     }
 }
 
