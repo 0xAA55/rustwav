@@ -18,15 +18,11 @@ pub enum DataFormat{
     Flac,
 }
 
-// 这些编码是乱写的
-// TODO
-// 这几个东西有杂音有可能是因为压缩后存储的样本大小不对。
-// 虽然压缩后输出的是 u8，但是 IMA 是按每 u32 交错存储多声道的。
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 pub enum AdpcmSubFormat {
-    Ima = 0x0011,       // 能用
-    Ms = 0x0002,        // 能用
+    Ms = 0x0002,
+    Ima = 0x0011,
 }
 
 impl From<AdpcmSubFormat> for u16 {
@@ -50,8 +46,8 @@ impl Display for DataFormat {
 impl Display for AdpcmSubFormat {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Ima => write!(f, "ADPCM-IMA"),
             Self::Ms => write!(f, "ADPCM-MS"),
+            Self::Ima => write!(f, "ADPCM-IMA"),
        }
     }
 }
