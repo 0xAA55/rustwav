@@ -269,8 +269,8 @@ pub mod ima {
                 while self.nibble_l.len() >= INTERLEAVE_BYTES && self.nibble_r.len() >= INTERLEAVE_BYTES {
                     for i in 0..INTERLEAVE_BYTES {output(self.nibble_l[i]);}
                     for i in 0..INTERLEAVE_BYTES {output(self.nibble_r[i]);}
-                    self.nibble_l = mem::replace(&mut self.nibble_l, EncoderNibbleBuffer::new()).into_iter().skip(INTERLEAVE_BYTES).collect();
-                    self.nibble_r = mem::replace(&mut self.nibble_r, EncoderNibbleBuffer::new()).into_iter().skip(INTERLEAVE_BYTES).collect();
+                    self.nibble_l = self.nibble_l.into_iter().skip(INTERLEAVE_BYTES).collect();
+                    self.nibble_r = self.nibble_r.into_iter().skip(INTERLEAVE_BYTES).collect();
                 }
             }
             Ok(())
