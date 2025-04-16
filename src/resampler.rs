@@ -58,7 +58,7 @@ impl Resampler {
     // desired_length：想要得到的音频长度，不能超过 FFT size
     // 当 samples.len() 小于 desired_length 的时候，说明你是要拉长音频到 desired_length
     // 当 samples.len() 大于 desired_length 的时候，说明你要压缩音频到 desired_length
-    pub fn resample(&self, samples: &[f32], desired_length: usize) -> Result<Vec<f32>, ResamplerError> {
+    pub fn resample_core(&self, samples: &[f32], desired_length: usize) -> Result<Vec<f32>, ResamplerError> {
         let input_size = samples.len();
         if input_size == desired_length {
             return Ok(samples.to_vec());
@@ -118,6 +118,31 @@ impl Resampler {
 
         // 标准化输出
         Ok(fftdst.into_iter().map(|c| -> f32 {(c.re * self.normalize_scaler) as f32}).collect())
+    }
+
+    pub fn resample(&mut self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32, max_lengthen_rate: u32) -> Result<Vec<f32>, ResamplerError> {
+        if src_sample_rate == dst_sample_rate {
+            Ok(input.to_vec())
+        } else if src_sample_rate > dst_sample_rate {
+            // 源采样率高于目标采样率，说明要压缩波形
+            let desired_length = self.fft_size * dst_sample_rate as usize / src_sample_rate as usize;
+            self.resample_core(&input, desired_length)
+        } else {
+            // 源采样率低于目标采样率，说明要拉长波形
+            let desired_length = (self.fft_size * dst_sample_rate as usize / src_sample_rate as usize) / max_lengthen_rate as usize;
+            let proc_size = self.fft_size / max_lengthen_rate as usize;
+            let mut iter = input.into_iter();
+            let mut ret = Vec::<f32>::new();
+            loop {
+                let chunk: Vec<f32> = iter.by_ref().take(proc_size).copied().collect();
+                if chunk.len() == 0 {
+                    break;
+                }
+                let result = self.resample_core(&chunk, desired_length).unwrap();
+                ret.extend(&result);
+            }
+            Ok(ret)
+        }
     }
 
     pub fn get_fft_size(&self) -> usize {
