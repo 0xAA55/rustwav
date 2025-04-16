@@ -347,7 +347,7 @@ where S: SampleType {
             // #[cfg(not(feature = "flac"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
         },
-        other => Err(AudioReadError::Unimplemented(format!("0x{:x}", other))),
+        other => Err(AudioReadError::Unimplemented(format!("Not implemented for format_tag 0x{:x}", other))),
     }
 }
 
