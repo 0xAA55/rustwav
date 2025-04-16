@@ -143,8 +143,16 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
     println!("======== TEST 2 ========");
 
+    let spec = Spec {
+        channels: spec.channels,
+        channel_mask: 0,
+        sample_rate: 48000,
+        bits_per_sample: 16, // 设置样本位数
+        sample_format: SampleFormat::Int, // 使用有符号整数
+    };
+
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
-    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec, DataFormat::Opus, NeverLargerThan4GB).unwrap();
 
     if transfer_by_blocks {
         match spec.channels {
