@@ -46,6 +46,9 @@ pub use encoders::mp3::Mp3Encoder;
 #[cfg(feature = "opus")]
 pub use encoders::opus::OpusEncoder;
 
+#[cfg(feature = "opus")]
+pub use decoders::opus::OpusDecoder;
+
 use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
@@ -73,14 +76,14 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavereader = WaveReader::open(arg1).unwrap();
 
     // 获取原本音频文件的数据参数
-    let orig_spec = wavereader.spec();
+    let orig_spec = *wavereader.spec();
 
     // 这里可以修改参数，能改变样本的位数和格式等。
     // WAV 实际支持的样本的位数和格式有限。
     let spec = Spec {
         channels: orig_spec.channels,
-        channel_mask: orig_spec.channel_mask,
-        sample_rate: orig_spec.sample_rate,
+        channel_mask: 0,
+        sample_rate: 48000,
         bits_per_sample: 16, // 设置样本位数
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
@@ -88,7 +91,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     dbg!(&spec);
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Ms), NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Opus, NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
     match spec.channels {
@@ -99,6 +102,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 if block.is_empty() {
                     break;
                 }
+                let block = do_resample(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
                 wavewriter.write_monos(&block)?;
             }
         },
@@ -109,6 +113,10 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 if block.is_empty() {
                     break;
                 }
+                let block = utils::multiple_stereos_to_dual_mono(&block);
+                let l = do_resample(&mut resampler, &block.0, orig_spec.sample_rate, spec.sample_rate);
+                let r = do_resample(&mut resampler, &block.1, orig_spec.sample_rate, spec.sample_rate);
+                let block = utils::dual_mono_to_multiple_stereos(&(l, r))?;
                 wavewriter.write_stereos(&block)?;
             }
         },
@@ -119,6 +127,9 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
                 if block.is_empty() {
                     break;
                 }
+                let monos = utils::multiple_frames_to_multiple_monos(&block, Some(spec.channels))?;
+                let monos = monos.into_iter().map(|mono|{do_resample(&mut resampler, &mono, orig_spec.sample_rate, spec.sample_rate)}).collect::<Vec<Vec<i16>>>();
+                let block = utils::multiple_monos_to_multiple_frames(&monos)?;
                 wavewriter.write_frames(&block)?;
             }
         }
@@ -143,7 +154,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     };
 
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
-    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec2, DataFormat::Opus, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     match spec2.channels {
         1 => {

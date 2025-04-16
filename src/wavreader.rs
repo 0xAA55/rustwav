@@ -21,6 +21,9 @@ use crate::CopiableBuffer;
 #[cfg(feature = "mp3dec")]
 use crate::Mp3Decoder;
 
+#[cfg(feature = "opus")]
+use crate::OpusDecoder;
+
 #[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
@@ -335,7 +338,7 @@ where S: SampleType {
         TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         0x0055 => {
             if cfg!(feature = "mp3dec") {
-                Ok(Box::new(Mp3Decoder::new(reader, spec.sample_rate, spec.channels, data_offset, data_length, fact_data)?))
+                Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))
             } else {
                 Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))
             }
@@ -344,8 +347,11 @@ where S: SampleType {
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
         0x704F => {
-            // #[cfg(not(feature = "opus"))]
-            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))
+            if cfg!(feature = "opus") {
+                Ok(Box::new(OpusDecoder::new(reader, data_offset, data_length, fmt, fact_data)?))
+            } else {
+                Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))
+            }
         },
         0xF1AC => { // FLAC
             // #[cfg(not(feature = "flac"))]
