@@ -21,6 +21,7 @@ impl IOErrorInfo {
 pub enum AudioReadError {
     IncompleteFile(u64), // 不完整的文件
     IncompleteData(String), // 不完整的数据
+    BufferTooSmall(String), // 给的缓冲区太小
     InvalidArguments(String), // 错误的参数
     IOError(IOErrorInfo), // 读写错误，应停止处理
     FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
@@ -39,6 +40,7 @@ impl Display for AudioReadError {
         match self {
             Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
             Self::IncompleteData(info) => write!(f, "Incomplete data: {info}"),
+            Self::BufferTooSmall(info) => write!(f, "The buffer is too small: {info}"),
             Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
             Self::FormatError(info) => write!(f, "Invalid format: {info}"),
@@ -87,7 +89,7 @@ pub enum AudioWriteError {
     NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
     ChunkSizeTooBig(String), // 块大小太大
     StringDecodeError(Vec<u8>), // 字符串解码错误
-    BufferIsFull, // 缓冲区满了
+    BufferIsFull(String), // 缓冲区满了
     MultipleMonosAreNotSameSize, // 多个通道的数据不是一样长
     FrameChannelsNotSame, // 每个音频帧的通道数不同
     WrongChannels(String), // 声道数错误
@@ -108,7 +110,7 @@ impl Display for AudioWriteError {
             Self::NotPreparedFor4GBFile => write!(f, "The WAV file wasn't prepared for being larger than 4GB, please check `file_size_option` when creating the `WaveWriter`."),
             Self::ChunkSizeTooBig(info) => write!(f, "Chunk size is too big: {info}"),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
-            Self::BufferIsFull => write!(f, "The buffer is full, it should be flushed."),
+            Self::BufferIsFull(info) => write!(f, "The buffer is full: {info}"),
             Self::MultipleMonosAreNotSameSize => write!(f, "The lengths of the channels are not equal."),
             Self::FrameChannelsNotSame => write!(f, "The channels of each frames are not equal."),
             Self::WrongChannels(prompt) => write!(f, "Wrong channels: {prompt}"),
@@ -214,4 +216,34 @@ impl From<mp3lame_encoder::EncodeError> for AudioWriteError {
     }
 }
 
+#[cfg(feature = "opus")]
+impl From<opus::Error> for AudioReadError {
+    fn from(err: opus::Error) -> Self {
+        match err.code() {
+            opus::ErrorCode::BadArg => Self::InvalidArguments(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::BufferTooSmall => Self::BufferTooSmall(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InternalError => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidPacket => Self::DataCorrupted(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::Unimplemented => Self::Unimplemented(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidState => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::AllocFail => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::Unknown => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+        }
+    }
+}
 
+#[cfg(feature = "opus")]
+impl From<opus::Error> for AudioWriteError {
+    fn from(err: opus::Error) -> Self {
+        match err.code() {
+            opus::ErrorCode::BadArg => Self::InvalidArguments(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::BufferTooSmall => Self::BufferIsFull(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InternalError => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidPacket => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::Unimplemented => Self::Unimplemented(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidState => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::AllocFail => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::Unknown => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+        }
+    }
+}
