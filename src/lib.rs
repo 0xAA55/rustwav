@@ -41,3 +41,5 @@ pub use decoders::mp3::Mp3Decoder;
 #[cfg(feature = "mp3enc")]
 pub use encoders::mp3::Mp3Encoder;
 
+#[cfg(feature = "opus")]
+pub use encoders::opus::OpusEncoder;

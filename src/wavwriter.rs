@@ -19,6 +19,8 @@ use crate::hacks;
 #[cfg(feature = "mp3enc")]
 use crate::Mp3Encoder;
 
+#[cfg(feature = "opus")]
+use crate::OpusEncoder;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]
@@ -65,7 +67,7 @@ impl<'a> WaveWriter<'a> {
     }
 
     pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
-        use DataFormat::{Pcm, Adpcm, Mp3, OggVorbis, Flac};
+        use DataFormat::{Pcm, Adpcm, Mp3, Opus, OggVorbis, Flac};
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
@@ -79,6 +81,7 @@ impl<'a> WaveWriter<'a> {
                 }
             },
             Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
+            Opus => Encoder::new(Box::new(OpusEncoder::new(spec.channels, spec.sample_rate, None, None, None)?)),
             other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
         let mut ret = Self{
