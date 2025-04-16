@@ -664,3 +664,15 @@ pub mod mp3 {
     }
 }
 
+#[cfg(feature = "opus")]
+pub mod opus {
+
+    use opus::{Decoder};
+
+
+    #[derive(Debug)]
+    pub struct OpusDecoder {
+        decoder: Decoder,
+    }
+}
+
