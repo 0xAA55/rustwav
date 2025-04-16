@@ -12,6 +12,7 @@ pub mod wavreader;
 pub mod wavwriter;
 pub mod utils;
 pub mod copiablebuf;
+pub mod resampler;
 pub mod hacks;
 
 pub use errors::{AudioError, AudioReadError, AudioWriteError, IOErrorInfo};
@@ -34,6 +35,7 @@ pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter}
 pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use filehasher::FileHasher;
 pub use copiablebuf::{CopiableBuffer, CopiableBufferIter, CopiableBufferIterMut, CopiableBufferIntoIter};
+pub use resampler::Resampler;
 
 #[cfg(feature = "mp3dec")]
 pub use decoders::mp3::Mp3Decoder;
