@@ -390,7 +390,6 @@ pub struct ChunkWriter<'a> {
     pub flag: [u8; 4],
     pub pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     pub chunk_start: u64, // chunk 数据开始的地方
-    ended: bool, // 是否早已完成 Chunk 的写入
 }
 
 impl Debug for ChunkWriter<'_> {
@@ -417,12 +416,11 @@ impl<'a> ChunkWriter<'a> {
             flag: *flag,
             pos_of_chunk_len,
             chunk_start,
-            ended: false,
         })
     }
 
     // 结束写入 Chunk，更新 Chunk Size
-    pub fn on_drop(&mut self) -> Result<(), AudioWriteError> {
+    pub fn end(mut self) -> Result<(), AudioWriteError> {
         if self.ended {
             Ok(())
         } else {
@@ -458,13 +456,8 @@ impl<'a> ChunkWriter<'a> {
             if end_of_chunk & 1 > 0 {
                 0u8.write_le(self.writer)?;
             }
-            self.ended = true;
             Ok(())
         }
-    }
-
-    pub fn end(mut self) -> Result<(), AudioWriteError> {
-        self.on_drop()
     }
 
     // 取得 Chunk 的数据部分的开始位置
@@ -475,15 +468,6 @@ impl<'a> ChunkWriter<'a> {
     // 取得 Chunk 数据当前写入的大小
     pub fn get_chunk_data_size(&mut self) -> Result<u64, AudioWriteError> {
         Ok(self.writer.stream_position()? - self.get_chunk_start_pos())
-    }
-}
-
-impl Drop for ChunkWriter<'_> {
-    fn drop(&mut self) {
-        match self.on_drop() {
-            Ok(_) => (),
-            Err(e) => println!("On `ChunkWriter::drop()`: {:?}", e),
-        }
     }
 }
 
