@@ -9,6 +9,9 @@ use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
 use crate::Reader;
 
+#[cfg(feature = "mp3dec")]
+use crate::Mp3Decoder;
+
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
     where S: SampleType {
@@ -57,9 +60,9 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 }
 
 #[cfg(feature = "mp3dec")]
-impl<S> Decoder<S> for MP3::Mp3Decoder
+impl<S> Decoder<S> for Mp3Decoder
     where S: SampleType {
-    fn get_channels(&self) -> u16 { MP3::Mp3Decoder::get_channels(self) }
+    fn get_channels(&self) -> u16 { Mp3Decoder::get_channels(self) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
