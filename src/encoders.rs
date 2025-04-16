@@ -656,7 +656,7 @@ where E: adpcm::AdpcmEncoder {
 }
 
 #[cfg(feature = "mp3enc")]
-pub mod MP3 {
+pub mod mp3 {
     use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
     use crate::Writer;
     use crate::{SampleType, i24, u24};
