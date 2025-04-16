@@ -1289,9 +1289,9 @@ pub mod opus {
     }
 
     impl EncoderToImpl for OpusEncoder {
-        fn get_bit_rate(&self, _channels: u16) -> u32 {
+        fn get_bit_rate(&self, channels: u16) -> u32 {
             if self.samples_written > 0 {
-                (self.sample_rate as u64 * self.bytes_written / self.samples_written * 8) as u32
+                (self.sample_rate as u64 * self.bytes_written / self.samples_written * channels as u64 * 8) as u32
             } else {
                 0
             }
