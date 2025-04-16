@@ -54,7 +54,7 @@ pub trait SavageStringCodecs: Debug {
     }
 }
 
-#[cfg(feature = "encoding")]
+#[cfg(feature = "text_encoding")]
 pub mod text_encoding{
     use std::cfg;
     use std::fmt::Debug;
@@ -355,7 +355,7 @@ pub mod text_encoding{
     }
 }
 
-#[cfg(not(feature = "encoding"))]
+#[cfg(not(feature = "text_encoding"))]
 pub mod text_encoding{
     use super::SavageStringCodecs;
 
