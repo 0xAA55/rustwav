@@ -14,6 +14,7 @@ pub enum DataFormat{
     Pcm,
     Adpcm(AdpcmSubFormat),
     Mp3,
+    Opus,
     OggVorbis,
     Flac,
 }
@@ -37,6 +38,7 @@ impl Display for DataFormat {
             Self::Pcm => write!(f, "PCM"),
             Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
             Self::Mp3 => write!(f, "MP3"),
+            Self::Opus => write!(f, "Opus"),
             Self::OggVorbis => write!(f, "OggVorbis"),
             Self::Flac => write!(f, "FLAC"),
        }
