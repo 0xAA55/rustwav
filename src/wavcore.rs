@@ -443,7 +443,7 @@ impl<'a> ChunkWriter<'a> {
                 },
             }
         }
-        Ok(self.end_and_write_size(chunk_size as u32)?)
+        self.end_and_write_size(chunk_size as u32)
     }
 
     // 放弃写入 Chunk，写一个假的 Chunk 大小
