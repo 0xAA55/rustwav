@@ -23,6 +23,9 @@ mp3enc = ["dep:mp3lame-encoder"]
 encoding = ["dep:encoding"]
 resampler = ["dep:rustfft"]
 
+[profile.release]
+lto = "fat"
+
 [lib]
 name = "rustwav_lib"
 path = "src/lib.rs"
