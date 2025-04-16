@@ -71,6 +71,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
+    dbg!(&spec);
+
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Ms), NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
