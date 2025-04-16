@@ -53,29 +53,6 @@ use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
 
-fn do_resample_mono<S>(resampler: &mut Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
-where S: SampleType {
-    const MAX_LENGTHEN_RATE: u32 = 4;
-    let input = utils::sample_conv::<S, f32>(input);
-    let result = resampler.resample(&input, src_sample_rate, dst_sample_rate, MAX_LENGTHEN_RATE).unwrap();
-    utils::sample_conv::<f32, S>(&result)
-}
-
-fn do_resample_stereo<S>(resampler: &mut Resampler, input: &[(S, S)], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<(S, S)>
-where S: SampleType {
-    let block = utils::multiple_stereos_to_dual_mono(input);
-    let l = do_resample_mono(resampler, &block.0, src_sample_rate, dst_sample_rate);
-    let r = do_resample_mono(resampler, &block.1, src_sample_rate, dst_sample_rate);
-    utils::dual_mono_to_multiple_stereos(&(l, r)).unwrap()
-}
-
-fn do_resample_frames<S>(resampler: &mut Resampler, input: &[Vec<S>], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<Vec<S>>
-where S: SampleType {
-    let monos = utils::multiple_frames_to_multiple_monos(input, None).unwrap();
-    let monos = monos.into_iter().map(|mono|{do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate)}).collect::<Vec<Vec<S>>>();
-    utils::multiple_monos_to_multiple_frames(&monos).unwrap()
-}
-
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
@@ -112,34 +89,37 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     match spec.channels {
         1 => {
             let mut iter = wavereader.mono_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_mono(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
+                let block = utils::do_resample_mono(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
                 wavewriter.write_monos(&block)?;
             }
         },
         2 => {
             let mut iter = wavereader.stereo_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_stereo(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
+                let block = utils::do_resample_stereo(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
                 wavewriter.write_stereos(&block)?;
             }
         },
         _ => {
             let mut iter = wavereader.frame_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_frames(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
+                let block = utils::do_resample_frames(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
                 wavewriter.write_frames(&block)?;
             }
         }
@@ -169,34 +149,37 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     match spec2.channels {
         1 => {
             let mut iter = wavereader_2.mono_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_mono(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
+                let block = utils::do_resample_mono(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
                 wavewriter_2.write_monos(&block)?;
             }
         },
         2 => {
             let mut iter = wavereader_2.stereo_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_stereo(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
+                let block = utils::do_resample_stereo(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
                 wavewriter_2.write_stereos(&block)?;
             }
         },
         _ => {
             let mut iter = wavereader_2.frame_iter::<i16>()?;
+            dbg!(&iter);
             loop {
                 let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = do_resample_frames(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
+                let block = utils::do_resample_frames(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
                 wavewriter_2.write_frames(&block)?;
             }
         }
