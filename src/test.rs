@@ -52,31 +52,10 @@ use std::process::ExitCode;
 
 fn do_resample<S>(resampler: &mut Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
 where S: SampleType {
-    if src_sample_rate == dst_sample_rate {
-        input.to_vec()
-    } else if src_sample_rate > dst_sample_rate {
-        // 源采样率高于目标采样率，说明要压缩波形
-        let input = utils::sample_conv::<S, f32>(input);
-        let desired_length = resampler.get_fft_size() * dst_sample_rate as usize / src_sample_rate as usize;
-        let f32_result = resampler.resample(&input, desired_length).unwrap();
-        utils::sample_conv::<f32, S>(&f32_result)
-    } else {
-        // 源采样率低于目标采样率，说明要拉长波形
-        let input = utils::sample_conv::<S, f32>(input);
-        let desired_length = (resampler.get_fft_size() * dst_sample_rate as usize / src_sample_rate as usize) / 4;
-        let proc_size = resampler.get_fft_size() / 4;
-        let mut iter = input.into_iter();
-        let mut ret = Vec::<S>::new();
-        loop {
-            let chunk: Vec<f32> = iter.by_ref().take(proc_size).collect();
-            if chunk.len() == 0 {
-                break;
-            }
-            let f32_result = resampler.resample(&chunk, desired_length).unwrap();
-            ret.extend(utils::sample_conv::<f32, S>(&f32_result));
-        }
-        ret
-    }
+    const MAX_LENGTHEN_RATE: u32 = 4;
+    let input = utils::sample_conv::<S, f32>(input);
+    let result = resampler.resample(&input, src_sample_rate, dst_sample_rate, MAX_LENGTHEN_RATE).unwrap();
+    utils::sample_conv::<f32, S>(&result)
 }
 
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
