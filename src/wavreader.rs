@@ -312,15 +312,15 @@ impl WaveReader {
     // 而如果 WaveReader 是从 Read 创建的，那就创建临时文件，把 body 的内容转移到临时文件里，让迭代器使用。
     pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
     where S: SampleType {
-        FrameIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        FrameIter::<S>::new(self.data_chunk.open()?, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
     where S: SampleType {
-        StereoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        StereoIter::<S>::new(self.data_chunk.open()?, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
     where S: SampleType {
-        MonoIter::<S>::new(Box::new(self.data_chunk.open()?), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        MonoIter::<S>::new(self.data_chunk.open()?, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
 }
 
@@ -443,10 +443,10 @@ impl WaveDataReader {
         })
     }
 
-    fn open(&self) -> Result<File, AudioReadError> {
-        let mut file = File::open(&self.filepath)?;
+    fn open(&self) -> Result<Box<dyn Reader>, AudioReadError> {
+        let mut file = BufReader::new(File::open(&self.filepath)?);
         file.seek(SeekFrom::Start(self.offset))?;
-        Ok(file)
+        Ok(Box::new(file))
     }
 }
 
