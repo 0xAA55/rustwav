@@ -155,9 +155,8 @@ where S: SampleType,
 
 pub fn do_resample_mono<S>(resampler: &mut Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
 where S: SampleType {
-    const MAX_LENGTHEN_RATE: u32 = 4;
     let input = sample_conv::<S, f32>(input);
-    let result = resampler.resample(&input, src_sample_rate, dst_sample_rate, MAX_LENGTHEN_RATE).unwrap();
+    let result = resampler.resample(&input, src_sample_rate, dst_sample_rate).unwrap();
     sample_conv::<f32, S>(&result)
 }
 
