@@ -1230,11 +1230,7 @@ pub mod opus {
             } else {
                 Bitrate::Max
             };
-            let encode_vbr = if let Some(encode_vbr) = encode_vbr {
-                encode_vbr
-            } else {
-                false
-            };
+            let encode_vbr = encode_vbr.unwrap_or(false);
             encoder.set_bitrate(bitrate)?;
             encoder.set_vbr(encode_vbr)?;
             let cache_duration = if let Some(cache_duration) = samples_cache_duration{
@@ -1263,7 +1259,7 @@ pub mod opus {
         pub fn write_samples(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {
             self.sample_cache.extend(samples);
             let mut cached_length = self.sample_cache.len();
-            let mut iter = mem::replace(&mut self.sample_cache, Vec::<f32>::new()).into_iter();
+            let mut iter = mem::take(&mut self.sample_cache).into_iter();
             while cached_length >= self.num_samples_per_encode {
                 let samples_to_write: Vec<f32> = iter.by_ref().take(self.num_samples_per_encode).collect();
                 if samples_to_write.is_empty() {break;}
@@ -1280,7 +1276,7 @@ pub mod opus {
         }
 
         pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-            if self.sample_cache.len() > 0 {
+            if !self.sample_cache.is_empty() {
                 let pad = (self.num_samples_per_encode - self.sample_cache.len() % self.num_samples_per_encode) % self.num_samples_per_encode;
                 self.write_samples(writer, &vec![0.0f32; pad])?;
             }
