@@ -236,11 +236,11 @@ impl WaveReader {
                 // 曾经发现 BFDi 块，结果发现它是 BFD Player 生成的字符串块，里面大约是软件序列号之类的内容。
                 // 所以此处就不记载 BFDi 块的信息了。
                 other => {
-                    println!("Unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], 0x{:x}",
+                    println!("Skipped an unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], Position: 0x{:x}, Size: 0x{:x}",
                              text_encoding.decode_flags(other),
                              other[0], other[1], other[2], other[3],
-                             chunk_position);
-                    println!("The last chunk is '{}'", text_encoding.decode_flags(&last_flag))
+                             chunk_position, chunk.size);
+                    println!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
                 },
             }
             // 跳到下一个块的开始位置
