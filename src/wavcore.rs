@@ -13,10 +13,10 @@ use crate::adpcm::ms::AdpcmCoeffSet;
 pub enum DataFormat{
     Pcm,
     Adpcm(AdpcmSubFormat),
+    PcmALaw,
+    PcmMuLaw,
     Mp3,
     Opus,
-    OggVorbis,
-    Flac,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,10 +38,10 @@ impl Display for DataFormat {
         match self {
             Self::Pcm => write!(f, "PCM"),
             Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
+            Self::PcmALaw => write!(f, "PCM-ALaw"),
+            Self::PcmMuLaw => write!(f, "PCM-MuLaw"),
             Self::Mp3 => write!(f, "MP3"),
             Self::Opus => write!(f, "Opus"),
-            Self::OggVorbis => write!(f, "OggVorbis"),
-            Self::Flac => write!(f, "FLAC"),
        }
     }
 }
