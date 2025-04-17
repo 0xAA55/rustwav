@@ -359,7 +359,7 @@ where D: adpcm::AdpcmDecoder {
                         self.decode_mono::<S>()
                     }
                 }
-            }
+            },
             2 => {
                 let ret = self.decode_stereo::<S>()?;
                 match ret {
@@ -382,7 +382,7 @@ where D: adpcm::AdpcmDecoder {
                     None => Ok(None),
                     Some(ret) => Ok(Some((ret, ret)))
                 }
-            }
+            },
             2 => {
                 // 确保解码出至少两个样本来
                 if self.samples.is_empty() {
