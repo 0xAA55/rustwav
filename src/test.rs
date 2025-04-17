@@ -83,7 +83,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     dbg!(&spec);
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Opus, NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Yamaha), NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
     match spec.channels {
