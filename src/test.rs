@@ -91,7 +91,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
         "mp3" => DataFormat::Mp3,
         "opus" => DataFormat::Opus,
         other => {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{other}`. Please input one of these: {}",
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{other}`. Please input one of these:\n{}",
                 [
                     "pcm",
                     "pcm-alaw",
@@ -101,7 +101,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
                     "adpcm-yamaha",
                     "mp3",
                     "opus",
-                ].join(",")
+                ].join(", ")
             )).into());
         },
     };
