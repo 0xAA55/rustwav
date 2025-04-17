@@ -131,6 +131,7 @@ impl WaveReader {
         // 循环处理 WAV 中的各种各样的小节
         let mut last_flag: [u8; 4];
         let mut chunk = ChunkHeader::new();
+        let mut manually_skipping = false;
         loop {
             let chunk_position = reader.stream_position()?;
             if ChunkHeader::align(chunk_position) == riff_end {
@@ -188,6 +189,7 @@ impl WaveReader {
                     }
                     let chunk_end = ChunkHeader::align(chunk.chunk_start_pos + data_size);
                     reader.seek(SeekFrom::Start(chunk_end))?;
+                    manually_skipping = true;
                     continue;
                 },
                 b"bext" => {
@@ -243,8 +245,12 @@ impl WaveReader {
                     println!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
                 },
             }
-            // 跳到下一个块的开始位置
-            chunk.seek_to_next_chunk(&mut reader)?;
+            if !manually_skipping {
+                // 跳到下一个块的开始位置
+                chunk.seek_to_next_chunk(&mut reader)?;
+            } else {
+                manually_skipping = false;
+            }
         }
 
         let fmt__chunk = match fmt__chunk {
