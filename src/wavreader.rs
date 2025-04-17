@@ -98,7 +98,7 @@ impl WaveReader {
         match &chunk.flag {
             b"RIFF" => {
                 let riff_len = chunk.size as u64;
-                riff_end = reader.stream_position()? + riff_len;
+                riff_end = ChunkHeader::align(reader.stream_position()? + riff_len);
             },
             b"RF64" => {
                 isRF64 = true;
@@ -165,7 +165,7 @@ impl WaveReader {
                     data_size = u64::read_le(&mut reader)?;
                     let _sample_count = u64::read_le(&mut reader)?;
                     // 后面就是 table 了，用来重新给每个 Chunk 提供 64 位的长度值（data 除外）
-                    riff_end = start_of_riff + riff_len;
+                    riff_end = ChunkHeader::align(start_of_riff + riff_len);
                 }
                 b"data" => {
                     if data_offset != 0 {
