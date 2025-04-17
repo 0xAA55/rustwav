@@ -59,6 +59,9 @@ impl Resampler {
     // 当 samples.len() 小于 desired_length 的时候，说明你是要拉长音频到 desired_length
     // 当 samples.len() 大于 desired_length 的时候，说明你要压缩音频到 desired_length
     pub fn resample_core(&self, samples: &[f32], desired_length: usize) -> Result<Vec<f32>, ResamplerError> {
+        const INTERPOLATE_UPSCALE: bool = true;
+        const INTERPOLATE_DNSCALE: bool = true;
+
         let input_size = samples.len();
         if input_size == desired_length {
             return Ok(samples.to_vec());
@@ -93,8 +96,13 @@ impl Resampler {
                 let i1 = scaled.trunc() as usize;
                 let i2 = i1 + 1;
                 let s = scaled.fract();
-                fftdst[i] = interpolate(fftbuf[i1], fftbuf[i2], s);
-                fftdst[back - i] = interpolate(fftbuf[back - i1], fftbuf[back - i2], s);
+                if INTERPOLATE_DNSCALE {
+                    fftdst[i] = interpolate(fftbuf[i1], fftbuf[i2], s);
+                    fftdst[back - i] = interpolate(fftbuf[back - i1], fftbuf[back - i2], s);
+                } else {
+                    fftdst[i] = fftbuf[i1];
+                    fftdst[back - i] = fftbuf[back - i1];
+                }
             }
         } else {
             // 输入大小小于输出大小，意味着音频的伸长
@@ -102,11 +110,16 @@ impl Resampler {
             for i in 0..half {
                 let i1 = (i as f64 * scaling).trunc() as usize;
                 let i2 = ((i + 1) as f64 * scaling).trunc() as usize;
-                if i1 >= half {break;}
+                if i2 >= half {break;}
                 let j1 = back - i2;
                 let j2 = back - i1;
-                fftdst[i] = get_average(&fftbuf[i1..i2]);
-                fftdst[back - i] = get_average(&fftbuf[j1..j2]);
+                if INTERPOLATE_UPSCALE {
+                    fftdst[i] = get_average(&fftbuf[i1..i2]);
+                    fftdst[back - i] = get_average(&fftbuf[j1..j2]);
+                } else {
+                    fftdst[i] = fftbuf[i1];
+                    fftdst[back - i] = fftbuf[back - i1];
+                }
             }
         }
 
