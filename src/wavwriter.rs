@@ -9,7 +9,7 @@ use crate::{ChunkWriter};
 use crate::FmtChunk;
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
-use crate::{EncIMA, EncMS};
+use crate::{EncIMA, EncMS, EncYAMAHA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{Writer, string_io::*};
@@ -74,10 +74,11 @@ impl<'a> WaveWriter<'a> {
                 Encoder::new(Box::new(PcmEncoder::new(spec.sample_rate, spec.get_sample_type())?))
             },
             Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Ima, Ms};
+                use AdpcmSubFormat::{Ima, Ms, Yamaha};
                 match sub_format {
                     Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(spec.channels, spec.sample_rate)?)),
                     Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
+                    Yamaha => Encoder::new(Box::new(AdpcmEncoderWrap::<EncYAMAHA>::new(spec.channels, spec.sample_rate)?)),
                 }
             },
             Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
