@@ -11,6 +11,7 @@ use crate::{SampleType, i24, u24};
 use crate::Writer;
 use crate::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
+use crate::xlaw::{XLaw, PcmXLawEncoder};
 
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
@@ -653,6 +654,82 @@ where E: adpcm::AdpcmEncoder {
     fn write_multiple_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
     fn write_multiple_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
     fn write_multiple_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_multiple_stereos(writer, &stereos_conv(stereos))}
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PcmXLawEncoderWrap {
+    enc: PcmXLawEncoder,
+    sample_rate: u32,
+}
+
+impl PcmXLawEncoderWrap {
+    pub fn new(sample_rate: u32, which_law: XLaw) -> Self {
+        Self {
+            enc: PcmXLawEncoder::new(which_law),
+            sample_rate,
+        }
+    }
+
+    pub fn write_samples(&self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {
+        writer.write_all(&samples.iter().map(|sample| -> u8 {self.enc.encode(*sample)}).collect::<Vec<u8>>())?;
+        Ok(())
+    }
+}
+
+impl EncoderToImpl for PcmXLawEncoderWrap {
+    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+        if let Some(channel_mask) = channel_mask {
+            const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
+            const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
+            match (channels, channel_mask) {
+                (1, MONO_MASK) => (),
+                (2, STEREO_MASK) => (),
+                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ALaw PCM format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
+            }
+        }
+        if bits_per_sample != 8 {
+            eprintln!("For {} PCM, bits_per_sample bust be 8, the value `{bits_per_sample}` is ignored.", self.enc.get_which_law());
+        }
+        let bits_per_sample = 8u16;
+        let block_align = channels;
+        Ok(FmtChunk {
+            format_tag: match self.enc.get_which_law() {
+                XLaw::ALaw => 0x0006,
+                XLaw::MuLaw => 0x0007,
+            },
+            channels,
+            sample_rate,
+            byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
+            block_align,
+            bits_per_sample,
+            extension: None,
+        })
+    }
+
+    fn get_bit_rate(&self, channels: u16) -> u32 {
+        self.sample_rate * channels as u32 * 8
+    }
+
+    fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+        Ok(())
+    }
+
+    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        Ok(writer.flush()?)
+    }
+
+    fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_i32(&mut self, writer: &mut dyn Writer, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_i64(&mut self, writer: &mut dyn Writer, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples__u8(&mut self, writer: &mut dyn Writer, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_u16(&mut self, writer: &mut dyn Writer, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_u24(&mut self, writer: &mut dyn Writer, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_u32(&mut self, writer: &mut dyn Writer, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_u64(&mut self, writer: &mut dyn Writer, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
+    fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(writer, &sample_conv(samples))}
 }
 
 #[cfg(feature = "mp3enc")]
