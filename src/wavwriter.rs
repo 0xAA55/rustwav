@@ -341,9 +341,9 @@ impl<'a> WaveWriter<'a> {
 
     // 从读取器那里迁移乐曲信息的元数据。但是不迁移 JUNK 块。
     pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader) {
+        if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
         if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
-        if reader.get_inst_chunk().is_some() {self.inst_chunk = reader.get_inst_chunk().clone();}
         if reader.get_cue__chunk().is_some() {self.cue__chunk = reader.get_cue__chunk().clone();}
         if reader.get_axml_chunk().is_some() {self.axml_chunk = reader.get_axml_chunk().clone();}
         if reader.get_ixml_chunk().is_some() {self.ixml_chunk = reader.get_ixml_chunk().clone();}
