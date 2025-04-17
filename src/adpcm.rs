@@ -58,15 +58,19 @@ pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mu
 
 pub type AdpcmEncoderIMA     = ima::Encoder;
 pub type AdpcmEncoderMS      = ms::Encoder;
+pub type AdpcmEncoderYAMAHA  = yamaha::Encoder;
 
 pub type AdpcmDecoderIMA     = ima::Decoder;
 pub type AdpcmDecoderMS      = ms::Decoder;
+pub type AdpcmDecoderYAMAHA  = yamaha::Decoder;
 
 pub type EncIMA     = AdpcmEncoderIMA;
 pub type EncMS      = AdpcmEncoderMS;
+pub type EncYAMAHA  = AdpcmEncoderYAMAHA;
 
 pub type DecIMA     = AdpcmDecoderIMA;
 pub type DecMS      = AdpcmDecoderMS;
+pub type DecYAMAHA  = AdpcmDecoderYAMAHA;
 
 pub mod ima {
     use std::{io, cmp::min, mem};
@@ -1249,6 +1253,303 @@ pub mod ms {
                     }
                 },
             }
+            Ok(())
+        }
+    }
+}
+
+pub mod yamaha {
+    use std::{io, cmp::min};
+
+    use super::{AdpcmEncoder, AdpcmDecoder};
+    use crate::{CopiableBuffer};
+    use crate::{FmtChunk};
+
+    const BLOCK_SIZE: usize = 1024;
+
+    const YAMAHA_INDEXSCALE: [i16; 16] = [
+        230, 230, 230, 230, 307, 409, 512, 614,
+        230, 230, 230, 230, 307, 409, 512, 614
+    ];
+
+    const YAMAHA_DIFFLOOKUP: [i8; 16] = [
+         1,  3,  5,  7,  9,  11,  13,  15,
+        -1, -3, -5, -7, -9, -11, -13, -15
+    ];
+
+    #[derive(Debug, Clone, Copy)]
+    struct YamahaCodecCore {
+        predictor: i32,
+        step: i32,
+    }
+
+    impl YamahaCodecCore {
+        pub fn new() -> Self {
+            Self {
+                predictor: 0,
+                step: 127,
+            }
+        }
+
+        pub fn compress_sample(&mut self, sample: i16) -> u8 {
+            let delta = sample as i32 - self.predictor;
+            let nibble = min(7, delta.abs() * 4 / self.step) + if delta < 0 {8} else {0};
+            self.predictor += (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
+            self.step = ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
+            nibble as u8
+        }
+
+        pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
+            self.predictor += (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
+            self.step = ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
+            self.predictor as i16
+        }
+
+        pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
+            let l = self.compress_sample(samples[0]);
+            let h = self.compress_sample(samples[1]);
+            l | (h << 4)
+        }
+
+        pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
+            [self.expand_nibble(nibble & 0x0F), self.expand_nibble(nibble >> 4)]
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct EncoderMono {
+        core: YamahaCodecCore,
+        buffer: CopiableBuffer<i16, 2>,
+    }
+
+    impl EncoderMono {
+        pub fn new() -> Self {
+            Self {
+                core: YamahaCodecCore::new(),
+                buffer: CopiableBuffer::<i16, 2>::new(),
+            }
+        }
+
+        pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
+            self.core.encode_sample(samples)
+        }
+
+        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
+            while let Some(sample) = input() {
+                self.buffer.push(sample);
+                if self.buffer.is_full() {
+                    output(self.encode_sample(&self.buffer.to_array()));
+                    self.buffer.clear();
+                }
+            }
+        }
+
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) {
+            if self.buffer.is_empty() {
+                return;
+            }
+            while !self.buffer.is_full() {
+                self.buffer.push(0);
+            }
+            output(self.core.encode_sample(&self.buffer.to_array()));
+            self.buffer.clear();
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct EncoderStereo {
+        core_l: YamahaCodecCore,
+        core_r: YamahaCodecCore,
+        buffer: CopiableBuffer<i16, 2>,
+    }
+
+    impl EncoderStereo {
+        pub fn new() -> Self {
+            Self {
+                core_l: YamahaCodecCore::new(),
+                core_r: YamahaCodecCore::new(),
+                buffer: CopiableBuffer::<i16, 2>::new(),
+            }
+        }
+
+        pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
+            let l = self.core_l.compress_sample(samples[0]);
+            let h = self.core_r.compress_sample(samples[1]);
+            l | (h << 4)
+        }
+
+        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
+            while let Some(sample) = input() {
+                self.buffer.push(sample);
+                if self.buffer.is_full() {
+                    output(self.encode_sample(&self.buffer.to_array()));
+                    self.buffer.clear();
+                }
+            }
+        }
+
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) {
+            if self.buffer.is_empty() {
+                return;
+            }
+            while !self.buffer.is_full() {
+                self.buffer.push(0);
+            }
+            output(self.encode_sample(&self.buffer.to_array()));
+            self.buffer.clear();
+        }
+    }
+
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Encoder {
+        Mono(EncoderMono),
+        Stereo(EncoderStereo),
+    }
+
+    impl AdpcmEncoder for Encoder {
+        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
+            match channels {
+                1 => Ok(Self::Mono(EncoderMono::new())),
+                2 => Ok(Self::Stereo(EncoderStereo::new())),
+                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
+            }
+        }
+
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            match self {
+                Self::Mono(ref mut enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
+                Self::Stereo(ref mut enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
+            }
+            Ok(())
+        }
+
+        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
+            if bits_per_sample != 4 {
+                eprintln!("For ADPCM-YAMAHA, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored.");
+            }
+            let bits_per_sample = 4u16;
+            let block_align = BLOCK_SIZE as u16;
+            Ok(FmtChunk {
+                format_tag: 0x0020,
+                channels,
+                sample_rate,
+                byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
+                block_align,
+                bits_per_sample,
+                extension: None,
+            })
+        }
+
+        fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+            Ok(())
+        }
+
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+            match self {
+                Self::Mono(ref mut enc) => enc.flush(|nibble|{output(nibble)}),
+                Self::Stereo(ref mut enc) => enc.flush(|nibble|{output(nibble)}),
+            }
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct DecoderMono {
+        core: YamahaCodecCore,
+    }
+
+    impl DecoderMono {
+        pub fn new() -> Self {
+            Self {
+                core: YamahaCodecCore::new(),
+            }
+        }
+
+        pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
+            self.core.decode_sample(nibble)
+        }
+
+        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
+            while let Some(nibble) = input() {
+                self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct DecoderStereo {
+        core_l: YamahaCodecCore,
+        core_r: YamahaCodecCore,
+    }
+
+    impl DecoderStereo {
+        pub fn new() -> Self {
+            Self {
+                core_l: YamahaCodecCore::new(),
+                core_r: YamahaCodecCore::new(),
+            }
+        }
+
+        pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
+            [self.core_l.expand_nibble(nibble & 0x0F), self.core_r.expand_nibble(nibble >> 4)]
+        }
+
+        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
+            while let Some(nibble) = input() {
+                self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Decoder {
+        Mono(DecoderMono),
+        Stereo(DecoderStereo),
+    }
+
+    impl Decoder {
+        pub fn get_channels(&self) -> usize {
+            match self {
+                Self::Mono(_) => 1,
+                Self::Stereo(_) => 2,
+            }
+        }
+    }
+
+    impl AdpcmDecoder for Decoder {
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+            match fmt_chunk.channels {
+                1 => Ok(Self::Mono(DecoderMono::new())),
+                2 => Ok(Self::Stereo(DecoderStereo::new())),
+                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
+            }
+        }
+
+        fn get_block_size(&self) -> usize {
+            BLOCK_SIZE
+        }
+
+        fn frames_per_block(&self) -> usize {
+            BLOCK_SIZE * 2 / self.get_channels()
+        }
+
+        fn reset_states(&mut self) {
+            match self {
+                Self::Mono(ref mut dec) => *dec = DecoderMono::new(),
+                Self::Stereo(ref mut dec) => *dec = DecoderStereo::new(),
+            }
+        }
+
+        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+            match self {
+                Self::Mono(ref mut dec) => dec.decode(||{input()},|sample|{output(sample)}),
+                Self::Stereo(ref mut dec) => dec.decode(||{input()},|sample|{output(sample)}),
+            }
+            Ok(())
+        }
+
+        fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
             Ok(())
         }
     }
