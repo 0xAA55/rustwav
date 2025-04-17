@@ -436,7 +436,7 @@ where D: adpcm::AdpcmDecoder {
 
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
-    use std::{io::{Read, SeekFrom}, fmt::Debug};
+    use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}};
     use rmp3::{DecoderOwned, Frame};
     use crate::{AudioReadError};
     use crate::Reader;
@@ -476,7 +476,7 @@ pub mod mp3 {
     }
 
     impl Debug for Mp3AudioData{
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct("Mp3AudioData")
                 .field("bitrate", &self.bitrate)
                 .field("channels", &self.channels)
