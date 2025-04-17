@@ -123,7 +123,7 @@ impl Debug for PcmXLawDecoder{
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("PcmXLawDecoder")
             .field("which_law", &self.which_law)
-            .field("table", &format_args!("[{}]", self.table.iter().map(|short|{format!("0x{:04x}", short)}).collect::<Vec<String>>().join(",")))
+            .field("table", &format_args!("[i16; {}]", self.table.len()))
             .finish()
     }
 }
