@@ -884,7 +884,7 @@ impl ExtensibleData {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BextChunk {
     pub description: String,
     pub originator: String,
@@ -941,6 +941,23 @@ impl BextChunk {
         cw.writer.write_all(&self.coding_history)?;
         cw.end()?;
         Ok(())
+    }
+}
+
+impl Debug for BextChunk{
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("BextChunk")
+            .field("description", &self.description)
+            .field("originator", &self.originator)
+            .field("originator_ref", &self.originator_ref)
+            .field("origination_date", &self.origination_date)
+            .field("origination_time", &self.origination_time)
+            .field("time_ref", &self.time_ref)
+            .field("version", &self.version)
+            .field("umid", &format_args!("[{}]", self.umid.iter().map(|byte|{format!("0x{:02x}", byte)}).collect::<Vec<String>>().join(",")))
+            .field("reserved", &format_args!("[u8; {}]", self.reserved.len()))
+            .field("coding_history", &self.coding_history)
+            .finish()
     }
 }
 
