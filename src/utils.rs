@@ -108,7 +108,7 @@ where S: SampleType {
     if l.len() != r.len() {
         Err(AudioWriteError::MultipleMonosAreNotSameSize)
     } else {
-        Ok(l.into_iter().zip(r.into_iter()).map(|(l, r): (&S, &S)| -> (S, S) {(*l, *r)}).collect())
+        Ok(l.iter().zip(r).map(|(l, r): (&S, &S)| -> (S, S) {(*l, *r)}).collect())
     }
 }
 
