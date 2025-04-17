@@ -24,6 +24,7 @@ pub enum DataFormat{
 pub enum AdpcmSubFormat {
     Ms = 0x0002,
     Ima = 0x0011,
+    Yamaha = 0x0020,
 }
 
 impl From<AdpcmSubFormat> for u16 {
@@ -50,6 +51,7 @@ impl Display for AdpcmSubFormat {
         match self {
             Self::Ms => write!(f, "ADPCM-MS"),
             Self::Ima => write!(f, "ADPCM-IMA"),
+            Self::Yamaha => write!(f, "ADPCM-YAMAHA"),
        }
     }
 }
