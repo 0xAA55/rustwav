@@ -8,6 +8,7 @@ use crate::{AudioError, AudioReadError};
 use crate::{Spec, WaveSampleType, FmtChunk};
 use crate::{SampleType, i24, u24};
 use crate::Reader;
+use crate::xlaw::{XLaw, PcmXLawDecoder};
 
 #[cfg(feature = "mp3dec")]
 use crate::Mp3Decoder;
@@ -29,7 +30,7 @@ pub trait Decoder<S>: Debug
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
             2 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[1]))),
-            other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 2 channels."))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
         }
     }
 
@@ -38,7 +39,7 @@ pub trait Decoder<S>: Debug
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
             2 => Ok(self.decode_frame()?.map(|samples| S::average(samples[0], samples[1]))),
-            other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 1 channels."))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
         }
     }
 }
@@ -57,6 +58,15 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
           D: adpcm::AdpcmDecoder {
     fn get_channels(&self) -> u16 { self.channels }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+}
+
+impl<S> Decoder<S> for PcmXLawDecoderWrap
+    where S: SampleType {
+    fn get_channels(&self) -> u16 { self.channels }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek_frame(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -98,7 +108,7 @@ where S: SampleType {
     pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
         match fmt.format_tag {
             1 | 0xFFFE | 3 => (),
-            other => return Err(AudioError::InvalidArguments(format!("`PcmDecoder` can't handle format_tag 0x{:x}", other))),
+            o => return Err(AudioError::InvalidArguments(format!("`PcmDecoder` can't handle format_tag 0x{:x}", o))),
         }
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
@@ -210,7 +220,7 @@ where S: SampleType {
                     let sample_r = (self.sample_decoder)(&mut self.reader)?;
                     Ok(Some((sample_l, sample_r)))
                 },
-                other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 2 channels."))),
+                o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
             }
         }
     }
@@ -228,7 +238,7 @@ where S: SampleType {
                     let sample_r = (self.sample_decoder)(&mut self.reader)?;
                     Ok(Some(sample_l / S::from(2) + sample_r / S::from(2)))
                 },
-                other => Err(AudioReadError::Unsupported(format!("Unsupported to merge {other} channels to 1 channels."))),
+                o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
             }
         }
     }
@@ -369,7 +379,7 @@ where D: adpcm::AdpcmDecoder {
                     }
                 }
             },
-            other => Err(AudioReadError::Unsupported(format!("Unsupported channels {other}"))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
         }
     }
 
@@ -409,7 +419,7 @@ where D: adpcm::AdpcmDecoder {
                     }
                 }
             },
-            other => Err(AudioReadError::Unsupported(format!("Unsupported channels {other}"))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
         }
     }
 
@@ -428,11 +438,126 @@ where D: adpcm::AdpcmDecoder {
                     None => Ok(None),
                 }
             },
-            other => Err(AudioReadError::Unsupported(format!("Unsupported channels {other}"))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
         }
     }
 }
 
+#[derive(Debug)]
+pub struct PcmXLawDecoderWrap {
+    reader: Box<dyn Reader>, // 数据读取器
+    channels: u16,
+    data_offset: u64,
+    data_length: u64,
+    total_frames: u64,
+    frame_index: u64,
+    dec: PcmXLawDecoder,
+}
+
+impl PcmXLawDecoderWrap {
+    pub fn new(reader: Box<dyn Reader>, which_law: XLaw, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        match fmt.channels {
+            1 => (),
+            2 => (),
+            o => return Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+        }
+        Ok(Self {
+            reader,
+            channels: fmt.channels,
+            data_offset,
+            data_length,
+            total_frames: total_samples / fmt.channels as u64,
+            frame_index: 0,
+            dec: PcmXLawDecoder::new(which_law),
+        })
+    }
+
+    fn decode(&mut self) -> Result<i16, AudioReadError> {
+        Ok(self.dec.decode(u8::read_le(&mut self.reader)?))
+    }
+
+    fn seek_frame(&mut self, from: SeekFrom) -> Result<(), AudioReadError> {
+        let mut frame_index = match from {
+            SeekFrom::Start(fi) => fi,
+            SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
+            SeekFrom::End(end) => (self.frame_index as i64 + end) as u64,
+        };
+        if frame_index > self.total_frames {
+            frame_index = self.total_frames;
+        }
+        self.frame_index = frame_index;
+        self.reader.seek(SeekFrom::Start(self.data_offset + self.frame_index * self.channels as u64))?;
+        Ok(())
+    }
+
+    fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
+        let end_of_data = self.data_offset + self.data_length;
+        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+    }
+
+    fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+    where S: SampleType {
+        if self.is_end_of_data()? {
+            Ok(None)
+        } else {
+            match self.channels {
+                1 => {
+                    let s = S::from(self.decode()?);
+                    self.frame_index += 1;
+                    Ok(Some(s))
+                },
+                2 => {
+                    let l = S::from(self.decode()?);
+                    let r = S::from(self.decode()?);
+                    self.frame_index += 1;
+                    Ok(Some(S::average(l, r)))
+                },
+                o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            }
+        }
+    }
+
+    fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+    where S: SampleType {
+        if self.is_end_of_data()? {
+            Ok(None)
+        } else {
+            match self.channels {
+                1 => {
+                    let s = S::from(self.decode()?);
+                    self.frame_index += 1;
+                    Ok(Some((s, s)))
+                },
+                2 => {
+                    let l = S::from(self.decode()?);
+                    let r = S::from(self.decode()?);
+                    self.frame_index += 1;
+                    Ok(Some((l, r)))
+                },
+                o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            }
+        }
+    }
+
+    fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+    where S: SampleType {
+        match self.channels {
+            1 => {
+                match self.decode_mono::<S>()? {
+                    Some(sample) => Ok(Some(vec![sample])),
+                    None => Ok(None),
+                }
+            },
+            2 => {
+                match self.decode_stereo::<S>()? {
+                    Some((l, r)) => Ok(Some(vec![l, r])),
+                    None => Ok(None),
+                }
+            },
+            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+        }
+    }
+}
 
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
@@ -609,7 +734,7 @@ pub mod mp3 {
                             }
                             Ok(Some(((l as i32 +  r as i32) / 2i32) as i16))
                         },
-                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
                     }
                 }
             }
@@ -637,7 +762,7 @@ pub mod mp3 {
                             }
                             Ok(Some((l, r)))
                         },
-                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
                     }
                 }
             }
@@ -670,7 +795,7 @@ pub mod mp3 {
                     match self.target_channels {
                         1 => Ok(Some(vec![S::from(l)])),
                         2 => Ok(Some(vec![S::from(l), S::from(r)])),
-                        other => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {other}."))),
+                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
                     }
                 },
             }
