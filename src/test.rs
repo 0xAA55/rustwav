@@ -83,15 +83,16 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     dbg!(&spec);
 
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Adpcm(AdpcmSubFormat::Yamaha), NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Opus, NeverLargerThan4GB).unwrap();
     // let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::Mp3, NeverLargerThan4GB).unwrap();
 
+    let process_size = resampler.get_process_size(transfer_block_size, orig_spec.sample_rate, spec.sample_rate);
     match spec.channels {
         1 => {
             let mut iter = wavereader.mono_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
@@ -103,7 +104,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
             let mut iter = wavereader.stereo_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
@@ -115,7 +116,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
             let mut iter = wavereader.frame_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
@@ -138,7 +139,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let spec2 = Spec {
         channels: spec.channels,
         channel_mask: 0,
-        sample_rate: 48000,
+        sample_rate: 44100,
         bits_per_sample: 16, // 设置样本位数
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
@@ -146,12 +147,13 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     let mut wavereader_2 = WaveReader::open(arg2).unwrap();
     let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
+    let process_size = resampler.get_process_size(transfer_block_size, spec.sample_rate, spec2.sample_rate);
     match spec2.channels {
         1 => {
             let mut iter = wavereader_2.mono_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<i16> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
@@ -163,7 +165,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
             let mut iter = wavereader_2.stereo_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<(i16, i16)> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
@@ -175,7 +177,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
             let mut iter = wavereader_2.frame_iter::<i16>()?;
             dbg!(&iter);
             loop {
-                let block: Vec<Vec<i16>> = iter.by_ref().take(transfer_block_size).collect();
+                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
