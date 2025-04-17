@@ -156,16 +156,14 @@ impl Resampler {
             let desired_length = self.get_desired_length(proc_size, src_sample_rate, dst_sample_rate);
             if input.len() > proc_size {
                 Err(ResamplerError::SizeError(format!("To resize the waveform, the input size should be {proc_size}, not {}", input.len())))
+            } else if src_sample_rate > dst_sample_rate {
+                // 源采样率高于目标采样率，说明要压缩波形
+                self.resample_core(input, desired_length)
             } else {
-                if src_sample_rate > dst_sample_rate {
-                    // 源采样率高于目标采样率，说明要压缩波形
-                    self.resample_core(&input, desired_length)
-                } else {
-                    // 源采样率低于目标采样率，说明要拉长波形
-                    // 如果输入的长度小于要求的长度，则末尾补零
-                    input.to_vec().resize(proc_size, 0.0);
-                    self.resample_core(&input, desired_length)
-                }
+                // 源采样率低于目标采样率，说明要拉长波形
+                // 如果输入的长度小于要求的长度，则末尾补零
+                input.to_vec().resize(proc_size, 0.0);
+                self.resample_core(input, desired_length)
             }
         }
     }
