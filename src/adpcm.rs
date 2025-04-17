@@ -818,9 +818,7 @@ pub mod ms {
                         buffer: EncoderBuffer::new(),
                     })
                 },
-                o => {
-                    Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}")))
-                }
+                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
             }
         }
 
