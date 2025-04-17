@@ -8,13 +8,14 @@ use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::{ChunkWriter};
 use crate::FmtChunk;
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap};
+use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
 use crate::{EncIMA, EncMS, EncYAMAHA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::{SampleType};
 use crate::{Writer, string_io::*};
 use crate::WaveReader;
 use crate::hacks;
+use crate::xlaw::XLaw;
 
 #[cfg(feature = "mp3enc")]
 use crate::Mp3Encoder;
@@ -67,7 +68,7 @@ impl<'a> WaveWriter<'a> {
     }
 
     pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
-        use DataFormat::{Pcm, Adpcm, Mp3, Opus, OggVorbis, Flac};
+        use DataFormat::{Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus};
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
@@ -81,9 +82,10 @@ impl<'a> WaveWriter<'a> {
                     Yamaha => Encoder::new(Box::new(AdpcmEncoderWrap::<EncYAMAHA>::new(spec.channels, spec.sample_rate)?)),
                 }
             },
+            PcmALaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::ALaw))),
+            PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::MuLaw))),
             Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
             Opus => Encoder::new(Box::new(OpusEncoder::new(spec.channels, spec.sample_rate, None, None, None)?)),
-            other => return Err(AudioWriteError::Unsupported(format!("{:?}", other))),
         };
         let mut ret = Self{
             writer,
