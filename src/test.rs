@@ -55,7 +55,7 @@ use std::error::Error;
 use std::process::ExitCode;
 
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
-fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
+fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
     use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
@@ -66,7 +66,7 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
     println!("======== TEST 1 ========");
 
     // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
-    let mut wavereader = WaveReader::open(arg1).unwrap();
+    let mut wavereader = WaveReader::open(arg2).unwrap();
 
     // 获取原本音频文件的数据参数
     let orig_spec = *wavereader.spec();
@@ -81,8 +81,33 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
+    let data_format = match arg1{
+        "pcm" => DataFormat::Pcm,
+        "pcm-alaw" => DataFormat::PcmALaw,
+        "pcm-ulaw" => DataFormat::PcmMuLaw,
+        "adpcm-ms" => DataFormat::Adpcm(AdpcmSubFormat::Ms),
+        "adpcm-ima" => DataFormat::Adpcm(AdpcmSubFormat::Ima),
+        "adpcm-yamaha" => DataFormat::Adpcm(AdpcmSubFormat::Yamaha),
+        "mp3" => DataFormat::Mp3,
+        "opus" => DataFormat::Opus,
+        other => {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{other}`. Please input one of these: {}",
+                [
+                    "pcm",
+                    "pcm-alaw",
+                    "pcm-ulaw",
+                    "adpcm-ms",
+                    "adpcm-ima",
+                    "adpcm-yamaha",
+                    "mp3",
+                    "opus",
+                ].join(",")
+            )).into());
+        },
+    };
+
     // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg2, &spec, DataFormat::PcmMuLaw, NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
 
     let process_size = resampler.get_process_size(transfer_block_size, orig_spec.sample_rate, spec.sample_rate);
     match spec.channels {
@@ -139,8 +164,8 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
-    let mut wavereader_2 = WaveReader::open(arg2).unwrap();
-    let mut wavewriter_2 = WaveWriter::create("output2.wav", &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavereader_2 = WaveReader::open(arg3).unwrap();
+    let mut wavewriter_2 = WaveWriter::create(arg4, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     let process_size = resampler.get_process_size(transfer_block_size, spec.sample_rate, spec2.sample_rate);
     match spec2.channels {
@@ -192,10 +217,9 @@ fn test(arg1: &str, arg2: &str) -> Result<(), Box<dyn Error>> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = args().collect();
-    if args.len() < 2 {return ExitCode::from(1);}
+    if args.len() < 5 {return ExitCode::from(1);}
 
-    // 输入 args[1]，输出 output.wav
-    match test(&args[1], "output.wav") {
+    match test(&args[1], &args[2], &args[3], &args[4]) {
         Ok(_) => ExitCode::from(0),
         Err(e) => {
             println!("Error: {}", e);
