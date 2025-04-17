@@ -148,28 +148,25 @@ impl Resampler {
         min(self.fft_size, proc_size * dst_sample_rate as usize / src_sample_rate as usize)
     }
 
-    pub fn resample(&mut self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32, max_lengthen_rate: u32) -> Result<Vec<f32>, ResamplerError> {
+    pub fn resample(&mut self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32) -> Result<Vec<f32>, ResamplerError> {
         if src_sample_rate == dst_sample_rate {
             Ok(input.to_vec())
-        } else if src_sample_rate > dst_sample_rate {
-            // 源采样率高于目标采样率，说明要压缩波形
-            let desired_length = self.fft_size * dst_sample_rate as usize / src_sample_rate as usize;
-            self.resample_core(&input, desired_length)
         } else {
-            // 源采样率低于目标采样率，说明要拉长波形
-            let desired_length = (self.fft_size * dst_sample_rate as usize / src_sample_rate as usize) / max_lengthen_rate as usize;
-            let proc_size = self.fft_size / max_lengthen_rate as usize;
-            let mut iter = input.into_iter();
-            let mut ret = Vec::<f32>::new();
-            loop {
-                let chunk: Vec<f32> = iter.by_ref().take(proc_size).copied().collect();
-                if chunk.len() == 0 {
-                    break;
+            let proc_size = self.get_process_size(self.fft_size, src_sample_rate, dst_sample_rate);
+            let desired_length = self.get_desired_length(proc_size, src_sample_rate, dst_sample_rate);
+            if input.len() > proc_size {
+                Err(ResamplerError::SizeError(format!("To resize the waveform, the input size should be {proc_size}, not {}", input.len())))
+            } else {
+                if src_sample_rate > dst_sample_rate {
+                    // 源采样率高于目标采样率，说明要压缩波形
+                    self.resample_core(&input, desired_length)
+                } else {
+                    // 源采样率低于目标采样率，说明要拉长波形
+                    // 如果输入的长度小于要求的长度，则末尾补零
+                    input.to_vec().resize(proc_size, 0.0);
+                    self.resample_core(&input, desired_length)
                 }
-                let result = self.resample_core(&chunk, desired_length).unwrap();
-                ret.extend(&result);
             }
-            Ok(ret)
         }
     }
 
