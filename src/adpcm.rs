@@ -1356,6 +1356,12 @@ pub mod yamaha {
         }
     }
 
+    impl Default for EncoderMono {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderStereo {
         core_l: YamahaCodecCore,
@@ -1400,6 +1406,11 @@ pub mod yamaha {
         }
     }
 
+    impl Default for EncoderStereo {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     #[derive(Debug, Clone, Copy)]
     pub enum Encoder {
@@ -1477,6 +1488,12 @@ pub mod yamaha {
         }
     }
 
+    impl Default for DecoderMono {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderStereo {
         core_l: YamahaCodecCore,
@@ -1499,6 +1516,12 @@ pub mod yamaha {
             while let Some(nibble) = input() {
                 self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
             }
+        }
+    }
+
+    impl Default for DecoderStereo {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
