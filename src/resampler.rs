@@ -1,5 +1,5 @@
 
-use std::{sync::Arc, fmt::{self, Debug, Formatter}};
+use std::{cmp::min, sync::Arc, fmt::{self, Debug, Formatter}};
 use rustfft::{FftPlanner, Fft, num_complex::Complex};
 
 #[derive(Debug, Clone)]
@@ -131,6 +131,21 @@ impl Resampler {
 
         // 标准化输出
         Ok(fftdst.into_iter().map(|c| -> f32 {(c.re * self.normalize_scaler) as f32}).collect())
+    }
+
+    pub fn get_process_size(&self, orig_size: usize, src_sample_rate: u32, dst_sample_rate: u32) -> usize {
+        const MAX_INFRASOUND_FREQ: usize = 20;
+        // 处理单元大小要改成按每秒多少个块的方式来处理，而块的数量正好符合最大次声波频率的时候，杂音就会消失。
+        // 调用 `self.get_desired_length()` 可以推导出根据目标采样率计算出来的处理后的块大小。
+        if src_sample_rate == dst_sample_rate {
+            min(self.fft_size, orig_size)
+        } else {
+            min(self.fft_size, src_sample_rate as usize / MAX_INFRASOUND_FREQ)
+        }
+    }
+
+    pub fn get_desired_length(&self, proc_size: usize, src_sample_rate: u32, dst_sample_rate: u32) -> usize {
+        min(self.fft_size, proc_size * dst_sample_rate as usize / src_sample_rate as usize)
     }
 
     pub fn resample(&mut self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32, max_lengthen_rate: u32) -> Result<Vec<f32>, ResamplerError> {
