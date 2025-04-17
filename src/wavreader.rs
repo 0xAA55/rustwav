@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, path::PathBuf, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
+use std::{fs::File, path::PathBuf, cmp::Ordering, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
 
 use crate::wavcore;
 use crate::readwrite;
@@ -131,8 +131,19 @@ impl WaveReader {
         // 循环处理 WAV 中的各种各样的小节
         let mut last_flag: [u8; 4];
         let mut chunk = ChunkHeader::new();
-        while reader.stream_position()? < riff_end {
+        loop {
             let chunk_position = reader.stream_position()?;
+            if ChunkHeader::align(chunk_position) == riff_end {
+                // 正常退出
+                break;
+            } else if chunk_position + 4 >= riff_end {
+                match riff_end.cmp(&filelen) {
+                    Ordering::Greater => eprintln!("There end of the RIFF chunk exceeded the file size of {} bytes.", riff_end - filelen),
+                    Ordering::Equal => eprintln!("There are some chunk sizes wrong, probably the \"{}\" chunk.", text_encoding.decode_flags(&chunk.flag)),
+                    Ordering::Less => eprintln!("There are {} extra bytes at the end of the RIFF chunk.", filelen - riff_end),
+                }
+                break;
+            }
             last_flag = chunk.flag;
             chunk = ChunkHeader::read(&mut reader)?;
             match &chunk.flag {
