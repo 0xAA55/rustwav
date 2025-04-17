@@ -127,7 +127,7 @@ impl Resampler {
         self.fft_inverse.process(&mut fftdst);
 
         // 切割大小
-        fftdst.resize(desired_length, Complex{re: 0.0, im: 0.0});
+        fftdst.truncate(desired_length);
 
         // 标准化输出
         Ok(fftdst.into_iter().map(|c| -> f32 {(c.re * self.normalize_scaler) as f32}).collect())
