@@ -73,7 +73,7 @@ impl Resampler {
 
         let mut fftbuf: Vec<Complex<f64>> = samples.iter().map(|sample: &f32| -> Complex<f64> {Complex{re: *sample as f64, im: 0.0}}).collect();
 
-        if fftbuf.len() < self.fft_size {
+        if fftbuf.len() <= self.fft_size {
             fftbuf.resize(self.fft_size, Complex{re: 0.0, im: 0.0});
         } else {
             return Err(ResamplerError::SizeError(format!("The input size {} must not exceed the FFT size {}", fftbuf.len(), self.fft_size)));
