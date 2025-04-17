@@ -86,6 +86,9 @@ impl WaveReader {
 
         let text_encoding = StringCodecMaps::new();
 
+        let filestart = reader.stream_position()?;
+        let filelen = {reader.seek(SeekFrom::End(0))?; let filelen = reader.stream_position()?; reader.seek(SeekFrom::Start(filestart))?; filelen};
+
         let mut riff_end = 0xFFFFFFFFu64; // 如果这个 WAV 文件是 RF64 的文件，此时给它临时设置一个很大的值，等到读取到 ds64 块时再更新这个值。
         let mut isRF64 = false;
         let mut data_size = 0u64;
