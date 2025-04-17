@@ -11,7 +11,7 @@ use crate::ChunkHeader;
 use crate::{FmtChunk, ExtensionData};
 use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat};
-use crate::{DecIMA, DecMS};
+use crate::{DecIMA, DecMS, DecYAMAHA};
 use crate::{StringCodecMaps, SavageStringCodecs};
 use crate::FileHasher;
 use crate::SampleType;
@@ -329,13 +329,15 @@ impl WaveReader {
 
 fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
-    use AdpcmSubFormat::{Ima, Ms};
+    use AdpcmSubFormat::{Ima, Ms, Yamaha};
     const TAG_IMA: u16 = Ima as u16;
     const TAG_MS: u16 = Ms as u16;
+    const TAG_YAMAHA: u16 = Yamaha as u16;
     match fmt.format_tag {
         1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
         TAG_IMA => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        TAG_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         0x0055 => {
             if cfg!(feature = "mp3dec") {
                 Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))
