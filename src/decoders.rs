@@ -680,7 +680,7 @@ pub mod mp3 {
 
 #[cfg(feature = "opus")]
 pub mod opus {
-    use std::io::SeekFrom;
+    use std::{io::SeekFrom, cmp::Ordering};
 
     use crate::Reader;
     use crate::FmtChunk;
@@ -763,13 +763,13 @@ pub mod opus {
             self.decoded_samples.truncate(samples);
             self.decoded_samples_index = 0;
             let cur_frames = samples as u16 / self.channels;
-            if block_index == self.block_frame_counts.len() {
-                self.block_frame_counts.push(cur_frames);
-            } else if block_index < self.block_frame_counts.len() {
-                self.block_frame_counts[block_index] = cur_frames;
-            } else {
-                self.block_frame_counts.resize(block_index + 1, 0);
-                self.block_frame_counts[block_index] = cur_frames;
+            match block_index.cmp(&self.block_frame_counts.len()) {
+                Ordering::Equal => self.block_frame_counts.push(cur_frames),
+                Ordering::Less => self.block_frame_counts[block_index] = cur_frames,
+                Ordering::Greater => {
+                    self.block_frame_counts.resize(block_index + 1, 0);
+                    self.block_frame_counts[block_index] = cur_frames;
+                },
             }
             Ok(())
         }
@@ -813,7 +813,7 @@ pub mod opus {
             if self.decoded_samples_index >= self.decoded_samples.len() {
                 self.decode_block()?;
             }
-            if self.decoded_samples.len() == 0 {
+            if self.decoded_samples.is_empty() {
                 Ok(None)
             } else {
                 let ret = self.decoded_samples[self.decoded_samples_index];
