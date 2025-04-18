@@ -97,7 +97,7 @@ impl<S> Decoder<S> for PcmXLawDecoderWrap
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.channels }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(PcmXLawDecoderWrap::get_cur_frame_index(self)) }
-    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek_frame(seek_from) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
@@ -518,7 +518,7 @@ impl PcmXLawDecoderWrap {
         self.frame_index
     }
 
-    fn seek_frame(&mut self, from: SeekFrom) -> Result<(), AudioReadError> {
+    pub fn seek(&mut self, from: SeekFrom) -> Result<(), AudioReadError> {
         let mut frame_index = match from {
             SeekFrom::Start(fi) => fi,
             SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
@@ -537,7 +537,7 @@ impl PcmXLawDecoderWrap {
         if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
     }
 
-    fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+    pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
     where S: SampleType {
         if self.is_end_of_data()? {
             Ok(None)
@@ -559,7 +559,7 @@ impl PcmXLawDecoderWrap {
         }
     }
 
-    fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+    pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
     where S: SampleType {
         if self.is_end_of_data()? {
             Ok(None)
@@ -581,7 +581,7 @@ impl PcmXLawDecoderWrap {
         }
     }
 
-    fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+    pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
     where S: SampleType {
         match self.channels {
             1 => {
