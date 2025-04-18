@@ -12,6 +12,7 @@ use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy)]
 pub enum DataFormat{
+    Unspecified,
     Pcm,
     Adpcm(AdpcmSubFormat),
     PcmALaw,
@@ -37,6 +38,7 @@ impl From<AdpcmSubFormat> for u16 {
 impl Display for DataFormat {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
+            Self::Unspecified => write!(f, "Unspecified"),
             Self::Pcm => write!(f, "PCM"),
             Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
             Self::PcmALaw => write!(f, "PCM-ALaw"),
