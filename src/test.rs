@@ -28,6 +28,17 @@ use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
 
+const FORMATS: [(&str, DataFormat); 8] = [
+        ("pcm", DataFormat::Pcm),
+        ("pcm-alaw", DataFormat::PcmALaw),
+        ("pcm-ulaw", DataFormat::PcmMuLaw),
+        ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
+        ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
+        ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
+        ("mp3", DataFormat::Mp3),
+        ("opus", DataFormat::Opus),
+];
+
 // test：读取 arg1 的音频文件，写入到 arg2 的音频文件
 fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_imports)]
@@ -55,30 +66,17 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
         sample_format: SampleFormat::Int, // 使用有符号整数
     };
 
-    let data_format = match arg1{
-        "pcm" => DataFormat::Pcm,
-        "pcm-alaw" => DataFormat::PcmALaw,
-        "pcm-ulaw" => DataFormat::PcmMuLaw,
-        "adpcm-ms" => DataFormat::Adpcm(AdpcmSubFormat::Ms),
-        "adpcm-ima" => DataFormat::Adpcm(AdpcmSubFormat::Ima),
-        "adpcm-yamaha" => DataFormat::Adpcm(AdpcmSubFormat::Yamaha),
-        "mp3" => DataFormat::Mp3,
-        "opus" => DataFormat::Opus,
-        other => {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{other}`. Please input one of these:\n{}",
-                [
-                    "pcm",
-                    "pcm-alaw",
-                    "pcm-ulaw",
-                    "adpcm-ms",
-                    "adpcm-ima",
-                    "adpcm-yamaha",
-                    "mp3",
-                    "opus",
-                ].join(", ")
-            )).into());
-        },
-    };
+    let mut data_format = DataFormat::Unspecified;
+    for format in FORMATS {
+        if arg1 == format.0 {
+            data_format = format.1;
+            break;
+        }
+    }
+
+    if data_format == DataFormat::Unspecified {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{arg1}`. Please input one of these:\n{}", FORMATS.iter().map(|(s, _v)|{s.to_string()}).collect::<Vec<String>>().join(", "))).into());
+    }
 
     // 音频写入器，将音频信息写入到 arg2 文件
     let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
