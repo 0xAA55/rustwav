@@ -4,7 +4,7 @@ use crate::AudioWriteError;
 use crate::SampleType;
 use crate::Resampler;
 
-pub fn stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
+pub fn stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {
     let l = stereos.iter().map(|(l, _r): &(S, S)| -> S {*l}).collect();
     let r = stereos.iter().map(|(_l, r): &(S, S)| -> S {*r}).collect();
@@ -42,7 +42,7 @@ where S: SampleType {
 
 pub fn frames_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
 where S: SampleType {
-    Ok(stereos_to_dual_mono(&frames_to_stereos(frames)?))
+    Ok(stereos_to_dual_monos(&frames_to_stereos(frames)?))
 }
 
 pub fn frames_to_monos<S>(frames: &[Vec<S>], channels: Option<u16>) -> Result<Vec<Vec<S>>, AudioWriteError>
@@ -104,7 +104,7 @@ where S: SampleType {
     }
 }
 
-pub fn dual_mono_to_stereos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<(S, S)>, AudioWriteError>
+pub fn dual_monos_to_stereos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<(S, S)>, AudioWriteError>
 where S: SampleType {
     let (l, r) = dual_monos;
     if l.len() != r.len() {
@@ -164,10 +164,10 @@ where S: SampleType {
 
 pub fn do_resample_stereo<S>(resampler: &mut Resampler, input: &[(S, S)], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<(S, S)>
 where S: SampleType {
-    let block = stereos_to_dual_mono(input);
+    let block = stereos_to_dual_monos(input);
     let l = do_resample_mono(resampler, &block.0, src_sample_rate, dst_sample_rate);
     let r = do_resample_mono(resampler, &block.1, src_sample_rate, dst_sample_rate);
-    dual_mono_to_stereos(&(l, r)).unwrap()
+    dual_monos_to_stereos(&(l, r)).unwrap()
 }
 
 pub fn do_resample_frames<S>(resampler: &mut Resampler, input: &[Vec<S>], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<Vec<S>>
