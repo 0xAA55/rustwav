@@ -16,39 +16,13 @@ pub mod copiablebuf;
 pub mod resampler;
 pub mod hacks;
 
-pub use errors::{AudioError, AudioReadError, AudioWriteError, IOErrorInfo};
-pub use savagestr::{StringCodecMaps, SavageStringCodecs};
-pub use readwrite::{Reader, Writer, string_io};
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
-pub use encoders::EncoderToImpl;
-pub use encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
-pub use decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
-pub use adpcm::{AdpcmEncoder, AdpcmEncoderIMA, AdpcmEncoderMS, AdpcmEncoderYAMAHA};
-pub use adpcm::{AdpcmDecoder, AdpcmDecoderIMA, AdpcmDecoderMS, AdpcmDecoderYAMAHA};
-pub use adpcm::{EncIMA, EncMS, EncYAMAHA};
-pub use adpcm::{DecIMA, DecMS, DecYAMAHA};
-pub use wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat, WaveSampleType, SpeakerPosition};
-pub use wavcore::{GUID, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
-pub use wavcore::{ChunkWriter, ChunkHeader};
-pub use wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData, AdpcmImaData, ExtensibleData, Mp3Data};
-pub use wavcore::{BextChunk, SmplChunk, SmplSampleLoop, InstChunk, CueChunk, Cue, ListChunk, AdtlChunk, LablChunk, NoteChunk, LtxtChunk, AcidChunk, JunkChunk, Id3};
+pub use readwrite::{Reader, Writer};
+pub use wavcore::{Spec, SampleFormat, DataFormat, AdpcmSubFormat};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
-pub use filehasher::FileHasher;
-pub use copiablebuf::{CopiableBuffer, CopiableBufferIter, CopiableBufferIterMut, CopiableBufferIntoIter};
 pub use resampler::Resampler;
-
-#[cfg(feature = "mp3dec")]
-pub use decoders::mp3::Mp3Decoder;
-
-#[cfg(feature = "mp3enc")]
-pub use encoders::mp3::Mp3Encoder;
-
-#[cfg(feature = "opus")]
-pub use encoders::opus::OpusEncoder;
-
-#[cfg(feature = "opus")]
-pub use decoders::opus::OpusDecoder;
+pub use errors::{AudioReadError, AudioError, AudioWriteError};
 
 use std::env::args;
 use std::error::Error;
