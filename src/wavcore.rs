@@ -10,7 +10,7 @@ use crate::readwrite::string_io::*;
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
 // 你以为 WAV 就是用来存 PCM 的吗？
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DataFormat{
     Unspecified,
     Pcm,
@@ -21,7 +21,7 @@ pub enum DataFormat{
     Opus,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u16)]
 pub enum AdpcmSubFormat {
     Ms = 0x0002,
