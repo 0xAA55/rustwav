@@ -108,7 +108,7 @@ impl<S> Decoder<S> for Mp3Decoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { Mp3Decoder::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(Mp3Decoder::get_cur_frame_index(self)) }
-    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { Mp3Decoder::seek(self, seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
