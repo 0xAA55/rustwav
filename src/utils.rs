@@ -1,6 +1,6 @@
-use crate::{AudioWriteError};
-use crate::{SampleType};
-use crate::{Resampler};
+use crate::AudioWriteError;
+use crate::SampleType;
+use crate::Resampler;
 
 pub fn multiple_stereos_to_dual_mono<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
 where S: SampleType {

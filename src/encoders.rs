@@ -3,13 +3,12 @@
 
 use std::fmt::Debug;
 
-use crate::adpcm;
-use crate::AudioWriteError;
-use crate::WaveSampleType;
-use crate::SpeakerPosition;
-use crate::{SampleType, i24, u24};
 use crate::Writer;
-use crate::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
+use crate::{SampleType, i24, u24};
+use crate::AudioWriteError;
+use crate::adpcm;
+use crate::wavcore::{WaveSampleType, SpeakerPosition};
+use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 use crate::xlaw::{XLaw, PcmXLawEncoder};
 
@@ -735,12 +734,11 @@ impl EncoderToImpl for PcmXLawEncoderWrap {
 #[cfg(feature = "mp3enc")]
 pub mod mp3 {
     use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
+    use super::EncoderToImpl;
     use crate::Writer;
-    use crate::{SampleType, i24, u24};
-    use crate::{FmtChunk, FmtExtension, Mp3Data};
     use crate::AudioWriteError;
-    use crate::SpeakerPosition;
-    use crate::EncoderToImpl;
+    use crate::{SampleType, i24, u24};
+    use crate::wavcore::{FmtChunk, FmtExtension, Mp3Data, SpeakerPosition};
     use crate::utils::{self, sample_conv, stereos_conv};
     use mp3lame_encoder::{Builder, Encoder, Mode, MonoPcm, DualPcm, FlushNoGap};
     pub use mp3lame_encoder::{Bitrate, VbrMode, Quality, Id3Tag};
@@ -1242,11 +1240,10 @@ pub mod mp3 {
 pub mod opus {
     use std::mem;
 
+    use super::EncoderToImpl;
     use crate::Writer;
-    use crate::FmtChunk;
-    use crate::EncoderToImpl;
+    use crate::wavcore::{FmtChunk, SpeakerPosition};
     use crate::AudioWriteError;
-    use crate::SpeakerPosition;
     use crate::{i24, u24};
     use crate::utils::sample_conv;
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::{io, fmt::Debug};
-use crate::{FmtChunk};
+use crate::wavcore::{FmtChunk};
 
 #[derive(Debug, Clone, Copy)]
 pub enum CurrentChannel {
@@ -76,8 +76,8 @@ pub mod ima {
     use std::{io, cmp::min, mem};
 
     use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
-    use crate::{CopiableBuffer};
-    use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmImaData};
+    use crate::copiablebuf::{CopiableBuffer};
+    use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmImaData};
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
@@ -597,8 +597,8 @@ pub mod ms {
     use std::io;
 
     use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
-    use crate::{CopiableBuffer};
-    use crate::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
+    use crate::copiablebuf::{CopiableBuffer};
+    use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
 
     const ADAPTATIONTABLE: [i16; 16] = [
         230, 230, 230, 230, 307, 409, 512, 614,
@@ -1262,8 +1262,8 @@ pub mod yamaha {
     use std::{io, cmp::min};
 
     use super::{AdpcmEncoder, AdpcmDecoder};
-    use crate::{CopiableBuffer};
-    use crate::{FmtChunk};
+    use crate::copiablebuf::{CopiableBuffer};
+    use crate::wavcore::{FmtChunk};
 
     const BLOCK_SIZE: usize = 1024;
 
