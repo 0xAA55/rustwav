@@ -123,6 +123,26 @@ where S: SampleType {
     }
 }
 
+pub fn dual_monos_to_monos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<S>, AudioWriteError>
+where S: SampleType {
+    let (l, r) = dual_monos;
+    if l.len() != r.len() {
+        Err(AudioWriteError::MultipleMonosAreNotSameSize)
+    } else {
+        Ok(l.iter().zip(r).map(|(l, r): (&S, &S)| -> S {S::average(*l, *r)}).collect())
+    }
+}
+
+pub fn monos_to_dual_monos<S>(monos: &[S]) -> (Vec<S>, Vec<S>)
+where S: SampleType {
+    (monos.to_vec(), monos.to_vec())
+}
+
+pub fn stereos_to_monos<S>(stereos: &[(S, S)]) -> Vec<S>
+where S: SampleType {
+    stereos.iter().map(|(l, r): &(S, S)| -> S {S::average(*l, *r)}).collect()
+}
+
 // 样本类型缩放转换
 // 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
 #[inline(always)]
