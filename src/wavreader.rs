@@ -3,27 +3,27 @@
 
 use std::{fs::File, path::PathBuf, cmp::Ordering, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
 
-use crate::wavcore;
-use crate::readwrite;
-use crate::AudioReadError;
-use crate::Spec;
-use crate::ChunkHeader;
-use crate::{FmtChunk, ExtensionData};
-use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Decoder, PcmDecoder, AdpcmDecoderWrap, AdpcmSubFormat, PcmXLawDecoderWrap};
-use crate::{DecIMA, DecMS, DecYAMAHA};
-use crate::{StringCodecMaps, SavageStringCodecs};
-use crate::FileHasher;
+use crate::Reader;
 use crate::SampleType;
-use crate::{Reader, string_io::*};
-use crate::CopiableBuffer;
+use crate::AudioReadError;
+use crate::readwrite::{self, string_io::*};
+use crate::wavcore;
+use crate::wavcore::Spec;
+use crate::wavcore::ChunkHeader;
+use crate::wavcore::{FmtChunk, ExtensionData};
+use crate::wavcore::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
+use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
+use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+use crate::filehasher::FileHasher;
+use crate::copiablebuf::CopiableBuffer;
 use crate::xlaw::XLaw;
 
 #[cfg(feature = "mp3dec")]
-use crate::Mp3Decoder;
+use crate::decoders::mp3::Mp3Decoder;
 
 #[cfg(feature = "opus")]
-use crate::OpusDecoder;
+use crate::decoders::opus::OpusDecoder;
 
 #[derive(Debug)]
 pub enum WaveDataSource {
@@ -350,7 +350,7 @@ impl WaveReader {
 
 fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
-    use AdpcmSubFormat::{Ms, Ima, Yamaha};
+    use wavcore::AdpcmSubFormat::{Ms, Ima, Yamaha};
     const TAG_MS: u16 = Ms as u16;
     const TAG_IMA: u16 = Ima as u16;
     const TAG_YAMAHA: u16 = Yamaha as u16;

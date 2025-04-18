@@ -3,25 +3,26 @@
 
 use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
 
-use crate::AudioWriteError;
-use crate::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
-use crate::{ChunkWriter};
-use crate::FmtChunk;
-use crate::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
-use crate::{EncIMA, EncMS, EncYAMAHA};
-use crate::{StringCodecMaps, SavageStringCodecs};
-use crate::{SampleType};
-use crate::{Writer, string_io::*};
+use crate::Writer;
 use crate::WaveReader;
+use crate::AudioWriteError;
+use crate::SampleType;
+use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
+use crate::wavcore::{ChunkWriter};
+use crate::wavcore::FmtChunk;
+use crate::wavcore::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
+use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
+use crate::readwrite::string_io::*;
+use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::hacks;
 use crate::xlaw::XLaw;
 
 #[cfg(feature = "mp3enc")]
-use crate::Mp3Encoder;
+use crate::encoders::mp3::Mp3Encoder;
 
 #[cfg(feature = "opus")]
-use crate::OpusEncoder;
+use crate::encoders::opus::OpusEncoder;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]

@@ -3,18 +3,18 @@
 
 use std::{fmt::Debug, cmp::min, io::SeekFrom};
 
-use crate::adpcm;
-use crate::{AudioError, AudioReadError};
-use crate::{Spec, WaveSampleType, FmtChunk};
-use crate::{SampleType, i24, u24};
 use crate::Reader;
+use crate::{SampleType, i24, u24};
+use crate::{AudioError, AudioReadError};
+use crate::adpcm;
+use crate::wavcore::{Spec, WaveSampleType, FmtChunk};
 use crate::xlaw::{XLaw, PcmXLawDecoder};
 
 #[cfg(feature = "mp3dec")]
-use crate::Mp3Decoder;
+use mp3::Mp3Decoder;
 
 #[cfg(feature = "opus")]
-use crate::OpusDecoder;
+use opus::OpusDecoder;
 
 // 解码器，解码出来的样本格式是 S
 pub trait Decoder<S>: Debug
@@ -562,11 +562,13 @@ impl PcmXLawDecoderWrap {
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
     use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}};
-    use rmp3::{DecoderOwned, Frame};
+
     use crate::{AudioReadError};
     use crate::Reader;
-    use crate::FmtChunk;
     use crate::SampleType;
+    use crate::wavcore::FmtChunk;
+
+    use rmp3::{DecoderOwned, Frame};
 
     pub struct Mp3Decoder {
         target_sample_format: u32,
@@ -808,9 +810,9 @@ pub mod opus {
     use std::{io::SeekFrom, cmp::Ordering};
 
     use crate::Reader;
-    use crate::FmtChunk;
     use crate::AudioReadError;
     use crate::SampleType;
+    use crate::wavcore::FmtChunk;
 
     use opus::{Decoder, Channels};
 
