@@ -567,13 +567,14 @@ where E: adpcm::AdpcmEncoder {
             sample_rate,
             bytes_written: 0,
             encoder: E::new(channels)?,
-            nibbles: Vec::<u8>::new(),
+            nibbles: Vec::<u8>::with_capacity(MAX_BUFFER_USAGE),
         })
     }
 
     fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         writer.write_all(&self.nibbles)?;
-        self.nibbles = Vec::<u8>::new();
+        // 不能用 clear，否则万一有一次用户写入大量的 sample 的时候，用 clear 后它自己的容量是不会缩小的，一直占着内存。
+        self.nibbles = Vec::<u8>::with_capacity(MAX_BUFFER_USAGE);
         Ok(())
     }
 
