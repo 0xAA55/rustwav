@@ -69,7 +69,7 @@ impl<'a> WaveWriter<'a> {
     }
 
     pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
-        use DataFormat::{Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus};
+        use DataFormat::{Unspecified, Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus};
         let encoder = match data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
@@ -87,6 +87,7 @@ impl<'a> WaveWriter<'a> {
             PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::MuLaw))),
             Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
             Opus => Encoder::new(Box::new(OpusEncoder::new(spec.channels, spec.sample_rate, None, None, None)?)),
+            Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {data_format}."))),
         };
         let mut ret = Self{
             writer,
