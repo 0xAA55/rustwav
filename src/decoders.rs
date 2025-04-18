@@ -24,6 +24,7 @@ pub trait Decoder<S>: Debug
     fn get_channels(&self) -> u16;
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError>;
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError>;
 
     // 可选实现
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
@@ -47,6 +48,7 @@ pub trait Decoder<S>: Debug
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.spec.channels }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { PcmDecoder::<S>::get_cur_frame_index(self) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
@@ -57,6 +59,7 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
     where S: SampleType,
           D: adpcm::AdpcmDecoder {
     fn get_channels(&self) -> u16 { self.channels }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(AdpcmDecoderWrap::<D>::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -66,6 +69,7 @@ impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
 impl<S> Decoder<S> for PcmXLawDecoderWrap
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.channels }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(PcmXLawDecoderWrap::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek_frame(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -76,6 +80,7 @@ impl<S> Decoder<S> for PcmXLawDecoderWrap
 impl<S> Decoder<S> for Mp3Decoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { Mp3Decoder::get_channels(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(Mp3Decoder::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -86,6 +91,7 @@ impl<S> Decoder<S> for Mp3Decoder
 impl<S> Decoder<S> for OpusDecoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { OpusDecoder::get_channels(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(OpusDecoder::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -99,6 +105,7 @@ where S: SampleType {
     data_offset: u64,
     data_length: u64,
     block_align: u16,
+    total_frames: u64,
     spec: Spec,
     sample_decoder: fn(&mut dyn Reader) -> Result<S, AudioReadError>,
 }
@@ -116,6 +123,7 @@ where S: SampleType {
             data_offset,
             data_length,
             block_align: fmt.block_align,
+            total_frames: data_length / fmt.block_align as u64,
             spec: *spec,
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
         })
@@ -131,21 +139,20 @@ where S: SampleType {
     } 
 
     pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-        let total_frames = self.data_length / self.block_align as u64;
         let frame_index = match seek_from{
             SeekFrom::Start(fi) => fi,
             SeekFrom::Current(cur) => {
                 (self.get_cur_frame_index()? as i64 + cur) as u64
             },
             SeekFrom::End(end) => {
-                (total_frames as i64 + end) as u64
+                (self.total_frames as i64 + end) as u64
             }
         };
-        if frame_index > total_frames {
+        if frame_index > self.total_frames {
             self.reader.seek(SeekFrom::Start(self.data_offset + self.data_length))?;
             Ok(())
         } else {
-            self.reader.seek(SeekFrom::Start(frame_index * self.block_align as u64))?;
+            self.reader.seek(SeekFrom::Start(self.data_offset + frame_index * self.block_align as u64))?;
             Ok(())
         }
     }
@@ -289,6 +296,10 @@ where D: adpcm::AdpcmDecoder {
     fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
         let end_of_data = self.data_offset + self.data_length;
         if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+    }
+
+    pub fn get_cur_frame_index(&self) -> u64 {
+        self.frame_index
     }
 
     pub fn feed_until_output(&mut self, wanted_length: usize) -> Result<(), AudioReadError>{
@@ -474,6 +485,10 @@ impl PcmXLawDecoderWrap {
 
     fn decode(&mut self) -> Result<i16, AudioReadError> {
         Ok(self.dec.decode(u8::read_le(&mut self.reader)?))
+    }
+
+    pub fn get_cur_frame_index(&self) -> u64 {
+        self.frame_index
     }
 
     fn seek_frame(&mut self, from: SeekFrom) -> Result<(), AudioReadError> {
@@ -865,6 +880,10 @@ pub mod opus {
 
         pub fn get_sample_rate(&self) -> u32 {
             self.sample_rate
+        }
+
+        pub fn get_cur_frame_index(&self) -> u64 {
+            self.frame_index
         }
 
         fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
