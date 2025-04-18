@@ -45,7 +45,30 @@ pub trait Decoder<S>: Debug
     }
 
     // 可选实现
+    fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
+        let mut frames = Vec::<Option<Vec<S>>>::with_capacity(num_frames);
+        for _ in 0..num_frames {
+            frames.push(self.decode_frame()?);
         }
+        Ok(frames.into_iter().flatten().collect())
+    }
+
+    // 可选实现
+    fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
+        let mut monos = Vec::<Option<S>>::with_capacity(num_monos);
+        for _ in 0..num_monos {
+            monos.push(self.decode_mono()?);
+        }
+        Ok(monos.into_iter().flatten().collect())
+    }
+
+    // 可选实现
+    fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
+        let mut stereos = Vec::<Option<(S, S)>>::with_capacity(num_stereos);
+        for _ in 0..num_stereos {
+            stereos.push(self.decode_stereo()?);
+        }
+        Ok(stereos.into_iter().flatten().collect())
     }
 }
 
