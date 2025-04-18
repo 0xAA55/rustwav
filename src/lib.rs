@@ -1,20 +1,19 @@
-
-pub mod errors;
-pub mod savagestr;
-pub mod readwrite;
-pub mod sampleutils;
-pub mod filehasher;
-pub mod adpcm;
-pub mod xlaw;
-pub mod encoders;
-pub mod decoders;
-pub mod wavcore;
-pub mod wavreader;
-pub mod wavwriter;
-pub mod utils;
-pub mod copiablebuf;
-pub mod resampler;
-pub mod hacks;
+mod errors;
+mod savagestr;
+mod readwrite;
+mod sampleutils;
+mod copiablebuf;
+mod filehasher;
+mod adpcm;
+mod xlaw;
+mod encoders;
+mod decoders;
+mod wavcore;
+mod wavreader;
+mod wavwriter;
+mod utils;
+mod resampler;
+mod hacks;
 
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use readwrite::{Reader, Writer};
