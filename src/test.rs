@@ -187,6 +187,13 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     Ok(())
 }
 
+#[test]
+fn testrun() {
+    for format in FORMATS {
+        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = args().collect();
     if args.len() < 5 {return ExitCode::from(1);}
