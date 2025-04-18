@@ -15,7 +15,7 @@ use crate::xlaw::{XLaw, PcmXLawEncoder};
 // 编码器，接收样本格式 S，编码为文件要的格式
 // 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
 pub trait EncoderToImpl: Debug {
-    fn get_bit_rate(&self, channels: u16) -> u32;
+    fn get_bitrate(&self, channels: u16) -> u32;
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
@@ -151,8 +151,8 @@ pub trait EncoderToImpl: Debug {
 impl EncoderToImpl for () {
 
     // 这个方法用户必须实现
-    fn get_bit_rate(&self, _channels: u16) -> u32 {
-        panic!("Must implement `get_bit_rate()` for your encoder.");
+    fn get_bitrate(&self, _channels: u16) -> u32 {
+        panic!("Must implement `get_bitrate()` for your encoder.");
     }
 
     // 这个方法用户必须实现
@@ -204,8 +204,8 @@ impl Encoder {
         self.encoder.new_fmt_chunk(channels, sample_rate, bits_per_sample, channel_mask)
     }
 
-    pub fn get_bit_rate(&self, channels: u16) -> u32 {
-        self.encoder.get_bit_rate(channels)
+    pub fn get_bitrate(&self, channels: u16) -> u32 {
+        self.encoder.get_bitrate(channels)
     }
 
     pub fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -521,7 +521,7 @@ impl EncoderToImpl for PcmEncoder {
         })
     }
 
-    fn get_bit_rate(&self, channels: u16) -> u32 {
+    fn get_bitrate(&self, channels: u16) -> u32 {
         channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
 
@@ -615,7 +615,7 @@ where E: adpcm::AdpcmEncoder {
         Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
     }
 
-    fn get_bit_rate(&self, channels: u16) -> u32 {
+    fn get_bitrate(&self, channels: u16) -> u32 {
         self.sample_rate * channels as u32 * 4
     }
 
@@ -706,7 +706,7 @@ impl EncoderToImpl for PcmXLawEncoderWrap {
         })
     }
 
-    fn get_bit_rate(&self, channels: u16) -> u32 {
+    fn get_bitrate(&self, channels: u16) -> u32 {
         self.sample_rate * channels as u32 * 8
     }
 
@@ -773,7 +773,7 @@ pub mod mp3 {
 
     impl<S> Mp3Encoder<S>
     where S: SampleType {
-        pub fn new(channels: u8, sample_rate: u32, bit_rate: Option<Bitrate>, quality: Option<Quality>, vbr_mode: Option<VbrMode>, id3tag: Option<Id3Tag>) -> Result<Self, AudioWriteError> {
+        pub fn new(channels: u8, sample_rate: u32, bitrate: Option<Bitrate>, quality: Option<Quality>, vbr_mode: Option<VbrMode>, id3tag: Option<Id3Tag>) -> Result<Self, AudioWriteError> {
             let mp3_builder = Builder::new();
             let mut mp3_builder = match mp3_builder {
                 Some(mp3_builder) => mp3_builder,
@@ -790,8 +790,8 @@ pub mod mp3 {
             mp3_builder.set_sample_rate(sample_rate)?;
 
             // 设置位率，直接决定音质。如果没有提供位率，就使用 320 kbps 位率。
-            let bitrate = match bit_rate {
-                Some(bit_rate) => bit_rate,
+            let bitrate = match bitrate {
+                Some(bitrate) => bitrate,
                 None => Bitrate::Kbps320,
             };
             mp3_builder.set_brate(bitrate)?;
@@ -1168,7 +1168,7 @@ pub mod mp3 {
             })
         }
 
-        fn get_bit_rate(&self, channels: u16) -> u32 {
+        fn get_bitrate(&self, channels: u16) -> u32 {
             self.bitrate * channels as u32
         }
 
@@ -1360,7 +1360,7 @@ pub mod opus {
     }
 
     impl EncoderToImpl for OpusEncoder {
-        fn get_bit_rate(&self, channels: u16) -> u32 {
+        fn get_bitrate(&self, channels: u16) -> u32 {
             if self.samples_written > 0 {
                 (self.sample_rate as u64 * self.bytes_written / self.samples_written * channels as u64 * 8) as u32
             } else {
@@ -1387,14 +1387,14 @@ pub mod opus {
                 format_tag: 0x704F,
                 channels,
                 sample_rate,
-                byte_rate: self.get_bit_rate(channels) / 8,
+                byte_rate: self.get_bitrate(channels) / 8,
                 block_align: self.num_samples_per_encode as u16,
                 bits_per_sample: 0,
                 extension: None,
             })
         }
         fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-            fmt.byte_rate = self.get_bit_rate(fmt.channels) / 8;
+            fmt.byte_rate = self.get_bitrate(fmt.channels) / 8;
             fmt.block_align = self.num_samples_per_encode as u16;
             Ok(())
         }
