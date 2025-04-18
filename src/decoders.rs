@@ -157,8 +157,7 @@ where S: SampleType {
     }
 
     fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
-        let end_of_data = self.data_offset + self.data_length;
-        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+        Ok(self.reader.stream_position()? >= self.data_offset + self.data_length)
     }
 
     pub fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> {
@@ -198,6 +197,7 @@ where S: SampleType {
     where T: SampleType {
         Ok(S::from(T::read_le(r)?))
     }
+
     fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
     where T: SampleType {
         let mut ret = Vec::<S>::with_capacity(num_samples_to_read);
