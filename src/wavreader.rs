@@ -507,6 +507,10 @@ where S: SampleType {
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
+
+    pub fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
+        self.decoder.decode_frames(num_frames)
+    }
 }
 
 impl<S> Iterator for FrameIter<S>
@@ -545,6 +549,10 @@ where S: SampleType {
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
     }
+
+    pub fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
+        self.decoder.decode_monos(num_monos)
+    }
 }
 
 impl<S> Iterator for StereoIter<S>
@@ -582,6 +590,10 @@ where S: SampleType {
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
+    }
+
+    pub fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
+        self.decoder.decode_stereos(num_stereos)
     }
 }
 
