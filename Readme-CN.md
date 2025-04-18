@@ -60,107 +60,141 @@
 ## 用法（示例代码）
 
 ```rust
+use sampleutils::{SampleType, SampleFrom, i24, u24};
+use readwrite::{Reader, Writer};
+use wavcore::{Spec, SampleFormat, DataFormat, AdpcmSubFormat};
+use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
+use wavwriter::{FileSizeOption, WaveWriter};
+use resampler::Resampler;
+use errors::{AudioReadError, AudioError, AudioWriteError};
+
 use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
 
-// test：读取 arg1 的音频文件，写入到 arg2 的音频文件
-fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Error>> {
-    #[allow(unused_imports)]
-    use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
+const FORMATS: [(&str, DataFormat); 8] = [
+        ("pcm", DataFormat::Pcm),
+        ("pcm-alaw", DataFormat::PcmALaw),
+        ("pcm-ulaw", DataFormat::PcmMuLaw),
+        ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
+        ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
+        ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
+        ("mp3", DataFormat::Mp3),
+        ("opus", DataFormat::Opus),
+];
 
-    let transfer_block_size = 65536usize;
+#[allow(unused_imports)]
+use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
-    let mut resampler = Resampler::new(transfer_block_size);
+fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mut WaveWriter) {
+    // The fft size can be any number greater than the sample rate of the encoder or the decoder.
+    // It is for the resampler. A greater number results in better resample quality, but the process could be slower.
+    // In most cases, the audio sampling rate is about 11025 to 48000, so 65536 is the best number for the resampler.
+    const FFT_SIZE: usize = 65536;
 
-    println!("======== TEST 1 ========");
+    // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
+    // Otherwise, it's not needed there.
+    let mut resampler = Resampler::new(FFT_SIZE);
 
-    // 读取 arg1 的音频文件，得到一个 WaveReader 的实例
-    let mut wavereader = WaveReader::open(arg2).unwrap();
+    // The decoding audio spec
+    let decode_spec = *decoder.spec();
 
-    // 获取原本音频文件的数据参数
-    let orig_spec = *wavereader.spec();
+    // The encoding audio spec
+    let encode_spec = *encoder.spec();
 
-    // 这里可以修改参数，能改变样本的位数和格式等。
-    // WAV 实际支持的样本的位数和格式有限。
-    let spec = Spec {
-        channels: orig_spec.channels,
-        channel_mask: 0,
-        sample_rate: 48000,
-        bits_per_sample: 16, // 设置样本位数
-        sample_format: SampleFormat::Int, // 使用有符号整数
-    };
+    // The number of channels must match
+    assert_eq!(encode_spec.channels, decode_spec.channels);
 
-    let data_format = match arg1{
-        "pcm" => DataFormat::Pcm,
-        "pcm-alaw" => DataFormat::PcmALaw,
-        "pcm-ulaw" => DataFormat::PcmMuLaw,
-        "adpcm-ms" => DataFormat::Adpcm(AdpcmSubFormat::Ms),
-        "adpcm-ima" => DataFormat::Adpcm(AdpcmSubFormat::Ima),
-        "adpcm-yamaha" => DataFormat::Adpcm(AdpcmSubFormat::Yamaha),
-        "mp3" => DataFormat::Mp3,
-        "opus" => DataFormat::Opus,
-        other => {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{other}`. Please input one of these:\n{}",
-                [
-                    "pcm",
-                    "pcm-alaw",
-                    "pcm-ulaw",
-                    "adpcm-ms",
-                    "adpcm-ima",
-                    "adpcm-yamaha",
-                    "mp3",
-                    "opus",
-                ].join(", ")
-            )).into());
-        },
-    };
+    // Process size is for the resampler to process the waveform, it is the length of the source waveform slice.
+    let process_size = resampler.get_process_size(FFT_SIZE, decode_spec.sample_rate, encode_spec.sample_rate);
 
-    // 音频写入器，将音频信息写入到 arg2 文件
-    let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
-
-    let process_size = resampler.get_process_size(transfer_block_size, orig_spec.sample_rate, spec.sample_rate);
-    match spec.channels {
+    // There are three types of iterators for three types of audio channels: mono, stereo, and more than 2 channels of audio.
+    // Usually, the third iterator can handle all numbers of channels, but it's the slowest iterator.
+    match encode_spec.channels {
         1 => {
-            let mut iter = wavereader.mono_iter::<i16>()?;
+            let mut iter = decoder.mono_iter::<f32>().unwrap();
             loop {
-                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
+                let block: Vec<f32> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
-                wavewriter.write_monos(&block)?;
+                let block = utils::do_resample_mono(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                encoder.write_monos(&block).unwrap();
             }
         },
         2 => {
-            let mut iter = wavereader.stereo_iter::<i16>()?;
+            let mut iter = decoder.stereo_iter::<f32>().unwrap();
             loop {
-                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
+                let block: Vec<(f32, f32)> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
-                wavewriter.write_stereos(&block)?;
+                let block = utils::do_resample_stereo(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                encoder.write_stereos(&block).unwrap();
             }
         },
         _ => {
-            let mut iter = wavereader.frame_iter::<i16>()?;
+            let mut iter = decoder.frame_iter::<f32>().unwrap();
             loop {
-                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
+                let block: Vec<Vec<f32>> = iter.by_ref().take(process_size).collect();
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(&mut resampler, &block, orig_spec.sample_rate, spec.sample_rate);
-                wavewriter.write_frames(&block)?;
+                let block = utils::do_resample_frames(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                encoder.write_frames(&block).unwrap();
             }
         }
     }
+}
 
-    // 音频写入器从音频读取器那里读取音乐元数据过来
+// The `test()` function
+// arg1: the format, e.g. "pcm"
+// arg2: the input file to parse and decode, tests the decoder for the input file.
+// arg3: the output file to encode, test the encoder.
+// arg4: re-decode arg3 and encode to pcm to test the decoder.
+fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Error>> {
+    let mut data_format = DataFormat::Unspecified;
+    for format in FORMATS {
+        if arg1 == format.0 {
+            data_format = format.1;
+            break;
+        }
+    }
+
+    // Failed to match the data format
+    if data_format == DataFormat::Unspecified {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{arg1}`. Please input one of these:\n{}", FORMATS.iter().map(|(s, _v)|{s.to_string()}).collect::<Vec<String>>().join(", "))).into());
+    }
+
+    println!("======== TEST 1 ========");
+
+    // This is the decoder
+    let mut wavereader = WaveReader::open(arg2).unwrap();
+
+    let orig_spec = *wavereader.spec();
+
+    // The spec for the encoder
+    let spec = Spec {
+        channels: orig_spec.channels,
+        channel_mask: 0,
+        sample_rate: 48000, // Specify a sample rate to test the resampler
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+
+    // This is the encoder
+    let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
+
+    // Transfer audio samples from the decoder to the encoder
+    transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
+
+    // Get the metadata from the decoder
     wavewriter.migrate_metadata_from_reader(&wavereader);
+
+    // Must call finalize() for the encoder
     wavewriter.finalize()?;
 
-    // 输出调试信息
+    // Show debug info
     dbg!(&wavereader);
     dbg!(&wavewriter);
 
@@ -169,60 +203,35 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     let spec2 = Spec {
         channels: spec.channels,
         channel_mask: 0,
-        sample_rate: 44100,
-        bits_per_sample: 16, // 设置样本位数
-        sample_format: SampleFormat::Int, // 使用有符号整数
+        sample_rate: 44100, // Changed to another sample rate to test the resampler.
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
     };
 
     let mut wavereader_2 = WaveReader::open(arg3).unwrap();
     let mut wavewriter_2 = WaveWriter::create(arg4, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
-    let process_size = resampler.get_process_size(transfer_block_size, spec.sample_rate, spec2.sample_rate);
-    match spec2.channels {
-        1 => {
-            let mut iter = wavereader_2.mono_iter::<i16>()?;
-            loop {
-                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block = utils::do_resample_mono(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
-                wavewriter_2.write_monos(&block)?;
-            }
-        },
-        2 => {
-            let mut iter = wavereader_2.stereo_iter::<i16>()?;
-            loop {
-                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block = utils::do_resample_stereo(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
-                wavewriter_2.write_stereos(&block)?;
-            }
-        },
-        _ => {
-            let mut iter = wavereader_2.frame_iter::<i16>()?;
-            loop {
-                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block = utils::do_resample_frames(&mut resampler, &block, spec.sample_rate, spec2.sample_rate);
-                wavewriter_2.write_frames(&block)?;
-            }
-        }
-    }
+    // Transfer audio samples from the decoder to the encoder
+    transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
-    // 音频写入器从音频读取器那里读取音乐元数据过来
+    // Get the metadata from the decoder
     wavewriter_2.migrate_metadata_from_reader(&wavereader_2);
+
+    // Must call finalize() for the encoder
     wavewriter_2.finalize()?;
 
-    // 输出调试信息
+    // Show debug info
     dbg!(&wavereader_2);
     dbg!(&wavewriter_2);
 
     Ok(())
+}
+
+#[test]
+fn testrun() {
+    for format in FORMATS {
+        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
+    }
 }
 
 fn main() -> ExitCode {
