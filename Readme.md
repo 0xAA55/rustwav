@@ -17,23 +17,22 @@ English | [简体中文](Readme-CN.md)
     * Supported generic types: `i8`, `i16`, `i24`, `i32`, `i64`, `u8`, `u16`, `u24`, `u32`, `u64`, `f32`, `f64`
     * Regardless of original audio storage format, iterators can convert to the above generic formats.
     * No conversion occurs when original format matches the specified generic type.
-* Supports creating multiple independent iterators, each reading audio frames from their own positions.
 * Reads music metadata information:
     * Special handling for system-specific string encodings (e.g., Code Page 936/GB2312 on Windows):
         * On Windows builds, calls `GetACP()` to detect code page, retrieves corresponding encoding, and converts to UTF-8 using the encoding crate.
     * Supports ID3 metadata.
-* Allows creating audio readers using any Read + Seek trait implementer as input. In this mode, a temporary file stores the audio's `data` section:
-    * Leverages OS-specific "delete-on-close" behavior for temporary files - automatically cleaned up even if the program crashes.
+* Allows creating audio readers using any `Read + Seek` trait implementer as input. In this mode, a temporary file stores the audio's `data` section.
+    * The temporary file will be deleted when the `WaveReader` drops. 
     * No temporary files created when using file paths to initialize readers.
-* No panic! except for explicit parameter errors.
+* No `panic!` except for explicit parameter errors.
 
 
 ### Audio Writer
 * Supports writing WAV audio files over 4GB in size.
 * Supports embedded formats including PCM, PCM-aLaw, PCM-muLaw, ADPCM-MS, ADPCM-IMA, ADPCM-YAMAHA, MP3, Opus, etc.
-* write_frame() function accepts **generic parameters**, encoding input samples for storage.
+* `write_frame()` function accepts **generic parameters**, encoding input samples for storage.
 * Writes music metadata and can copy all metadata from other audio readers.
-* No panic! except for explicit parameter errors.
+* No `panic!` except for explicit parameter errors.
 
 ### Other Features
 * Supports channel configurations including but not limited to:
