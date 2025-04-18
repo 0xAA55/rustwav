@@ -1072,12 +1072,12 @@ pub mod mp3 {
         }
 
         fn to_left_right(&self) -> (Vec<S>, Vec<S>) {
-            utils::stereos_to_dual_mono(&self.dual_pcm)
+            utils::stereos_to_dual_monos(&self.dual_pcm)
         }
 
         fn convert_dual_pcm<T>(&self) -> (Vec<T>, Vec<T>)
         where T: SampleType {
-            utils::stereos_to_dual_mono(&stereos_conv(&self.dual_pcm))
+            utils::stereos_to_dual_monos(&stereos_conv(&self.dual_pcm))
         }
 
         fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
