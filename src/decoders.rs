@@ -27,6 +27,15 @@ pub trait Decoder<S>: Debug
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError>;
 
     // 可选实现
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
+        match self.get_channels() {
+            1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
+            2 => Ok(self.decode_frame()?.map(|samples| S::average(samples[0], samples[1]))),
+            o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
+        }
+    }
+
+    // 可选实现
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
@@ -36,11 +45,6 @@ pub trait Decoder<S>: Debug
     }
 
     // 可选实现
-    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
-        match self.get_channels() {
-            1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
-            2 => Ok(self.decode_frame()?.map(|samples| S::average(samples[0], samples[1]))),
-            o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
         }
     }
 }
