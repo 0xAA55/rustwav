@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{ops::{Index, IndexMut}, iter::FromIterator, fmt::Debug};
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
