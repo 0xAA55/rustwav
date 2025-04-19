@@ -9,6 +9,9 @@ use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::readwrite::string_io::*;
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
+#[allow(unused_imports)]
+pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
+
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DataFormat{
@@ -17,7 +20,7 @@ pub enum DataFormat{
     Adpcm(AdpcmSubFormat),
     PcmALaw,
     PcmMuLaw,
-    Mp3,
+    Mp3(Mp3EncoderOptions),
     Opus,
 }
 
@@ -43,7 +46,7 @@ impl Display for DataFormat {
             Self::Adpcm(subformat) => write!(f, "{:?}", subformat),
             Self::PcmALaw => write!(f, "PCM-ALaw"),
             Self::PcmMuLaw => write!(f, "PCM-MuLaw"),
-            Self::Mp3 => write!(f, "MP3"),
+            Self::Mp3(options) => write!(f, "MP3({:?})", options),
             Self::Opus => write!(f, "Opus"),
        }
     }
@@ -59,7 +62,7 @@ impl Display for AdpcmSubFormat {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SampleFormat {
     Unknown,
     Float,
