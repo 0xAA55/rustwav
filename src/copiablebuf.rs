@@ -98,8 +98,8 @@ where T: CopiableItem {
         self.len() == 0
     }
 
-    pub fn to_array(&self) -> [T; N] {
-        self.buffer
+    pub fn get_array(&self) -> &[T; N] {
+        &self.buffer
     }
 
     pub fn into_array(self) -> [T; N] {
