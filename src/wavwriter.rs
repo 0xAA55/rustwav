@@ -85,9 +85,13 @@ impl<'a> WaveWriter<'a> {
             },
             PcmALaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::ALaw))),
             PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::MuLaw))),
-            Mp3 => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.channels as u8, spec.sample_rate, None, None, None, None)?)),
+            #[cfg(feature = "mp3enc")]
+            Mp3(ref mp3_options) => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.sample_rate, &mp3_options)?)),
+            #[cfg(feature = "opus")]
             Opus => Encoder::new(Box::new(OpusEncoder::new(spec.channels, spec.sample_rate, None, None, None)?)),
             Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {data_format}."))),
+            #[allow(unreachable_patterns)]
+            other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
         };
         let mut ret = Self{
             writer,
