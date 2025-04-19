@@ -143,6 +143,11 @@ where S: SampleType {
     stereos.iter().map(|(l, r): &(S, S)| -> S {S::average(*l, *r)}).collect()
 }
 
+pub fn monos_to_stereos<S>(monos: &[S]) -> Vec<(S, S)>
+where S: SampleType {
+    monos.iter().map(|s|{(*s, *s)}).collect()
+}
+
 // 样本类型缩放转换
 // 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
 #[inline(always)]
