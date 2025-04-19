@@ -35,7 +35,13 @@ const FORMATS: [(&str, DataFormat); 8] = [
         ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
         ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
         ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
-        ("mp3", DataFormat::Mp3),
+        ("mp3", DataFormat::Mp3(Mp3EncoderOptions{
+            channels: Mp3Channels::NotSet,
+            quality: Mp3Quality::Best,
+            bitrate: Mp3Bitrate::Kbps320,
+            vbr_mode: Mp3VbrMode::Off,
+            id3tag: None,
+        })),
         ("opus", DataFormat::Opus),
 ];
 
