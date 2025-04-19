@@ -11,13 +11,14 @@ mod decoders;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
-mod utils;
 mod resampler;
 mod hacks;
 
+pub mod utils;
+
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use readwrite::{Reader, Writer};
-pub use wavcore::{Spec, SampleFormat, DataFormat, AdpcmSubFormat};
+pub use wavcore::{Spec, SampleFormat, DataFormat, AdpcmSubFormat, Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use resampler::Resampler;
