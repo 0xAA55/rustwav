@@ -1262,7 +1262,7 @@ pub mod opus {
     }
 
     impl OpusEncoderSampleDuration {
-        pub fn to_samples(&self, channels: u16, sample_rate: u32) -> usize {
+        pub fn get_num_samples(&self, channels: u16, sample_rate: u32) -> usize {
             let ms_m_10 = match self {
                 Self::MilliSec2_5 => 25,
                 Self::MilliSec5 => 50,
@@ -1313,7 +1313,7 @@ pub mod opus {
             } else {
                 OpusEncoderSampleDuration::MilliSec60
             };
-            let num_samples_per_encode = cache_duration.to_samples(channels, sample_rate);
+            let num_samples_per_encode = cache_duration.get_num_samples(channels, sample_rate);
             Ok(Self {
                 encoder,
                 channels,
@@ -1328,7 +1328,7 @@ pub mod opus {
 
         pub fn set_cache_duration(&mut self, samples_cache_duration: OpusEncoderSampleDuration) {
             self.cache_duration = samples_cache_duration;
-            self.num_samples_per_encode = samples_cache_duration.to_samples(self.channels, self.sample_rate);
+            self.num_samples_per_encode = samples_cache_duration.get_num_samples(self.channels, self.sample_rate);
         }
 
         pub fn write_samples(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError> {
