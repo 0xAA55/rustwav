@@ -149,6 +149,17 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
         sample_format: SampleFormat::Int,
     };
 
+    match data_format {
+        DataFormat::Mp3(ref mut options) => {
+            match spec.channels {
+                1 => options.channels = Mp3Channels::Mono,
+                2 => options.channels = Mp3Channels::JointStereo,
+                o => panic!("MP3 format can't encode {o} channels audio."),
+            }
+        },
+        _ => (),
+    }
+
     // This is the encoder
     let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
 
