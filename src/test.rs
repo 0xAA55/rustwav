@@ -64,7 +64,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
     let encode_sample_rate = encode_spec.sample_rate;
 
     // The number of channels must match
-    assert_eq!(encode_channels, decode_spec.channels);
+    assert_eq!(encode_channels, decode_channels);
 
     // Process size is for the resampler to process the waveform, it is the length of the source waveform slice.
     let process_size = resampler.get_process_size(FFT_SIZE, decode_sample_rate, encode_sample_rate);
