@@ -172,9 +172,7 @@ impl Debug for GUID {
 }
 
 // TODO
-// 其实还有：GUID_DRM、GUID_LAW、GUID_MULAW、GUID_ADPCM
-// 视情况实现
-
+// There's also GUID_DRM、GUID_LAW、GUID_MULAW、GUID_ADPCM
 impl GUID {
     pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
     where T: Read {
@@ -333,7 +331,7 @@ pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Spec {
     pub channels: u16,
     pub channel_mask: u32,
