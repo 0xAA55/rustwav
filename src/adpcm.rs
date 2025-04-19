@@ -1200,7 +1200,7 @@ pub mod ms {
                         if !mono.is_ready() {
                             mono.header_buffer.push(byte);
                             if mono.header_buffer.is_full() {
-                                let breakfast = DecoderBreakfast::from_bytes_mono(&mono.header_buffer.to_array());
+                                let breakfast = DecoderBreakfast::from_bytes_mono(mono.header_buffer.get_array());
                                 mono.get_ready(&breakfast, |sample:i16|{output(sample)})?;
                             }
                         } else {
@@ -1338,7 +1338,7 @@ pub mod yamaha {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if self.buffer.is_full() {
-                    output(self.encode_sample(&self.buffer.to_array()));
+                    output(self.encode_sample(&{*self.buffer.get_array()}));
                     self.buffer.clear();
                 }
             }
@@ -1351,7 +1351,7 @@ pub mod yamaha {
             while !self.buffer.is_full() {
                 self.buffer.push(0);
             }
-            output(self.core.encode_sample(&self.buffer.to_array()));
+            output(self.core.encode_sample(&{*self.buffer.get_array()}));
             self.buffer.clear();
         }
     }
@@ -1388,7 +1388,7 @@ pub mod yamaha {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if self.buffer.is_full() {
-                    output(self.encode_sample(&self.buffer.to_array()));
+                    output(self.encode_sample(&{*self.buffer.get_array()}));
                     self.buffer.clear();
                 }
             }
@@ -1401,7 +1401,7 @@ pub mod yamaha {
             while !self.buffer.is_full() {
                 self.buffer.push(0);
             }
-            output(self.encode_sample(&self.buffer.to_array()));
+            output(self.encode_sample(&{*self.buffer.get_array()}));
             self.buffer.clear();
         }
     }
