@@ -12,15 +12,16 @@ use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GU
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 use crate::xlaw::{XLaw, PcmXLawEncoder};
 
-// 编码器，接收样本格式 S，编码为文件要的格式
-// 因为 trait 不准用泛型参数，所以每一种函数都给我实现一遍。
+// An encoder that accepts samples of type `S` and encodes them into the file's target format.
+// Due to trait bounds prohibiting generic parameters, each function must be explicitly 
+// implemented for every supported type.
 pub trait EncoderToImpl: Debug {
     fn get_bitrate(&self, channels: u16) -> u32;
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
     fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 
-    // 这些是最底层的函数，不关声道数，直接写样本，其中除了 f32 版以外都有默认实现。
+    // Channel-agnostic low-level sample writers. Default impls exist except for `f32`.
     fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError>;
     fn write_samples_i16(&mut self, writer: &mut dyn Writer, samples: &[i16]) -> Result<(), AudioWriteError>;
     fn write_samples_i24(&mut self, writer: &mut dyn Writer, samples: &[i24]) -> Result<(), AudioWriteError>;
@@ -34,7 +35,7 @@ pub trait EncoderToImpl: Debug {
     fn write_samples_f32(&mut self, writer: &mut dyn Writer, samples: &[f32]) -> Result<(), AudioWriteError>;
     fn write_samples_f64(&mut self, writer: &mut dyn Writer, samples: &[f64]) -> Result<(), AudioWriteError>;
 
-    // 这些是用于方便写音频帧的接口，每个音频帧是个数组，对应每个声道的样本。有默认的实现。
+    // Convenience interfaces for writing audio frames. Each frame is an array of samples per channel. Default implementations are provided.
     fn write_frame__i8(&mut self, writer: &mut dyn Writer, frame: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, frame)}
     fn write_frame_i16(&mut self, writer: &mut dyn Writer, frame: &[i16]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, frame)}
     fn write_frame_i24(&mut self, writer: &mut dyn Writer, frame: &[i24]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, frame)}
@@ -48,7 +49,7 @@ pub trait EncoderToImpl: Debug {
     fn write_frame_f32(&mut self, writer: &mut dyn Writer, frame: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, frame)}
     fn write_frame_f64(&mut self, writer: &mut dyn Writer, frame: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, frame)}
 
-    // 这些是用于方便写多个音频帧而设计的接口，有默认的实现。
+    // Convenience interfaces for writing multiple audio frames. Default implementations are provided.
     fn write_frames__i8(&mut self, writer: &mut dyn Writer, frames: &[Vec<i8 >], channels: u16) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
     fn write_frames_i16(&mut self, writer: &mut dyn Writer, frames: &[Vec<i16>], channels: u16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
     fn write_frames_i24(&mut self, writer: &mut dyn Writer, frames: &[Vec<i24>], channels: u16) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
@@ -62,7 +63,7 @@ pub trait EncoderToImpl: Debug {
     fn write_frames_f32(&mut self, writer: &mut dyn Writer, frames: &[Vec<f32>], channels: u16) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
     fn write_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>], channels: u16) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
 
-    // 这些是用来写单声道音频帧的接口，有默认的实现。
+    // Interfaces for writing mono audio frames (single-channel). Default implementations are provided.
     fn write_mono__i8(&mut self, writer: &mut dyn Writer, frame: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[frame])}
     fn write_mono_i16(&mut self, writer: &mut dyn Writer, frame: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[frame])}
     fn write_mono_i24(&mut self, writer: &mut dyn Writer, frame: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[frame])}
@@ -76,7 +77,7 @@ pub trait EncoderToImpl: Debug {
     fn write_mono_f32(&mut self, writer: &mut dyn Writer, frame: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[frame])}
     fn write_mono_f64(&mut self, writer: &mut dyn Writer, frame: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[frame])}
 
-    // 这些是用来写多个单声道音频帧的接口，有默认的实现。
+    // Interfaces for writing batched mono audio frames. Default implementations are provided.
     fn write_monos__i8(&mut self, writer: &mut dyn Writer, frames: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, frames)}
     fn write_monos_i16(&mut self, writer: &mut dyn Writer, frames: &[i16]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, frames)}
     fn write_monos_i24(&mut self, writer: &mut dyn Writer, frames: &[i24]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, frames)}
@@ -90,7 +91,7 @@ pub trait EncoderToImpl: Debug {
     fn write_monos_f32(&mut self, writer: &mut dyn Writer, frames: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, frames)}
     fn write_monos_f64(&mut self, writer: &mut dyn Writer, frames: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, frames)}
 
-    // 这些是用来写立体声音频的接口，立体声由两个单独的声道数据组成，有默认的实现。
+    // Interfaces for writing stereo audio (composed of two separate channel buffers). Default implementations are provided.
     fn write_dual_mono__i8(&mut self, writer: &mut dyn Writer, mono1: i8 , mono2: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[mono1, mono2])}
     fn write_dual_mono_i16(&mut self, writer: &mut dyn Writer, mono1: i16, mono2: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[mono1, mono2])}
     fn write_dual_mono_i24(&mut self, writer: &mut dyn Writer, mono1: i24, mono2: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[mono1, mono2])}
@@ -104,7 +105,7 @@ pub trait EncoderToImpl: Debug {
     fn write_dual_mono_f32(&mut self, writer: &mut dyn Writer, mono1: f32, mono2: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[mono1, mono2])}
     fn write_dual_mono_f64(&mut self, writer: &mut dyn Writer, mono1: f64, mono2: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[mono1, mono2])}
 
-    // 这些是用来写多个立体声音频的接口，立体声由两个单独的声道数据组成，有默认的实现。
+    // Interfaces for writing batched stereo audio (two separate channel buffers). Default implementations are provided.
     fn write_dual_monos__i8(&mut self, writer: &mut dyn Writer, mono1: &[i8 ], mono2: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
     fn write_dual_monos_i16(&mut self, writer: &mut dyn Writer, mono1: &[i16], mono2: &[i16]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
     fn write_dual_monos_i24(&mut self, writer: &mut dyn Writer, mono1: &[i24], mono2: &[i24]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
@@ -118,7 +119,7 @@ pub trait EncoderToImpl: Debug {
     fn write_dual_monos_f32(&mut self, writer: &mut dyn Writer, mono1: &[f32], mono2: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
     fn write_dual_monos_f64(&mut self, writer: &mut dyn Writer, mono1: &[f64], mono2: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
 
-    // 这些是用来写立体声音频的接口，使用 tuple 存储立体声音频帧，有默认的实现。
+    // Interfaces for writing stereo audio frames using tuples (L, R). Default implementations are provided.
     fn write_stereo__i8(&mut self, writer: &mut dyn Writer, stereo: (i8 , i8 )) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[stereo.0, stereo.1])}
     fn write_stereo_i16(&mut self, writer: &mut dyn Writer, stereo: (i16, i16)) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[stereo.0, stereo.1])}
     fn write_stereo_i24(&mut self, writer: &mut dyn Writer, stereo: (i24, i24)) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[stereo.0, stereo.1])}
@@ -132,7 +133,7 @@ pub trait EncoderToImpl: Debug {
     fn write_stereo_f32(&mut self, writer: &mut dyn Writer, stereo: (f32, f32)) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[stereo.0, stereo.1])}
     fn write_stereo_f64(&mut self, writer: &mut dyn Writer, stereo: (f64, f64)) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[stereo.0, stereo.1])}
 
-    // 这些是用来写立体声音频的接口，使用 tuple 数组存储立体声音频帧，有默认的实现。
+    // Interfaces for writing stereo audio frames using arrays of tuples. Default implementations are provided.
     fn write_stereos__i8(&mut self, writer: &mut dyn Writer, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &utils::stereos_to_interleaved_samples(stereos))}
     fn write_stereos_i16(&mut self, writer: &mut dyn Writer, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &utils::stereos_to_interleaved_samples(stereos))}
     fn write_stereos_i24(&mut self, writer: &mut dyn Writer, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &utils::stereos_to_interleaved_samples(stereos))}
@@ -147,30 +148,24 @@ pub trait EncoderToImpl: Debug {
     fn write_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::stereos_to_interleaved_samples(stereos))}
 }
 
-// 提供默认实现。无论用户输入的是什么格式，默认用 f32 传递给编码器。
+// Default implementations: all input formats are normalized to `f32` for encoding.
 impl EncoderToImpl for () {
-
-    // 这个方法用户必须实现
     fn get_bitrate(&self, _channels: u16) -> u32 {
         panic!("Must implement `get_bitrate()` for your encoder.");
     }
 
-    // 这个方法用户必须实现
     fn new_fmt_chunk(&mut self, _channels: u16, _sample_rate: u32, _bits_per_sample: u16, _channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         panic!("Must implement `new_fmt_chunk()` for your encoder.");
     }
 
-    // 这个方法用户必须实现
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
         panic!("Must implement `update_fmt_chunk()` for your encoder.");
     }
 
-    // 这个方法用户必须实现
     fn finalize(&mut self, _writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         panic!("Must implement `finalize()` for your encoder to flush the data.");
     }
 
-    // 这个方法用户必须实现
     fn write_samples_f32(&mut self, _writer: &mut dyn Writer, _samples: &[f32]) -> Result<(), AudioWriteError> {
         panic!("Must atlease implement `write_samples_f32()` for your encoder to get samples.");
     }
@@ -189,7 +184,7 @@ impl EncoderToImpl for () {
 }
 
 #[derive(Debug)]
-pub struct Encoder { // 它就只是负责帮存储一个 `EncoderToImpl`，然后提供具有泛型参数的函数便于调用者使用。
+pub struct Encoder { // Stores an `EncoderToImpl` and offers generic APIs for callers.
     encoder: Box<dyn EncoderToImpl>,
 }
 
@@ -388,7 +383,7 @@ impl Encoder {
     }
 }
 
-// PcmEncoderFrom<S>：样本从 S 类型打包到目标类型
+// `PcmEncoderFrom<S>`: Transcodes samples from type `S` into the target format.
 #[derive(Debug, Clone, Copy)]
 struct PcmEncoderFrom<S>
 where S: SampleType {
@@ -418,8 +413,8 @@ where S: SampleType {
         })
     }
 
-    // S：别人给我们的格式
-    // T：我们要写入到 WAV 中的格式
+    // S: The input format provided to us (external source).
+    // T: The target format to be written into the WAV file.
     fn write_sample_to<T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), AudioWriteError>
     where T: SampleType {
         for sample in frame.iter() {
@@ -463,7 +458,7 @@ pub struct PcmEncoder {
 }
 
 impl PcmEncoder {
-    // target_sample: 要编码进 WAV 的 PCM 具体格式
+    // target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
     pub fn new(sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
         Ok(Self {
             sample_rate,
@@ -573,7 +568,8 @@ where E: adpcm::AdpcmEncoder {
 
     fn flush_buffers(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         writer.write_all(&self.nibbles)?;
-        // 不能用 clear，否则万一有一次用户写入大量的 sample 的时候，用 clear 后它自己的容量是不会缩小的，一直占着内存。
+        // Avoid using `clear()`. If a user writes a large batch of samples once, 
+        // `clear()` retains the original capacity without shrinking it, leading to persistent memory usage.
         self.nibbles = Vec::<u8>::with_capacity(MAX_BUFFER_USAGE);
         Ok(())
     }
