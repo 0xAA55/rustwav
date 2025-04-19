@@ -12,6 +12,9 @@ use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 #[allow(unused_imports)]
 pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
 
+#[allow(unused_imports)]
+pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DataFormat{
@@ -21,7 +24,7 @@ pub enum DataFormat{
     PcmALaw,
     PcmMuLaw,
     Mp3(Mp3EncoderOptions),
-    Opus,
+    Opus(OpusEncoderOptions),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -47,7 +50,7 @@ impl Display for DataFormat {
             Self::PcmALaw => write!(f, "PCM-ALaw"),
             Self::PcmMuLaw => write!(f, "PCM-MuLaw"),
             Self::Mp3(options) => write!(f, "MP3({:?})", options),
-            Self::Opus => write!(f, "Opus"),
+            Self::Opus(options) => write!(f, "Opus({:?})", options),
        }
     }
 }
