@@ -860,7 +860,7 @@ pub mod mp3 {
     use super::EncoderToImpl;
 
     #[cfg(feature = "mp3enc")]
-    pub mod true_mp3 {
+    pub mod impl_mp3 {
         use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
         use super::*;
         use crate::Writer;
@@ -1441,7 +1441,7 @@ pub mod mp3 {
     }
 
     #[cfg(feature = "mp3enc")]
-    pub use true_mp3::*;
+    pub use impl_mp3::*;
 }
 
 #[cfg(feature = "opus")]
