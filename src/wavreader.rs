@@ -516,7 +516,7 @@ where S: SampleType {
     }
 }
 
-impl<'a, S> Iterator for FrameIter<'a, S>
+impl<S> Iterator for FrameIter<'_, S>
 where S: SampleType {
     type Item = Vec<S>;
 
@@ -561,7 +561,7 @@ where S: SampleType {
     }
 }
 
-impl<'a, S> Iterator for MonoIter<'a, S>
+impl<S> Iterator for MonoIter<'_, S>
 where S: SampleType {
     type Item = S;
 
@@ -607,7 +607,7 @@ where S: SampleType {
     }
 }
 
-impl<'a, S> Iterator for StereoIter<'a, S>
+impl<S> Iterator for StereoIter<'_, S>
 where S: SampleType {
     type Item = (S, S);
 
