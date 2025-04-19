@@ -860,6 +860,7 @@ pub mod mp3 {
         }
     }
 
+    #[cfg(feature = "mp3enc")]
     use super::EncoderToImpl;
 
     #[cfg(feature = "mp3enc")]
