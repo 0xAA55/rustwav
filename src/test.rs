@@ -53,20 +53,25 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
     let mut resampler = Resampler::new(FFT_SIZE);
 
     // The decoding audio spec
-    let decode_spec = *decoder.spec();
+    let decode_spec = decoder.spec();
 
     // The encoding audio spec
-    let encode_spec = *encoder.spec();
+    let encode_spec = encoder.spec();
+
+    let decode_channels = decode_spec.channels;
+    let encode_channels = encode_spec.channels;
+    let decode_sample_rate = decode_spec.sample_rate;
+    let encode_sample_rate = encode_spec.sample_rate;
 
     // The number of channels must match
-    assert_eq!(encode_spec.channels, decode_spec.channels);
+    assert_eq!(encode_channels, decode_spec.channels);
 
     // Process size is for the resampler to process the waveform, it is the length of the source waveform slice.
-    let process_size = resampler.get_process_size(FFT_SIZE, decode_spec.sample_rate, encode_spec.sample_rate);
+    let process_size = resampler.get_process_size(FFT_SIZE, decode_sample_rate, encode_sample_rate);
 
     // There are three types of iterators for three types of audio channels: mono, stereo, and more than 2 channels of audio.
     // Usually, the third iterator can handle all numbers of channels, but it's the slowest iterator.
-    match encode_spec.channels {
+    match encode_channels {
         1 => {
             let mut iter = decoder.mono_iter::<f32>().unwrap();
             loop {
@@ -74,7 +79,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                let block = utils::do_resample_mono(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_monos(&block).unwrap();
             }
         },
@@ -85,7 +90,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                let block = utils::do_resample_stereo(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_stereos(&block).unwrap();
             }
         },
@@ -96,7 +101,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                let block = utils::do_resample_frames(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_frames(&block).unwrap();
             }
         }
@@ -127,7 +132,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     // This is the decoder
     let mut wavereader = WaveReader::open(arg2).unwrap();
 
-    let orig_spec = *wavereader.spec();
+    let orig_spec = wavereader.spec();
 
     // The spec for the encoder
     let spec = Spec {
