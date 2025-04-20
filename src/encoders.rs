@@ -1048,6 +1048,9 @@ pub mod mp3 {
 
             pub fn write_stereos<T>(&mut self, writer: &mut dyn Writer, stereos: &[(T, T)]) -> Result<(), AudioWriteError>
             where T: SampleType {
+                if self.buffers.is_full() {
+                    self.buffers.flush(writer)?;
+                }
                 match self.channels{
                     1 => self.buffers.add_monos(writer, &utils::stereos_to_monos(&stereos_conv::<T, S>(stereos))),
                     2 => self.buffers.add_stereos(writer, &stereos_conv::<T, S>(stereos)),
