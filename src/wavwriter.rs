@@ -274,7 +274,7 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += mono1.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
@@ -289,7 +289,7 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
@@ -301,7 +301,7 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
