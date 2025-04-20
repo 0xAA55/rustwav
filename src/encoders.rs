@@ -1058,6 +1058,18 @@ pub mod mp3 {
                 }
             }
 
+            pub fn write_dual_monos<T>(&mut self, writer: &mut dyn Writer, mono_l: &[T], mono_r: &[T]) -> Result<(), AudioWriteError>
+            where T: SampleType {
+                if self.buffers.is_full() {
+                    self.buffers.flush(writer)?;
+                }
+                match self.channels{
+                    1 => self.buffers.add_monos(writer, &sample_conv::<T, S>(&utils::dual_monos_to_monos(&(mono_l.to_vec(), mono_r.to_vec()))?)),
+                    2 => self.buffers.add_dual_monos(writer, &sample_conv::<T, S>(mono_l), &sample_conv::<T, S>(mono_r)),
+                    o => Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {o}"))),
+                }
+            }
+
             pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
                 self.buffers.finish(writer)
             }
@@ -1331,6 +1343,19 @@ pub mod mp3 {
             fn write_stereos_u64(&mut self, writer: &mut dyn Writer, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_stereos(writer, stereos)}
             fn write_stereos_f32(&mut self, writer: &mut dyn Writer, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_stereos(writer, stereos)}
             fn write_stereos_f64(&mut self, writer: &mut dyn Writer, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_stereos(writer, stereos)}
+
+            fn write_dual_monos__i8(&mut self, writer: &mut dyn Writer, mono1: &[i8 ], mono2: &[i8 ]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_i16(&mut self, writer: &mut dyn Writer, mono1: &[i16], mono2: &[i16]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_i24(&mut self, writer: &mut dyn Writer, mono1: &[i24], mono2: &[i24]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_i32(&mut self, writer: &mut dyn Writer, mono1: &[i32], mono2: &[i32]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_i64(&mut self, writer: &mut dyn Writer, mono1: &[i64], mono2: &[i64]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos__u8(&mut self, writer: &mut dyn Writer, mono1: &[u8 ], mono2: &[u8 ]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_u16(&mut self, writer: &mut dyn Writer, mono1: &[u16], mono2: &[u16]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_u24(&mut self, writer: &mut dyn Writer, mono1: &[u24], mono2: &[u24]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_u32(&mut self, writer: &mut dyn Writer, mono1: &[u32], mono2: &[u32]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_u64(&mut self, writer: &mut dyn Writer, mono1: &[u64], mono2: &[u64]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_f32(&mut self, writer: &mut dyn Writer, mono1: &[f32], mono2: &[f32]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
+            fn write_dual_monos_f64(&mut self, writer: &mut dyn Writer, mono1: &[f64], mono2: &[f64]) -> Result<(), AudioWriteError> {self.write_dual_monos(writer, mono1, mono2)}
         }
 
         impl Debug for SharedMp3Encoder {
