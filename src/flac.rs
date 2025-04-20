@@ -265,23 +265,26 @@ where
         }
     }
 
-    fn on_drop(&mut self) -> Result<(), FlacEncoderError> {
-        match self.finish() {
-            Ok(_) => (),
-            Err(e) => eprintln!("Failed to `finish()`, proceed to `drop()`. {:?}", e),
-        }
+    fn on_drop(&mut self) {
         unsafe {
-            if self.encoder != ptr::null_mut() {
-                eprintln!("0x{:x}", self.encoder as usize);
+            if !self.is_finalized() {
+                match self.finish() {
+                    Ok(_) => (),
+                    Err(e) => eprintln!("Failed to `finish()`. {:?}", e),
+                }
                 FLAC__stream_encoder_delete(self.encoder);
                 self.encoder = ptr::null_mut();
             }
         };
-        Ok(())
     }
 
     pub fn finalize(mut self) -> Result<(), FlacEncoderError> {
-        self.on_drop()
+        self.on_drop();
+        Ok(())
+    }
+
+    pub fn is_finalized(&self) -> bool {
+        self.encoder == ptr::null_mut()
     }
 }
 
@@ -291,7 +294,7 @@ where
     S: FnMut(u64) -> Result<(), io::Error>,
     T: FnMut() -> Result<u64, io::Error> {
     fn drop(&mut self) {
-        self.on_drop().unwrap()
+        self.on_drop();
     }
 }
 
