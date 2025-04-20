@@ -405,6 +405,7 @@ pub struct ChunkWriter<'a> {
     pub flag: [u8; 4],
     pub pos_of_chunk_len: u64, // 写入 chunk 大小的地方
     pub chunk_start: u64, // chunk 数据开始的地方
+    ended: bool,
 }
 
 impl Debug for ChunkWriter<'_> {
@@ -430,11 +431,20 @@ impl<'a> ChunkWriter<'a> {
             flag: *flag,
             pos_of_chunk_len,
             chunk_start,
+            ended: false,
         })
     }
 
     // 结束写入 Chunk，更新 Chunk Size
     pub fn end(mut self) -> Result<(), AudioWriteError> {
+        self.on_drop()
+    }
+
+    // 实现 `drop()` 时调用。
+    fn on_drop(&mut self) -> Result<(), AudioWriteError> {
+        if self.ended {
+            return Ok(());
+        }
         // 此处存在一个情况：块的大小是 u32 类型，但是如果实际写入的块的大小超过这个大小就会存不下。
         // 对于 RIFF 和 data 段，因为 ds64 段里专门留了字段用于存储 u64 的块大小，所以这里写入 0xFFFFFFFF。
         // 对于其它段，其实 ds64 的 table 字段就是专门为其它段提供 u64 的块大小的存储的，但是你要增加 table 的数量，就会增加 ds64 段的长度
@@ -455,7 +465,7 @@ impl<'a> ChunkWriter<'a> {
     }
 
     // 放弃写入 Chunk，写一个假的 Chunk 大小
-    pub fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), AudioWriteError> {
+    fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), AudioWriteError> {
         let end_of_chunk = self.writer.stream_position()?;
         self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
         chunk_size_to_write.write_le(self.writer)?;
@@ -463,6 +473,7 @@ impl<'a> ChunkWriter<'a> {
         if end_of_chunk & 1 > 0 {
             0u8.write_le(self.writer)?;
         }
+        self.ended = true;
         Ok(())
     }
 
@@ -474,6 +485,13 @@ impl<'a> ChunkWriter<'a> {
     // 取得 Chunk 数据当前写入的大小
     pub fn get_chunk_data_size(&mut self) -> Result<u64, AudioWriteError> {
         Ok(self.writer.stream_position()? - self.get_chunk_start_pos())
+    }
+}
+
+impl Drop for ChunkWriter<'_> {
+    fn drop(&mut self) {
+        // println!("dropping `ChunkWriter` {:?}", self);
+        self.on_drop().unwrap()
     }
 }
 
