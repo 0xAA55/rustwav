@@ -6,6 +6,7 @@ mod copiablebuf;
 mod filehasher;
 mod adpcm;
 mod xlaw;
+mod flac;
 mod encoders;
 mod decoders;
 mod wavcore;
