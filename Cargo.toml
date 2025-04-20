@@ -7,6 +7,7 @@ authors = ["0xAA55 <838816058@qq.com>"]
 [dependencies]
 encoding = { version = "0.2.33", optional = true }
 id3 = { version = "1.16.2", optional = true }
+libflac-sys = { version = "0.3.2", optional = true, default-features = false, features = ["build-flac"] }
 mp3lame-encoder = { version = "0.2.1", optional = true }
 opus = { version = "0.3.0", optional = true}
 rmp3 = { version = "0.3.1", optional = true, features = ["mp1-mp2", "std"] }
@@ -17,12 +18,13 @@ tempfile = "3.18.0"
 windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [features]
-default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus"]
+default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac"]
 text_encoding = ["dep:encoding"]
 id3 = ["dep:id3"]
 mp3dec = ["dep:rmp3"]
 mp3enc = ["dep:mp3lame-encoder"]
 opus = ["dep:opus"]
+flac = ["dep:libflac-sys"]
 
 [profile.release]
 lto = "fat"
