@@ -19,18 +19,18 @@ impl IOErrorInfo {
 
 #[derive(Debug, Clone)]
 pub enum AudioReadError {
-    IncompleteFile(u64), // 不完整的文件
-    IncompleteData(String), // 不完整的数据
-    BufferTooSmall(String), // 给的缓冲区太小
-    InvalidArguments(String), // 错误的参数
-    IOError(IOErrorInfo), // 读写错误，应停止处理
-    FormatError(String), // 格式错误，说明可以尝试使用别的格式的读取器来读取
-    DataCorrupted(String), // 格式也许是正确的，但是数据是错误的
-    Unimplemented(String), // 格式正确，但是这种格式的文件的读写方式没有被开发出来，应停止处理
-    Unsupported(String), // 不支持的格式
-    UnexpectedFlag(String, String), // 没有预料到的符号
-    StringDecodeError(Vec<u8>), // 字符串解码错误
-    OtherReason(String), // 不知道的问题
+    IncompleteFile(u64),
+    IncompleteData(String),
+    BufferTooSmall(String),
+    InvalidArguments(String),
+    IOError(IOErrorInfo),
+    FormatError(String),
+    DataCorrupted(String),
+    Unimplemented(String),
+    Unsupported(String),
+    UnexpectedFlag(String, String),
+    StringDecodeError(Vec<u8>),
+    OtherReason(String),
 }
 
 impl error::Error for AudioReadError {}
@@ -81,20 +81,20 @@ impl From<AudioReadError> for io::Error {
 
 #[derive(Debug, Clone)]
 pub enum AudioWriteError {
-    InvalidArguments(String), // 输入了错误的参数
-    IOError(IOErrorInfo), // 读写错误，应停止处理
-    Unsupported(String), // 不支持的写入格式
-    Unimplemented(String), // 没实现的写入格式
-    AlreadyFinished(String), // 早就停止写入了
-    NotPreparedFor4GBFile, // 之前没准备好要写入超过 4GB 的 WAV 文件
-    ChunkSizeTooBig(String), // 块大小太大
-    StringDecodeError(Vec<u8>), // 字符串解码错误
-    BufferIsFull(String), // 缓冲区满了
-    MultipleMonosAreNotSameSize, // 多个通道的数据不是一样长
-    FrameChannelsNotSame, // 每个音频帧的通道数不同
-    WrongChannels(String), // 声道数错误
-    NotStereo, // 不是双声道
-    OtherReason(String), // 不知道的问题
+    InvalidArguments(String),
+    IOError(IOErrorInfo),
+    Unsupported(String),
+    Unimplemented(String),
+    AlreadyFinished(String),
+    NotPreparedFor4GBFile,
+    ChunkSizeTooBig(String),
+    StringDecodeError(Vec<u8>),
+    BufferIsFull(String),
+    MultipleMonosAreNotSameSize,
+    FrameChannelsNotSame,
+    WrongChannels(String),
+    NotStereo,
+    OtherReason(String),
 }
 
 impl error::Error for AudioWriteError {}
@@ -139,10 +139,10 @@ impl From<AudioWriteError> for io::Error {
 
 #[derive(Debug, Clone)]
 pub enum AudioError {
-    CantGuessChannelMask(u16), // 无法猜出声道掩码
-    ChannelNotMatchMask, // 声道数不和声道掩码匹配
-    Unimplemented(String), // 没有实现的解析格式
-    InvalidArguments(String), // 不知道的样本的格式
+    GuessChannelMaskFailed(u16),
+    ChannelNotMatchMask,
+    Unimplemented(String),
+    InvalidArguments(String),
 }
 
 impl error::Error for AudioError {}

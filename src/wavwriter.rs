@@ -430,9 +430,28 @@ impl<'a> WaveWriter<'a> {
             junk.write(&mut self.writer)?;
         }
 
-        // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
         self.riff_chunk = None;
 
+        // Critical large-file handling workflow:
+        // ---------------------------------------------------------------------
+        // 1. RF64 Header Conversion:
+        //    - If total file size exceeds 4GB (u32::MAX): 
+        //      a. Overwrite the initial 'RIFF' header with 'RF64'
+        //      b. Write the ds64 chunk immediately after, containing:
+        //         - riff_size: u64
+        //         - data_size: u64 (actual data chunk length)
+        //         - table: Vec<(u32, u64)> (maps original chunk IDs to 64-bit sizes)
+        //
+        // 2. Backfill Pre-Reserved Regions:
+        //    - Replace the JUNK chunk placeholder (reserved via `write_junk()`) 
+        //      with the ds64 chunk's binary data.
+        //    - Update all chunk size fields marked with 0xFFFFFFFF during encoding 
+        //      using the ds64 table entries.
+        //
+        // 3. Error Handling:
+        //    - Fails if RF64 is required but no JUNK placeholder was pre-reserved.
+        //    - Callers must invoke `prepare_rf64_placeholder()` before writing chunks
+        //      that may exceed 4GB.
         let file_end_pos = self.writer.stream_position()?;
         let mut change_to_4gb_hreader = || -> Result<(), AudioWriteError> {
             self.writer.seek(SeekFrom::Start(0))?;
@@ -440,7 +459,7 @@ impl<'a> WaveWriter<'a> {
             0xFFFFFFFFu32.write_le(&mut self.writer)?;
             self.writer.write_all(b"WAVE")?;
             self.writer.write_all(b"ds64")?;
-            28u32.write_le(&mut self.writer)?; // ds64 段的长度
+            28u32.write_le(&mut self.writer)?; // Length of the `ds64` chunk
             let riff_size = file_end_pos - 8;
             let sample_count = fact_data;
             riff_size.write_le(&mut self.writer)?;

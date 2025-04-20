@@ -16,17 +16,17 @@ use mp3::Mp3Decoder;
 #[cfg(feature = "opus")]
 use opus::OpusDecoder;
 
-// 解码器，解码出来的样本格式是 S
+// Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
     where S: SampleType {
 
-    // 必须实现
+    // These interfaces must be implemented
     fn get_channels(&self) -> u16;
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError>;
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError>;
 
-    // 可选实现
+    // Optional interface
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
@@ -35,7 +35,7 @@ pub trait Decoder<S>: Debug
         }
     }
 
-    // 可选实现
+    // Optional interface
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
@@ -44,7 +44,7 @@ pub trait Decoder<S>: Debug
         }
     }
 
-    // 可选实现
+    // Optional interface
     fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
         let mut frames = Vec::<Option<Vec<S>>>::with_capacity(num_frames);
         for _ in 0..num_frames {
@@ -53,7 +53,7 @@ pub trait Decoder<S>: Debug
         Ok(frames.into_iter().flatten().collect())
     }
 
-    // 可选实现
+    // Optional interface
     fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
         let mut monos = Vec::<Option<S>>::with_capacity(num_monos);
         for _ in 0..num_monos {
@@ -62,7 +62,7 @@ pub trait Decoder<S>: Debug
         Ok(monos.into_iter().flatten().collect())
     }
 
-    // 可选实现
+    // Optional interface
     fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
         let mut stereos = Vec::<Option<(S, S)>>::with_capacity(num_stereos);
         for _ in 0..num_stereos {
@@ -128,7 +128,7 @@ impl<S> Decoder<S> for OpusDecoder
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
-    reader: Box<dyn Reader>, // 数据读取器
+    reader: Box<dyn Reader>,
     data_offset: u64,
     data_length: u64,
     block_align: u16,
@@ -192,7 +192,6 @@ where S: SampleType {
         }
     }
 
-    // 这个函数用于给 choose_decoder 挑选
     fn decode_sample_to<T>(r: &mut dyn Reader) -> Result<S, AudioReadError>
     where T: SampleType {
         Ok(S::from(T::read_le(r)?))
@@ -207,7 +206,11 @@ where S: SampleType {
         Ok(ret)
     }
 
-    // 这个函数返回的 decoder 只负责读取和转换格式，不负责判断是否读到末尾
+    // The decoder returned by this function has two exclusive responsibilities:
+    // 1. Read raw bytes from the input stream.
+    // 2. Convert them into samples of the target format `S`.
+    // It does NOT handle end-of-stream detection — the caller must implement 
+    // termination logic (e.g., check input.is_empty() or external duration tracking).
     #[allow(clippy::type_complexity)]
     fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
@@ -282,7 +285,7 @@ where S: SampleType {
 pub struct AdpcmDecoderWrap<D>
 where D: adpcm::AdpcmDecoder {
     channels: u16,
-    reader: Box<dyn Reader>, // 数据读取器
+    reader: Box<dyn Reader>,
     data_offset: u64,
     data_length: u64,
     block_align: u16,
@@ -385,15 +388,16 @@ where D: adpcm::AdpcmDecoder {
     where S: SampleType {
         match self.channels {
             1 => {
-                // 确保解码出至少一个样本来
+                // Force-decodes at least 1 sample to ensure data availability
                 if self.samples.is_empty() {
                     self.feed_until_output(1)?;
                 }
-                // 确保不了，说明到头了。
+
+                // Empty after feeding indicates end-of-stream
                 if self.samples.is_empty() {
                     Ok(None)
                 } else {
-                    // 内部状态检查
+                    // Internal status check
                     if self.frame_index < self.first_frame_of_samples {
                         panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
                     } else if self.frame_index < self.frames_decoded {
@@ -401,7 +405,7 @@ where D: adpcm::AdpcmDecoder {
                         self.frame_index += 1;
                         Ok(Some(S::from(ret)))
                     } else {
-                        // 需要继续解码下一个块
+                        // Need to decode the next block
                         self.first_frame_of_samples += self.samples.len() as u64;
                         self.samples.clear();
                         self.decode_mono::<S>()
@@ -432,15 +436,16 @@ where D: adpcm::AdpcmDecoder {
                 }
             },
             2 => {
-                // 确保解码出至少两个样本来
+                // Force-decodes at least 1 sample to ensure data availability
                 if self.samples.is_empty() {
                     self.feed_until_output(2)?;
                 }
-                // 确保不了，说明到头了。
+
+                // Empty after feeding indicates end-of-stream
                 if self.samples.is_empty() {
                     Ok(None)
                 } else {
-                    // 内部状态检查
+                    // Internal status check
                     if self.frame_index < self.first_frame_of_samples {
                         panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
                     } else if self.frame_index < self.frames_decoded {
@@ -450,7 +455,7 @@ where D: adpcm::AdpcmDecoder {
                         let r = self.samples[index + 1];
                         Ok(Some((S::from(l), S::from(r))))
                     } else {
-                        // 需要继续解码下一个块
+                        // Need to decode the next block
                         self.first_frame_of_samples += (self.samples.len() / 2) as u64;
                         self.samples.clear();
                         self.decode_stereo::<S>()
@@ -483,7 +488,7 @@ where D: adpcm::AdpcmDecoder {
 
 #[derive(Debug)]
 pub struct PcmXLawDecoderWrap {
-    reader: Box<dyn Reader>, // 数据读取器
+    reader: Box<dyn Reader>,
     channels: u16,
     data_offset: u64,
     data_length: u64,
