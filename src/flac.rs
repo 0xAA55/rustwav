@@ -69,28 +69,28 @@ impl FlacEncoderParams {
     }
 }
 
-pub struct FlacEncoder<W, S, T>
+pub struct FlacEncoder<Wr, Sk, Tl>
 where 
-    W: FnMut(&[u8]) -> Result<(), io::Error>,
-    S: FnMut(u64) -> Result<(), io::Error>,
-    T: FnMut() -> Result<u64, io::Error>
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>
 {
     encoder: *mut FLAC__StreamEncoder,
     params: FlacEncoderParams,
-    on_write: W,
-    on_seek: S,
-    on_tell: T,
+    on_write: Wr,
+    on_seek: Sk,
+    on_tell: Tl,
 }
 
-impl<W, S, T> FlacEncoder<W, S, T>
+impl<Wr, Sk, Tl> FlacEncoder<Wr, Sk, Tl>
 where 
-    W: FnMut(&[u8]) -> Result<(), io::Error>,
-    S: FnMut(u64) -> Result<(), io::Error>,
-    T: FnMut() -> Result<u64, io::Error> {
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
     pub fn new(
-        on_write: W,
-        on_seek: S,
-        on_tell: T,
+        on_write: Wr,
+        on_seek: Sk,
+        on_tell: Tl,
         params: &FlacEncoderParams
     ) -> Result<Box<Self>, FlacEncoderError> {
 
@@ -288,11 +288,11 @@ where
     }
 }
 
-impl<W, S, T> Drop for FlacEncoder<W, S, T>
+impl<Wr, Sk, Tl> Drop for FlacEncoder<Wr, Sk, Tl>
 where 
-    W: FnMut(&[u8]) -> Result<(), io::Error>,
-    S: FnMut(u64) -> Result<(), io::Error>,
-    T: FnMut() -> Result<u64, io::Error> {
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
     fn drop(&mut self) {
         self.on_drop();
     }
