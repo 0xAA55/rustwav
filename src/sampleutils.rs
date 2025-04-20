@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{Read, Write, Error}, mem::size_of, fmt::Debug, clone::Clone};
+use std::{any::type_name, io::{Read, Write, Error}, mem::size_of, fmt::Debug, clone::Clone};
 use std::ops::{Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign};
 use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr, BitAndAssign, BitOrAssign, BitXorAssign, ShlAssign, ShrAssign};
 use std::ops::{Rem, RemAssign};
@@ -398,6 +398,9 @@ Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self
 AddAssign + SubAssign + MulAssign + DivAssign +
 Debug + Sized + Clone + Copy + 'static {
     type Longer;
+    type Shorter;
+    type Signed;
+    type Unsigned;
     fn new() -> Self;
     fn from(v: impl SampleType) -> Self;
     fn average(s1: Self, s2: Self) -> Self;
@@ -415,6 +418,16 @@ Debug + Sized + Clone + Copy + 'static {
     fn to_f64(&self) -> f64;
     fn as_i24(&self) -> i24;
     fn as_u24(&self) -> u24;
+    fn to_longer(&self) -> Self::Longer;
+    fn to_shorter(&self) -> Self::Shorter;
+    fn is_signed(&self) -> bool;
+    fn is_unsigned(&self) -> bool;
+    fn is_integer(&self) -> bool;
+    fn is_float(&self) -> bool;
+    fn to_signed(&self) -> Self::Signed;
+    fn to_unsigned(&self) -> Self::Unsigned {
+        panic!("The type `{}` can't be turned to an unsigned type.", type_name::<Self>());
+    }
     fn read_le<T>(r: &mut T) -> Result<Self, Error> where T: Read + ?Sized;
     fn read_be<T>(r: &mut T) -> Result<Self, Error> where T: Read + ?Sized;
     fn write_le<T>(&self, w: &mut T) -> Result<(), Error> where T: Write + ?Sized;
@@ -439,6 +452,9 @@ impl SampleFrom for f64 {#[inline(always)] fn to(s: impl SampleType) -> Self { s
 
 impl SampleType for i8{
     type Longer = i16;
+    type Shorter = i8;
+    type Signed = i8;
+    type Unsigned = u8;
     #[inline(always)]
     fn new() -> Self {
         0i8
@@ -510,6 +526,38 @@ impl SampleType for i8{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_i16()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_i8()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i8()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u8()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -537,6 +585,9 @@ impl SampleType for i8{
 
 impl SampleType for i16{
     type Longer = i24;
+    type Shorter = i8;
+    type Signed = i16;
+    type Unsigned = u16;
     #[inline(always)]
     fn new() -> Self {
         0i16
@@ -606,6 +657,38 @@ impl SampleType for i16{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_i24()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_i8()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i16()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u16()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -632,7 +715,10 @@ impl SampleType for i16{
 }
 
 impl SampleType for i24 {
+    type Shorter = i16;
     type Longer = i32;
+    type Signed = i24;
+    type Unsigned = u24;
     #[inline(always)]
     fn new() -> Self {
         Self::from_le_bytes(&[0, 0, 0])
@@ -708,6 +794,38 @@ impl SampleType for i24 {
         self.to_i64().to_f64()
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_i32()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_i16()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i24()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u24()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -734,7 +852,10 @@ impl SampleType for i24 {
 }
 
 impl SampleType for i32{
+    type Shorter = i16;
     type Longer = i64;
+    type Signed = i32;
+    type Unsigned = u32;
     #[inline(always)]
     fn new() -> Self {
         0i32
@@ -805,6 +926,38 @@ impl SampleType for i32{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_i64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_i16()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i32()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u32()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -831,7 +984,10 @@ impl SampleType for i32{
 }
 
 impl SampleType for i64{
-    type Longer = i128;
+    type Shorter = i32;
+    type Longer = i64;
+    type Signed = i64;
+    type Unsigned = u64;
     #[inline(always)]
     fn new() -> Self {
         0i64
@@ -902,6 +1058,38 @@ impl SampleType for i64{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_i64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_i32()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i64()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u64()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -928,7 +1116,10 @@ impl SampleType for i64{
 }
 
 impl SampleType for u8{
+    type Shorter = u8;
     type Longer = u16;
+    type Signed = i8;
+    type Unsigned = u8;
     #[inline(always)]
     fn new() -> Self {
         0x80u8
@@ -1000,6 +1191,38 @@ impl SampleType for u8{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_u16()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_u8()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i8()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u8()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1026,7 +1249,10 @@ impl SampleType for u8{
 }
 
 impl SampleType for u16{
+    type Shorter = u8;
     type Longer = u24;
+    type Signed = i16;
+    type Unsigned = u16;
     #[inline(always)]
     fn new() -> Self {
         0x8000u16
@@ -1097,6 +1323,38 @@ impl SampleType for u16{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_u24()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_u8()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i16()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u16()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1123,7 +1381,10 @@ impl SampleType for u16{
 }
 
 impl SampleType for u24 {
+    type Shorter = u16;
     type Longer = u32;
+    type Signed = i24;
+    type Unsigned = u24;
     #[inline(always)]
     fn new() -> Self {
         Self::from_le_bytes(&[0x00, 0x00, 0x80])
@@ -1193,6 +1454,38 @@ impl SampleType for u24 {
         self.to_i64().to_f64()
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_u32()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_u16()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i24()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u24()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1219,7 +1512,10 @@ impl SampleType for u24 {
 }
 
 impl SampleType for u32{
+    type Shorter = u24;
     type Longer = u64;
+    type Signed = i32;
+    type Unsigned = u32;
     #[inline(always)]
     fn new() -> Self {
         0x80000000u32
@@ -1290,6 +1586,38 @@ impl SampleType for u32{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_u64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_u24()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i32()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u32()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1316,7 +1644,10 @@ impl SampleType for u32{
 }
 
 impl SampleType for u64{
-    type Longer = u128;
+    type Shorter = u32;
+    type Longer = u64;
+    type Signed = i64;
+    type Unsigned = u64;
     #[inline(always)]
     fn new() -> Self {
         0x80000000_00000000u64
@@ -1386,6 +1717,38 @@ impl SampleType for u64{
         (*self as f64) / (Self::MAX as f64)
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_u64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_u32()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_i64()
+    }
+    #[inline(always)]
+    fn to_unsigned(&self) -> Self::Unsigned {
+        self.to_u64()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1412,7 +1775,10 @@ impl SampleType for u64{
 }
 
 impl SampleType for f32{
+    type Shorter = f32;
     type Longer = f64;
+    type Signed = f32;
+    type Unsigned = f32;
     #[inline(always)]
     fn new() -> Self {
         0.0
@@ -1482,6 +1848,34 @@ impl SampleType for f32{
         *self as f64
     }
     #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_f64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_f32()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn to_signed(&self) -> Self::Signed {
+        self.to_f32()
+    }
+    #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
     where T: Read + ?Sized {
         let mut buf = [0u8; size_of::<Self>()];
@@ -1508,7 +1902,10 @@ impl SampleType for f32{
 }
 
 impl SampleType for f64{
+    type Shorter = f32;
     type Longer = f64;
+    type Signed = f64;
+    type Unsigned = f64;
     #[inline(always)]
     fn new() -> Self {
         0.0
@@ -1576,6 +1973,33 @@ impl SampleType for f64{
     #[inline(always)]
     fn to_f64(&self) -> f64{
         *self
+    }
+    #[inline(always)]
+    fn to_longer(&self) -> Self::Longer {
+        self.to_f64()
+    }
+    #[inline(always)]
+    fn to_shorter(&self) -> Self::Shorter {
+        self.to_f32()
+    }
+    #[inline(always)]
+    fn is_signed(&self) -> bool {
+        true
+    }
+    #[inline(always)]
+    fn is_unsigned(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn is_float(&self) -> bool {
+        true
+    }
+    fn to_signed(&self) -> Self::Signed {
+        self.to_f64()
     }
     #[inline(always)]
     fn read_le<T>(r: &mut T) -> Result<Self, Error>
