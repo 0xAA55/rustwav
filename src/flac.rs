@@ -4,6 +4,8 @@ use std::{error, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, 
 
 use libflac_sys::*;
 
+use crate::SampleType;
+
 #[derive(Debug, Clone, Copy)]
 pub struct FlacEncoderError {
     pub code: u32,
@@ -140,7 +142,7 @@ where
             if FLAC__stream_encoder_set_channels(self.encoder, self.params.channels as u32) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_set_channels");
             }
-            if FLAC__stream_encoder_set_bits_per_sample(self.encoder, self.params.bits_per_sample as u32) == 0 {
+            if FLAC__stream_encoder_set_bits_per_sample(self.encoder, 32) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_set_bits_per_sample");
             }
             if FLAC__stream_encoder_set_sample_rate(self.encoder, self.params.sample_rate) == 0 {
@@ -211,27 +213,29 @@ where
         let _meta = &*(metadata as *const FLAC__StreamMetadata);
     }
 
-    pub fn write_monos(&mut self, monos: &[i16]) -> Result<(), FlacEncoderError> {
+    pub fn write_monos<S>(&mut self, monos: &[S]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
         if monos.is_empty() {return Ok(())}
         match self.params.channels {
             1 => unsafe {
-                let samples: Vec<i32> = monos.iter().map(|s|{*s as i32}).collect();
+                let samples: Vec<i32> = monos.iter().map(|s|{s.to_i32()}).collect();
                 if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, monos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
                 Ok(())
             },
-            2 => self.write_stereos(&monos.iter().map(|mono| -> (i16, i16){(*mono, *mono)}).collect::<Vec<(i16, i16)>>()),
-            o => self.write_frames(&monos.iter().map(|mono| -> Vec<i16> {(0..o).map(|_|{*mono}).collect()}).collect::<Vec<Vec<i16>>>()),
+            2 => self.write_stereos::<S>(&monos.iter().map(|mono| -> (S, S){(*mono, *mono)}).collect::<Vec<(S, S)>>()),
+            o => self.write_frames::<S>(&monos.iter().map(|mono| -> Vec<S> {(0..o).map(|_|{*mono}).collect()}).collect::<Vec<Vec<S>>>()),
         }
     }
 
-    pub fn write_stereos(&mut self, stereos: &[(i16, i16)]) -> Result<(), FlacEncoderError> {
+    pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
         if stereos.is_empty() {return Ok(())}
         match self.params.channels {
-            1 => self.write_monos(&stereos.iter().map(|(l, r): &(i16, i16)| -> i16 {((*l as i32 + *r as i32) / 2) as i16}).collect::<Vec<i16>>()),
+            1 => self.write_monos::<S>(&stereos.iter().map(|(l, r): &(S, S)| -> S {S::average(*l, *r)}).collect::<Vec<S>>()),
             2 => unsafe {
-                let samples: Vec<i32> = stereos.iter().flat_map(|(l, r): &(i16, i16)| -> [i32; 2] {[*l as i32, *r as i32]}).collect();
+                let samples: Vec<i32> = stereos.iter().flat_map(|(l, r): &(S, S)| -> [i32; 2] {[l.to_i32(), r.to_i32()]}).collect();
                 if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, stereos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
@@ -241,12 +245,13 @@ where
         }
     }
 
-    pub fn write_frames(&mut self, frames: &[Vec<i16>]) -> Result<(), FlacEncoderError> {
+    pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
         if frames.is_empty() {return Ok(())}
-        let samples: Vec<i32> = frames.iter().flat_map(|frame: &Vec<i16>| -> Vec<i32> {
+        let samples: Vec<i32> = frames.iter().flat_map(|frame: &Vec<S>| -> Vec<i32> {
             if frame.len() != self.params.channels as usize {
                 panic!("On FlacEncoder::write_frames(): a frame size {} does not match the encoder channels.", frame.len())
-            } else {frame.iter().map(|s|{*s as i32}).collect()}
+            } else {frame.iter().map(|s|{s.to_i32()}).collect()}
         }).collect();
         unsafe {
             if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, frames.len() as u32) == 0 {
