@@ -150,7 +150,7 @@ impl error::Error for AudioError {}
 impl Display for AudioError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
        match self {
-           Self::CantGuessChannelMask(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
+           Self::GuessChannelMaskFailed(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
            Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
            Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
@@ -161,7 +161,7 @@ impl Display for AudioError {
 impl From<AudioError> for AudioReadError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
+            AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::DataCorrupted("the channel number does not match the channel mask".to_owned()),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
@@ -172,7 +172,7 @@ impl From<AudioError> for AudioReadError {
 impl From<AudioError> for AudioWriteError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::CantGuessChannelMask(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
+            AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::InvalidArguments("the channel number does not match the channel mask".to_owned()),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
