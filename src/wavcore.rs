@@ -17,6 +17,7 @@ pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSamp
 
 // 你以为 WAV 就是用来存 PCM 的吗？
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum DataFormat{
     Unspecified,
     Pcm,
