@@ -15,7 +15,7 @@ pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bi
 #[allow(unused_imports)]
 pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
-// 你以为 WAV 就是用来存 PCM 的吗？
+// Did you assume WAV is solely for storing PCM data?
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum DataFormat{
@@ -157,7 +157,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
         (64, Int) => S64,
         (32, Float) => F32,
         (64, Float) => F64,
-        // 上述的就是 PCM 能支持的所有格式。
+        // PCM supports only the formats listed above.
         (_, _) => Unknown,
     }
 }
@@ -178,8 +178,6 @@ impl Debug for GUID {
     }
 }
 
-// TODO
-// There's also GUID_DRM、GUID_LAW、GUID_MULAW、GUID_ADPCM
 impl GUID {
     pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
     where T: Read {
@@ -266,12 +264,20 @@ impl Display for SpeakerPosition {
 }
 
 // TODO
-// 设计算法
-// 对每一个声道来源设计一个向量值，相当于从人耳到声道来源的方向
-// 每个声道值对每个声道值互相之间做点乘计算。
-// 背对人耳的音源乘以一个衰减值（或者干脆听不见？）
-// 全部声道加权混音，确保不会改变总音量。
-// 这样就能实现任意的声道组合互相转换。
+// Algorithm Design:
+// 1. Spatial Mapping: 
+//    - Assign a 3D direction vector to each audio source, representing its position relative to the listener's head.
+//    - Vectors are normalized (magnitude = 1.0) to abstract distance, focusing on angular positioning.
+//
+// 2. Directional Influence Calculation:
+//    - Compute dot products between each source vector and the listener's facing direction (head orientation vector).
+//    - Sources behind the listener (dot product < 0.0) are attenuated by a decay factor (e.g., 0.2x gain).
+//
+// 3. Energy-Preserving Mixdown:
+//    - Apply weighted summation: mixed_sample = Σ (source_sample * dot_product * decay_factor)
+//    - Normalize weights dynamically to ensure Σ (effective_gain) ≤ 1.0, preventing clipping.
+//
+// This achieves lossless channel layout conversion (e.g., 5.1 → stereo) with spatial accuracy.
 
 pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
     let enums = [
@@ -403,8 +409,8 @@ impl Spec {
 pub struct ChunkWriter<'a> {
     pub writer: &'a mut dyn Writer,
     pub flag: [u8; 4],
-    pub pos_of_chunk_len: u64, // 写入 chunk 大小的地方
-    pub chunk_start: u64, // chunk 数据开始的地方
+    pub pos_of_chunk_len: u64, // Byte position where the chunk size field is written (to be backfilled later)
+    pub chunk_start: u64, // File offset marking the start of this chunk's payload data
     ended: bool,
 }
 
@@ -445,10 +451,21 @@ impl<'a> ChunkWriter<'a> {
         if self.ended {
             return Ok(());
         }
-        // 此处存在一个情况：块的大小是 u32 类型，但是如果实际写入的块的大小超过这个大小就会存不下。
-        // 对于 RIFF 和 data 段，因为 ds64 段里专门留了字段用于存储 u64 的块大小，所以这里写入 0xFFFFFFFF。
-        // 对于其它段，其实 ds64 的 table 字段就是专门为其它段提供 u64 的块大小的存储的，但是你要增加 table 的数量，就会增加 ds64 段的长度
-        // 目前不考虑预留长度给 ds64 用于存储长度过长的段。非 RIFF、RF64、data 的段不允许超过 0xFFFFFFFF 大小，否则报错。
+        // Chunk size handling constraints:
+        // ---------------------------------------------------------------
+        // 1. u32 Overflow Handling:
+        //    - RIFF/RF64/data chunks: If size exceeds u32::MAX (0xFFFFFFFF), 
+        //      write 0xFFFFFFFF and store the actual u64 size in the ds64 chunk.
+        //    - Other chunks: Size must not exceed u32::MAX. If violated, returns an error.
+        //
+        // 2. ds64 Table Limitations:
+        //    - The ds64 chunk's table can store u64 sizes for non-RIFF/RF64/data chunks,
+        //      but adding entries increases the ds64 chunk's own size.
+        //    - Current implementation does NOT pre-allocate space in the ds64 chunk.
+        //
+        // 3. Enforcement:
+        //    - Non-RIFF/RF64/data chunks exceeding 0xFFFFFFFF bytes will fail encoding.
+        //    - Callers must ensure chunks (except RIFF/RF64/data) stay within u32 limits.
         let mut chunk_size = self.get_chunk_data_size()?;
         if chunk_size >= 0xFFFFFFFFu64 {
             match &self.flag {
@@ -464,7 +481,6 @@ impl<'a> ChunkWriter<'a> {
         self.end_and_write_size(chunk_size as u32)
     }
 
-    // 放弃写入 Chunk，写一个假的 Chunk 大小
     fn end_and_write_size(&mut self, chunk_size_to_write: u32) -> Result<(), AudioWriteError> {
         let end_of_chunk = self.writer.stream_position()?;
         self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
@@ -477,12 +493,10 @@ impl<'a> ChunkWriter<'a> {
         Ok(())
     }
 
-    // 取得 Chunk 的数据部分的开始位置
     pub fn get_chunk_start_pos(&self) -> u64 {
         self.chunk_start
     }
 
-    // 取得 Chunk 数据当前写入的大小
     pub fn get_chunk_data_size(&mut self) -> Result<u64, AudioWriteError> {
         Ok(self.writer.stream_position()? - self.get_chunk_start_pos())
     }
@@ -495,11 +509,11 @@ impl Drop for ChunkWriter<'_> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ChunkHeader {
-    pub flag: [u8; 4], // 实际存储在文件里的
-    pub size: u32, // 实际存储在文件里的
-    pub chunk_start_pos: u64, // Chunk 内容在文件中的位置，不包含 Chunk 头
+    pub flag: [u8; 4],        // The 4-byte identifier stored in the file (e.g., "RIFF", "fmt ")
+    pub size: u32,            // The chunk size stored in the file header (may be 0xFFFFFFFF if actual size is in ds64 chunk)
+    pub chunk_start_pos: u64, // File offset of the chunk's payload (excludes the 8-byte header)
 }
 
 impl ChunkHeader {
@@ -512,7 +526,6 @@ impl ChunkHeader {
     }
 
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        // 读取 WAV 中的每个块
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
         Ok(Self {
@@ -655,7 +668,7 @@ impl FmtChunk {
                             match extensible.sub_format {
                                 GUID_PCM_FORMAT => Int,
                                 GUID_IEEE_FLOAT_FORMAT => Float,
-                                _ => Unknown, // 由插件系统判断
+                                _ => Unknown, // Let the decoders to decide
                             }
                         },
                         other => panic!("Unexpected extension data in the `fmt ` chunk: {:?}", other),
@@ -666,7 +679,7 @@ impl FmtChunk {
             },
             (3, 32) => Float,
             (3, 64) => Float,
-            (_, _) => Unknown, // 由插件系统判断
+            (_, _) => Unknown, // Let the decoders to decide
         }
     }
 
@@ -1412,7 +1425,7 @@ impl JunkChunk {
     }
 }
 
-// 如果有 id3 则使用它来读取 id3 数据
+// If the `id3` feature is enabled, use it to read ID3 data.
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
 pub mod Id3{
@@ -1457,7 +1470,7 @@ pub mod Id3{
     }
 }
 
-// 如果没有 id3 则读取原始字节数组
+// If the `id3` feature is disabled, read the raw bytes.
 #[cfg(not(feature = "id3"))]
 #[allow(non_snake_case)]
 pub mod Id3{

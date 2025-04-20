@@ -36,7 +36,7 @@ pub trait AdpcmDecoder: Debug {
     fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
     fn get_block_size(&self) -> usize;
     fn frames_per_block(&self) -> usize;
-    fn reset_states(&mut self); // 重置状态。当解码器那边要 seek 然后重新解码的时候，这个时候这边要重置状态。
+    fn reset_states(&mut self); // Resets decoder state (e.g., after seeking to a new position).
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
     fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
         Ok(())
@@ -81,7 +81,7 @@ pub mod ima {
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
-        InvalidArgument(String), // 参数错误
+        InvalidArgument(String),
     }
 
     impl std::error::Error for ImaAdpcmError {}
@@ -142,7 +142,7 @@ pub mod ima {
             }
         }
 
-        // 编一个码
+        // Encode one sample, get 4 bits code
         pub fn encode_sample(&mut self, sample: i16) -> u8 {
             let mut prev = self.prev_sample as i32;
             let idx = self.stepsize_index;
@@ -168,13 +168,13 @@ pub mod ima {
             nibble
         }
 
-        // 编码器逻辑
-        // 一开始输出 4 字节的头部信息
-        // 然后每两个样本转一个码
+        // Encoder logic:
+        // 1. Initially outputs 4 bytes of the decoder's state machine register values.
+        // 2. Processes samples by converting two raw samples into one encoded unit.
         pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 if !self.header_written {
-                    // 写出 4 字节头部
+                    // Write the four bytes header
                     let buf = self.prev_sample.to_le_bytes();
                     output(buf[0]);
                     output(buf[1]);
@@ -192,7 +192,7 @@ pub mod ima {
                     output(self.nibble);
                     self.num_outputs += 1;
                     if self.num_outputs >= BLOCK_SIZE {
-                        // 到达块大小上限，重置编码器
+                        // Reaches the block size limit; resets the encoder.
                         self.prev_sample = sample;
                         self.header_written = false;
                         self.num_outputs = 0;
@@ -354,10 +354,10 @@ pub mod ima {
     type DecoderNibbleBuffer = CopiableBuffer<u8, INTERLEAVE_BYTES>;
     type DecoderSampleBuffer = CopiableBuffer<i16, INTERLEAVE_SAMPLES>;
 
-    // 解码器逻辑
-    // data 里面是交错存储的 u32
-    // 对于每个声道，第一个 u32 用于初始化解码器
-    // 之后的每个 u32 相当于 4 个字节，能解出 8 个码
+    // Decoder logic:
+    // - Data is stored as interleaved u32 values across channels.
+    // - For each channel, the first u32 initializes the decoder state.
+    // - Each subsequent u32 (4 bytes) decodes into 8 compressed nibbles (4-bit samples).
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderCore {
         sample_val: i16,
@@ -402,7 +402,7 @@ pub mod ima {
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 if !self.ready {
-                    // 先吃四个字节用来初始化，并输出第一个样本。
+                    // Consumes 4 bytes to initialize the decoder state and generates the first decoded sample.
                     self.nibble_buffer.push(byte);
                     self.input_count += 1;
                     if self.nibble_buffer.is_full() {
@@ -416,11 +416,10 @@ pub mod ima {
                         output(self.sample_val);
                     }
                 } else {
-                    // 完成初始化后，每吃一个字节输出两个样本。
                     self.nibble_buffer.push(byte);
                     self.input_count += 1;
+                    // Every 4 bytes (8 nibbles) decode to 8 samples.
                     if self.nibble_buffer.is_full() {
-                        // 每读取 4 个字节解 8 个码
                         let (b1, b2, b3, b4) = (self.nibble_buffer[0], self.nibble_buffer[1], self.nibble_buffer[2], self.nibble_buffer[3]);
                         output(self.decode_sample(b1 & 0xF));
                         output(self.decode_sample(b1 >> 4));
@@ -516,7 +515,7 @@ pub mod ima {
                         self.nibble_r.push(nibble);
                         if self.nibble_r.is_full() {
                             self.current_channel = CurrentChannel::Left;
-                            // 此时该处理了。
+                            // It's time to process
                         }
                     },
                 }
@@ -561,11 +560,11 @@ pub mod ima {
             }
         }
         fn frames_per_block(&self) -> usize {
-            // 每个字节存两个样本
-            // 有效解码字节数是 BLOCK_SIZE - HEADER_SIZE
-            // 单声道时，块大小就是 BLOCK_SIZE
-            // 立体声的时候，块大小翻倍，但是要两个样本才能算一个音频帧
-            // 因此无论是否单声道立体声，这里的计算公式相同
+            // Each byte stores two 4-bit samples (packed as high/low nibbles).
+            // Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
+            // Mono: Block size = BLOCK_SIZE.
+            // Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
+            // Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
             (self.get_block_size() - HEADER_SIZE) * 2
         }
         fn reset_states(&mut self) {
@@ -591,7 +590,7 @@ pub mod ima {
 
 
 pub mod ms {
-    // 巨硬的 ADPCM
+    // MS-ADPCM
     // https://ffmpeg.org/doxygen/3.1/adpcmenc_8c_source.html
     // https://ffmpeg.org/doxygen/3.1/adpcm_8c_source.html
     use std::io;
@@ -1181,11 +1180,11 @@ pub mod ms {
         }
 
         fn frames_per_block(&self) -> usize {
-            // 每个字节存两个样本
-            // 有效解码字节数是 BLOCK_SIZE - HEADER_SIZE
-            // 单声道时，块大小就是 BLOCK_SIZE
-            // 立体声的时候，块大小翻倍，但是要两个样本才能算一个音频帧
-            // 因此无论是否单声道立体声，这里的计算公式相同
+            // Each byte stores two 4-bit samples (packed as high/low nibbles).
+            // Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
+            // Mono: Block size = BLOCK_SIZE.
+            // Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
+            // Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
             (self.get_block_size() - HEADER_SIZE) * 2
         }
 
