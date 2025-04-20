@@ -399,21 +399,19 @@ where S: SampleType {
         TAG_IMA | 0x0069 => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         TAG_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
         0x0055 => {
-            if cfg!(feature = "mp3dec") {
-                Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))
-            } else {
-                Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))
-            }
+            #[cfg(feature = "mp3dec")]
+            {Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            #[cfg(not(feature = "mp3dec"))]
+            {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))}
         },
         0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
         0x704F => {
-            if cfg!(feature = "opus") {
-                Ok(Box::new(OpusDecoder::new(reader, data_offset, data_length, fmt, fact_data)?))
-            } else {
-                Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))
-            }
+            #[cfg(feature = "opus")]
+            {Ok(Box::new(OpusDecoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            #[cfg(not(feature = "opus"))]
+            {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))}
         },
         0xF1AC => { // FLAC
             // #[cfg(not(feature = "flac"))]
