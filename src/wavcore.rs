@@ -965,7 +965,6 @@ impl BextChunk {
         cw.writer.write_all(&self.umid)?;
         cw.writer.write_all(&self.reserved)?;
         cw.writer.write_all(&self.coding_history)?;
-        cw.end()?;
         Ok(())
     }
 }
@@ -1045,7 +1044,6 @@ impl SmplChunk {
         for l in self.loops.iter() {
             l.write(cw.writer)?;
         }
-        cw.end()?;
         Ok(())
     }
 }
@@ -1106,7 +1104,6 @@ impl InstChunk {
         self.high_note.write_le(cw.writer)?;
         self.low_velocity.write_le(cw.writer)?;
         self.high_velocity.write_le(cw.writer)?;
-        cw.end()?;
         Ok(())
     }
 }
@@ -1147,7 +1144,6 @@ impl CueChunk {
         for cue in self.cues.iter() {
             cue.write(cw.writer)?;
         }
-        cw.end()?;
         Ok(())
     }
 }
@@ -1218,7 +1214,6 @@ impl ListChunk {
                 }
             },
         };
-        cw.end()?;
         Ok(())
     }
 
@@ -1245,7 +1240,6 @@ impl ListChunk {
             let mut val = val.clone();
             val.push('\0');
             write_str(cw.writer, &val, text_encoding)?;
-            cw.end()?;
         }
         Ok(())
     }
@@ -1300,13 +1294,11 @@ impl AdtlChunk {
                 let cw = ChunkWriter::begin(writer, b"labl")?;
                 labl.identifier.write_le(cw.writer)?;
                 write_str(cw.writer, &labl.data, text_encoding)?;
-                cw.end()?;
             },
             Self::Note(note) => {
                 let cw = ChunkWriter::begin(writer, b"note")?;
                 note.identifier.write_le(cw.writer)?;
                 write_str(cw.writer, &note.data, text_encoding)?;
-                cw.end()?;
             },
             Self::Ltxt(ltxt) => {
                 let cw = ChunkWriter::begin(writer, b"ltxt")?;
@@ -1318,7 +1310,6 @@ impl AdtlChunk {
                 ltxt.dialect.write_le(cw.writer)?;
                 ltxt.code_page.write_le(cw.writer)?;
                 write_str(cw.writer, &ltxt.data, text_encoding)?;
-                cw.end()?;
             },
         }
         Ok(())
@@ -1385,7 +1376,6 @@ impl AcidChunk {
         self.meter_denominator.write_le(cw.writer)?;
         self.meter_numerator.write_le(cw.writer)?;
         self.tempo.write_le(cw.writer)?;
-        cw.end()?;
         Ok(())
     }
 }
@@ -1418,7 +1408,6 @@ impl JunkChunk {
             Self::FullZero(size) => cw.writer.write_all(&vec![0u8; *size as usize])?,
             Self::SomeData(data) => cw.writer.write_all(data)?,
         }
-        cw.end()?;
         Ok(())
     }
 }
