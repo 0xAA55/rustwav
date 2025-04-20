@@ -1351,6 +1351,10 @@ pub mod mp3 {
 }
 
 pub mod opus {
+    const OPUS_ALLOWED_SAMPLE_RATES: [u32; 5] = [8000, 12000, 16000, 24000, 48000];
+    const OPUS_MIN_SAMPLE_RATE: u32 = 8000;
+    const OPUS_MAX_SAMPLE_RATE: u32 = 48000;
+
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u32)]
     pub enum OpusEncoderSampleDuration {
@@ -1397,6 +1401,31 @@ pub mod opus {
                 encode_vbr: false,
                 samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
             }
+        }
+
+        pub fn get_allowed_sample_rates(&self) -> [u32; OPUS_ALLOWED_SAMPLE_RATES.len()] {
+            OPUS_ALLOWED_SAMPLE_RATES
+        }
+
+        pub fn get_rounded_up_sample_rate(&self, sample_rate: u32) -> u32 {
+            if sample_rate <= OPUS_MIN_SAMPLE_RATE {
+                OPUS_MIN_SAMPLE_RATE
+            } else if sample_rate >= OPUS_MAX_SAMPLE_RATE {
+                OPUS_MAX_SAMPLE_RATE
+            } else {
+                for (l, h) in OPUS_ALLOWED_SAMPLE_RATES[..OPUS_ALLOWED_SAMPLE_RATES.len() - 1].iter().zip(OPUS_ALLOWED_SAMPLE_RATES[1..].iter()) {
+                    if sample_rate > *l && sample_rate <= *h {
+                        return *h;
+                    }
+                }
+                OPUS_MAX_SAMPLE_RATE
+            }
+        }
+    }
+
+    impl Default for OpusEncoderOptions {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -1445,9 +1474,10 @@ pub mod opus {
                     2 => Channels::Stereo,
                     o => return Err(AudioWriteError::InvalidArguments(format!("Bad channels: {o} for the opus encoder."))),
                 };
-                match sample_rate {
-                    8000 | 12000 | 16000 | 24000 | 48000 => (),
-                    o => return Err(AudioWriteError::InvalidArguments(format!("Bad sample_rate: {o}. Must be one of 8000, 12000, 16000, 24000, 48000"))),
+                if !OPUS_ALLOWED_SAMPLE_RATES.contains(&sample_rate) {
+                    return Err(AudioWriteError::InvalidArguments(format!("Bad sample rate: {sample_rate} for the opus encoder. The sample rate must be one of {}",
+                        OPUS_ALLOWED_SAMPLE_RATES.iter().map(|s|{format!("{s}")}).collect::<Vec<String>>().join(", ")
+                    )));
                 }
                 let mut encoder = Encoder::new(sample_rate, opus_channels, Application::Audio)?;
                 encoder.set_bitrate(options.bitrate.to_opus_bitrate())?;
@@ -1477,7 +1507,7 @@ pub mod opus {
                 while cached_length >= self.num_samples_per_encode {
                     let samples_to_write: Vec<f32> = iter.by_ref().take(self.num_samples_per_encode).collect();
                     if samples_to_write.is_empty() {break;}
-                    let mut buf = vec![0u8; self.num_samples_per_encode]; // 给定足够大小的缓冲区。每个样本给它一个字节。
+                    let mut buf = vec![0u8; self.num_samples_per_encode]; // Allocates a buffer of sufficient size, reserving one byte per sample.
                     let size = self.encoder.encode_float(&samples_to_write, &mut buf)?;
                     buf.truncate(size);
                     writer.write_all(&buf)?;
