@@ -346,7 +346,7 @@ impl<'a> WaveWriter<'a> {
     }
 
     // Transfers audio metadata (e.g., track info) from the reader.
-    pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader) {
+    pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
         if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
@@ -357,6 +357,9 @@ impl<'a> WaveWriter<'a> {
         if reader.get_acid_chunk().is_some() {self.acid_chunk = reader.get_acid_chunk().clone();}
         if reader.get_trkn_chunk().is_some() {self.trkn_chunk = reader.get_trkn_chunk().clone();}
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
+        if include_junk_chunks {
+            self.junk_chunks.extend(reader.get_junk_chunks().clone());
+        }
     }
 
     fn finalize_impl(&mut self) -> Result<(), AudioWriteError> {
