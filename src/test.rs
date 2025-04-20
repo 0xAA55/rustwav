@@ -251,10 +251,14 @@ fn test_flac() -> ExitCode {
     let spec = wavereader.spec();
 
     let mut params = FlacEncoderParams::new();
+    params.verify_decoded = false;
     params.compression = FlacCompression::Level8;
     params.channels = spec.channels;
     params.bits_per_sample = spec.bits_per_sample;
     params.sample_rate = spec.sample_rate;
+    params.total_samples_estimate = wavereader.get_fact_data();
+
+    dbg!(&params);
 
     let writer = SharedWriter::new(BufWriter::new(File::create(&args[2]).unwrap()));
     const ALLOW_SEEK: bool = true;

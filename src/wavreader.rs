@@ -309,6 +309,7 @@ impl WaveReader {
     }
 
     // Provide chunks (may include metadata for music, or the encoder's information)
+    pub fn get_fact_data(&self) -> u64 {self.fact_data}
     pub fn get_fmt__chunk(&self) -> &FmtChunk { &self.fmt__chunk }
     pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
     pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
