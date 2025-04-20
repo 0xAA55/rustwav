@@ -521,13 +521,13 @@ pub mod ima {
                     },
                 }
                 if self.nibble_l.is_full() && self.nibble_r.is_full() {
-                    let mut iter_l = mem::replace(&mut self.nibble_l, DecoderNibbleBuffer::new()).into_iter();
-                    let mut iter_r = mem::replace(&mut self.nibble_r, DecoderNibbleBuffer::new()).into_iter();
+                    let mut iter_l = mem::take(&mut self.nibble_l).into_iter();
+                    let mut iter_r = mem::take(&mut self.nibble_r).into_iter();
                     self.core_l.decode(|| -> Option<u8> {iter_l.next()}, |sample:i16|{self.sample_l.push(sample)})?;
                     self.core_r.decode(|| -> Option<u8> {iter_r.next()}, |sample:i16|{self.sample_r.push(sample)})?;
                 }
-                let iter_l = mem::replace(&mut self.sample_l, DecoderSampleBuffer::new()).into_iter();
-                let iter_r = mem::replace(&mut self.sample_r, DecoderSampleBuffer::new()).into_iter();
+                let iter_l = mem::take(&mut self.sample_l).into_iter();
+                let iter_r = mem::take(&mut self.sample_r).into_iter();
                 for stereo in iter_l.zip(iter_r) {
                     output(stereo.0);
                     output(stereo.1);
