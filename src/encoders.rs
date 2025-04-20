@@ -1151,6 +1151,12 @@ pub mod mp3 {
                     Self::Stereo((l, r)) => l.is_empty() && r.is_empty(),
                 }
             }
+            pub fn get_channels(&self) -> u16 {
+                match self {
+                    Self::Mono(_) => 1,
+                    Self::Stereo(_) => 2,
+                }
+            }
             pub fn clear(&mut self, max_frames: usize) {
                 match self {
                     Self::Mono(ref mut m) => *m = Vec::<S>::with_capacity(max_frames),
