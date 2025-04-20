@@ -1468,7 +1468,7 @@ pub mod opus {
 
     #[cfg(feature = "opus")]
     pub mod impl_opus {
-        use std::mem;
+        use std::{mem, fmt::{self, Debug, Formatter}};
 
         use super::*;
         use crate::Writer;
@@ -1489,7 +1489,6 @@ pub mod opus {
             }
         }
 
-        #[derive(Debug)]
         pub struct OpusEncoder {
             encoder: Encoder,
             channels: u16,
@@ -1559,6 +1558,21 @@ pub mod opus {
                     self.write_samples(writer, &vec![0.0f32; pad])?;
                 }
                 Ok(())
+            }
+        }
+
+        impl Debug for OpusEncoder {
+            fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+                fmt.debug_struct("OpusEncoder")
+                    .field("encoder", &self.encoder)
+                    .field("channels", &self.channels)
+                    .field("sample_rate", &self.sample_rate)
+                    .field("cache_duration", &self.cache_duration)
+                    .field("num_samples_per_encode", &self.num_samples_per_encode)
+                    .field("sample_cache", &format_args!("[f32; {}]", self.sample_cache.len()))
+                    .field("samples_written", &self.samples_written)
+                    .field("bytes_written", &self.bytes_written)
+                    .finish()
             }
         }
 
