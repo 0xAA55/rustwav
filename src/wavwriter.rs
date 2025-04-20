@@ -129,35 +129,32 @@ impl<'a> WaveWriter<'a> {
 
         self.riff_chunk = Some(ChunkWriter::begin(hacks::force_borrow!(*self.writer, dyn Writer), b"RIFF")?);
 
-        // WAV 文件的 RIFF 块的开头是 WAVE 四个字符
+        // // The first 4 bytes of the `RIFF` or `RF64` chunk must be `WAVE`. Then follows each chunk.
         self.writer.write_all(b"WAVE")?;
 
-        // 如果说这个 WAV 文件是允许超过 4GB 的，那需要使用 RF64 格式，在 WAVE 后面留下一个 JUNK 块用来占坑。
+        // If the WAV file may exceed 4GB in size, the RF64 format must be used. 
+        // This requires reserving a JUNK chunk after the WAVE header as a placeholder for the ds64 metadata.
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let cw = ChunkWriter::begin(&mut self.writer, b"JUNK")?;
                 cw.writer.write_all(&[0u8; 28])?;
-                cw.end()?;
             },
         }
 
-        // 使用编码器的 `new_fmt_chunk()` 生成 fmt 块的内容
+        // Uses the encoder's `new_fmt_chunk()` to generate the fmt chunk data.
         self.fmt__chunk = self.encoder.new_fmt_chunk(self.spec.channels, self.spec.sample_rate, self.spec.bits_per_sample, match self.spec.is_channel_mask_valid() {
             true => Some(self.spec.channel_mask),
             false => None
         })?;
 
-        // 此处存储 fmt 块
         let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
-        // 此处获取 fmt 块的位置，以便于其中有数据变动的时候可以更新。
         self.fmt_chunk_offset = cw.writer.stream_position()?;
         self.fmt__chunk.write(&mut cw.writer)?;
         cw.end()?;
 
-        // 此处为 fact 块留出空间，之后要来这里修改的。
+        // Reserves space here for the fact chunk, to be updated later.
         let mut cw = ChunkWriter::begin(&mut self.writer, b"fact")?;
-        // 此处获取 fact 块的位置
         self.fact_chunk_offset = cw.writer.stream_position()?;
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => {
@@ -175,7 +172,8 @@ impl<'a> WaveWriter<'a> {
         Ok(())
     }
 
-    // 保存样本。样本的格式 S 由调用者定，而我们自己根据 Spec 转换为我们应当存储到 WAV 内部的样本格式。
+    // Stores audio samples. The generic parameter `S` represents the user-provided input format.
+    // The encoder converts samples to the internal target format before encoding them into the WAV file.
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -183,11 +181,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 单声道保存一个样本。频繁调用会非常慢。
+    // Saves a single mono sample. Avoid frequent calls due to inefficiency.
     pub fn write_mono<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -198,11 +196,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 单声道批量保存样本。
+    // Batch-saves mono samples.
     pub fn write_monos<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -213,11 +211,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += monos.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 保存一个立体声样本，频繁调用会非常慢。
+    // Saves a single stereo sample (left + right). Avoid frequent calls due to inefficiency.
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -228,11 +226,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 批量保存立体声样本。
+    // Batch-saves stereo samples.
     pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -243,11 +241,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += stereos.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 保存两个单声道（也就是一个立体声）的样本，频繁调用会非常慢。
+    // Saves two mono samples (as one stereo frame). Avoid frequent calls due to inefficiency.
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -258,11 +256,11 @@ impl<'a> WaveWriter<'a> {
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished(String::from("samples")))
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
         }
     }
 
-    // 保存两个单声道（也就是一个立体声）的批量样本。
+    // Batch-saves pairs of mono samples (as stereo audio).
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -280,7 +278,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // 保存一个音频帧，频繁调用会非常慢。支持多种声道格式。
+    // Saves one audio frame. Avoid frequent calls due to inefficiency. Supports multi-channel layouts.
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -295,7 +293,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // 批量保存音频帧。支持多种声道格式。
+    // Batch-saves audio frames. Supports multi-channel layouts.
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -347,7 +345,7 @@ impl<'a> WaveWriter<'a> {
         self.junk_chunks.push(chunk.clone());
     }
 
-    // 从读取器那里迁移乐曲信息的元数据。但是不迁移 JUNK 块。
+    // Transfers audio metadata (e.g., track info) from the reader.
     pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
@@ -366,27 +364,24 @@ impl<'a> WaveWriter<'a> {
             return Ok(());
         }
 
-        // 完成对 data 最后内容的写入，同时更新 fmt 块的一些数据
+        // Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
         self.encoder.finalize(&mut self.writer)?;
 
-        // 结束写入 data，并记录 data 的长度
+        // Finalizes writing to the data chunk and records its size.
         let mut data_size = 0u64;
         if let Some(data_chunk) = &self.data_chunk {
             data_size = self.writer.stream_position()? - data_chunk.get_chunk_start_pos();
             self.data_chunk.take().unwrap().end()?;
         }
 
-        // 记录 data 末尾的位置
         let end_of_data = self.writer.stream_position()?;
 
-        // 找到 fmt 块
+        // Updates `fmt` chunk fields (e.g., byte_rate, extension data) and rewrites the header.
         self.writer.seek(SeekFrom::Start(self.fmt_chunk_offset))?;
-
-        // 更新 fmt 头部信息，重新写入 fmt 头部
         self.encoder.update_fmt_chunk(&mut self.fmt__chunk)?;
         self.fmt__chunk.write(&mut self.writer)?;
 
-        // 写完 fmt 后，还要更新 fact 的数据
+        // Updates `fact` chunk data, the total number of samples written to the `data` chunk.
         self.writer.seek(SeekFrom::Start(self.fact_chunk_offset))?;
         let fact_data = self.num_frames_written * self.spec.channels as u64;
         match self.file_size_option {
@@ -398,10 +393,8 @@ impl<'a> WaveWriter<'a> {
             },
         }
 
-        // 回到 data 末尾的位置
+        // Get back to the end of the data chunk, and then write all remaining chunks (metadata, auxiliary data) to the file.
         self.writer.seek(SeekFrom::Start(end_of_data))?;
-
-        // 写入其它全部的结构体块
         if let Some(chunk) = &self.bext_chunk { chunk.write(&mut self.writer, &self.text_encoding)?; }
         if let Some(chunk) = &self.smpl_chunk { chunk.write(&mut self.writer)?; }
         if let Some(chunk) = &self.inst_chunk { chunk.write(&mut self.writer)?; }
@@ -414,7 +407,7 @@ impl<'a> WaveWriter<'a> {
             cw.end()?;
         }
 
-        // 写入其它全部的字符串块
+        // Writes all remaining string-based chunks to the file.
         let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
         if let Some(chunk) = &self.axml_chunk {
             string_chunks_to_write.push((*b"axml", chunk));
@@ -431,7 +424,7 @@ impl<'a> WaveWriter<'a> {
             cw.end()?;
         }
 
-        // 写入所有的 JUNK 块
+        // Writes all JUNK chunks to the file.
         for junk in self.junk_chunks.iter() {
             junk.write(&mut self.writer)?;
         }
