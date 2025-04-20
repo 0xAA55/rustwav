@@ -861,7 +861,7 @@ pub mod mp3 {
 
     #[cfg(feature = "mp3enc")]
     pub mod impl_mp3 {
-        use std::{any::type_name, fmt::Debug, sync::{Arc, Mutex}, ops::DerefMut};
+        use std::{any::type_name, fmt::{self, Debug, Formatter}, sync::{Arc, Mutex}, ops::DerefMut};
         use super::*;
         use crate::Writer;
         use crate::AudioWriteError;
@@ -1026,10 +1026,9 @@ pub mod mp3 {
                     channels,
                     bitrate: mp3_options.get_bitrate(),
                     encoder: encoder.clone(),
-                    encoder_options: mp3_options.clone(),
+                    encoder_options: *mp3_options,
                     buffers: match channels {
-                        1 => ChannelBuffers::<S>::Mono(BufferMono::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
-                        2 => ChannelBuffers::<S>::Stereo(BufferStereo::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE)),
+                        1 | 2 => ChannelBuffers::<S>::new(encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
                         o => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {o}"))),
                     },
                 })
@@ -1041,8 +1040,8 @@ pub mod mp3 {
                     self.buffers.flush(writer)?;
                 }
                 match self.channels {
-                    1 => self.buffers.add_samples_m(writer, &sample_conv::<T, S>(samples)),
-                    2 => self.buffers.add_samples_s(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?),
+                    1 => self.buffers.add_monos(writer, &sample_conv::<T, S>(samples)),
+                    2 => self.buffers.add_stereos(writer, &utils::interleaved_samples_to_stereos(&sample_conv::<T, S>(samples))?),
                     o => Err(AudioWriteError::Unsupported(format!("Bad channels number: {o}"))),
                 }
             }
@@ -1050,8 +1049,8 @@ pub mod mp3 {
             pub fn write_stereos<T>(&mut self, writer: &mut dyn Writer, stereos: &[(T, T)]) -> Result<(), AudioWriteError>
             where T: SampleType {
                 match self.channels{
-                    1 => self.buffers.add_samples_m(writer, &utils::stereos_to_monos(&stereos_conv::<T, S>(stereos))),
-                    2 => self.buffers.add_samples_s(writer, &stereos_conv::<T, S>(stereos)),
+                    1 => self.buffers.add_monos(writer, &utils::stereos_to_monos(&stereos_conv::<T, S>(stereos))),
+                    2 => self.buffers.add_stereos(writer, &stereos_conv::<T, S>(stereos)),
                     o => Err(AudioWriteError::InvalidArguments(format!("Bad channels number: {o}"))),
                 }
             }
@@ -1062,156 +1061,182 @@ pub mod mp3 {
         }
 
         #[derive(Debug, Clone)]
-        enum ChannelBuffers<S>
+        enum Channels<S>
         where S: SampleType {
-            Mono(BufferMono<S>),
-            Stereo(BufferStereo<S>),
+            Mono(Vec<S>),
+            Stereo((Vec<S>, Vec<S>)),
         }
 
         #[derive(Clone)]
-        struct BufferMono<S>
+        struct ChannelBuffers<S>
         where S: SampleType {
             encoder: SharedMp3Encoder,
-            mono_pcm: Vec<S>,
-            cur_samples: usize,
+            channels: Channels<S>,
             max_samples: usize,
         }
 
-        #[derive(Clone)]
-        struct BufferStereo<S>
-        where S: SampleType{
-            encoder: SharedMp3Encoder,
-            dual_pcm: Vec<(S, S)>,
-            cur_samples: usize,
-            max_samples: usize,
+        impl<S> Channels<S>
+        where S: SampleType {
+            pub fn new_mono(max_samples: usize) -> Self {
+                Self::Mono(Vec::<S>::with_capacity(max_samples))
+            }
+            pub fn new_stereo(max_samples: usize) -> Self {
+                Self::Stereo((Vec::<S>::with_capacity(max_samples), Vec::<S>::with_capacity(max_samples)))
+            }
+            pub fn add_mono(&mut self, frame: S) {
+                match self {
+                    Self::Mono(m) => m.push(frame),
+                    Self::Stereo((l, r)) => {
+                        l.push(frame);
+                        r.push(frame);
+                    },
+                }
+            }
+            pub fn add_stereo(&mut self, frame: (S, S)) {
+                match self {
+                    Self::Mono(m) => m.push(S::average(frame.0, frame.1)),
+                    Self::Stereo((l, r)) => {
+                        l.push(frame.0);
+                        r.push(frame.1);
+                    },
+                }
+            }
+            pub fn add_monos(&mut self, frames: &[S]) {
+                match self {
+                    Self::Mono(m) => m.extend(frames),
+                    Self::Stereo((l, r)) => {
+                        l.extend(frames);
+                        r.extend(frames);
+                    },
+                }
+            }
+            pub fn add_stereos(&mut self, frames: &[(S, S)]) {
+                match self {
+                    Self::Mono(m) => m.extend(utils::stereos_to_monos(frames)),
+                    Self::Stereo((l, r)) => {
+                        let (il, ir) = utils::stereos_to_dual_monos(frames);
+                        l.extend(il);
+                        r.extend(ir);
+                    },
+                }
+            }
+            pub fn add_dual_monos(&mut self, monos_l: &[S], monos_r: &[S]) -> Result<(), AudioWriteError> {
+                match self {
+                    Self::Mono(m) => m.extend(utils::dual_monos_to_monos(&(monos_l.to_vec(), monos_r.to_vec()))?),
+                    Self::Stereo((l, r)) => {
+                        if monos_l.len() != monos_r.len() {
+                            return Err(AudioWriteError::MultipleMonosAreNotSameSize);
+                        }
+                        l.extend(monos_l);
+                        r.extend(monos_r);
+                    },
+                }
+                Ok(())
+            }
+            pub fn len(&self) -> usize {
+                match self {
+                    Self::Mono(m) => m.len(),
+                    Self::Stereo((l, r)) => {
+                        assert_eq!(l.len(), r.len());
+                        l.len()
+                    },
+                }
+            }
+            pub fn is_empty(&self) -> bool {
+                match self {
+                    Self::Mono(m) => m.is_empty(),
+                    Self::Stereo((l, r)) => l.is_empty() && r.is_empty(),
+                }
+            }
+            pub fn clear(&mut self, max_samples: usize) {
+                match self {
+                    Self::Mono(ref mut m) => *m = Vec::<S>::with_capacity(max_samples),
+                    Self::Stereo(ref mut s) => *s = (Vec::<S>::with_capacity(max_samples), Vec::<S>::with_capacity(max_samples)),
+                }
+            }
         }
 
         impl<S> ChannelBuffers<S>
-        where S: SampleType {
-            pub fn is_full(&self) -> bool {
-                match self {
-                    Self::Mono(mbuf) => mbuf.is_full(),
-                    Self::Stereo(sbuf) => sbuf.is_full(),
-                }
-            }
-            pub fn add_sample_m(&mut self, frame: S) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.add_sample(frame),
-                    Self::Stereo(sbuf) => sbuf.add_sample((frame, frame)),
-                }
-            }
-            pub fn add_sample_s(&mut self, frame: (S, S)) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.add_sample(S::average(frame.0, frame.1)),
-                    Self::Stereo(sbuf) => sbuf.add_sample(frame),
-                }
-            }
-            pub fn add_samples_m(&mut self, writer: &mut dyn Writer, frames: &[S]) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.add_samples(writer, frames),
-                    Self::Stereo(sbuf) => sbuf.add_samples(writer, &utils::monos_to_stereos(frames)),
-                }
-            }
-            pub fn add_samples_s(&mut self, writer: &mut dyn Writer, frames: &[(S, S)]) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.add_samples(writer, &utils::stereos_to_monos(frames)),
-                    Self::Stereo(sbuf) => sbuf.add_samples(writer, frames),
-                }
-            }
-            pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.flush(writer),
-                    Self::Stereo(sbuf) => sbuf.flush(writer),
-                }
-            }
-            pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-                match self {
-                    Self::Mono(mbuf) => mbuf.finish(writer),
-                    Self::Stereo(sbuf) => sbuf.finish(writer),
-                }
-            }
-        }
-
-        impl<S> BufferMono<S>
         where S: SampleType{
-            pub fn new(encoder: SharedMp3Encoder, max_samples: usize) -> Self {
-                let mut mono_pcm = Vec::<S>::new();
-                mono_pcm.resize(max_samples, <S as SampleType>::from(0));
-                Self {
+            pub fn new(encoder: SharedMp3Encoder, max_samples: usize, channels: u16) -> Result<Self, AudioWriteError> {
+                Ok(Self {
                     encoder,
-                    mono_pcm,
-                    cur_samples: 0,
+                    channels: match channels {
+                        1 => Channels::<S>::new_mono(max_samples),
+                        2 => Channels::<S>::new_stereo(max_samples),
+                        o => return Err(AudioWriteError::InvalidArguments(format!("Invalid channels: {o}. Only 1 and 2 are accepted."))),
+                    },
                     max_samples,
-                }
+                })
             }
 
             pub fn is_full(&self) -> bool {
-                self.cur_samples >= self.max_samples 
+                self.channels.len() >= self.max_samples 
             }
 
-            pub fn add_sample(&mut self, frame: S) -> Result<(), AudioWriteError> {
-                if self.cur_samples < self.max_samples {
-                    self.mono_pcm[self.cur_samples] = frame;
-                    self.cur_samples += 1;
-                    Ok(())
-                } else {
-                    Err(AudioWriteError::BufferIsFull(format!("The buffer is full (max = {} samples)", self.max_samples)))
-                }
-            }
-
-            // 将一批音频数据写入缓冲区，如果缓冲区已满就报错；否则一直填；如果数据足够填充到满；返回 Ok(剩下的数据)
-            pub fn add_samples(&mut self, writer: &mut dyn Writer, frames: &[S]) -> Result<(), AudioWriteError> {
-                for frame in frames.iter() {
-                    if self.is_full() {
-                        self.flush(writer)?;
-                    }
-                    self.mono_pcm[self.cur_samples] = *frame;
-                    self.cur_samples += 1;
+            pub fn add_monos(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError> {
+                self.channels.add_monos(monos);
+                if self.is_full() {
+                    self.flush(writer)?;
                 }
                 Ok(())
             }
 
-            fn convert_mono_pcm<T>(&self) -> Vec<T>
-            where T: SampleType {
-                let mut mono_pcm = Vec::<T>::with_capacity(self.mono_pcm.len());
-                for s in self.mono_pcm.iter() {
-                    mono_pcm.push(T::from(*s));
+            pub fn add_stereos(&mut self, writer: &mut dyn Writer, stereos: &[(S, S)]) -> Result<(), AudioWriteError> {
+                self.channels.add_stereos(stereos);
+                if self.is_full() {
+                    self.flush(writer)?;
                 }
-                mono_pcm
+                Ok(())
+            }
+
+            pub fn add_dual_monos(&mut self, writer: &mut dyn Writer, monos_l: &[S], monos_r: &[S]) -> Result<(), AudioWriteError> {
+                self.channels.add_dual_monos(monos_l, monos_r)?;
+                if self.is_full() {
+                    self.flush(writer)?;
+                }
+                Ok(())
+            }
+
+            fn channel_to_type<T>(mono: &[S]) -> Vec<T>
+            where T: SampleType {
+                mono.iter().map(|s|{T::from(*s)}).collect()
             }
 
             fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
-                match std::any::type_name::<S>() { // i16, u16, i32, f32, f64 是它本来就支持的功能，然而这里需要假装转换一下。
-                    "i16" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i16>()), out_buf)?)
+                // Explicitly converts all samples (even natively supported i16/u16/i32/f32/f64) for pipeline uniformity.
+                match &self.channels {
+                    Channels::Mono(pcm) => {
+                        match std::any::type_name::<S>() {
+                            "i16" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<i16>(pcm)), out_buf)?),
+                            "u16" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<u16>(pcm)), out_buf)?),
+                            "i32" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<i32>(pcm)), out_buf)?),
+                            "f32" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<f32>(pcm)), out_buf)?),
+                            "f64" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<f64>(pcm)), out_buf)?),
+                            "i8"  => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<i16>(pcm)), out_buf)?),
+                            "u8"  => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<u16>(pcm)), out_buf)?),
+                            "i24" | "u24" | "u32" => Ok(encoder.encode_to_vec(MonoPcm(&Self::channel_to_type::<i32>(pcm)), out_buf)?),
+                            other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
+                        }
                     },
-                    "u16" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<u16>()), out_buf)?)
+                    Channels::Stereo(pcm) => {
+                        match std::any::type_name::<S>() {
+                            "i16" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<i16>(&pcm.0), right: &Self::channel_to_type::<i16>(&pcm.1)}, out_buf)?),
+                            "u16" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<u16>(&pcm.0), right: &Self::channel_to_type::<u16>(&pcm.1)}, out_buf)?),
+                            "i32" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<i32>(&pcm.0), right: &Self::channel_to_type::<i32>(&pcm.1)}, out_buf)?),
+                            "f32" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<f32>(&pcm.0), right: &Self::channel_to_type::<f32>(&pcm.1)}, out_buf)?),
+                            "f64" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<f64>(&pcm.0), right: &Self::channel_to_type::<f64>(&pcm.1)}, out_buf)?),
+                            "i8"  => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<i16>(&pcm.0), right: &Self::channel_to_type::<i16>(&pcm.1)}, out_buf)?),
+                            "u8"  => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<u16>(&pcm.0), right: &Self::channel_to_type::<u16>(&pcm.1)}, out_buf)?),
+                            "i24" | "u24" | "u32" => Ok(encoder.encode_to_vec(DualPcm{left: &Self::channel_to_type::<i32>(&pcm.0), right: &Self::channel_to_type::<i32>(&pcm.1)}, out_buf)?),
+                            other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
+                        }
                     },
-                    "i32" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i32>()), out_buf)?)
-                    },
-                    "f32" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<f32>()), out_buf)?)
-                    },
-                    "f64" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<f64>()), out_buf)?)
-                    },
-                    "i8" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i16>()), out_buf)?)
-                    },
-                    "u8" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<u16>()), out_buf)?)
-                    },
-                    "i24" | "u24" | "u32" => {
-                        Ok(encoder.encode_to_vec(MonoPcm(&self.convert_mono_pcm::<i32>()), out_buf)?)
-                    },
-                    other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
                 }
             }
 
             pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-                if self.cur_samples == 0 {
+                if self.channels.is_empty() {
                     return Ok(())
                 }
                 self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
@@ -1220,7 +1245,7 @@ pub mod mp3 {
                     writer.write_all(&to_save)?;
                     Ok(())
                 })?;
-                self.cur_samples = 0;
+                self.channels.clear(self.max_samples);
                 Ok(())
             }
 
@@ -1232,118 +1257,7 @@ pub mod mp3 {
                     writer.write_all(&to_save)?;
                     Ok(())
                 })?;
-                Ok(())
-            }
-        }
-
-        impl<S> BufferStereo<S>
-        where S: SampleType{
-            pub fn new(encoder: SharedMp3Encoder, max_samples: usize) -> Self {
-                let s0 = <S as SampleType>::from(0);
-                Self {
-                    encoder,
-                    dual_pcm: vec![(s0, s0); max_samples],
-                    cur_samples: 0,
-                    max_samples,
-                }
-            }
-
-            pub fn is_full(&self) -> bool {
-                self.cur_samples >= self.max_samples 
-            }
-
-            pub fn add_sample(&mut self, frame: (S, S)) -> Result<(), AudioWriteError> {
-                if self.cur_samples < self.max_samples {
-                    self.dual_pcm[self.cur_samples] = frame;
-                    self.cur_samples += 1;
-                    Ok(())
-                } else {
-                    Err(AudioWriteError::BufferIsFull(format!("The buffer is full (max = {} samples)", self.max_samples)))
-                }
-            }
-
-            // 将一批音频数据写入缓冲区，如果缓冲区已满就报错；否则一直填；如果数据足够填充到满；返回 Ok(剩下的数据)
-            pub fn add_samples(&mut self, writer: &mut dyn Writer, frames: &[(S, S)]) -> Result<(), AudioWriteError> {
-                for frame in frames.iter() {
-                    if self.is_full() {
-                        self.flush(writer)?;
-                    }
-                    self.dual_pcm[self.cur_samples] = *frame;
-                    self.cur_samples += 1;
-                }
-                Ok(())
-            }
-
-            fn to_left_right(&self) -> (Vec<S>, Vec<S>) {
-                utils::stereos_to_dual_monos(&self.dual_pcm)
-            }
-
-            fn convert_dual_pcm<T>(&self) -> (Vec<T>, Vec<T>)
-            where T: SampleType {
-                utils::stereos_to_dual_monos(&stereos_conv(&self.dual_pcm))
-            }
-
-            fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {
-                match std::any::type_name::<S>() { // i16, u16, i32, f32, f64 是它本来就支持的功能，然而这里需要假装转换一下。
-                    "i16" => {
-                        let (l, r) = self.convert_dual_pcm::<i16>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "u16" => {
-                        let (l, r) = self.convert_dual_pcm::<u16>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "i32" => {
-                        let (l, r) = self.convert_dual_pcm::<i32>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "f32" => {
-                        let (l, r) = self.convert_dual_pcm::<f32>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "f64" => {
-                        let (l, r) = self.convert_dual_pcm::<f64>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "i8" => {
-                        let (l, r) = self.convert_dual_pcm::<i16>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "u8" => {
-                        let (l, r) = self.convert_dual_pcm::<u16>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    "i24" | "u24" | "u32" => {
-                        let (l, r) = self.convert_dual_pcm::<i32>();
-                        Ok(encoder.encode_to_vec(DualPcm{left: &l, right: &r}, out_buf)?)
-                    },
-                    other => Err(AudioWriteError::Unsupported(format!("\"{other}\""))),
-                }
-            }
-
-            pub fn flush(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-                if self.cur_samples == 0 {
-                    return Ok(())
-                }
-                self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
-                    self.encode_to_vec(encoder, &mut to_save)?;
-                    writer.write_all(&to_save)?;
-                    Ok(())
-                })?;
-                self.cur_samples = 0;
-                Ok(())
-            }
-
-            pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-                self.flush(writer)?;
-                self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples * 2));
-                    encoder.flush_to_vec::<FlushNoGap>(&mut to_save)?;
-                    writer.write_all(&to_save)?;
-                    Ok(())
-                })?;
-                writer.flush()?;
+                self.channels.clear(self.max_samples);
                 Ok(())
             }
         }
@@ -1417,23 +1331,15 @@ pub mod mp3 {
             }
         }
 
-        impl<S> Debug for BufferMono<S>
+        impl<S> Debug for ChannelBuffers<S>
         where S: SampleType {
-            fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-                fmt.debug_struct(&format!("BufferMono<{}>", type_name::<S>()))
-                    .field("mono_pcm", &format_args!("mono_pcm"))
-                    .field("cur_samples", &self.cur_samples)
-                    .field("max_samples", &self.max_samples)
-                    .finish()
-            }
-        }
-
-        impl<S> Debug for BufferStereo<S>
-        where S: SampleType {
-            fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-                fmt.debug_struct(&format!("BufferStereo<{}>", type_name::<S>()))
-                    .field("dual_pcm", &format_args!("dual_pcm"))
-                    .field("cur_samples", &self.cur_samples)
+            fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+                fmt.debug_struct(&format!("ChannelBuffers<{}>", type_name::<S>()))
+                    .field("encoder", &self.encoder)
+                    .field("channels", &format_args!("{}", match self.channels {
+                        Channels::Mono(_) => "Mono",
+                        Channels::Stereo(_) => "Stereo",
+                    }))
                     .field("max_samples", &self.max_samples)
                     .finish()
             }
