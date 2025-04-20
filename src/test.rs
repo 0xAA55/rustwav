@@ -295,7 +295,7 @@ fn test_flac() -> ExitCode {
         &params,
     ).unwrap();
 
-    let process_size = 512;
+    let process_size = 65536;
     match spec.channels {
         1 => {
             let mut iter = wavereader.mono_iter::<i16>().unwrap();
