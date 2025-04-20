@@ -1075,16 +1075,16 @@ pub mod mp3 {
         where S: SampleType {
             encoder: SharedMp3Encoder,
             channels: Channels<S>,
-            max_samples: usize,
+            max_frames: usize,
         }
 
         impl<S> Channels<S>
         where S: SampleType {
-            pub fn new_mono(max_samples: usize) -> Self {
-                Self::Mono(Vec::<S>::with_capacity(max_samples))
+            pub fn new_mono(max_frames: usize) -> Self {
+                Self::Mono(Vec::<S>::with_capacity(max_frames))
             }
-            pub fn new_stereo(max_samples: usize) -> Self {
-                Self::Stereo((Vec::<S>::with_capacity(max_samples), Vec::<S>::with_capacity(max_samples)))
+            pub fn new_stereo(max_frames: usize) -> Self {
+                Self::Stereo((Vec::<S>::with_capacity(max_frames), Vec::<S>::with_capacity(max_frames)))
             }
             pub fn add_mono(&mut self, frame: S) {
                 match self {
@@ -1151,30 +1151,30 @@ pub mod mp3 {
                     Self::Stereo((l, r)) => l.is_empty() && r.is_empty(),
                 }
             }
-            pub fn clear(&mut self, max_samples: usize) {
+            pub fn clear(&mut self, max_frames: usize) {
                 match self {
-                    Self::Mono(ref mut m) => *m = Vec::<S>::with_capacity(max_samples),
-                    Self::Stereo(ref mut s) => *s = (Vec::<S>::with_capacity(max_samples), Vec::<S>::with_capacity(max_samples)),
+                    Self::Mono(ref mut m) => *m = Vec::<S>::with_capacity(max_frames),
+                    Self::Stereo(ref mut s) => *s = (Vec::<S>::with_capacity(max_frames), Vec::<S>::with_capacity(max_frames)),
                 }
             }
         }
 
         impl<S> ChannelBuffers<S>
         where S: SampleType{
-            pub fn new(encoder: SharedMp3Encoder, max_samples: usize, channels: u16) -> Result<Self, AudioWriteError> {
+            pub fn new(encoder: SharedMp3Encoder, max_frames: usize, channels: u16) -> Result<Self, AudioWriteError> {
                 Ok(Self {
                     encoder,
                     channels: match channels {
-                        1 => Channels::<S>::new_mono(max_samples),
-                        2 => Channels::<S>::new_stereo(max_samples),
+                        1 => Channels::<S>::new_mono(max_frames),
+                        2 => Channels::<S>::new_stereo(max_frames),
                         o => return Err(AudioWriteError::InvalidArguments(format!("Invalid channels: {o}. Only 1 and 2 are accepted."))),
                     },
-                    max_samples,
+                    max_frames,
                 })
             }
 
             pub fn is_full(&self) -> bool {
-                self.channels.len() >= self.max_samples 
+                self.channels.len() >= self.max_frames
             }
 
             pub fn add_monos(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError> {
@@ -1248,19 +1248,19 @@ pub mod mp3 {
                     writer.write_all(&to_save)?;
                     Ok(())
                 })?;
-                self.channels.clear(self.max_samples);
+                self.channels.clear(self.max_frames);
                 Ok(())
             }
 
             pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
                 self.flush(writer)?;
                 self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
+                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_frames));
                     encoder.flush_to_vec::<FlushNoGap>(&mut to_save)?;
                     writer.write_all(&to_save)?;
                     Ok(())
                 })?;
-                self.channels.clear(self.max_samples);
+                self.channels.clear(self.max_frames);
                 Ok(())
             }
         }
@@ -1343,7 +1343,7 @@ pub mod mp3 {
                         Channels::Mono(_) => "Mono",
                         Channels::Stereo(_) => "Stereo",
                     }))
-                    .field("max_samples", &self.max_samples)
+                    .field("max_frames", &self.max_frames)
                     .finish()
             }
         }
