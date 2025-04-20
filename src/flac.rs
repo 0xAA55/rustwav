@@ -167,30 +167,21 @@ where
     }
 
     unsafe extern "C" fn write_callback(_encoder: *const FLAC__StreamEncoder, buffer: *const u8, bytes: usize, _samples: u32, _current_frame: u32, client_data: *mut c_void) -> u32 {
-        eprint!("On `write_callback([u8; {bytes}])`: ");
         let this = &mut *(client_data as *mut Self);
         match (this.on_write)(slice::from_raw_parts(buffer, bytes)) {
-            Ok(_) => {
-                eprintln!("Ok()");
-                FLAC__STREAM_ENCODER_WRITE_STATUS_OK
-            },
+            Ok(_) => FLAC__STREAM_ENCODER_WRITE_STATUS_OK,
             Err(e) => {
-                eprintln!("Err({:?})", e);
+                eprintln!("On `write_callback()`: {:?}", e);
                 FLAC__STREAM_ENCODER_WRITE_STATUS_FATAL_ERROR
             },
         }
     }
 
     unsafe extern "C" fn seek_callback(_encoder: *const FLAC__StreamEncoder, absolute_byte_offset: u64, client_data: *mut c_void) -> u32 {
-        eprint!("On `seek_callback({absolute_byte_offset})`: ");
         let this = &mut *(client_data as *mut Self);
         match (this.on_seek)(absolute_byte_offset) {
-            Ok(_) => {
-                eprintln!("Ok()");
-                FLAC__STREAM_ENCODER_SEEK_STATUS_OK
-            },
+            Ok(_) => FLAC__STREAM_ENCODER_SEEK_STATUS_OK,
             Err(e) => {
-                eprintln!("Err({:?})", e);
                 match e.kind() {
                     ErrorKind::NotSeekable => FLAC__STREAM_ENCODER_SEEK_STATUS_UNSUPPORTED,
                     _ => FLAC__STREAM_ENCODER_SEEK_STATUS_ERROR,
@@ -200,16 +191,13 @@ where
     }
 
     unsafe extern "C" fn tell_callback(_encoder: *const FLAC__StreamEncoder, absolute_byte_offset: *mut u64, client_data: *mut c_void) -> u32 {
-        eprint!("On `tell_callback()`: ");
         let this = &mut *(client_data as *mut Self);
         match (this.on_tell)() {
             Ok(offset) => {
                 *absolute_byte_offset = offset;
-                eprintln!("Ok({offset})");
                 FLAC__STREAM_ENCODER_TELL_STATUS_OK
             },
             Err(e) => {
-                eprintln!("Err({:?})", e);
                 match e.kind() {
                     ErrorKind::NotSeekable => FLAC__STREAM_ENCODER_TELL_STATUS_UNSUPPORTED,
                     _ => FLAC__STREAM_ENCODER_TELL_STATUS_ERROR,
@@ -219,21 +207,18 @@ where
     }
 
     unsafe extern "C" fn metadata_callback(_encoder: *const FLAC__StreamEncoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
-        println!("On `metadata_callback()`");
         let _this = &mut *(client_data as *mut Self);
         let _meta = &*(metadata as *const FLAC__StreamMetadata);
     }
 
     pub fn write_monos(&mut self, monos: &[i16]) -> Result<(), FlacEncoderError> {
         if monos.is_empty() {return Ok(())}
-        eprintln!("Trying to write {} frames.", monos.len());
         match self.params.channels {
             1 => unsafe {
                 let samples: Vec<i32> = monos.iter().map(|s|{*s as i32}).collect();
                 if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, monos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
-                eprintln!("{} frames has been written.", monos.len());
                 Ok(())
             },
             2 => self.write_stereos(&monos.iter().map(|mono| -> (i16, i16){(*mono, *mono)}).collect::<Vec<(i16, i16)>>()),
@@ -243,7 +228,6 @@ where
 
     pub fn write_stereos(&mut self, stereos: &[(i16, i16)]) -> Result<(), FlacEncoderError> {
         if stereos.is_empty() {return Ok(())}
-        eprintln!("Trying to write {} frames.", stereos.len());
         match self.params.channels {
             1 => self.write_monos(&stereos.iter().map(|(l, r): &(i16, i16)| -> i16 {((*l as i32 + *r as i32) / 2) as i16}).collect::<Vec<i16>>()),
             2 => unsafe {
@@ -251,7 +235,6 @@ where
                 if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, stereos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
-                eprintln!("{} frames ({} samples) has been written.", stereos.len(), samples.len());
                 Ok(())
             },
             o => panic!("Can't turn stereo audio into {o} channels audio."),
@@ -260,7 +243,6 @@ where
 
     pub fn write_frames(&mut self, frames: &[Vec<i16>]) -> Result<(), FlacEncoderError> {
         if frames.is_empty() {return Ok(())}
-        eprintln!("Trying to write {} frames.", frames.len());
         let samples: Vec<i32> = frames.iter().flat_map(|frame: &Vec<i16>| -> Vec<i32> {
             if frame.len() != self.params.channels as usize {
                 panic!("On FlacEncoder::write_frames(): a frame size {} does not match the encoder channels.", frame.len())
@@ -270,7 +252,6 @@ where
             if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, frames.len() as u32) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
             }
-            eprintln!("{} frames has been written.", frames.len());
         }
         Ok(())
     }
