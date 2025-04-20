@@ -177,21 +177,21 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
 
     // Get the metadata from the decoder
-    wavewriter.migrate_metadata_from_reader(&wavereader);
-
-    // Must call finalize() for the encoder
-    wavewriter.finalize()?;
+    wavewriter.migrate_metadata_from_reader(&wavereader, true);
 
     // Show debug info
     dbg!(&wavereader);
     dbg!(&wavewriter);
+
+    drop(wavereader);
+    drop(wavewriter);
 
     println!("======== TEST 2 ========");
 
     let spec2 = Spec {
         channels: spec.channels,
         channel_mask: 0,
-        sample_rate: 44100, // Changed to another sample rate to test the resampler.
+        sample_rate: orig_spec.sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
@@ -203,14 +203,15 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
     // Get the metadata from the decoder
-    wavewriter_2.migrate_metadata_from_reader(&wavereader_2);
+    wavewriter_2.migrate_metadata_from_reader(&wavereader_2, true);
 
-    // Must call finalize() for the encoder
-    wavewriter_2.finalize()?;
 
     // Show debug info
     dbg!(&wavereader_2);
     dbg!(&wavewriter_2);
+
+    drop(wavereader_2);
+    drop(wavewriter_2);
 
     Ok(())
 }
