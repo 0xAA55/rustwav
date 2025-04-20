@@ -359,7 +359,7 @@ impl<'a> WaveWriter<'a> {
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
     }
 
-    pub fn finalize(&mut self) -> Result<(), AudioWriteError> {
+    fn finalize_impl(&mut self) -> Result<(), AudioWriteError> {
         if self.finalized {
             return Ok(());
         }
@@ -464,5 +464,16 @@ impl<'a> WaveWriter<'a> {
         self.writer.flush()?;
         self.finalized = true;
         Ok(())
+    }
+
+    pub fn finalize(mut self) -> Result<(), AudioWriteError> {
+        self.finalize_impl()
+    }
+}
+
+impl Drop for WaveWriter<'_> {
+    fn drop(&mut self) {
+        // println!("dropping `WaveWriter` {:?}", self);
+        self.finalize_impl().unwrap()
     }
 }
