@@ -53,7 +53,6 @@ pub struct FlacEncoderParams {
     pub verify_decoded: bool,
     pub compression: FlacCompression,
     pub channels: u16,
-    pub bits_per_sample: u16,
     pub sample_rate: u32,
     pub total_samples_estimate: u64,
 }
@@ -64,7 +63,6 @@ impl FlacEncoderParams {
             verify_decoded: false,
             compression: FlacCompression::Level5,
             channels: 2,
-            bits_per_sample: 16,
             sample_rate: 44100,
             total_samples_estimate: 0,
         }

@@ -254,7 +254,6 @@ fn test_flac() -> ExitCode {
     params.verify_decoded = false;
     params.compression = FlacCompression::Level8;
     params.channels = spec.channels;
-    params.bits_per_sample = spec.bits_per_sample;
     params.sample_rate = spec.sample_rate;
     params.total_samples_estimate = wavereader.get_fact_data();
 
