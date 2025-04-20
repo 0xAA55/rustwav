@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{error, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_int, c_void}, ptr};
+use std::{error, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr};
 
 use libflac_sys::*;
 
@@ -92,14 +92,16 @@ where
         on_seek: S,
         on_tell: T,
         params: &FlacEncoderParams
-    ) -> Result<Self, FlacEncoderError> {
-        let mut ret = Self {
+    ) -> Result<Box<Self>, FlacEncoderError> {
+
+        // Must put `self` into a `box` to prevent pointer changes.
+        let mut ret = Box::new(Self {
             encoder: unsafe {FLAC__stream_encoder_new()},
             params: *params,
             on_write,
             on_seek,
             on_tell,
-        };
+        });
         ret.init()?;
 
         Ok(ret)
@@ -117,6 +119,14 @@ where
     fn get_status_as_error(&self, function: &'static str) -> Result<(), FlacEncoderError> {
         let (state, desc) = self.get_status();
         Err(FlacEncoderError::new(state, desc, function))
+    }
+
+    fn as_ptr(&self) -> *const Self {
+        self as *const Self
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut Self {
+        self as *mut Self
     }
 
     fn init(&mut self) -> Result<(), FlacEncoderError> {
@@ -146,7 +156,9 @@ where
                     Some(Self::seek_callback),
                     Some(Self::tell_callback),
                     Some(Self::metadata_callback),
-                    self as *mut Self as *mut c_int as *mut c_void,
+
+                    // At this time, `self` must be put into a `Box` so the pointer of `self` won't change.
+                    self.as_mut_ptr() as *mut c_void,
                 ) != 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_init_stream");
             }
