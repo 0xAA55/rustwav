@@ -371,7 +371,7 @@ impl<'a> WaveWriter<'a> {
         let mut data_size = 0u64;
         if let Some(data_chunk) = &self.data_chunk {
             data_size = self.writer.stream_position()? - data_chunk.get_chunk_start_pos();
-            self.data_chunk.take().unwrap().end()?;
+            self.data_chunk = None;
         }
 
         let end_of_data = self.writer.stream_position()?;
@@ -404,7 +404,6 @@ impl<'a> WaveWriter<'a> {
         if let Some(chunk) = &self.id3__chunk {
             let mut cw = ChunkWriter::begin(&mut self.writer, b"id3 ")?;
             Id3::id3_write(chunk, &mut cw.writer)?;
-            cw.end()?;
         }
 
         // Writes all remaining string-based chunks to the file.
@@ -421,7 +420,6 @@ impl<'a> WaveWriter<'a> {
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(&mut self.writer, flag)?;
             write_str(&mut cw.writer, chunk, &self.text_encoding)?;
-            cw.end()?;
         }
 
         // Writes all JUNK chunks to the file.
@@ -430,7 +428,7 @@ impl<'a> WaveWriter<'a> {
         }
 
         // 接下来是重点：判断文件大小是不是超过了 4GB，是的话，把文件头改为 RF64，然后在之前留坑的地方填入 RF64 的信息表
-        self.riff_chunk.take().unwrap().end()?;
+        self.riff_chunk = None;
 
         let file_end_pos = self.writer.stream_position()?;
         let mut change_to_4gb_hreader = || -> Result<(), AudioWriteError> {
