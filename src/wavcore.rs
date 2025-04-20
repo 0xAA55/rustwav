@@ -321,7 +321,7 @@ pub fn channel_mask_to_speaker_positions_desc(channels: u16, channel_mask: u32) 
 
 pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
     match channels {
-        0 => Err(AudioError::CantGuessChannelMask(channels)),
+        0 => Err(AudioError::GuessChannelMaskFailed(channels)),
         1 => Ok(SpeakerPosition::FrontCenter.into()),
         2 => Ok(SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32),
         o => {
@@ -329,7 +329,7 @@ pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
             for i in 0..o {
                 let bit = 1 << i;
                 if bit > 0x20000 {
-                    return Err(AudioError::CantGuessChannelMask(channels));
+                    return Err(AudioError::GuessChannelMaskFailed(channels));
                 }
                 mask |= bit;
             }
