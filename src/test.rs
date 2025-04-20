@@ -224,7 +224,8 @@ fn testrun() {
     }
 }
 
-fn main() -> ExitCode {
+#[allow(dead_code)]
+fn test_normal() -> ExitCode {
     let args: Vec<String> = args().collect();
     if args.len() < 5 {return ExitCode::from(1);}
 
@@ -235,4 +236,101 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         },
     }
+}
+
+use std::{fs::File, io::{self, SeekFrom, BufWriter}};
+use crate::readwrite::SharedWriter;
+use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression};
+
+#[allow(dead_code)]
+fn test_flac() -> ExitCode {
+    let args: Vec<String> = args().collect();
+    if args.len() < 3 {return ExitCode::from(1);}
+
+    let mut wavereader = WaveReader::open(&args[1]).unwrap();
+    let spec = wavereader.spec();
+
+    let mut params = FlacEncoderParams::new();
+    params.compression = FlacCompression::Level8;
+    params.channels = spec.channels;
+    params.bits_per_sample = spec.bits_per_sample;
+    params.sample_rate = spec.sample_rate;
+
+    let writer = SharedWriter::new(BufWriter::new(File::create(&args[2]).unwrap()));
+    const CONST_ALLOW_SEEK: bool = true;
+
+    let on_write = |encoded: &[u8]| -> Result<(), io::Error> {
+        writer.escorted_write(|writer|{
+            writer.write_all(encoded)
+        })
+    };
+    let on_seek = |position: u64| -> Result<(), io::Error> {
+        if CONST_ALLOW_SEEK {
+            writer.escorted_write(|writer|{
+                writer.seek(SeekFrom::Start(position))?;
+                Ok(())
+            })
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+        }
+    };
+    let on_tell = || -> Result<u64, io::Error> {
+        if CONST_ALLOW_SEEK {
+            writer.escorted_work(|writer|{
+                writer.stream_position()
+            })
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+        }
+    };
+
+    let mut encoder = FlacEncoder::new(
+        on_write,
+        on_seek,
+        on_tell,
+        &params,
+    ).unwrap();
+
+    let process_size = 1024;
+    match spec.channels {
+        1 => {
+            let mut iter = wavereader.mono_iter::<i16>().unwrap();
+            loop {
+                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
+                if block.is_empty() {
+                    break;
+                }
+                encoder.write_monos(&block).unwrap();
+            }
+        },
+        2 => {
+            let mut iter = wavereader.stereo_iter::<i16>().unwrap();
+            loop {
+                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
+                if block.is_empty() {
+                    break;
+                }
+                encoder.write_stereos(&block).unwrap();
+            }
+        },
+        _ => {
+            let mut iter = wavereader.frame_iter::<i16>().unwrap();
+            loop {
+                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
+                if block.is_empty() {
+                    break;
+                }
+                encoder.write_frames(&block).unwrap();
+            }
+        },
+    }
+
+    encoder.finalize().unwrap();
+    println!("======== TEST FINISHED ========");
+
+    ExitCode::from(0)
+}
+
+fn main() -> ExitCode {
+    test_flac()
 }
