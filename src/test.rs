@@ -148,10 +148,10 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     let orig_spec = wavereader.spec();
 
     // The spec for the encoder
-    let spec = Spec {
+    let mut spec = Spec {
         channels: orig_spec.channels,
         channel_mask: 0,
-        sample_rate: 48000, // Specify a sample rate to test the resampler
+        sample_rate: orig_spec.sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
@@ -163,6 +163,9 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
                 2 => options.channels = Mp3Channels::JointStereo,
                 o => panic!("MP3 format can't encode {o} channels audio."),
             }
+        },
+        DataFormat::Opus(ref options) => {
+            spec.sample_rate = options.get_rounded_up_sample_rate(spec.sample_rate);
         },
         _ => (),
     }
