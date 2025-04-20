@@ -1243,7 +1243,7 @@ pub mod mp3 {
                     return Ok(())
                 }
                 self.encoder.escorted_encode(|encoder| -> Result<(), AudioWriteError> {
-                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.max_samples));
+                    let mut to_save = Vec::<u8>::with_capacity(mp3lame_encoder::max_required_buffer_size(self.channels.len()));
                     self.encode_to_vec(encoder, &mut to_save)?;
                     writer.write_all(&to_save)?;
                     Ok(())
