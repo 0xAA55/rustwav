@@ -257,7 +257,7 @@ fn test_flac() -> ExitCode {
     params.sample_rate = spec.sample_rate;
 
     let writer = SharedWriter::new(BufWriter::new(File::create(&args[2]).unwrap()));
-    const CONST_ALLOW_SEEK: bool = true;
+    const ALLOW_SEEK: bool = true;
 
     let on_write = |encoded: &[u8]| -> Result<(), io::Error> {
         writer.escorted_write(|writer|{
@@ -265,7 +265,7 @@ fn test_flac() -> ExitCode {
         })
     };
     let on_seek = |position: u64| -> Result<(), io::Error> {
-        if CONST_ALLOW_SEEK {
+        if ALLOW_SEEK {
             writer.escorted_write(|writer|{
                 writer.seek(SeekFrom::Start(position))?;
                 Ok(())
@@ -275,7 +275,7 @@ fn test_flac() -> ExitCode {
         }
     };
     let on_tell = || -> Result<u64, io::Error> {
-        if CONST_ALLOW_SEEK {
+        if ALLOW_SEEK {
             writer.escorted_work(|writer|{
                 writer.stream_position()
             })
