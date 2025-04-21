@@ -26,6 +26,29 @@ where R: Read, W: Write {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct SharedReader(Arc<Mutex<dyn Reader>>);
+
+impl SharedReader{
+    pub fn new<T>(reader: T) -> Self
+    where T: Reader + 'static {
+        Self(Arc::new(Mutex::new(reader)))
+    }
+
+    pub fn escorted_work<T, F, E>(&self, mut action: F) -> Result<T, E>
+    where F: FnMut(&mut dyn Reader) -> Result<T, E> {
+        let mut guard = self.0.lock().unwrap();
+        let mut reader = guard.deref_mut();
+        (action)(&mut reader)
+    }
+
+    pub fn escorted_read<F, E>(&self, mut action: F) -> Result<(), E>
+    where F: FnMut(&mut dyn Reader) -> Result<(), E> {
+        let mut guard = self.0.lock().unwrap();
+        let mut reader = guard.deref_mut();
+        (action)(&mut reader)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SharedWriter(Arc<Mutex<dyn Writer>>);
