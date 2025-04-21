@@ -162,12 +162,18 @@ where
         }
     }
 
+    fn get_status_as_result(&self, function: &'static str) -> Result<(), FlacEncoderError> {
+        let code = unsafe {FLAC__stream_encoder_get_state(self.encoder)};
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(FlacEncoderError::new(code, function))
         }
     }
 
     fn get_status_as_error(&self, function: &'static str) -> Result<(), FlacEncoderError> {
-        let (state, desc) = self.get_status();
-        Err(FlacEncoderError::new(state, desc, function))
+        let code = unsafe {FLAC__stream_encoder_get_state(self.encoder)};
+        Err(FlacEncoderError::new(code, function))
     }
 
     fn as_ptr(&self) -> *const Self {
