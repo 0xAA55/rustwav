@@ -155,7 +155,11 @@ where
             on_seek,
             on_tell,
         };
-        Ok(ret)
+        if ret.encoder.is_null() {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__stream_encoder_new"))
+        } else {
+            Ok(ret)
+        }
     }
 
     fn get_status(&self) -> (u32, &'static str) {
