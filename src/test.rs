@@ -238,29 +238,31 @@ fn test_normal() -> ExitCode {
     }
 }
 
-use std::{fs::File, io::{self, SeekFrom, BufWriter}};
-use crate::readwrite::SharedWriter;
-use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression};
+use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering};
+use crate::readwrite::{SharedReader, SharedWriter};
+use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder, FlacError};
 
 #[allow(dead_code)]
 fn test_flac() -> ExitCode {
-    let args: Vec<String> = args().collect();
-    if args.len() < 3 {return ExitCode::from(1);}
+    const ALLOW_SEEK: bool = true;
 
+    let args: Vec<String> = args().collect();
+    if args.len() < 4 {return ExitCode::from(1);}
+
+    println!("======== TEST 1 ========");
     let mut wavereader = WaveReader::open(&args[1]).unwrap();
-    let spec = wavereader.spec();
+    let spec1 = wavereader.spec();
 
     let mut params = FlacEncoderParams::new();
     params.verify_decoded = false;
     params.compression = FlacCompression::Level8;
-    params.channels = spec.channels;
-    params.sample_rate = spec.sample_rate;
+    params.channels = spec1.channels;
+    params.sample_rate = spec1.sample_rate;
     params.total_samples_estimate = wavereader.get_fact_data();
 
     dbg!(&params);
 
     let writer = SharedWriter::new(BufWriter::new(File::create(&args[2]).unwrap()));
-    const ALLOW_SEEK: bool = true;
 
     let on_write = |encoded: &[u8]| -> Result<(), io::Error> {
         writer.escorted_write(|writer|{
@@ -295,7 +297,7 @@ fn test_flac() -> ExitCode {
     ).unwrap();
 
     let process_size = 65536;
-    match spec.channels {
+    match spec1.channels {
         1 => {
             let mut iter = wavereader.mono_iter::<i16>().unwrap();
             loop {
@@ -329,6 +331,155 @@ fn test_flac() -> ExitCode {
     }
 
     encoder.finalize().unwrap();
+    println!("======== TEST 2 ========");
+
+    const FFT_SIZE: usize = 65536;
+    let mut resampler = Resampler::new(FFT_SIZE);
+
+    let spec2 = Spec {
+        channels: spec1.channels,
+        channel_mask: 0,
+        sample_rate: spec1.sample_rate,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+
+    let reader = SharedReader::new(BufReader::new(File::open(&args[2]).unwrap()));
+    let mut wavewriter = WaveWriter::create(&args[3], &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+
+    let length = reader.escorted_work(|reader| -> Result<u64, io::Error> {
+        let cur = reader.stream_position()?;
+        reader.seek(SeekFrom::End(0))?;
+        let ret = reader.stream_position()?;
+        reader.seek(SeekFrom::Start(cur))?;
+        Ok(ret)
+    }).unwrap();
+
+    let mut frames_buffer = Vec::<Vec<i32>>::new();
+    let mut cur_sample_rate = 0;
+
+    let on_read = |buffer: &mut [u8]| -> (usize, flac::ReadStatus) {
+        reader.escorted_work(|reader| -> Result<(usize, flac::ReadStatus), io::Error> {
+            let to_read = buffer.len();
+            Ok(match reader.read(buffer) {
+                Ok(size) => {
+                    match size.cmp(&to_read) {
+                        Ordering::Equal => (size, flac::ReadStatus::GoOn),
+                        Ordering::Less => (size, flac::ReadStatus::Eof),
+                        Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
+                    }
+                },
+                Err(e) => {
+                    eprintln!("on_read(): {:?}", e);
+                    (0, flac::ReadStatus::Abort)
+                }
+            })
+        }).unwrap()
+    };
+    let on_seek = |position: u64|-> Result<(), io::Error> {
+        if ALLOW_SEEK {
+            reader.escorted_read(|reader|{
+                reader.seek(SeekFrom::Start(position))?;
+                Ok(())
+            })
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+        }
+    };
+    let on_tell = || -> Result<u64, io::Error> {
+        if ALLOW_SEEK {
+            reader.escorted_work(|reader|{
+                reader.stream_position()
+            })
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+        }
+    };
+    let on_length = || -> Result<u64, io::Error> {
+        if ALLOW_SEEK {
+            Ok(length)
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+        }
+    };
+    let on_eof = || -> bool {
+        reader.escorted_work(|reader| -> Result<bool, io::Error>{
+            Ok(reader.stream_position()? >= length)
+        }).unwrap()
+    };
+    let on_write = |frames: &[Vec<i32>], sample_rate: u32| -> Result<(), io::Error> {
+        if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
+        let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
+        frames_buffer.extend(frames.to_vec());
+        let mut iter = frames_buffer.iter();
+        loop {
+            // Sample rate transition handling:
+            // ------------------------------------------
+            // - If sample rate remains unchanged (cur_sample_rate == sample_rate):
+            //   - Maintain input sample continuity without truncation (direct stream passthrough).
+            //
+            // - If sample rate changes (cur_sample_rate ≠ sample_rate):
+            //   - Process all buffered samples to completion under the current rate.
+            //   - Begin processing new samples at the new sample rate.
+            let block: Vec<Vec<i32>> = iter.by_ref().take(process_size).cloned().collect();
+            if cur_sample_rate == sample_rate {
+                if block.len() < process_size {
+                    frames_buffer = block;
+                    break;
+                }
+            } else {
+                if block.is_empty() {
+                    break;
+                }
+            }
+            let block = utils::do_resample_frames(&mut resampler, &block, cur_sample_rate, spec2.sample_rate);
+            wavewriter.write_frames(&block)?;
+        }
+        cur_sample_rate = sample_rate;
+        Ok(())
+    };
+    let on_error = |error: flac::DecoderError| {
+        eprintln!("on_error({error})");
+    };
+
+    let mut decoder = FlacDecoder::new(
+        on_read,
+        on_seek,
+        on_tell,
+        on_length,
+        on_eof,
+        on_write,
+        on_error,
+        true,
+    ).unwrap();
+
+    while !on_eof() {
+        match decoder.decode() {
+            Ok(go_on) => {
+                if !go_on {
+                    break;
+                }
+            },
+            Err(e) => {
+                if e.get_code() == 4 {
+                    break;
+                } else {
+                    panic!("{:?}", e);
+                }
+            }
+        }
+    }
+    
+    decoder.finalize().unwrap();
+
+    if frames_buffer.len() > 0 {
+        let block = utils::do_resample_frames(&mut resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
+        wavewriter.write_frames(&block).unwrap();
+        frames_buffer.clear();
+    }
+
+    wavewriter.finalize().unwrap();
+
     println!("======== TEST FINISHED ========");
 
     ExitCode::from(0)
