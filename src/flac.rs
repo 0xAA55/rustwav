@@ -57,36 +57,53 @@ macro_rules! impl_FlacError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct FlacEncoderError {
-    pub code: u32,
-    pub message: &'static str,
-    pub function: &'static str,
+    code: u32,
+    message: &'static str,
+    function: &'static str,
 }
 
 impl FlacEncoderError {
-    pub fn new(code: u32, message: &'static str, function: &'static str) -> Self {
+    pub fn new(code: u32, function: &'static str) -> Self {
         Self {
             code,
-            message,
+            message: Self::get_message_from_code(code),
             function,
+        }
+    }
+
+    pub fn get_message_from_code(code: u32) -> &'static str {
+        unsafe {
+            CStr::from_ptr(*FLAC__StreamEncoderStateString.as_ptr().add(code as usize)).to_str().unwrap()
         }
     }
 }
 
-impl error::Error for FlacEncoderError {}
+impl_FlacError!(FlacEncoderError);
 
-impl Display for FlacEncoderError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let code = self.code;
-        let message = self.message;
-        let function = self.function;
-        write!(f, "Code: {code}, function: {function}, message: {message}")?;
-        Ok(())
+#[derive(Debug, Clone, Copy)]
+pub struct FlacEncoderInitError {
+    code: u32,
+    message: &'static str,
+    function: &'static str,
+}
+
+impl FlacEncoderInitError {
+    pub fn new(code: u32, function: &'static str) -> Self {
+        Self {
+            code,
+            message: Self::get_message_from_code(code),
+            function,
+        }
+    }
+
+    pub fn get_message_from_code(code: u32) -> &'static str {
+        unsafe {
+            CStr::from_ptr(*FLAC__StreamEncoderInitStatusString.as_ptr().add(code as usize)).to_str().unwrap()
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-}
-
+impl_FlacError!(FlacEncoderInitError);
 #[derive(Debug, Clone, Copy)]
 pub struct FlacEncoderParams {
     pub verify_decoded: bool,
