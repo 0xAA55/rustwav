@@ -162,12 +162,6 @@ where
         }
     }
 
-    fn get_status(&self) -> (u32, &'static str) {
-        unsafe {
-            let state = FLAC__stream_encoder_get_state(self.encoder);
-            let desc = FLAC__stream_encoder_get_resolved_state_string(self.encoder);
-            let desc = CStr::from_ptr(desc).to_str().unwrap();
-            (state, desc)
         }
     }
 
