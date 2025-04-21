@@ -788,6 +788,17 @@ where
         }
     }
 
+    pub fn decode_all(&mut self) -> Result<bool, FlacDecoderError> {
+        if unsafe {FLAC__stream_decoder_process_until_end_of_stream(self.decoder) != 0} {
+            Ok(true)
+        } else {
+            match self.get_status_as_result("FLAC__stream_decoder_process_until_end_of_stream") {
+                Ok(_) => Ok(false),
+                Err(e) => Err(e),
+            }
+        }
+    }
+
     pub fn finish(&mut self) -> Result<(), FlacDecoderError> {
         if unsafe {FLAC__stream_decoder_finish(self.decoder) != 0} {
             Ok(())
@@ -908,6 +919,10 @@ where
 
     pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
         self.decoder.decode()
+    }
+
+    pub fn decode_all(&mut self) -> Result<bool, FlacDecoderError> {
+        self.decoder.decode_all()
     }
 
     pub fn finish(&mut self) -> Result<(), FlacDecoderError> {

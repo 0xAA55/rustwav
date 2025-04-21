@@ -240,7 +240,9 @@ fn test_normal() -> ExitCode {
 
 use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering};
 use crate::readwrite::{SharedReader, SharedWriter};
-use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder, FlacError};
+use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder};
+#[allow(unused_imports)]
+use crate::flac::FlacError;
 
 #[allow(dead_code)]
 fn test_flac() -> ExitCode {
@@ -453,23 +455,24 @@ fn test_flac() -> ExitCode {
         true,
     ).unwrap();
 
-    while !on_eof() {
-        match decoder.decode() {
-            Ok(go_on) => {
-                if !go_on {
-                    break;
-                }
-            },
-            Err(e) => {
-                if e.get_code() == 4 {
-                    break;
-                } else {
-                    panic!("{:?}", e);
-                }
-            }
-        }
-    }
-    
+    // while !on_eof() {
+    //     match decoder.decode() {
+    //         Ok(go_on) => {
+    //             if !go_on {
+    //                 break;
+    //             }
+    //         },
+    //         Err(e) => {
+    //             if e.get_code() == 4 {
+    //                 break;
+    //             } else {
+    //                 panic!("{:?}", e);
+    //             }
+    //         }
+    //     }
+    // }
+    decoder.decode_all().unwrap();
+
     decoder.finalize().unwrap();
 
     if frames_buffer.len() > 0 {
