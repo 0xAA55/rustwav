@@ -329,10 +329,6 @@ where
     fn on_drop(&mut self) {
         unsafe {
             if !self.is_finalized() {
-                match self.finish() {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("Failed to `finish()`. {:?}", e),
-                }
                 FLAC__stream_encoder_delete(self.encoder);
                 self.encoder = ptr::null_mut();
             }
@@ -340,12 +336,11 @@ where
     }
 
     pub fn finalize(mut self) -> Result<(), FlacEncoderError> {
-        self.on_drop();
-        Ok(())
+        self.finish()
     }
 
     pub fn is_finalized(&self) -> bool {
-        self.encoder == ptr::null_mut()
+        self.encoder.is_null()
     }
 }
 
