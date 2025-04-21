@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{error, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr};
+use std::{any::type_name, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr};
 
 use libflac_sys::*;
 
@@ -371,8 +371,578 @@ where
     }
 }
 
+pub struct FlacEncoder<Wr, Sk, Tl>
+where
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
+    encoder: Box<FlacEncoderUnmovable<Wr, Sk, Tl>>,
+}
+
+impl<Wr, Sk, Tl> FlacEncoder<Wr, Sk, Tl>
+where
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
+    pub fn new(
+        on_write: Wr,
+        on_seek: Sk,
+        on_tell: Tl,
+        params: &FlacEncoderParams
+    ) -> Result<Self, FlacEncoderError> {
+        let mut ret = Self {
+            encoder: Box::new(FlacEncoderUnmovable::new(on_write, on_seek, on_tell, params)?)
+        };
+        ret.encoder.init()?;
+        Ok(ret)
+    }
+
+    pub fn write_monos<S>(&mut self, monos: &[S]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
+        self.encoder.write_monos::<S>(monos)
+    }
+
+    pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
+        self.encoder.write_stereos::<S>(stereos)
+    }
+
+    pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), FlacEncoderError>
+    where S: SampleType {
+        self.encoder.write_frames::<S>(frames)
+    }
+
+    pub fn finish(&mut self) -> Result<(), FlacEncoderError> {
+        self.encoder.finish()
+    }
+
+    pub fn finalize(self) -> Result<(), FlacEncoderError> {
+        Ok(())
+    }
+}
+
+impl<Wr, Sk, Tl> Debug for FlacEncoder<Wr, Sk, Tl>
+where
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct(&format!("FlacEncoder<{}, {}, {}>", type_name::<Wr>(), type_name::<Sk>(), type_name::<Tl>()))
+            .field("encoder", &self.encoder)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FlacDecoderError {
+    code: u32,
+    message: &'static str,
+    function: &'static str,
+}
+
+impl FlacDecoderError {
+    pub fn new(code: u32, function: &'static str) -> Self {
+        Self {
+            code,
+            message: Self::get_message_from_code(code),
+            function,
+        }
+    }
+
+    pub fn get_message_from_code(code: u32) -> &'static str {
+        unsafe {
+            CStr::from_ptr(*FLAC__StreamDecoderStateString.as_ptr().add(code as usize)).to_str().unwrap()
+        }
+    }
+}
+
+impl_FlacError!(FlacDecoderError);
+
+#[derive(Debug, Clone, Copy)]
+pub struct FlacDecoderInitError {
+    code: u32,
+    message: &'static str,
+    function: &'static str,
+}
+
+impl FlacDecoderInitError {
+    pub fn new(code: u32, function: &'static str) -> Self {
+        Self {
+            code,
+            message: Self::get_message_from_code(code),
+            function,
+        }
+    }
+
+    pub fn get_message_from_code(code: u32) -> &'static str {
+        unsafe {
+            CStr::from_ptr(*FLAC__StreamDecoderInitStatusString.as_ptr().add(code as usize)).to_str().unwrap()
+        }
+    }
+}
+
+impl_FlacError!(FlacDecoderInitError);
+
+#[derive(Debug, Clone, Copy)]
+pub enum ReadStatus {
+    GoOn,
+    Eof,
+    Abort,
+}
+
+impl Display for ReadStatus {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::GoOn => write!(f, "go_on"),
+            Self::Eof => write!(f, "eof"),
+            Self::Abort => write!(f, "abort"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DecoderError {
+    LostSync,
+    BadHeader,
+    FrameCrcMismatch,
+    UnparseableStream,
+    BadMetadata,
+    OutOfBounds,
+    MissingFrame,
+}
+
+impl Display for DecoderError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::LostSync => write!(f, "FLAC: An error in the stream caused the decoder to lose synchronization."),
+            Self::BadHeader => write!(f, "FLAC: The decoder encountered a corrupted frame header."),
+            Self::FrameCrcMismatch => write!(f, "FLAC: The frame's data did not match the CRC in the footer."),
+            Self::UnparseableStream => write!(f, "FLAC: The decoder encountered reserved fields in use in the stream."),
+            Self::BadMetadata => write!(f, "FLAC: The decoder encountered a corrupted metadata block."),
+            Self::OutOfBounds => write!(f, "FLAC: The decoder encountered a otherwise valid frame in which the decoded samples exceeded the range offered by the stated bit depth."),
+            Self::MissingFrame => write!(f, "FLAC: Two adjacent frames had frame numbers increasing by more than 1 or sample numbers increasing by more than the blocksize, indicating that one or more frame/frames was missing between them. The decoder will sent out one or more ´fake' constant subframes to fill up the gap."),
+        }
+    }
+}
+
+pub struct FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>, // monos, sample_rate
+    Er: FnMut(DecoderError) {
+    decoder: *mut FLAC__StreamDecoder,
+    on_read: Rd,
+    on_seek: Sk,
+    on_tell: Tl,
+    on_length: Ln,
+    on_eof: Ef,
+    on_write: Wr,
+    on_error: Er,
+    md5_checking: bool,
+}
+
+impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
+    pub fn new(
+        on_read: Rd,
+        on_seek: Sk,
+        on_tell: Tl,
+        on_length: Ln,
+        on_eof: Ef,
+        on_write: Wr,
+        on_error: Er,
+        md5_checking: bool,
+    ) -> Result<Self, FlacDecoderError> {
+        let ret = Self {
+            decoder: unsafe {FLAC__stream_decoder_new()},
+            on_read,
+            on_seek,
+            on_tell,
+            on_length,
+            on_eof,
+            on_write,
+            on_error,
+            md5_checking,
+        };
+
+        if ret.decoder.is_null() {
+            Err(FlacDecoderError::new(FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR, "FLAC__stream_decoder_new"))
+        } else {
+            Ok(ret)
+        }
+    }
+
+    fn get_status_as_result(&self, function: &'static str) -> Result<(), FlacDecoderError> {
+        let code = unsafe {FLAC__stream_decoder_get_state(self.decoder)};
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(FlacDecoderError::new(code, function))
+        }
+    }
+
+    fn get_status_as_error(&self, function: &'static str) -> Result<(), FlacDecoderError> {
+        let code = unsafe {FLAC__stream_decoder_get_state(self.decoder)};
+        Err(FlacDecoderError::new(code, function))
+    }
+
+    fn as_ptr(&self) -> *const Self {
+        self as *const Self
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut Self {
+        self as *mut Self
+    }
+
+    fn init(&mut self) -> Result<(), FlacDecoderError> {
+        unsafe {
+            if FLAC__stream_decoder_set_md5_checking(self.decoder, self.md5_checking as i32) == 0 {
+                return self.get_status_as_error("FLAC__stream_decoder_set_md5_checking");
+            }
+            let ret = FLAC__stream_decoder_init_stream(
+                self.decoder,
+                Some(Self::read_callback),
+                Some(Self::seek_callback),
+                Some(Self::tell_callback),
+                Some(Self::length_callback),
+                Some(Self::eof_callback),
+                Some(Self::write_callback),
+                Some(Self::metadata_callback),
+                Some(Self::error_callback),
+                self.as_mut_ptr() as *mut c_void,
+            );
+            if ret != 0 {
+                return Err(FlacDecoderError {
+                    code: ret,
+                    message: FlacDecoderInitError::get_message_from_code(ret),
+                    function: "FLAC__stream_decoder_init_stream",
+                });
+            }
+        }
+        self.get_status_as_result("FlacDecoderUnmovable::Init()")
+    }
+
+    unsafe extern "C" fn read_callback(_decoder: *const FLAC__StreamDecoder, buffer: *mut u8, bytes: *mut usize, client_data: *mut c_void) -> u32 {
+        let this = &mut *(client_data as *mut Self);
+        if *bytes == 0 {
+            FLAC__STREAM_DECODER_READ_STATUS_ABORT
+        } else {
+            let buf = slice::from_raw_parts_mut(buffer, *bytes);
+            let (bytes_read, status) = (this.on_read)(buf);
+            let ret = match status{
+                ReadStatus::GoOn => FLAC__STREAM_DECODER_READ_STATUS_CONTINUE,
+                ReadStatus::Eof => FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM,
+                ReadStatus::Abort => FLAC__STREAM_DECODER_READ_STATUS_ABORT,
+            };
+
+            *bytes = bytes_read;
+            ret as u32
+        }
+    }
+
+    unsafe extern "C" fn seek_callback(_decoder: *const FLAC__StreamDecoder, absolute_byte_offset: u64, client_data: *mut c_void) -> u32 {
+        let this = &mut *(client_data as *mut Self);
+        match (this.on_seek)(absolute_byte_offset) {
+            Ok(_) => FLAC__STREAM_DECODER_SEEK_STATUS_OK,
+            Err(e) => {
+                match e.kind() {
+                    ErrorKind::NotSeekable => FLAC__STREAM_DECODER_SEEK_STATUS_UNSUPPORTED,
+                    _ => FLAC__STREAM_DECODER_SEEK_STATUS_ERROR,
+                }
+            },
+        }
+    }
+
+    unsafe extern "C" fn tell_callback(_decoder: *const FLAC__StreamDecoder, absolute_byte_offset: *mut u64, client_data: *mut c_void) -> u32 {
+        let this = &mut *(client_data as *mut Self);
+        match (this.on_tell)() {
+            Ok(offset) => {
+                *absolute_byte_offset = offset;
+                FLAC__STREAM_DECODER_TELL_STATUS_OK
+            },
+            Err(e) => {
+                match e.kind() {
+                    ErrorKind::NotSeekable => FLAC__STREAM_DECODER_TELL_STATUS_UNSUPPORTED,
+                    _ => FLAC__STREAM_DECODER_TELL_STATUS_ERROR,
+                }
+            },
+        }
+    }
+
+    unsafe extern "C" fn length_callback(_decoder: *const FLAC__StreamDecoder, stream_length: *mut u64, client_data: *mut c_void) -> u32 {
+        let this = &mut *(client_data as *mut Self);
+        match (this.on_length)() {
+            Ok(length) => {
+                *stream_length = length;
+                FLAC__STREAM_DECODER_LENGTH_STATUS_OK
+            },
+            Err(e) => {
+                match e.kind() {
+                    ErrorKind::NotSeekable => FLAC__STREAM_DECODER_LENGTH_STATUS_UNSUPPORTED,
+                    _ => FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR,
+                }
+            },
+        }
+    }
+
+    unsafe extern "C" fn eof_callback(_decoder: *const FLAC__StreamDecoder, client_data: *mut c_void) -> i32 {
+        let this = &mut *(client_data as *mut Self);
+        if (this.on_eof)() {1} else {0}
+    }
+
+    unsafe extern "C" fn write_callback(_decoder: *const FLAC__StreamDecoder, frame: *const FLAC__Frame, buffer: *const *const i32, client_data: *mut c_void) -> u32 {
+        // Decoder output handling:
+        // ------------------------------------------
+        // - The decoder provides audio as `i32` values, but only the lower `bits_per_sample` bits are valid.
+        //   Example: For `bits_per_sample = 8`, the valid range is -128 to +127 (8-bit signed PCM).
+        //
+        // - Signal normalization: Scale the decoded samples to utilize the full dynamic range
+        //   of the `i32` type (i.e., from `i32::MIN` (-2147483648) to `i32::MAX` (2147483647)),
+        //   while preserving waveform integrity and avoiding clipping.
+        //
+        //   Implementation logic:
+        //   1. Left-shift the decoded samples by (32 - bits_per_sample) bits
+        //      - e.g., 8-bit → shift left by 24 bits (to occupy upper 8 bits)
+        //   2. Retain original sign and magnitude relationships.
+        fn scale_to_i32(sample: i32, bits: u32) -> i32 {
+            assert!(bits <= 32);
+            if bits == 32 {
+                sample
+            } else {
+                fn scale_to_unsigned(sample: i32, bits: u32) -> u32 {
+                    let mask = (1u32 << bits) - 1;
+                    let mid_number = 1u32 << (bits - 1);
+                    ((sample as u32).wrapping_add(mid_number) & mask) << (32 - bits)
+                }
+                let mut lower_fill = scale_to_unsigned(sample, bits);
+                let mut result = (sample as u32) << (32 - bits);
+                while lower_fill > 0 {
+                    lower_fill >>= bits;
+                    result |= lower_fill;
+                }
+                result as i32
+            }
+        }
+
+        let this = &mut *(client_data as *mut Self);
+        let frame = *frame;
+        let samples = frame.header.blocksize;
+        let channels = frame.header.channels;
+        let sample_rate = frame.header.sample_rate;
+        let bits_per_sample = frame.header.bits_per_sample;
+
+        let mut ret = vec![Vec::<i32>::with_capacity(channels as usize); samples as usize];
+        for i in 0..channels {
+            let channel = *buffer.add(i as usize);
+            for s in 0..samples {
+                ret[s as usize].push(scale_to_i32(*channel.add(s as usize), bits_per_sample));
+            }
+        }
+
+        match (this.on_write)(&ret, sample_rate) {
+            Ok(_) => FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE,
+            Err(e) => {
+                eprintln!("On `write_callback()`: {:?}", e);
+                FLAC__STREAM_DECODER_WRITE_STATUS_ABORT
+            },
+        }
+    }
+
+    unsafe extern "C" fn metadata_callback(_decoder: *const FLAC__StreamDecoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
+        let _this = &mut *(client_data as *mut Self);
+        let _meta = &*(metadata as *const FLAC__StreamMetadata);
+    }
+
+    unsafe extern "C" fn error_callback(_decoder: *const FLAC__StreamDecoder, status: u32, client_data: *mut c_void) {
+        let this = &mut *(client_data as *mut Self);
+        (this.on_error)(match status {
+            FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC => DecoderError::LostSync,
+            FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER => DecoderError::BadHeader,
+            FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH => DecoderError::FrameCrcMismatch,
+            FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM => DecoderError::UnparseableStream,
+            // FLAC__STREAM_DECODER_ERROR_STATUS_BAD_METADATA => DecoderError::BadMetadata,
+            // FLAC__STREAM_DECODER_ERROR_STATUS_MISSING_FRAME => DecoderError::MissingFrame,
+            o => panic!("Unknown value of `FLAC__StreamDecoderErrorStatus`: {o}"),
+        });
+    }
+
+    pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
+        if unsafe {FLAC__stream_decoder_process_single(self.decoder) != 0} {
+            Ok(true)
+        } else {
+            match self.get_status_as_result("FLAC__stream_decoder_process_single") {
+                Ok(_) => Ok(false),
+                Err(e) => Err(e),
+            }
+        }
+    }
+
+    pub fn finish(&mut self) -> Result<(), FlacDecoderError> {
+        if unsafe {FLAC__stream_decoder_finish(self.decoder) != 0} {
+            Ok(())
+        } else {
+            self.get_status_as_result("FLAC__stream_decoder_finish")
+        }
+    }
+
+    fn on_drop(&mut self) {
+        unsafe {
+            if !self.is_finalized() {
+                FLAC__stream_decoder_delete(self.decoder);
+                self.decoder = ptr::null_mut();
+            }
+        };
+    }
+
+    pub fn finalize(mut self) -> Result<(), FlacDecoderError> {
+        self.finish()
+    }
+
+    pub fn is_finalized(&self) -> bool {
+        self.decoder.is_null()
+    }
+}
+
+impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> Debug for FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct(&format!("FlacDecoderUnmovable<{}, {}, {}, {}, {}, {}, {}>",
+                type_name::<Rd>(),
+                type_name::<Sk>(),
+                type_name::<Tl>(),
+                type_name::<Ln>(),
+                type_name::<Ef>(),
+                type_name::<Wr>(),
+                type_name::<Er>()))
+            .field("decoder", &self.decoder)
+            .field("on_read", &format_args!("0x{:x}", &self.on_read as *const Rd as usize))
+            .field("on_seek", &format_args!("0x{:x}", &self.on_seek as *const Sk as usize))
+            .field("on_tell", &format_args!("0x{:x}", &self.on_tell as *const Tl as usize))
+            .field("on_length", &format_args!("0x{:x}", &self.on_length as *const Ln as usize))
+            .field("on_eof", &format_args!("0x{:x}", &self.on_eof as *const Ef as usize))
+            .field("on_write", &format_args!("0x{:x}", &self.on_write as *const Wr as usize))
+            .field("on_error", &format_args!("0x{:x}", &self.on_error as *const Er as usize))
+            .field("md5_checking", &self.md5_checking)
+            .finish()
+    }
+}
+
+impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> Drop for FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
     fn drop(&mut self) {
         self.on_drop();
     }
 }
 
+pub struct FlacDecoder<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
+    decoder: Box<FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>>,
+}
+
+impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> FlacDecoder<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
+    pub fn new(
+        on_read: Rd,
+        on_seek: Sk,
+        on_tell: Tl,
+        on_length: Ln,
+        on_eof: Ef,
+        on_write: Wr,
+        on_error: Er,
+        md5_checking: bool,
+    ) -> Result<Self, FlacDecoderError> {
+        let mut ret = Self {
+            decoder: Box::new(FlacDecoderUnmovable::<Rd, Sk, Tl, Ln, Ef, Wr, Er>::new(
+                on_read,
+                on_seek,
+                on_tell,
+                on_length,
+                on_eof,
+                on_write,
+                on_error,
+                md5_checking,
+            )?),
+        };
+        ret.decoder.init()?;
+        Ok(ret)
+    }
+
+    pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
+        self.decoder.decode()
+    }
+
+    pub fn finish(&mut self) -> Result<(), FlacDecoderError> {
+        self.decoder.finish()
+    }
+
+    pub fn finalize(self) -> Result<(), FlacDecoderError> {
+        Ok(())
+    }
+
+    pub fn is_finalized(&self) -> bool {
+        self.decoder.is_finalized()
+    }
+}
+
+
+impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> Debug for FlacDecoder<Rd, Sk, Tl, Ln, Ef, Wr, Er>
+where
+    Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error>,
+    Ln: FnMut() -> Result<u64, io::Error>,
+    Ef: FnMut() -> bool,
+    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Er: FnMut(DecoderError) {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct(&format!("FlacDecoder<{}, {}, {}, {}, {}, {}, {}>",
+                type_name::<Rd>(),
+                type_name::<Sk>(),
+                type_name::<Tl>(),
+                type_name::<Ln>(),
+                type_name::<Ef>(),
+                type_name::<Wr>(),
+                type_name::<Er>()))
+            .field("decoder", &self.decoder)
+            .finish()
+    }
+}
