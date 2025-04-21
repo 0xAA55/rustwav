@@ -104,6 +104,7 @@ impl FlacEncoderInitError {
 }
 
 impl_FlacError!(FlacEncoderInitError);
+
 #[derive(Debug, Clone, Copy)]
 pub struct FlacEncoderParams {
     pub verify_decoded: bool,
@@ -126,7 +127,7 @@ impl FlacEncoderParams {
 }
 
 pub struct FlacEncoderUnmovable<Wr, Sk, Tl>
-where 
+where
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
     Tl: FnMut() -> Result<u64, io::Error> {
@@ -138,7 +139,7 @@ where
 }
 
 impl<Wr, Sk, Tl> FlacEncoderUnmovable<Wr, Sk, Tl>
-where 
+where
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
     Tl: FnMut() -> Result<u64, io::Error> {
@@ -345,7 +346,7 @@ where
 }
 
 impl<Wr, Sk, Tl> Debug for FlacEncoderUnmovable<Wr, Sk, Tl>
-where 
+where
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
     Tl: FnMut() -> Result<u64, io::Error> {
@@ -361,7 +362,7 @@ where
 }
 
 impl<Wr, Sk, Tl> Drop for FlacEncoderUnmovable<Wr, Sk, Tl>
-where 
+where
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
     Tl: FnMut() -> Result<u64, io::Error> {
@@ -374,5 +375,4 @@ where
         self.on_drop();
     }
 }
-
 
