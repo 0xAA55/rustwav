@@ -7,6 +7,55 @@ use libflac_sys::*;
 use crate::SampleType;
 
 #[derive(Debug, Clone, Copy)]
+pub enum FlacCompression {
+    Level0 = 0,
+    Level1 = 1,
+    Level2 = 2,
+    Level3 = 3,
+    Level4 = 4,
+    Level5 = 5,
+    Level6 = 6,
+    Level7 = 7,
+    Level8 = 8
+}
+
+pub trait FlacError {
+    fn get_code(&self) -> u32;
+    fn get_message(&self) -> &'static str;
+    fn get_function(&self) -> &'static str;
+    fn get_message_from_code(&self) -> &'static str;
+
+    fn format(&self, f: &mut Formatter) -> fmt::Result {
+        let code = self.get_code();
+        let message = self.get_message();
+        let function = self.get_function();
+        write!(f, "Code: {code}, function: {function}, message: {message}")?;
+        Ok(())
+    }
+}
+
+macro_rules! impl_FlacError {
+    ($error:ty) => {
+        impl FlacError for $error {
+            fn get_code(&self) -> u32 {self.code}
+            fn get_message(&self) -> &'static str {self.message}
+            fn get_function(&self) -> &'static str {self.function}
+            fn get_message_from_code(&self) -> &'static str {
+                Self::get_message_from_code(self.get_code())
+            }
+        }
+
+        impl std::error::Error for $error {}
+
+        impl Display for $error {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                <$error as FlacError>::format(self, f)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct FlacEncoderError {
     pub code: u32,
     pub message: &'static str,
@@ -36,16 +85,6 @@ impl Display for FlacEncoderError {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum FlacCompression {
-    Level0 = 0,
-    Level1 = 1,
-    Level2 = 2,
-    Level3 = 3,
-    Level4 = 4,
-    Level5 = 5,
-    Level6 = 6,
-    Level7 = 7,
-    Level8 = 8
 }
 
 #[derive(Debug, Clone, Copy)]
