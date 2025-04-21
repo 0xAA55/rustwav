@@ -125,12 +125,11 @@ impl FlacEncoderParams {
     }
 }
 
-pub struct FlacEncoder<Wr, Sk, Tl>
+pub struct FlacEncoderUnmovable<Wr, Sk, Tl>
 where 
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
-    Tl: FnMut() -> Result<u64, io::Error>
-{
+    Tl: FnMut() -> Result<u64, io::Error> {
     encoder: *mut FLAC__StreamEncoder,
     params: FlacEncoderParams,
     on_write: Wr,
@@ -138,7 +137,7 @@ where
     on_tell: Tl,
 }
 
-impl<Wr, Sk, Tl> FlacEncoder<Wr, Sk, Tl>
+impl<Wr, Sk, Tl> FlacEncoderUnmovable<Wr, Sk, Tl>
 where 
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
@@ -148,18 +147,14 @@ where
         on_seek: Sk,
         on_tell: Tl,
         params: &FlacEncoderParams
-    ) -> Result<Box<Self>, FlacEncoderError> {
-
-        // Must put `self` into a `box` to prevent pointer changes.
-        let mut ret = Box::new(Self {
+    ) -> Result<Self, FlacEncoderError> {
+        let ret = Self {
             encoder: unsafe {FLAC__stream_encoder_new()},
             params: *params,
             on_write,
             on_seek,
             on_tell,
-        });
-        ret.init()?;
-
+        };
         Ok(ret)
     }
 
@@ -304,7 +299,7 @@ where
         if frames.is_empty() {return Ok(())}
         let samples: Vec<i32> = frames.iter().flat_map(|frame: &Vec<S>| -> Vec<i32> {
             if frame.len() != self.params.channels as usize {
-                panic!("On FlacEncoder::write_frames(): a frame size {} does not match the encoder channels.", frame.len())
+                panic!("On FlacEncoderUnmovable::write_frames(): a frame size {} does not match the encoder channels.", frame.len())
             } else {frame.iter().map(|s|{s.to_i32()}).collect()}
         }).collect();
         unsafe {
@@ -347,7 +342,23 @@ where
     }
 }
 
-impl<Wr, Sk, Tl> Drop for FlacEncoder<Wr, Sk, Tl>
+impl<Wr, Sk, Tl> Debug for FlacEncoderUnmovable<Wr, Sk, Tl>
+where 
+    Wr: FnMut(&[u8]) -> Result<(), io::Error>,
+    Sk: FnMut(u64) -> Result<(), io::Error>,
+    Tl: FnMut() -> Result<u64, io::Error> {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct(&format!("FlacEncoderUnmovable<{}, {}, {}>", type_name::<Wr>(), type_name::<Sk>(), type_name::<Tl>()))
+            .field("encoder", &self.encoder)
+            .field("params", &self.params)
+            .field("on_write", &format_args!("0x{:x}", &self.on_write as *const Wr as usize))
+            .field("on_seek", &format_args!("0x{:x}", &self.on_seek as *const Sk as usize))
+            .field("on_tell", &format_args!("0x{:x}", &self.on_tell as *const Tl as usize))
+            .finish()
+    }
+}
+
+impl<Wr, Sk, Tl> Drop for FlacEncoderUnmovable<Wr, Sk, Tl>
 where 
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
@@ -357,5 +368,9 @@ where
     }
 }
 
+    fn drop(&mut self) {
+        self.on_drop();
+    }
+}
 
 
