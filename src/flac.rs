@@ -206,19 +206,22 @@ where
                     return self.get_status_as_error("FLAC__stream_encoder_set_total_samples_estimate");
                 }
             }
-            if FLAC__stream_encoder_init_stream(self.encoder,
-                    Some(Self::write_callback),
-                    Some(Self::seek_callback),
-                    Some(Self::tell_callback),
-                    Some(Self::metadata_callback),
-
-                    // At this time, `self` must be put into a `Box` so the pointer of `self` won't change.
-                    self.as_mut_ptr() as *mut c_void,
-                ) != 0 {
-                return self.get_status_as_error("FLAC__stream_encoder_init_stream");
+            let ret = FLAC__stream_encoder_init_stream(self.encoder,
+                Some(Self::write_callback),
+                Some(Self::seek_callback),
+                Some(Self::tell_callback),
+                Some(Self::metadata_callback),
+                self.as_mut_ptr() as *mut c_void,
+            );
+            if ret != 0 {
+                return Err(FlacEncoderError {
+                    code: ret,
+                    message: FlacEncoderInitError::get_message_from_code(ret),
+                    function: "FLAC__stream_encoder_init_stream",
+                });
             }
         }
-        Ok(())
+        self.get_status_as_result("FlacEncoderUnmovable::Init()")
     }
 
     unsafe extern "C" fn write_callback(_encoder: *const FLAC__StreamEncoder, buffer: *const u8, bytes: usize, _samples: u32, _current_frame: u32, client_data: *mut c_void) -> u32 {
