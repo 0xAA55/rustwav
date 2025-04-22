@@ -148,7 +148,7 @@ impl Resampler {
         min(self.fft_size, proc_size * dst_sample_rate as usize / src_sample_rate as usize)
     }
 
-    pub fn resample(&mut self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32) -> Result<Vec<f32>, ResamplerError> {
+    pub fn resample(&self, input: &[f32], src_sample_rate: u32, dst_sample_rate: u32) -> Result<Vec<f32>, ResamplerError> {
         if src_sample_rate == dst_sample_rate {
             Ok(input.to_vec())
         } else {

@@ -180,14 +180,14 @@ where S: SampleType,
     frames.iter().map(|frame: &Vec<S>| -> Vec<D> {sample_conv(frame)}).collect()
 }
 
-pub fn do_resample_mono<S>(resampler: &mut Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
+pub fn do_resample_mono<S>(resampler: &Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
 where S: SampleType {
     let input = sample_conv::<S, f32>(input);
     let result = resampler.resample(&input, src_sample_rate, dst_sample_rate).unwrap();
     sample_conv::<f32, S>(&result)
 }
 
-pub fn do_resample_stereo<S>(resampler: &mut Resampler, input: &[(S, S)], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<(S, S)>
+pub fn do_resample_stereo<S>(resampler: &Resampler, input: &[(S, S)], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<(S, S)>
 where S: SampleType {
     let block = stereos_to_dual_monos(input);
     let l = do_resample_mono(resampler, &block.0, src_sample_rate, dst_sample_rate);
@@ -195,7 +195,7 @@ where S: SampleType {
     dual_monos_to_stereos(&(l, r)).unwrap()
 }
 
-pub fn do_resample_frames<S>(resampler: &mut Resampler, input: &[Vec<S>], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<Vec<S>>
+pub fn do_resample_frames<S>(resampler: &Resampler, input: &[Vec<S>], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<Vec<S>>
 where S: SampleType {
     let monos = frames_to_monos(input, None).unwrap();
     let monos = monos.into_iter().map(|mono|{do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate)}).collect::<Vec<Vec<S>>>();
