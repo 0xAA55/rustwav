@@ -361,16 +361,32 @@ where
                 }
             }
 
-            // 接下来设置元数据。其中元数据包含各种各样的元数据，有的是字符串，也有字符串指针，有的是结构体和各种数值字段、枚举类型等。
-            // 其中 `metadata` 数组负责存储各种类型的元数据信息，每一种元数据要使用对应的 API 传入 `metadata` 对应的元素里。
-            // 而整个 `metadata` 数组则必须使用 API 传入 `self.encoder` 里面。这个传入的过程是怎样的呢？
-            // 我看了 libflac 的相关源码，负责传入元数据信息的 API 会进行内存拷贝，能把结构体、数值字段、枚举类型等都拷贝过去。
-            // 但是对于字符串指针似乎也是拷贝（而不是为其分配新的内存来拷贝字符串）。
-            // 因此在将元数据传入 `self.encoder` 后，这边的所有元数据的指针都必须释放掉，但是所有的字符串则必须保留。
-            // 字符串都存储在 BTree 里，在完成初始化之后将不再被改动。因此都是安全的。
-            // 这里的处理允许元数据相关的 API 失败，此时会使用 `eprintln!()` 报告错误，但是不会中止编码器的初始化过程。
-            // 报错时利用了 `FlacEncoderError` 结构体能根据错误代码获取对应字符串消息的能力，并能提示具体是哪个函数报了错。
-            // 一旦调用 `FLAC__stream_encoder_init_stream()`，所有的元数据信息都会被写入到 FLAC 文件里。
+            // Metadata Initialization Workflow:
+            // ------------------------------------------
+            // The `metadata` array aggregates heterogeneous metadata entries:
+            // - Primitive types (u32, enums)
+            // - Structs (e.g., VORBIS_COMMENT, SEEKTABLE)
+            // - String literals (static `&str` slices)
+            // - Owned strings (`String` via FLAC APIs)
+            //
+            // FLAC API Contract:
+            // - Each metadata entry must be added via `FLAC__metadata_object_new()` and
+            //   populated with type-specific setters (e.g., `FLAC__metadata_set_vorbis_comment()`).
+            // - `FLAC__stream_encoder_set_metadata()` performs a deep copy of each entry’s memory,
+            //   including structs and primitives. For strings:
+            //   - String pointers (e.g., `*const c_char`) are shallow-copied.
+            //   - Caller retains ownership of the underlying `String` data (managed in `BTree<String>`),
+            //     which must outlive the encoder.
+            //
+            // Safety Invariants:
+            // - After encoder initialization via `FLAC__stream_encoder_init_stream()`, all metadata
+            //   pointers are invalidated and MUST NOT be modified/freed until encoding finishes.
+            // - `BTree<String>` acts as the source-of-truth for string lifetimes, ensuring no use-after-free.
+            //
+            // Error Handling:
+            // - Metadata API errors (e.g., invalid seek points) are captured via `FlacEncoderError`,
+            //   which decodes `FLAC__StreamEncoderState` into human-readable messages.
+            // - Non-critical errors are logged via `eprintln!()` but do not abort initialization.
             let mut metadata = Vec::<*mut FLAC__StreamMetadata>::new();
             if !self.comments.is_empty() {
                 let comments_meta = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
