@@ -1259,6 +1259,101 @@ impl ListChunk {
     }
 }
 
+pub trait ListInfo {
+    fn get_is_list_info(&self) -> bool;
+    fn get_archive(&self) -> Option<&String>;
+    fn get_artist(&self) -> Option<&String>;
+    fn get_comment(&self) -> Option<&String>;
+    fn get_copyright(&self) -> Option<&String>;
+    fn get_create_date(&self) -> Option<&String>;
+    fn get_engineer(&self) -> Option<&String>;
+    fn get_genre(&self) -> Option<&String>;
+    fn get_keywords(&self) -> Option<&String>;
+    fn get_lightness(&self) -> Option<&String>;
+    fn get_medium(&self) -> Option<&String>;
+    fn get_name(&self) -> Option<&String>;
+    fn get_orig_name(&self) -> Option<&String>;
+    fn get_subject_desc(&self) -> Option<&String>;
+    fn get_software(&self) -> Option<&String>;
+    fn get_source(&self) -> Option<&String>;
+    fn get_orig_form(&self) -> Option<&String>;
+    fn get_technician(&self) -> Option<&String>;
+}
+
+impl ListInfo for ListChunk {
+    fn get_is_list_info(&self) -> bool {
+        if let Self::Info(_) = self {true} else {false}
+    }
+
+    fn get_archive(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IARL")} else {None}
+    }
+
+    fn get_artist(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IART")} else {None}
+    }
+
+    fn get_comment(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ICMT")} else {None}
+    }
+
+    fn get_copyright(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ICOP")} else {None}
+    }
+
+    fn get_create_date(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ICRD")} else {None}
+    }
+
+    fn get_engineer(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IENG")} else {None}
+    }
+
+    fn get_genre(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IGNR")} else {None}
+    }
+
+    fn get_keywords(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IKEY")} else {None}
+    }
+
+    fn get_lightness(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ILGT")} else {None}
+    }
+
+    fn get_medium(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IMED")} else {None}
+    }
+
+    fn get_name(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("INAM")} else {None}
+    }
+
+    fn get_orig_name(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("IPRD")} else {None}
+    }
+
+    fn get_subject_desc(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ISBJ")} else {None}
+    }
+
+    fn get_software(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ISFT")} else {None}
+    }
+
+    fn get_source(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ISRC")} else {None}
+    }
+
+    fn get_orig_form(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ISRF")} else {None}
+    }
+
+    fn get_technician(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ITCH")} else {None}
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AdtlChunk {
     Labl(LablChunk),
