@@ -6,8 +6,6 @@ mod copiablebuf;
 mod filehasher;
 mod adpcm;
 mod xlaw;
-mod encoders;
-mod decoders;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
@@ -15,6 +13,8 @@ mod resampler;
 mod hacks;
 
 pub mod utils;
+pub mod encoders;
+pub mod decoders;
 
 #[cfg(feature = "flac")]
 mod flac;
