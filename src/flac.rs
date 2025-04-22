@@ -318,6 +318,12 @@ impl Drop for FlacCueTrack {
     }
 }
 
+fn make_sz(s: &str) -> String {
+    let mut s = s.to_owned();
+    s.push_str("\0");
+    s
+}
+
 impl FlacMetadata {
     pub fn new_vorbis_comment() -> Result<Self, FlacEncoderError> {
         let ret = Self {
@@ -352,13 +358,15 @@ impl FlacMetadata {
         }
     }
 
-    pub fn insert_comments(&self, key: &'static str, value:&str) -> Result<(), FlacEncoderError> {
+    pub fn insert_comments(&self, key: &'static str, value: &str) -> Result<(), FlacEncoderError> {
         unsafe {
+            let szkey = make_sz(key);
+            let szvalue = make_sz(value);
             let mut entry = FLAC__StreamMetadata_VorbisComment_Entry{length: 0, entry: ptr::null_mut()};
             if FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair (
                 &mut entry as *mut FLAC__StreamMetadata_VorbisComment_Entry,
-                CStr::from_ptr((*key).as_ptr() as *mut i8).as_ptr(),
-                CStr::from_ptr((*value).as_ptr() as *mut i8).as_ptr()
+                szkey.as_ptr() as *mut i8,
+                szvalue.as_ptr() as *mut i8
             ) == 0 {
                 eprintln!("On set comment {key}: {value}: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair"));
             }
@@ -388,12 +396,14 @@ impl FlacMetadata {
     }
 
     pub fn set_picture(&mut self, picture_binary: &mut [u8], description: &mut str, mime_type: &mut str) -> Result<(), FlacEncoderError> {
+        let mut desc_sz = make_sz(description);
+        let mut mime_sz = make_sz(mime_type);
         unsafe {
             if FLAC__metadata_object_picture_set_data(self.metadata, picture_binary.as_mut_ptr(), picture_binary.len() as u32, 0) == 0 {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_data"))
-            } else if FLAC__metadata_object_picture_set_mime_type(self.metadata, (*mime_type).as_mut_ptr() as *mut i8, 0) == 0 {
+            } else if FLAC__metadata_object_picture_set_mime_type(self.metadata, desc_sz.as_mut_ptr() as *mut i8, 0) == 0 {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_mime_type"))
-            } else if FLAC__metadata_object_picture_set_description(self.metadata, (*description).as_mut_ptr(), 0) == 0 {
+            } else if FLAC__metadata_object_picture_set_description(self.metadata, mime_sz.as_mut_ptr(), 0) == 0 {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_description"))
             } else {
                 Ok(())
