@@ -749,15 +749,46 @@ where
         let sample_rate = frame.header.sample_rate;
         let bits_per_sample = frame.header.bits_per_sample;
 
-        let mut ret = vec![Vec::<i32>::with_capacity(channels as usize); samples as usize];
-        for i in 0..channels {
-            let channel = *buffer.add(i as usize);
-            for s in 0..samples {
-                ret[s as usize].push(scale_to_i32(*channel.add(s as usize), bits_per_sample));
+        let mut samples_info = SamplesInfo {
+            samples,
+            channels,
+            sample_rate,
+            bits_per_sample,
+            audio_form: this.desired_audio_form,
+        };
+
+        let mut ret: Vec<Vec<i32>>;
+        match this.desired_audio_form {
+            AudioForm::FrameArray => {
+                // Each `frame` contains one sample for each channel
+                ret = vec![Vec::<i32>::new(); samples as usize];
+                for s in 0..samples {
+                    for c in 0..channels {
+                        let channel = *buffer.add(c as usize);
+                        ret[s as usize].push(*channel.add(s as usize));
+                    }
+                }
+            },
+            AudioForm::ChannelArray => {
+                // Each `channel` contains all samples for the channel
+                ret = vec![Vec::<i32>::new(); channels as usize];
+                for c in 0..channels {
+                    ret[c as usize] = slice::from_raw_parts(*buffer.add(c as usize), samples as usize).to_vec();
+                }
             }
         }
 
-        match (this.on_write)(&ret, sample_rate) {
+        // Whatever it was, now it's just a two-dimensional array
+        if this.scale_to_i32_range {
+            for x in ret.iter_mut() {
+                for y in x.iter_mut() {
+                    *y = scale_to_i32(*y, bits_per_sample);
+                }
+            }
+            samples_info.bits_per_sample = 32;
+        }
+
+        match (this.on_write)(&ret, &samples_info) {
             Ok(_) => FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE,
             Err(e) => {
                 eprintln!("On `write_callback()`: {:?}", e);
