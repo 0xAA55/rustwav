@@ -360,6 +360,9 @@ impl FlacMetadata {
 
     pub fn insert_comments(&self, key: &'static str, value: &str) -> Result<(), FlacEncoderError> {
         unsafe {
+            // ATTENTION:
+            // Any strings to be added to the entry must be NUL terminated.
+            // Or you can see the `FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR` due to the failure to find the NUL terminator.
             let szkey = make_sz(key);
             let szvalue = make_sz(value);
             let mut entry = FLAC__StreamMetadata_VorbisComment_Entry{length: 0, entry: ptr::null_mut()};
