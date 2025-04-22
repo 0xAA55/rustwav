@@ -542,6 +542,9 @@ where
     }
 
     fn init(&mut self) -> Result<(), FlacEncoderError> {
+        if self.encoder_initialized {
+            return Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::init").into())
+        }
         unsafe {
             if FLAC__stream_encoder_set_verify(self.encoder, if self.params.verify_decoded {1} else {0}) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_set_verify");
