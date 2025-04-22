@@ -700,19 +700,9 @@ where
     }
 
     unsafe extern "C" fn write_callback(_decoder: *const FLAC__StreamDecoder, frame: *const FLAC__Frame, buffer: *const *const i32, client_data: *mut c_void) -> u32 {
-        // Decoder output handling:
-        // ------------------------------------------
-        // - The decoder provides audio as `i32` values, but only the lower `bits_per_sample` bits are valid.
-        //   Example: For `bits_per_sample = 8`, the valid range is -128 to +127 (8-bit signed PCM).
-        //
-        // - Signal normalization: Scale the decoded samples to utilize the full dynamic range
-        //   of the `i32` type (i.e., from `i32::MIN` (-2147483648) to `i32::MAX` (2147483647)),
-        //   while preserving waveform integrity and avoiding clipping.
-        //
-        //   Implementation logic:
-        //   1. Left-shift the decoded samples by (32 - bits_per_sample) bits
-        //      - e.g., 8-bit → shift left by 24 bits (to occupy upper 8 bits)
-        //   2. Retain original sign and magnitude relationships.
+        // Scales signed PCM samples to full i32 dynamic range.
+        // - `bits`: Valid bits in `sample` (1-32).
+        // - Example: 8-bit samples [-128, 127] → [i32::MIN, i32::MAX]
         fn scale_to_i32(sample: i32, bits: u32) -> i32 {
             assert!(bits <= 32);
             if bits == 32 {
