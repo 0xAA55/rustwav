@@ -608,32 +608,38 @@ impl PcmXLawDecoderWrap {
 
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
-    use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}};
+    const FFT_SIZE: usize = 65536;
+    use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}, mem};
 
     use crate::{AudioReadError};
     use crate::Reader;
     use crate::SampleType;
+    use crate::Resampler;
     use crate::wavcore::FmtChunk;
+    use crate::utils;
 
     use rmp3::{DecoderOwned, Frame};
 
     pub struct Mp3Decoder {
-        target_sample_format: u32,
+        target_sample_rate: u32,
         target_channels: u16,
         the_decoder: DecoderOwned<Vec<u8>>,
         cur_frame: Option<Mp3AudioData>,
         sample_pos: u64,
         total_frames: u64,
+        resampler: Resampler,
     }
 
     impl Debug for Mp3Decoder{
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
             fmt.debug_struct("Mp3Decoder")
-                .field("target_sample_format", &self.target_sample_format)
+                .field("target_sample_rate", &self.target_sample_rate)
                 .field("target_channels", &self.target_channels)
                 .field("the_decoder", &format_args!("DecoderOwned<Vec<u8>>"))
                 .field("cur_frame", &self.cur_frame)
                 .field("sample_pos", &self.sample_pos)
+                .field("total_frames", &self.total_frames)
+                .field("resampler", &self.resampler)
                 .finish()
         }
     }
@@ -659,7 +665,7 @@ pub mod mp3 {
                 .field("sample_count", &self.sample_count)
                 .field("samples", &format_args!("[i16; {}]", self.samples.len()))
                 .field("buffer_index", &self.buffer_index)
-                .finish_non_exhaustive()
+                .finish()
         }
     }
 
@@ -671,12 +677,13 @@ pub mod mp3 {
             reader.read_exact(&mut mp3_raw_data)?;
             let the_decoder = rmp3::DecoderOwned::new(mp3_raw_data);
             let mut ret = Self {
-                target_sample_format: fmt.sample_rate,
+                target_sample_rate: fmt.sample_rate,
                 target_channels: fmt.channels,
                 the_decoder,
                 cur_frame: None,
                 sample_pos: 0,
                 total_frames: total_samples,
+                resampler: Resampler::new(FFT_SIZE),
             };
             ret.cur_frame = ret.get_next_frame();
             if let Some(ref mp3frame) = ret.cur_frame {
@@ -691,13 +698,30 @@ pub mod mp3 {
             self.sample_pos = 0;
         }
 
+        fn do_resample(&self, samples: &[i16], channels: u16, src_sample_rate: u32) -> Vec<i16> {
+            let process_size = self.resampler.get_process_size(FFT_SIZE, src_sample_rate, self.target_sample_rate);
+            let mut monos = utils::interleaved_samples_to_monos(samples, channels).unwrap();
+            for mono in monos.iter_mut() {
+                let mut iter = mem::take(mono).into_iter();
+                loop {
+                    let block: Vec<i16> = iter.by_ref().take(process_size).collect();
+                    if block.is_empty() {
+                        break;
+                    }
+                    mono.extend(&utils::do_resample_mono(&self.resampler, &block, src_sample_rate, self.target_sample_rate));
+                }
+            }
+            utils::monos_to_interleaved_samples(&monos).unwrap()
+        }
+
         fn get_next_frame(&mut self) -> Option<Mp3AudioData> {
             while let Some(frame) = self.the_decoder.next() {
                 if let Frame::Audio(audio) = frame {
                     if let Some(cur_frame) = &self.cur_frame {
                         self.sample_pos += cur_frame.sample_count as u64;
                     }
-                    return Some(Mp3AudioData{
+
+                    let mut ret = Mp3AudioData{
                         bitrate: audio.bitrate(),
                         channels: audio.channels(),
                         mpeg_layer: audio.mpeg_layer(),
@@ -705,7 +729,38 @@ pub mod mp3 {
                         sample_count: audio.sample_count(),
                         samples: audio.samples().to_vec(),
                         buffer_index: 0,
-                    });
+                    };
+
+                    // First, convert the source channels to the target channels
+                    match (ret.channels, self.target_channels) {
+                        (1, t) => {
+                            ret.samples = mem::take(&mut ret.samples).into_iter().flat_map(|s| -> Vec<i16> {vec![s; t as usize]}).collect();
+                            ret.channels = self.target_channels;
+                        },
+                        (t, 1) => {
+                            let mut iter = mem::take(&mut ret.samples).into_iter();
+                            loop {
+                                let frame: Vec<i32> = iter.by_ref().take(t as usize).map(|s|{s as i32}).collect();
+                                if frame.is_empty() {
+                                    break;
+                                }
+                                ret.samples.push((frame.iter().sum::<i32>() / frame.len() as i32) as i16);
+                            }
+                            ret.channels = self.target_channels;
+                        },
+                        (s, t) => {
+                            if s != t {
+                                eprintln!("Can't change {s} channels to {t} channels.");
+                            }
+                        },
+                    }
+
+                    // Second, change the sample rate to match the target sample rate
+                    ret.samples = self.do_resample(&ret.samples, ret.channels, ret.sample_rate);
+                    ret.sample_rate = self.target_sample_rate;
+                    ret.sample_count = ret.samples.len() / ret.channels as usize;
+
+                    return Some(ret);
                 }
             }
             None
@@ -754,7 +809,7 @@ pub mod mp3 {
         }
 
         pub fn get_sample_rate(&self) -> u32 {
-            self.target_sample_format
+            self.target_sample_rate
         }
 
         pub fn get_cur_frame(&self) -> &Option<Mp3AudioData> {
