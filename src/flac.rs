@@ -1429,3 +1429,212 @@ where
             .finish()
     }
 }
+
+
+#[derive(Clone, Copy)]
+struct WrappedStreamInfo(FLAC__StreamMetadata_StreamInfo);
+
+impl Debug for WrappedStreamInfo {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_StreamInfo")
+            .field("min_blocksize", &self.0.min_blocksize)
+            .field("max_blocksize", &self.0.max_blocksize)
+            .field("min_framesize", &self.0.min_framesize)
+            .field("max_framesize", &self.0.max_framesize)
+            .field("sample_rate", &self.0.sample_rate)
+            .field("channels", &self.0.channels)
+            .field("bits_per_sample", &self.0.bits_per_sample)
+            .field("total_samples", &self.0.total_samples)
+            .field("md5sum", &format_args!("{}", self.0.md5sum.iter().map(|x|{format!("{:02x}", x)}).collect::<Vec<String>>().join("")))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedPadding(FLAC__StreamMetadata_Padding);
+impl Debug for WrappedPadding {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_Padding")
+            .field("dummy", &self.0.dummy)
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedApplication(FLAC__StreamMetadata_Application, u32);
+impl WrappedApplication {
+    pub fn get_header(&self) -> String {
+        String::from_utf8_lossy(&self.0.id).to_string()
+    }
+    pub fn get_data(&self) -> Vec<u8> {
+        let n = self.1 - 4;
+        unsafe {slice::from_raw_parts(self.0.data, n as usize)}.to_vec()
+    }
+}
+
+impl Debug for WrappedApplication {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_Application")
+            .field("id", &self.get_header())
+            .field("data", &String::from_utf8_lossy(&self.get_data()))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedSeekPoint(FLAC__StreamMetadata_SeekPoint);
+impl Debug for WrappedSeekPoint {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_SeekPoint")
+            .field("sample_number", &self.0.sample_number)
+            .field("stream_offset", &self.0.stream_offset)
+            .field("frame_samples", &self.0.frame_samples)
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedSeekTable(FLAC__StreamMetadata_SeekTable);
+impl Debug for WrappedSeekTable {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        let points: Vec<WrappedSeekPoint> = unsafe {slice::from_raw_parts(self.0.points, self.0.num_points as usize).into_iter().map(|p|{WrappedSeekPoint(*p)}).collect()};
+        fmt.debug_struct("FLAC__StreamMetadata_SeekTable")
+            .field("num_points", &self.0.num_points)
+            .field("points", &format_args!("{:?}", points))
+            .finish()
+    }
+}
+
+fn entry_to_string(entry: &FLAC__StreamMetadata_VorbisComment_Entry) -> String {
+    unsafe {String::from_utf8_lossy(slice::from_raw_parts(entry.entry, entry.length as usize)).to_string()}
+}
+
+#[derive(Clone, Copy)]
+struct WrappedVorbisComment(FLAC__StreamMetadata_VorbisComment);
+impl Debug for WrappedVorbisComment {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_VorbisComment")
+            .field("vendor_string", &entry_to_string(&self.0.vendor_string))
+            .field("num_comments", &self.0.num_comments)
+            .field("comments", &format_args!("[{}]", (0..self.0.num_comments).map(|i|unsafe{entry_to_string(&*self.0.comments.add(i as usize))}).collect::<Vec<String>>().join(", ")))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedCueSheet(FLAC__StreamMetadata_CueSheet);
+impl Debug for WrappedCueSheet {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_CueSheet")
+            .field("media_catalog_number", &String::from_utf8_lossy(&self.0.media_catalog_number.into_iter().map(|c|{c as u8}).collect::<Vec<u8>>()))
+            .field("lead_in", &self.0.lead_in)
+            .field("is_cd", &self.0.is_cd)
+            .field("num_tracks", &self.0.num_tracks)
+            .field("tracks", &format_args!("[{}]", (0..self.0.num_tracks).map(|i|format!("{:?}", unsafe{*self.0.tracks.add(i as usize)})).collect::<Vec<String>>().join(", ")))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedCueSheetTrack(FLAC__StreamMetadata_CueSheet_Track);
+impl Debug for WrappedCueSheetTrack {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_CueSheet_Track")
+            .field("offset", &self.0.offset)
+            .field("number", &self.0.number)
+            .field("isrc", &self.0.isrc)
+            .field("type", &self.0.type_())
+            .field("pre_emphasis", &self.0.pre_emphasis())
+            .field("num_indices", &self.0.num_indices)
+            .field("indices", &format_args!("[{}]", (0..self.0.num_indices).map(|i|format!("{:?}", unsafe{*self.0.indices.add(i as usize)})).collect::<Vec<String>>().join(", ")))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedCueSheetIndex(FLAC__StreamMetadata_CueSheet_Index);
+impl Debug for WrappedCueSheetIndex {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_CueSheet_Index")
+            .field("offset", &self.0.offset)
+            .field("number", &self.0.number)
+            .finish()
+    }
+}
+
+fn picture_type_to_str(pictype: u32) -> &'static str {
+    match pictype {
+        FLAC__STREAM_METADATA_PICTURE_TYPE_FILE_ICON_STANDARD => "32x32 pixels 'file icon' (PNG only)",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_FILE_ICON => "Other file icon",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_FRONT_COVER => "Cover (front)",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_BACK_COVER => "Cover (back)",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_LEAFLET_PAGE => "Leaflet page",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_MEDIA => "Media (e.g. label side of CD)",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_LEAD_ARTIST => "Lead artist/lead performer/soloist",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_ARTIST => "Artist/performer",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_CONDUCTOR => "Conductor",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_BAND => "Band/Orchestra",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_COMPOSER => "Composer",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_LYRICIST => "Lyricist/text writer",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_RECORDING_LOCATION => "Recording Location",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_DURING_RECORDING => "During recording",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_DURING_PERFORMANCE => "During performance",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_VIDEO_SCREEN_CAPTURE => "Movie/video screen capture",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_FISH => "A bright coloured fish",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_ILLUSTRATION => "Illustration",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_BAND_LOGOTYPE => "Band/artist logotype",
+        FLAC__STREAM_METADATA_PICTURE_TYPE_PUBLISHER_LOGOTYPE => "Publisher/Studio logotype",
+        _ => "Other",
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedPicture(FLAC__StreamMetadata_Picture);
+impl Debug for WrappedPicture {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_Picture")
+            .field("type_", &picture_type_to_str(self.0.type_))
+            .field("mime_type", &unsafe{CStr::from_ptr(self.0.mime_type).to_str()})
+            .field("description", &unsafe{CStr::from_ptr(self.0.description as *const i8).to_str()})
+            .field("width", &self.0.width)
+            .field("height", &self.0.height)
+            .field("depth", &self.0.depth)
+            .field("colors", &self.0.colors)
+            .field("data_length", &self.0.data_length)
+            .field("data", &format_args!("[u8; {}]", self.0.data_length))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedUnknown(FLAC__StreamMetadata_Unknown);
+impl Debug for WrappedUnknown {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata_Unknown")
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrappedStreamMetadata(FLAC__StreamMetadata);
+
+impl Debug for WrappedStreamMetadata {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("FLAC__StreamMetadata")
+            .field("type_", &self.0.type_)
+            .field("is_last", &self.0.is_last)
+            .field("length", &self.0.length)
+            .field("data", &match self.0.type_ {
+                FLAC__METADATA_TYPE_STREAMINFO => format!("{:?}", unsafe{WrappedStreamInfo(self.0.data.stream_info)}),
+                FLAC__METADATA_TYPE_PADDING => format!("{:?}", unsafe{WrappedPadding(self.0.data.padding)}),
+                FLAC__METADATA_TYPE_APPLICATION => format!("{:?}", unsafe{WrappedApplication(self.0.data.application, self.0.length)}),
+                FLAC__METADATA_TYPE_SEEKTABLE => format!("{:?}", unsafe{WrappedSeekTable(self.0.data.seek_table)}),
+                FLAC__METADATA_TYPE_VORBIS_COMMENT => format!("{:?}", unsafe{WrappedVorbisComment(self.0.data.vorbis_comment)}),
+                FLAC__METADATA_TYPE_CUESHEET => format!("{:?}", unsafe{WrappedCueSheet(self.0.data.cue_sheet)}),
+                FLAC__METADATA_TYPE_PICTURE => format!("{:?}", unsafe{WrappedPicture(self.0.data.picture)}),
+                FLAC__METADATA_TYPE_UNDEFINED => format!("{:?}", unsafe{WrappedUnknown(self.0.data.unknown)}),
+                o => format!("Unknown metadata type {o}"),
+            })
+            .finish()
+    }
+}
