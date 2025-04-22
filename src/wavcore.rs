@@ -1282,7 +1282,7 @@ pub trait ListInfo {
 
 impl ListInfo for ListChunk {
     fn get_is_list_info(&self) -> bool {
-        if let Self::Info(_) = self {true} else {false}
+        matches!(self, Self::Info(_))
     }
 
     fn get_archive(&self) -> Option<&String> {

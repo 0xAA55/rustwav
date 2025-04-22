@@ -790,7 +790,7 @@ where
         })
     }
 
-    pub fn insert_comments(&mut self, key: &'static str, value: &String) -> Result<(), FlacEncoderInitError> {
+    pub fn insert_comments(&mut self, key: &'static str, value: &str) -> Result<(), FlacEncoderInitError> {
         self.encoder.insert_comments(key, value)
     }
 
@@ -1497,7 +1497,7 @@ impl Debug for WrappedSeekPoint {
 struct WrappedSeekTable(FLAC__StreamMetadata_SeekTable);
 impl Debug for WrappedSeekTable {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-        let points: Vec<WrappedSeekPoint> = unsafe {slice::from_raw_parts(self.0.points, self.0.num_points as usize).into_iter().map(|p|{WrappedSeekPoint(*p)}).collect()};
+        let points: Vec<WrappedSeekPoint> = unsafe {slice::from_raw_parts(self.0.points, self.0.num_points as usize).iter().map(|p|{WrappedSeekPoint(*p)}).collect()};
         fmt.debug_struct("FLAC__StreamMetadata_SeekTable")
             .field("num_points", &self.0.num_points)
             .field("points", &format_args!("{:?}", points))

@@ -66,7 +66,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
 
     // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
     // Otherwise, it's not needed there.
-    let mut resampler = Resampler::new(FFT_SIZE);
+    let resampler = Resampler::new(FFT_SIZE);
 
     // The decoding audio spec
     let decode_spec = decoder.spec();
@@ -95,7 +95,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_mono(&resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_monos(&block).unwrap();
             }
         },
@@ -106,7 +106,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_stereo(&resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_stereos(&block).unwrap();
             }
         },
@@ -117,7 +117,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(&mut resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_frames(&resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_frames(&block).unwrap();
             }
         }
@@ -281,7 +281,7 @@ fn test_flac() -> ExitCode {
                 Ok(())
             })
         } else {
-            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+            Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
         }
     };
     let on_tell = || -> Result<u64, io::Error> {
@@ -290,7 +290,7 @@ fn test_flac() -> ExitCode {
                 writer.stream_position()
             })
         } else {
-            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+            Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
         }
     };
 
@@ -303,7 +303,7 @@ fn test_flac() -> ExitCode {
 
     #[cfg(feature = "id3")]
     if let Some(id3_tag) = wavereader.get_id3__chunk() {
-        encoder.migrate_metadata_from_id3(&id3_tag).unwrap();
+        encoder.migrate_metadata_from_id3(id3_tag).unwrap();
     }
     if let Some(list) = wavereader.get_list_chunk() {
         match list {
@@ -385,7 +385,7 @@ fn test_flac() -> ExitCode {
     println!("======== TEST 2 ========");
 
     const FFT_SIZE: usize = 65536;
-    let mut resampler = Resampler::new(FFT_SIZE);
+    let resampler = Resampler::new(FFT_SIZE);
 
     let spec2 = Spec {
         channels: spec1.channels,
@@ -434,7 +434,7 @@ fn test_flac() -> ExitCode {
                 Ok(())
             })
         } else {
-            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+            Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
         }
     };
     let on_tell = || -> Result<u64, io::Error> {
@@ -443,14 +443,14 @@ fn test_flac() -> ExitCode {
                 reader.stream_position()
             })
         } else {
-            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+            Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
         }
     };
     let on_length = || -> Result<u64, io::Error> {
         if ALLOW_SEEK {
             Ok(length)
         } else {
-            Err(io::Error::new(io::ErrorKind::NotSeekable, format!("Not seekable.")))
+            Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
         }
     };
     let on_eof = || -> bool {
@@ -479,12 +479,10 @@ fn test_flac() -> ExitCode {
                     frames_buffer = block;
                     break;
                 }
-            } else {
-                if block.is_empty() {
-                    break;
-                }
+            } else if block.is_empty() {
+                break;
             }
-            let block = utils::do_resample_frames(&mut resampler, &block, cur_sample_rate, spec2.sample_rate);
+            let block = utils::do_resample_frames(&resampler, &block, cur_sample_rate, spec2.sample_rate);
             wavewriter.write_frames(&block)?;
         }
         cur_sample_rate = sample_rate;
@@ -531,8 +529,8 @@ fn test_flac() -> ExitCode {
 
     decoder.finalize().unwrap();
 
-    if frames_buffer.len() > 0 {
-        let block = utils::do_resample_frames(&mut resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
+    if !frames_buffer.is_empty() {
+        let block = utils::do_resample_frames(&resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
         wavewriter.write_frames(&block).unwrap();
         frames_buffer.clear();
     }
