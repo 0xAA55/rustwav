@@ -418,7 +418,7 @@ impl Debug for ChunkWriter<'_> {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("ChunkWriter")
             .field("writer", &self.writer)
-            .field("flag", &format!("{}", String::from_utf8_lossy(&self.flag)))
+            .field("flag", &format_args!("{}", String::from_utf8_lossy(&self.flag)))
             .field("pos_of_chunk_len", &self.pos_of_chunk_len)
             .field("chunk_start", &self.chunk_start)
             .finish()
@@ -1231,10 +1231,11 @@ impl ListChunk {
     }
 
     pub fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError> {
-        // INFO 节其实是很多键值对，用来标注歌曲信息。在它的字节范围的限制下，读取所有的键值对。
+        // The INFO chunk consists of multiple key-value pairs for song metadata. 
+        // Within its byte size constraints, read all key-value entries.
         let mut dict = HashMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
-            let key_chunk = ChunkHeader::read(reader)?; // 每个键其实就是一个 Chunk，它的大小值就是字符串大小值。
+            let key_chunk = ChunkHeader::read(reader)?; // Every chunk's name is a key, its content is the value.
             let value_str = read_str(reader, key_chunk.size as usize, text_encoding)?;
             dict.insert(text_encoding.decode(&key_chunk.flag), value_str);
             key_chunk.seek_to_next_chunk(reader)?;
