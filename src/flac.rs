@@ -310,11 +310,11 @@ where
         self as *mut Self
     }
 
-    fn insert_comments(&mut self, key: &'static str, value: &String) -> Result<(), FlacEncoderInitError> {
+    fn insert_comments(&mut self, key: &'static str, value: &str) -> Result<(), FlacEncoderInitError> {
         if self.encoder_initialized {
             Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::insert_comments"))
         } else {
-            if let Some(old_value) = self.comments.insert(key, value.clone()) {
+            if let Some(old_value) = self.comments.insert(key, value.to_owned()) {
                 eprintln!("\"{key}\" is changed to \"{value}\" from \"{old_value}\"");
             }
             Ok(())
