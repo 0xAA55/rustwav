@@ -707,6 +707,11 @@ where
         self.encoder.set_picture(picture_binary, description, mime_type)
     }
 
+    #[cfg(feature = "id3")]
+    pub fn migrate_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
+        self.encoder.migrate_metadata_from_id3(tag)
+    }
+
     fn ensure_initialized(&mut self) -> Result<(), FlacEncoderInitError> {
         if !self.encoder.encoder_initialized {
             self.encoder.init()?
