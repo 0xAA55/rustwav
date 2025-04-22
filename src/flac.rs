@@ -316,10 +316,11 @@ where
 
     pub fn finish(&mut self) -> Result<(), FlacEncoderError> {
         unsafe {
-            if FLAC__stream_encoder_finish(self.encoder) == 0 {
-                return self.get_status_as_error("FLAC__stream_encoder_finish");
+            if FLAC__stream_encoder_finish(self.encoder) != 0 {
+                Ok(())
+            } else {
+                self.get_status_as_error("FLAC__stream_encoder_finish")
             }
-            Ok(())
         }
     }
 
