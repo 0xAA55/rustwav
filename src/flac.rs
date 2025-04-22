@@ -521,6 +521,21 @@ impl Display for DecoderError {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum AudioForm {
+    FrameArray,
+    ChannelArray,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SamplesInfo {
+    pub samples: u32,
+    pub channels: u32,
+    pub sample_rate: u32,
+    pub bits_per_sample: u32,
+    pub audio_form: AudioForm,
+}
+
 pub struct FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
 where
     Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
@@ -528,7 +543,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>, // monos, sample_rate
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>, // monos, sample_rate
     Er: FnMut(DecoderError) {
     decoder: *mut FLAC__StreamDecoder,
     on_read: Rd,
@@ -539,6 +554,8 @@ where
     on_write: Wr,
     on_error: Er,
     md5_checking: bool,
+    pub scale_to_i32_range: bool,
+    pub desired_audio_form: AudioForm,
 }
 
 impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
@@ -548,7 +565,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     pub fn new(
         on_read: Rd,
@@ -559,6 +576,8 @@ where
         on_write: Wr,
         on_error: Er,
         md5_checking: bool,
+        scale_to_i32_range: bool,
+        desired_audio_form: AudioForm,
     ) -> Result<Self, FlacDecoderError> {
         let ret = Self {
             decoder: unsafe {FLAC__stream_decoder_new()},
@@ -570,6 +589,8 @@ where
             on_write,
             on_error,
             md5_checking,
+            scale_to_i32_range,
+            desired_audio_form,
         };
 
         if ret.decoder.is_null() {
@@ -822,7 +843,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct(&format!("FlacDecoderUnmovable<{}, {}, {}, {}, {}, {}, {}>",
@@ -853,7 +874,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     fn drop(&mut self) {
         self.on_drop();
@@ -867,7 +888,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     decoder: Box<FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>>,
 }
@@ -879,7 +900,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     pub fn new(
         on_read: Rd,
@@ -890,6 +911,8 @@ where
         on_write: Wr,
         on_error: Er,
         md5_checking: bool,
+        scale_to_i32_range: bool,
+        desired_audio_form: AudioForm,
     ) -> Result<Self, FlacDecoderError> {
         let mut ret = Self {
             decoder: Box::new(FlacDecoderUnmovable::<Rd, Sk, Tl, Ln, Ef, Wr, Er>::new(
@@ -901,6 +924,8 @@ where
                 on_write,
                 on_error,
                 md5_checking,
+                scale_to_i32_range,
+                desired_audio_form,
             )?),
         };
         ret.decoder.init()?;
@@ -936,7 +961,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error>,
     Ln: FnMut() -> Result<u64, io::Error>,
     Ef: FnMut() -> bool,
-    Wr: FnMut(&[Vec<i32>], u32) -> Result<(), io::Error>,
+    Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
     Er: FnMut(DecoderError) {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct(&format!("FlacDecoder<{}, {}, {}, {}, {}, {}, {}>",
