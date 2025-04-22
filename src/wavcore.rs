@@ -1340,10 +1340,28 @@ pub struct LablChunk {
     pub data: String,
 }
 
+impl Debug for LablChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("LablChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct NoteChunk {
     pub identifier: [u8; 4],
     pub data: String,
+}
+
+impl Debug for NoteChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("NoteChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("data", &self.data)
+            .finish()
+    }
 }
 
 #[derive(Clone)]
@@ -1356,6 +1374,21 @@ pub struct LtxtChunk {
     pub dialect: u16,
     pub code_page: u16,
     pub data: String,
+}
+
+impl Debug for LtxtChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("NoteChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("sample_length", &self.sample_length)
+            .field("purpose_id", &self.purpose_id)
+            .field("country", &self.country)
+            .field("language", &self.language)
+            .field("dialect", &self.dialect)
+            .field("code_page", &self.code_page)
+            .field("data", &self.data)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1398,7 +1431,7 @@ impl AcidChunk {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum JunkChunk{
     FullZero(u64), // 全零
     SomeData(Vec<u8>), // 有些数据
@@ -1427,6 +1460,15 @@ impl JunkChunk {
             Self::SomeData(data) => cw.writer.write_all(data)?,
         }
         Ok(())
+    }
+}
+
+impl Debug for JunkChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::FullZero(size) => write!(f, "[0u8; {size}]"),
+            Self::SomeData(data) => write!(f, "[{}]", data.iter().map(|byte|{format!("0x{:02}", byte)}).collect::<Vec<String>>().join(", ")),
+        }
     }
 }
 
