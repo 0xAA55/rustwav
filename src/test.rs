@@ -241,6 +241,7 @@ fn test_normal() -> ExitCode {
 }
 
 use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering};
+use crate::wavcore::{ListChunk, ListInfo};
 use crate::readwrite::{SharedReader, SharedWriter};
 use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder};
 #[allow(unused_imports)]
@@ -299,6 +300,49 @@ fn test_flac() -> ExitCode {
         on_tell,
         &params,
     ).unwrap();
+
+    #[cfg(feature = "id3")]
+    if let Some(id3_tag) = wavereader.get_id3__chunk() {
+        encoder.migrate_metadata_from_id3(&id3_tag).unwrap();
+    }
+    if let Some(list) = wavereader.get_list_chunk() {
+        match list {
+            ListChunk::Info(_) => {
+                if let Some(data) = list.get_artist() {
+                    encoder.insert_comments("ARTIST", data).unwrap();
+                }
+                if let Some(data) = list.get_comment() {
+                    encoder.insert_comments("COMMENT", data).unwrap();
+                }
+                if let Some(data) = list.get_copyright() {
+                    encoder.insert_comments("COPYRIGHT", data).unwrap();
+                }
+                if let Some(data) = list.get_create_date() {
+                    encoder.insert_comments("DATE", data).unwrap();
+                }
+                if let Some(data) = list.get_genre() {
+                    encoder.insert_comments("GENRE", data).unwrap();
+                }
+                if let Some(data) = list.get_source() {
+                    encoder.insert_comments("ORGANIZATION", data).unwrap();
+                }
+                if let Some(data) = list.get_name() {
+                    encoder.insert_comments("TITLE", data).unwrap();
+                }
+            },
+            ListChunk::Adtl(adtls) => {
+                use wavcore::AdtlChunk;
+                // Don't know how to read these data, just print them if a test WAV file contains them.
+                for adtl in adtls.iter() {
+                    match adtl{
+                        AdtlChunk::Labl(labl) => println!("labl: {:?}", labl),
+                        AdtlChunk::Note(note) => println!("note: {:?}", note),
+                        AdtlChunk::Ltxt(ltxt) => println!("ltxt: {:?}", ltxt),
+                    }
+                }
+            },
+        }
+    }
 
     let process_size = 65536;
     match spec1.channels {
