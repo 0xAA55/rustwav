@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
+// need `libflac-sys`
 
 use std::{any::type_name, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr, collections::BTreeMap};
 
@@ -327,13 +329,13 @@ where
         }
     }
 
-    fn set_picture(&mut self, picture_binary: &[u8], description: &String, mime_type: &String) -> Result<(), FlacEncoderInitError> {
+    fn set_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str) -> Result<(), FlacEncoderInitError> {
         if self.encoder_initialized {
             Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::set_picture"))
         } else {
             self.picture_data.picture = picture_binary.to_vec();
-            self.picture_data.description = description.clone();
-            self.picture_data.mime_type = mime_type.clone();
+            self.picture_data.description = description.to_owned();
+            self.picture_data.mime_type = mime_type.to_owned();
             Ok(())
         }
     }
@@ -355,10 +357,8 @@ where
             if FLAC__stream_encoder_set_sample_rate(self.encoder, self.params.sample_rate) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_set_sample_rate");
             }
-            if self.params.total_samples_estimate > 0 {
-                if FLAC__stream_encoder_set_total_samples_estimate(self.encoder, self.params.total_samples_estimate) == 0 {
-                    return self.get_status_as_error("FLAC__stream_encoder_set_total_samples_estimate");
-                }
+            if self.params.total_samples_estimate > 0 && FLAC__stream_encoder_set_total_samples_estimate(self.encoder, self.params.total_samples_estimate) == 0 {
+                return self.get_status_as_error("FLAC__stream_encoder_set_total_samples_estimate");
             }
 
             // Metadata Initialization Workflow:
@@ -459,7 +459,7 @@ where
                             break 'set_picture;
                         }
                         if FLAC__metadata_object_picture_set_description(picture_meta,
-                            (*self.picture_data.description).as_mut_ptr() as *mut u8,
+                            (*self.picture_data.description).as_mut_ptr(),
                             0) == 0 {
                             eprintln!("Failed to set picture mime type: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_description"));
                             break 'set_picture;
@@ -541,14 +541,14 @@ where
 
     unsafe extern "C" fn metadata_callback(_encoder: *const FLAC__StreamEncoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
         let _this = &mut *(client_data as *mut Self);
-        let _meta = &*(metadata as *const FLAC__StreamMetadata);
+        let _meta = metadata;
     }
 
     pub fn write_monos(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
         if monos.is_empty() {return Ok(())}
         match self.params.channels {
             1 => unsafe {
-                if FLAC__stream_encoder_process_interleaved(self.encoder, monos.as_ptr() as *const i32, monos.len() as u32) == 0 {
+                if FLAC__stream_encoder_process_interleaved(self.encoder, monos.as_ptr(), monos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
                 Ok(())
@@ -564,7 +564,7 @@ where
             1 => self.write_monos(&stereos.iter().map(|(l, r): &(i32, i32)| -> i32 {((*l as i64 + *r as i64) / 2) as i32}).collect::<Vec<i32>>()),
             2 => unsafe {
                 let samples: Vec<i32> = stereos.iter().flat_map(|(l, r): &(i32, i32)| -> [i32; 2] {[*l, *r]}).collect();
-                if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, stereos.len() as u32) == 0 {
+                if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr(), stereos.len() as u32) == 0 {
                     return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
                 }
                 Ok(())
@@ -581,7 +581,7 @@ where
             } else {frame.to_vec()}
         }).collect();
         unsafe {
-            if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr() as *const i32, frames.len() as u32) == 0 {
+            if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr(), frames.len() as u32) == 0 {
                 return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
             }
         }
@@ -681,7 +681,7 @@ where
         self.encoder.insert_cue_track(track_no, cue_track)
     }
 
-    pub fn set_picture(&mut self, picture_binary: &[u8], description: &String, mime_type: &String) -> Result<(), FlacEncoderInitError> {
+    pub fn set_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str) -> Result<(), FlacEncoderInitError> {
         self.encoder.set_picture(picture_binary, description, mime_type)
     }
 
@@ -962,7 +962,7 @@ where
             };
 
             *bytes = bytes_read;
-            ret as u32
+            ret
         }
     }
 
@@ -1097,7 +1097,7 @@ where
 
     unsafe extern "C" fn metadata_callback(_decoder: *const FLAC__StreamDecoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
         let _this = &mut *(client_data as *mut Self);
-        let _meta = &*(metadata as *const FLAC__StreamMetadata);
+        let _meta = metadata;
     }
 
     unsafe extern "C" fn error_callback(_decoder: *const FLAC__StreamDecoder, status: u32, client_data: *mut c_void) {
