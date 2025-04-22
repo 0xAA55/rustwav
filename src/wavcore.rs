@@ -1268,22 +1268,26 @@ pub enum AdtlChunk {
 impl AdtlChunk {
     pub fn read(reader: &mut impl Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
         let sub_chunk = ChunkHeader::read(reader)?;
+        let mut buf = [0u8; 4];
         let ret = match &sub_chunk.flag {
             b"labl" => {
+                reader.read_exact(&mut buf)?;
                 Self::Labl(LablChunk{
-                    identifier: u32::read_le(reader)?,
+                    identifier: buf,
                     data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
                 })
             },
             b"note" => {
+                reader.read_exact(&mut buf)?;
                 Self::Note(NoteChunk{
-                    identifier: u32::read_le(reader)?,
+                    identifier: buf,
                     data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
                 })
             },
             b"ltxt" => {
+                reader.read_exact(&mut buf)?;
                 Self::Ltxt(LtxtChunk{
-                    identifier: u32::read_le(reader)?,
+                    identifier: buf,
                     sample_length: u32::read_le(reader)?,
                     purpose_id: read_str(reader, 4, text_encoding)?,
                     country: u16::read_le(reader)?,
@@ -1305,17 +1309,17 @@ impl AdtlChunk {
         match self {
             Self::Labl(labl) => {
                 let cw = ChunkWriter::begin(writer, b"labl")?;
-                labl.identifier.write_le(cw.writer)?;
+                cw.writer.write_all(&labl.identifier)?;
                 write_str(cw.writer, &labl.data, text_encoding)?;
             },
             Self::Note(note) => {
                 let cw = ChunkWriter::begin(writer, b"note")?;
-                note.identifier.write_le(cw.writer)?;
+                cw.writer.write_all(&note.identifier)?;
                 write_str(cw.writer, &note.data, text_encoding)?;
             },
             Self::Ltxt(ltxt) => {
                 let cw = ChunkWriter::begin(writer, b"ltxt")?;
-                ltxt.identifier.write_le(cw.writer)?;
+                cw.writer.write_all(&ltxt.identifier)?;
                 ltxt.sample_length.write_le(cw.writer)?;
                 write_str_sized(cw.writer, &ltxt.purpose_id, 4, text_encoding)?;
                 ltxt.country.write_le(cw.writer)?;
@@ -1329,21 +1333,21 @@ impl AdtlChunk {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LablChunk {
-    pub identifier: u32,
+    pub identifier: [u8; 4],
     pub data: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NoteChunk {
-    pub identifier: u32,
+    pub identifier: [u8; 4],
     pub data: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LtxtChunk {
-    pub identifier: u32,
+    pub identifier: [u8; 4],
     pub sample_length: u32,
     pub purpose_id: String,
     pub country: u16,
