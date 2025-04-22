@@ -6,6 +6,9 @@ use std::{any::type_name, io::{self, ErrorKind}, fmt::{self, Debug, Display, For
 
 use libflac_sys::*;
 
+#[cfg(feature = "id3")]
+use id3::{self, TagLike};
+
 #[derive(Debug, Clone, Copy)]
 pub enum FlacCompression {
     Level0 = 0,
@@ -338,6 +341,25 @@ where
             self.picture_data.mime_type = mime_type.to_owned();
             Ok(())
         }
+    }
+
+    #[cfg(feature = "id3")]
+    fn migrate_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
+        if let Some(artist) = tag.artist() {self.insert_comments("ARTIST", artist)?;}
+        if let Some(album) = tag.album() {self.insert_comments("ALBUM", album)?;}
+        if let Some(title) = tag.title() {self.insert_comments("TITLE", title)?;}
+        if let Some(genre) = tag.genre() {self.insert_comments("GENRE", genre)?;}
+        if let Some(picture) = tag.pictures().next() {
+            self.set_picture(&picture.data, &picture.description, &picture.mime_type)?;
+        }
+        let comm_str = tag.comments().enumerate().map(|(i, comment)| -> String {
+            let lang = &comment.lang;
+            let desc = &comment.description;
+            let text = &comment.text;
+            format!("Comment {i}:\n\tlang: {lang}\n\tdesc: {desc}\n\ttext: {text}")
+        }).collect::<Vec<String>>().join("\n");
+        if !comm_str.is_empty() {self.insert_comments("COMMENT", &comm_str)?;}
+        Ok(())
     }
 
     fn init(&mut self) -> Result<(), FlacEncoderError> {
