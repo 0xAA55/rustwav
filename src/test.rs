@@ -458,23 +458,27 @@ fn test_flac() -> ExitCode {
         true,
     ).unwrap();
 
-    // while !on_eof() {
-    //     match decoder.decode() {
-    //         Ok(go_on) => {
-    //             if !go_on {
-    //                 break;
-    //             }
-    //         },
-    //         Err(e) => {
-    //             if e.get_code() == 4 {
-    //                 break;
-    //             } else {
-    //                 panic!("{:?}", e);
-    //             }
-    //         }
-    //     }
-    // }
-    decoder.decode_all().unwrap();
+    const BY_BLOCKS: bool = false;
+    if BY_BLOCKS {
+        while !on_eof() {
+            match decoder.decode() {
+                Ok(go_on) => {
+                    if !go_on {
+                        break;
+                    }
+                },
+                Err(e) => {
+                    if e.get_code() == 4 {
+                        break;
+                    } else {
+                        panic!("{:?}", e);
+                    }
+                }
+            }
+        }
+    } else {
+        decoder.decode_all().unwrap();
+    }
 
     decoder.finalize().unwrap();
 
