@@ -506,7 +506,6 @@ pub enum DecoderError {
     UnparseableStream,
     BadMetadata,
     OutOfBounds,
-    MissingFrame,
 }
 
 impl Display for DecoderError {
@@ -518,7 +517,6 @@ impl Display for DecoderError {
             Self::UnparseableStream => write!(f, "FLAC: The decoder encountered reserved fields in use in the stream."),
             Self::BadMetadata => write!(f, "FLAC: The decoder encountered a corrupted metadata block."),
             Self::OutOfBounds => write!(f, "FLAC: The decoder encountered a otherwise valid frame in which the decoded samples exceeded the range offered by the stated bit depth."),
-            Self::MissingFrame => write!(f, "FLAC: Two adjacent frames had frame numbers increasing by more than 1 or sample numbers increasing by more than the blocksize, indicating that one or more frame/frames was missing between them. The decoder will sent out one or more ´fake' constant subframes to fill up the gap."),
         }
     }
 }
@@ -759,8 +757,7 @@ where
             FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER => DecoderError::BadHeader,
             FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH => DecoderError::FrameCrcMismatch,
             FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM => DecoderError::UnparseableStream,
-            // FLAC__STREAM_DECODER_ERROR_STATUS_BAD_METADATA => DecoderError::BadMetadata,
-            // FLAC__STREAM_DECODER_ERROR_STATUS_MISSING_FRAME => DecoderError::MissingFrame,
+            FLAC__STREAM_DECODER_ERROR_STATUS_BAD_METADATA => DecoderError::BadMetadata,
             o => panic!("Unknown value of `FLAC__StreamDecoderErrorStatus`: {o}"),
         });
     }
