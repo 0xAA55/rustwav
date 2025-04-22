@@ -412,7 +412,8 @@ fn test_flac() -> ExitCode {
             Ok(reader.stream_position()? >= length)
         }).unwrap()
     };
-    let on_write = |frames: &[Vec<i32>], sample_rate: u32| -> Result<(), io::Error> {
+    let on_write = |frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
+        let sample_rate = sample_info.sample_rate;
         if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
         let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
         frames_buffer.extend(frames.to_vec());
@@ -456,6 +457,8 @@ fn test_flac() -> ExitCode {
         on_write,
         on_error,
         true,
+        true,
+        flac::AudioForm::FrameArray,
     ).unwrap();
 
     const BY_BLOCKS: bool = false;
