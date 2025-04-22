@@ -656,7 +656,8 @@ where
 
     unsafe extern "C" fn metadata_callback(_encoder: *const FLAC__StreamEncoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
         let _this = &mut *(client_data as *mut Self);
-        let _meta = metadata;
+        let meta = *metadata;
+        println!("{:?}", WrappedStreamMetadata(meta))
     }
 
     pub fn write_monos(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
@@ -1219,7 +1220,8 @@ where
 
     unsafe extern "C" fn metadata_callback(_decoder: *const FLAC__StreamDecoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
         let _this = &mut *(client_data as *mut Self);
-        let _meta = metadata;
+        let meta = *metadata;
+        println!("{:?}", WrappedStreamMetadata(meta))
     }
 
     unsafe extern "C" fn error_callback(_decoder: *const FLAC__StreamDecoder, status: u32, client_data: *mut c_void) {
