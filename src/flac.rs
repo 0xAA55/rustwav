@@ -720,6 +720,7 @@ where
                     Ok(_) => (),
                     Err(e) => eprintln!("On FlacEncoderUnmovable::finish(): {:?}", e),
                 }
+                self.metadata.clear();
                 FLAC__stream_encoder_delete(self.encoder);
                 self.encoder = ptr::null_mut();
             }
