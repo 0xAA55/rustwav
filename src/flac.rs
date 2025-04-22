@@ -241,6 +241,7 @@ impl PictureData {
             description: "".to_owned(),
         }
     }
+    // https://xiph.org/flac/api/group__flac__metadata__object.html
 }
 
 pub struct FlacEncoderUnmovable<Wr, Sk, Tl>
@@ -248,6 +249,7 @@ where
     Wr: FnMut(&[u8]) -> Result<(), io::Error>,
     Sk: FnMut(u64) -> Result<(), io::Error>,
     Tl: FnMut() -> Result<u64, io::Error> {
+    // https://xiph.org/flac/api/group__flac__stream__encoder.html
     encoder: *mut FLAC__StreamEncoder,
     encoder_initialized: bool,
     params: FlacEncoderParams,
@@ -870,6 +872,7 @@ where
     Ef: FnMut() -> bool,
     Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>, // monos, sample_rate
     Er: FnMut(DecoderError) {
+    // https://xiph.org/flac/api/group__flac__stream__decoder.html
     decoder: *mut FLAC__StreamDecoder,
     on_read: Rd,
     on_seek: Sk,
