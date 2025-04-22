@@ -226,11 +226,21 @@ pub const COMMENT_KEYS: [&str; 31] = [
     "vendor"
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PictureData {
     pub picture: Vec<u8>,
     pub mime_type: String,
     pub description: String,
+}
+
+impl Debug for PictureData {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        fmt.debug_struct("PictureData")
+            .field("picture", &format_args!("[u8; {}]", self.picture.len()))
+            .field("mime_type", &self.mime_type)
+            .field("description", &self.description)
+            .finish()
+    }
 }
 
 impl PictureData {
@@ -241,7 +251,172 @@ impl PictureData {
             description: "".to_owned(),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.picture.is_empty()
+    }
+}
+
+impl Default for PictureData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct FlacMetadata {
     // https://xiph.org/flac/api/group__flac__metadata__object.html
+    metadata: *mut FLAC__StreamMetadata,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct FlacCueTrack {
+    track: *mut FLAC__StreamMetadata_CueSheet_Track,
+}
+
+impl FlacCueTrack {
+    pub fn new() -> Result<Self, FlacEncoderError> {
+        let ret = Self {
+            track: unsafe {FLAC__metadata_object_cuesheet_track_new()},
+        };
+        if ret.track.is_null() {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_cuesheet_track_new"))
+        } else {
+            Ok(ret)
+        }
+    }
+
+    pub fn get_ref_mut(&mut self) -> &mut FLAC__StreamMetadata_CueSheet_Track {
+        unsafe {&mut *self.track}
+    }
+
+    pub fn get_ptr(&self) -> *const FLAC__StreamMetadata_CueSheet_Track{
+        self.track as *const FLAC__StreamMetadata_CueSheet_Track
+    }
+
+    pub fn get_mut_ptr(&self) -> *mut FLAC__StreamMetadata_CueSheet_Track{
+        self.track
+    }
+}
+
+impl Default for FlacCueTrack {
+    fn default() -> Self {
+        Self {
+            track: ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for FlacCueTrack {
+    fn drop(&mut self) {
+        if !self.track.is_null() {
+            unsafe {FLAC__metadata_object_cuesheet_track_delete(self.track)};
+            self.track = ptr::null_mut();
+        }
+    }
+}
+
+impl FlacMetadata {
+    pub fn new_vorbis_comment() -> Result<Self, FlacEncoderError> {
+        let ret = Self {
+            metadata: unsafe {FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)},
+        };
+        if ret.metadata.is_null() {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)"))
+        } else {
+            Ok(ret)
+        }
+    }
+
+    pub fn new_cue_sheet() -> Result<Self, FlacEncoderError> {
+        let ret = Self {
+            metadata: unsafe {FLAC__metadata_object_new(FLAC__METADATA_TYPE_CUESHEET)},
+        };
+        if ret.metadata.is_null() {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_CUESHEET)"))
+        } else {
+            Ok(ret)
+        }
+    }
+
+    pub fn new_picture() -> Result<Self, FlacEncoderError> {
+        let ret = Self {
+            metadata: unsafe {FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE)},
+        };
+        if ret.metadata.is_null() {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE)"))
+        } else {
+            Ok(ret)
+        }
+    }
+
+    pub fn insert_comments(&self, key: &'static str, value:&str) -> Result<(), FlacEncoderError> {
+        unsafe {
+            let mut entry = FLAC__StreamMetadata_VorbisComment_Entry{length: 0, entry: ptr::null_mut()};
+            if FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair (
+                &mut entry as *mut FLAC__StreamMetadata_VorbisComment_Entry,
+                CStr::from_ptr((*key).as_ptr() as *mut i8).as_ptr(),
+                CStr::from_ptr((*value).as_ptr() as *mut i8).as_ptr()
+            ) == 0 {
+                eprintln!("On set comment {key}: {value}: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair"));
+            }
+            if FLAC__metadata_object_vorbiscomment_append_comment(self.metadata, entry, 0) == 0 {
+                eprintln!("On set comment {key}: {value}: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_vorbiscomment_append_comment"));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn insert_cue_track(&mut self, track_no: u8, cue_track: &CueTrack) -> Result<(), FlacEncoderError> {
+        unsafe {
+            let mut track = FlacCueTrack::new()?;
+            let track_data = track.get_ref_mut();
+            track_data.offset = cue_track.offset;
+            track_data.number = track_no;
+            track_data.isrc = cue_track.isrc;
+            track_data.set_type(cue_track.type_);
+            track_data.set_pre_emphasis(cue_track.pre_emphasis);
+            track_data.num_indices = 0;
+            track_data.indices = ptr::null_mut();
+            if FLAC__metadata_object_cuesheet_set_track(self.metadata, track_no as u32, track.get_mut_ptr(), 0) == 0 {
+                eprintln!("Failed to create new cuesheet track for {track_no} {cue_track}:  {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_cuesheet_set_track"));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn set_picture(&mut self, picture_binary: &mut [u8], description: &mut str, mime_type: &mut str) -> Result<(), FlacEncoderError> {
+        unsafe {
+            if FLAC__metadata_object_picture_set_data(self.metadata, picture_binary.as_mut_ptr(), picture_binary.len() as u32, 0) == 0 {
+                Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_data"))
+            } else if FLAC__metadata_object_picture_set_mime_type(self.metadata, (*mime_type).as_mut_ptr() as *mut i8, 0) == 0 {
+                Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_mime_type"))
+            } else if FLAC__metadata_object_picture_set_description(self.metadata, (*description).as_mut_ptr(), 0) == 0 {
+                Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_description"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Default for FlacMetadata {
+    fn default() -> Self {
+        Self {
+            metadata: ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for FlacMetadata {
+    fn drop(&mut self) {
+        if !self.metadata.is_null() {
+            unsafe {FLAC__metadata_object_delete(self.metadata)};
+            self.metadata = ptr::null_mut();
+        }
+    }
 }
 
 pub struct FlacEncoderUnmovable<Wr, Sk, Tl>
@@ -251,6 +426,7 @@ where
     Tl: FnMut() -> Result<u64, io::Error> {
     // https://xiph.org/flac/api/group__flac__stream__encoder.html
     encoder: *mut FLAC__StreamEncoder,
+    metadata: Vec<FlacMetadata>,
     encoder_initialized: bool,
     params: FlacEncoderParams,
     on_write: Wr,
@@ -274,6 +450,7 @@ where
     ) -> Result<Self, FlacEncoderError> {
         let ret = Self {
             encoder: unsafe {FLAC__stream_encoder_new()},
+            metadata: Vec::<FlacMetadata>::new(),
             encoder_initialized: false,
             params: *params,
             on_write,
@@ -385,127 +562,38 @@ where
                 return self.get_status_as_error("FLAC__stream_encoder_set_total_samples_estimate");
             }
 
-            // Metadata Initialization Workflow:
-            // ------------------------------------------
-            // The `metadata` array aggregates heterogeneous metadata entries:
-            // - Primitive types (u32, enums)
-            // - Structs (e.g., VORBIS_COMMENT, SEEKTABLE)
-            // - String literals (static `&str` slices)
-            // - Owned strings (`String` via FLAC APIs)
-            //
-            // FLAC API Contract:
-            // - Each metadata entry must be added via `FLAC__metadata_object_new()` and
-            //   populated with type-specific setters (e.g., `FLAC__metadata_set_vorbis_comment()`).
-            // - `FLAC__stream_encoder_set_metadata()` performs a deep copy of each entry’s memory,
-            //   including structs and primitives. For strings:
-            //   - String pointers (e.g., `*const c_char`) are shallow-copied.
-            //   - Caller retains ownership of the underlying `String` data (managed in `BTree<String>`),
-            //     which must outlive the encoder.
-            //
-            // Safety Invariants:
-            // - After encoder initialization via `FLAC__stream_encoder_init_stream()`, all metadata
-            //   pointers are invalidated and MUST NOT be modified/freed until encoding finishes.
-            // - `BTree<String>` acts as the source-of-truth for string lifetimes, ensuring no use-after-free.
-            //
-            // Error Handling:
-            // - Metadata API errors (e.g., invalid seek points) are captured via `FlacEncoderError`,
-            //   which decodes `FLAC__StreamEncoderState` into human-readable messages.
-            // - Non-critical errors are logged via `eprintln!()` but do not abort initialization.
-            let mut metadata = Vec::<*mut FLAC__StreamMetadata>::new();
-            if !self.comments.is_empty() {
-                let comments_meta = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
-                if !comments_meta.is_null() {
-                    'set_comments: loop {
-                        let mut entry = FLAC__StreamMetadata_VorbisComment_Entry{length: 0, entry: ptr::null_mut()};
-                        for (key, value) in self.comments.iter() {
-                            if FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
-                                &mut entry as *mut FLAC__StreamMetadata_VorbisComment_Entry,
-                                CStr::from_ptr((*key).as_ptr() as *mut i8).as_ptr(),
-                                CStr::from_ptr((*value).as_ptr() as *mut i8).as_ptr()
-                            ) == 0 {
-                                eprintln!("On set comment {key}: {value}: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair"));
-                                break 'set_comments;
-                            }
-                            if FLAC__metadata_object_vorbiscomment_append_comment(comments_meta, entry, 0) == 0 {
-                                eprintln!("On set comment {key}: {value}: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_vorbiscomment_append_comment"));
-                                break 'set_comments;
-                            }
-                        }
-                        break 'set_comments;
+            let set_metadata: Result<(), FlacEncoderError> = {
+                if !self.comments.is_empty() {
+                    let metadata = FlacMetadata::new_vorbis_comment()?;
+                    for (key, value) in self.comments.iter() {
+                        metadata.insert_comments(key, value)?;
                     }
-                    metadata.push(comments_meta);
+                    self.metadata.push(metadata);
+                }
+                if !self.cue_sheet.is_empty() {
+                    let mut metadata = FlacMetadata::new_cue_sheet()?;
+                    for (track_no, cue_track) in self.cue_sheet.iter() {
+                        metadata.insert_cue_track(*track_no, cue_track)?;
+                    }
+                    self.metadata.push(metadata);
+                }
+                if !self.picture_data.is_empty() {
+                    let mut metadata = FlacMetadata::new_picture()?;
+                    metadata.set_picture(&mut self.picture_data.picture, &mut self.picture_data.description, &mut self.picture_data.mime_type)?;
+                    self.metadata.push(metadata);
+                }
+                if !self.metadata.is_empty() {
+                    if FLAC__stream_encoder_set_metadata(self.encoder, self.metadata.as_mut_ptr() as *mut *mut FLAC__StreamMetadata, self.metadata.len() as u32) == 0 {
+                        Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FLAC__stream_encoder_set_metadata"))
+                    } else {
+                        Ok(())
+                    }
                 } else {
-                    eprintln!("{:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)"));
+                    Ok(())
                 }
-            }
-            if !self.cue_sheet.is_empty() {
-                let cue_sheet_meta = FLAC__metadata_object_new(FLAC__METADATA_TYPE_CUESHEET);
-                if !cue_sheet_meta.is_null() {
-                    'set_cue_sheet: loop {
-                        for (track_no, cue_track) in self.cue_sheet.iter() {
-                            let track = FLAC__metadata_object_cuesheet_track_new();
-                            if track.is_null() {
-                                eprintln!("Failed to create new cuesheet track for {track_no} {cue_track}:  {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_cuesheet_track_new"));
-                                continue;
-                            }
-                            let mut track_data = *track;
-                            track_data.offset = cue_track.offset;
-                            track_data.number = *track_no;
-                            track_data.isrc = cue_track.isrc;
-                            track_data.set_type(cue_track.type_);
-                            track_data.set_pre_emphasis(cue_track.pre_emphasis);
-                            track_data.num_indices = 0;
-                            track_data.indices = ptr::null_mut();
-                            if FLAC__metadata_object_cuesheet_set_track(cue_sheet_meta, *track_no as u32, track, 0) == 0 {
-                                eprintln!("Failed to create new cuesheet track for {track_no} {cue_track}:  {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_cuesheet_set_track"));
-                            }
-                            FLAC__metadata_object_cuesheet_track_delete(track);
-                        }
-                        break 'set_cue_sheet;
-                    }
-                    metadata.push(cue_sheet_meta);
-                } else {
-                    eprintln!("{:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_CUESHEET)"));
-                }
-            }
-            if !self.picture_data.picture.is_empty() {
-                let picture_meta = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE);
-                if !picture_meta.is_null() {
-                    'set_picture: loop {
-                        if FLAC__metadata_object_picture_set_data(picture_meta, self.picture_data.picture.as_mut_ptr(), self.picture_data.picture.len() as u32, 0) == 0 {
-                            eprintln!("Failed to set picture: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_data"));
-                            break 'set_picture;
-                        }
-                        if FLAC__metadata_object_picture_set_mime_type(picture_meta,
-                            (*self.picture_data.mime_type).as_mut_ptr() as *mut i8,
-                            0) == 0 {
-                            eprintln!("Failed to set picture mime type: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_mime_type"));
-                            break 'set_picture;
-                        }
-                        if FLAC__metadata_object_picture_set_description(picture_meta,
-                            (*self.picture_data.description).as_mut_ptr(),
-                            0) == 0 {
-                            eprintln!("Failed to set picture mime type: {:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_picture_set_description"));
-                            break 'set_picture;
-                        }
-                        break 'set_picture;
-                    }
-                    metadata.push(picture_meta);
-                } else {
-                    eprintln!("{:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE)"));
-                }
-            }
-            if !metadata.is_empty() {
-                if FLAC__stream_encoder_set_metadata(self.encoder, metadata.as_mut_ptr(), metadata.len() as u32) == 0 {
-                    eprintln!("{:?}", FlacEncoderError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FLAC__stream_encoder_set_metadata"));
-                }
-                // 此时即可删除所有的元数据信息，因为它们已经被传递到了 `self.encoder` 里面了，并且估计已经被写入到 FLAC 文件了，将不会再用上。
-                for meta in metadata.iter_mut() {
-                    if !meta.is_null() {
-                        FLAC__metadata_object_delete(*meta);
-                    }
-                }
-                metadata.clear();
+            };
+            if let Err(e) = set_metadata {
+                eprintln!("When setting the metadata: {:?}", e);
             }
             let ret = FLAC__stream_encoder_init_stream(self.encoder,
                 Some(Self::write_callback),
