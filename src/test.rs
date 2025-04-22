@@ -307,6 +307,7 @@ fn test_flac() -> ExitCode {
                 if block.is_empty() {
                     break;
                 }
+                let block: Vec<i32> = block.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect();
                 encoder.write_monos(&block).unwrap();
             }
         },
@@ -317,6 +318,7 @@ fn test_flac() -> ExitCode {
                 if block.is_empty() {
                     break;
                 }
+                let block: Vec<(i32, i32)> = block.into_iter().map(|(l, r): (i16, i16)| -> (i32, i32) {(l as i32, r as i32)}).collect();
                 encoder.write_stereos(&block).unwrap();
             }
         },
@@ -327,6 +329,7 @@ fn test_flac() -> ExitCode {
                 if block.is_empty() {
                     break;
                 }
+                let block: Vec<Vec<i32>> = block.into_iter().map(|frame: Vec<i16>| -> Vec<i32> {frame.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect()}).collect();
                 encoder.write_frames(&block).unwrap();
             }
         },
