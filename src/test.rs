@@ -252,10 +252,14 @@ fn test_flac() -> ExitCode {
     const ALLOW_SEEK: bool = true;
 
     let args: Vec<String> = args().collect();
-    if args.len() < 4 {return ExitCode::from(1);}
+    if args.len() < 5 {return ExitCode::from(1);}
+    let input_wav = &args[1];
+    let output_flac = &args[2];
+    let input_flac = &args[3];
+    let output_wav = &args[4];
 
     println!("======== TEST 1 ========");
-    let mut wavereader = WaveReader::open(&args[1]).unwrap();
+    let mut wavereader = WaveReader::open(input_wav).unwrap();
     let spec1 = wavereader.spec();
 
     let mut params = FlacEncoderParams::new();
@@ -267,7 +271,7 @@ fn test_flac() -> ExitCode {
 
     dbg!(&params);
 
-    let writer = SharedWriter::new(BufWriter::new(File::create(&args[2]).unwrap()));
+    let writer = SharedWriter::new(BufWriter::new(File::create(output_flac).unwrap()));
 
     let on_write = |encoded: &[u8]| -> Result<(), io::Error> {
         writer.escorted_write(|writer|{
@@ -339,17 +343,8 @@ fn test_flac() -> ExitCode {
                     encoder.insert_comments("PRODUCER", data).unwrap();
                 }
             },
-            ListChunk::Adtl(adtls) => {
-                use wavcore::AdtlChunk;
-                // It's confirmed that these data are for the cue tracks data, not for the metadata.
-                for adtl in adtls.iter() {
-                    match adtl{
-                        AdtlChunk::Labl(labl) => println!("labl: {:?}", labl),
-                        AdtlChunk::Note(note) => println!("note: {:?}", note),
-                        AdtlChunk::Ltxt(ltxt) => println!("ltxt: {:?}", ltxt),
-                        AdtlChunk::File(file) => println!("file: {:?}", file),
-                    }
-                }
+            ListChunk::Adtl(_) => {
+                eprintln!("Don't have `INFO` data in the WAV file, try to print some `adtl` data:\n{:?}", wavereader.create_full_info_cue_data());
             },
         }
     }
@@ -405,8 +400,8 @@ fn test_flac() -> ExitCode {
         sample_format: SampleFormat::Int,
     };
 
-    let reader = SharedReader::new(BufReader::new(File::open(&args[2]).unwrap()));
-    let mut wavewriter = WaveWriter::create(&args[3], &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let reader = SharedReader::new(BufReader::new(File::open(input_flac).unwrap()));
+    let mut wavewriter = WaveWriter::create(output_wav, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     let length = reader.escorted_work(|reader| -> Result<u64, io::Error> {
         let cur = reader.stream_position()?;
