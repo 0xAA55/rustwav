@@ -1298,6 +1298,7 @@ pub trait ListInfo {
     fn get_archive(&self) -> Option<&String>;
     fn get_artist(&self) -> Option<&String>;
     fn get_comment(&self) -> Option<&String>;
+    fn get_producer(&self) -> Option<&String>;
     fn get_copyright(&self) -> Option<&String>;
     fn get_create_date(&self) -> Option<&String>;
     fn get_engineer(&self) -> Option<&String>;
@@ -1329,6 +1330,10 @@ impl ListInfo for ListChunk {
 
     fn get_comment(&self) -> Option<&String> {
         if let Self::Info(dict) = self {dict.get("ICMT")} else {None}
+    }
+
+    fn get_producer(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ICMS")} else {None}
     }
 
     fn get_copyright(&self) -> Option<&String> {
