@@ -19,7 +19,7 @@ pub trait EncoderToImpl: Debug {
     fn get_bitrate(&self, channels: u16) -> u32;
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
+    fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError>;
 
     // Channel-agnostic low-level sample writers. Default impls exist except for `f32`.
     fn write_samples__i8(&mut self, writer: &mut dyn Writer, samples: &[i8 ]) -> Result<(), AudioWriteError>;
@@ -162,8 +162,8 @@ impl EncoderToImpl for () {
         panic!("Must implement `update_fmt_chunk()` for your encoder.");
     }
 
-    fn finalize(&mut self, _writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        panic!("Must implement `finalize()` for your encoder to flush the data.");
+    fn finish(&mut self, _writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        panic!("Must implement `finish()` for your encoder to flush the data.");
     }
 
     fn write_samples_f32(&mut self, _writer: &mut dyn Writer, _samples: &[f32]) -> Result<(), AudioWriteError> {
@@ -207,8 +207,8 @@ impl Encoder {
         self.encoder.update_fmt_chunk(fmt)
     }
 
-    pub fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.encoder.finalize(writer)
+    pub fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.encoder.finish(writer)
     }
 
     pub fn write_samples<S>(&mut self, writer: &mut dyn Writer, samples: &[S]) -> Result<(), AudioWriteError>
@@ -524,7 +524,7 @@ impl EncoderToImpl for PcmEncoder {
         Ok(())
     }
 
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+    fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
     }
 
@@ -619,7 +619,7 @@ where E: adpcm::AdpcmEncoder {
         Ok(self.encoder.modify_fmt_chunk(fmt)?)
     }
 
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+    fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         self.encoder.flush(|nibble: u8|{ self.nibbles.push(nibble);})?;
         self.flush_buffers(writer)?;
         Ok(writer.flush()?)
@@ -710,7 +710,7 @@ impl EncoderToImpl for PcmXLawEncoderWrap {
         Ok(())
     }
 
-    fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+    fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         Ok(writer.flush()?)
     }
 
@@ -1314,7 +1314,7 @@ pub mod mp3 {
                 Ok(())
             }
 
-            fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+            fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
                 self.finish(writer)
             }
 
@@ -1615,7 +1615,7 @@ pub mod opus {
                 fmt.block_align = self.num_samples_per_encode as u16;
                 Ok(())
             }
-            fn finalize(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+            fn finish(&mut self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
                 self.flush(writer)?;
                 writer.flush()?;
                 Ok(())
