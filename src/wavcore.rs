@@ -1505,33 +1505,32 @@ impl ListChunk {
     }
 }
 
-    pub fn get_dict_descriptions() -> HashMap<&'static str, &'static str> {
-        [ // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
-            ("IARL", "The location where the subject of the file is archived"),
-            ("IART", "The artist of the original subject of the file"),
-            ("ICMS", "The name of the person or organization that commissioned the original subject of the file"),
-            ("ICMT", "General comments about the file or its subject"),
-            ("ICOP", "Copyright information about the file (e.g., \"Copyright Some Company 2011\")"),
-            ("ICRD", "The date the subject of the file was created (creation date) (e.g., \"2022-12-31\")"),
-            ("ICRP", "Whether and how an image was cropped"),
-            ("IDIM", "The dimensions of the original subject of the file"),
-            ("IDPI", "Dots per inch settings used to digitize the file"),
-            ("IENG", "The name of the engineer who worked on the file"),
-            ("IGNR", "The genre of the subject"),
-            ("IKEY", "A list of keywords for the file or its subject"),
-            ("ILGT", "Lightness settings used to digitize the file"),
-            ("IMED", "Medium for the original subject of the file"),
-            ("INAM", "Title of the subject of the file (name)"),
-            ("IPLT", "The number of colors in the color palette used to digitize the file"),
-            ("IPRD", "Name of the title the subject was originally intended for"),
-            ("ISBJ", "Description of the contents of the file (subject)"),
-            ("ISFT", "Name of the software package used to create the file"),
-            ("ISRC", "The name of the person or organization that supplied the original subject of the file"),
-            ("ISRF", "The original form of the material that was digitized (source form)"),
-            ("ITCH", "The name of the technician who digitized the subject file"),
-            ("ITRK", "The track number of the file")
-        ].iter().copied().collect()
-    }
+pub fn get_list_info_map() -> HashMap<&'static str, &'static str> {
+    [ // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
+        ("IARL", "The location where the subject of the file is archived"),
+        ("IART", "The artist of the original subject of the file"),
+        ("ICMS", "The name of the person or organization that commissioned the original subject of the file"),
+        ("ICMT", "General comments about the file or its subject"),
+        ("ICOP", "Copyright information about the file (e.g., \"Copyright Some Company 2011\")"),
+        ("ICRD", "The date the subject of the file was created (creation date) (e.g., \"2022-12-31\")"),
+        ("ICRP", "Whether and how an image was cropped"),
+        ("IDIM", "The dimensions of the original subject of the file"),
+        ("IDPI", "Dots per inch settings used to digitize the file"),
+        ("IENG", "The name of the engineer who worked on the file"),
+        ("IGNR", "The genre of the subject"),
+        ("IKEY", "A list of keywords for the file or its subject"),
+        ("ILGT", "Lightness settings used to digitize the file"),
+        ("IMED", "Medium for the original subject of the file"),
+        ("INAM", "Title of the subject of the file (name)"),
+        ("IPLT", "The number of colors in the color palette used to digitize the file"),
+        ("IPRD", "Name of the title the subject was originally intended for"),
+        ("ISBJ", "Description of the contents of the file (subject)"),
+        ("ISFT", "Name of the software package used to create the file"),
+        ("ISRC", "The name of the person or organization that supplied the original subject of the file"),
+        ("ISRF", "The original form of the material that was digitized (source form)"),
+        ("ITCH", "The name of the technician who digitized the subject file"),
+        ("ITRK", "The track number of the file")
+    ].iter().copied().collect()
 }
 
 pub trait ListInfo {
@@ -1816,4 +1815,3 @@ pub mod Id3{
                 .finish_non_exhaustive()
         }
     }
-}
