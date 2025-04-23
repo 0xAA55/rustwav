@@ -11,7 +11,7 @@ use crate::wavcore;
 use crate::wavcore::Spec;
 use crate::wavcore::ChunkHeader;
 use crate::wavcore::{FmtChunk, ExtensionData};
-use crate::wavcore::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
@@ -39,9 +39,11 @@ pub struct WaveReader {
     fact_data: u64, // Total samples in the data chunk
     data_chunk: WaveDataReader,
     text_encoding: StringCodecMaps,
+    slnt_chunk: Option<SlntChunk>,
     bext_chunk: Option<BextChunk>,
     smpl_chunk: Option<SmplChunk>,
     inst_chunk: Option<InstChunk>,
+    plst_chunk: Option<PlstChunk>,
     cue__chunk: Option<CueChunk>,
     axml_chunk: Option<String>,
     ixml_chunk: Option<String>,
@@ -116,9 +118,11 @@ impl WaveReader {
         let mut fmt__chunk: Option<FmtChunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data = 0u64;
+        let mut slnt_chunk: Option<SlntChunk> = None;
         let mut bext_chunk: Option<BextChunk> = None;
         let mut smpl_chunk: Option<SmplChunk> = None;
         let mut inst_chunk: Option<InstChunk> = None;
+        let mut plst_chunk: Option<PlstChunk> = None;
         let mut cue__chunk: Option<CueChunk> = None;
         let mut axml_chunk: Option<String> = None;
         let mut ixml_chunk: Option<String> = None;
@@ -194,6 +198,10 @@ impl WaveReader {
                     manually_skipping = true;
                     continue;
                 },
+                b"slnt" => {
+                    Self::verify_none(&slnt_chunk, &chunk.flag)?;
+                    slnt_chunk = optional(SlntChunk::read(&mut reader));
+                }
                 b"bext" => {
                     Self::verify_none(&bext_chunk, &chunk.flag)?;
                     bext_chunk = optional(BextChunk::read(&mut reader, &text_encoding));
@@ -206,6 +214,10 @@ impl WaveReader {
                     Self::verify_none(&inst_chunk, &chunk.flag)?;
                     inst_chunk = optional(InstChunk::read(&mut reader));
                 },
+                b"plst" => {
+                    Self::verify_none(&plst_chunk, &chunk.flag)?;
+                    plst_chunk = optional(PlstChunk::read(&mut reader));
+                }
                 b"cue " => {
                     Self::verify_none(&cue__chunk, &chunk.flag)?;
                     cue__chunk = optional(CueChunk::read(&mut reader));
@@ -289,9 +301,11 @@ impl WaveReader {
             fact_data,
             data_chunk,
             text_encoding,
+            slnt_chunk,
             bext_chunk,
             smpl_chunk,
             inst_chunk,
+            plst_chunk,
             cue__chunk,
             axml_chunk,
             ixml_chunk,
@@ -311,9 +325,11 @@ impl WaveReader {
     // Provide chunks (may include metadata for music, or the encoder's information)
     pub fn get_fact_data(&self) -> u64 {self.fact_data}
     pub fn get_fmt__chunk(&self) -> &FmtChunk { &self.fmt__chunk }
+    pub fn get_slnt_chunk(&self) -> &Option<SlntChunk> { &self.slnt_chunk }
     pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
     pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
     pub fn get_inst_chunk(&self) -> &Option<InstChunk> { &self.inst_chunk }
+    pub fn get_plst_chunk(&self) -> &Option<PlstChunk> { &self.plst_chunk }
     pub fn get_cue__chunk(&self) -> &Option<CueChunk> { &self.cue__chunk }
     pub fn get_axml_chunk(&self) -> &Option<String> { &self.axml_chunk }
     pub fn get_ixml_chunk(&self) -> &Option<String> { &self.ixml_chunk }

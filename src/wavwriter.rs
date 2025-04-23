@@ -10,7 +10,7 @@ use crate::SampleType;
 use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::wavcore::{ChunkWriter};
 use crate::wavcore::FmtChunk;
-use crate::wavcore::{BextChunk, SmplChunk, InstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
 use crate::readwrite::string_io::*;
@@ -47,9 +47,11 @@ pub struct WaveWriter<'a> {
     riff_chunk: Option<ChunkWriter<'a>>,
     data_chunk: Option<ChunkWriter<'a>>,
     pub fmt__chunk: FmtChunk,
+    pub slnt_chunk: Option<SlntChunk>,
     pub bext_chunk: Option<BextChunk>,
     pub smpl_chunk: Option<SmplChunk>,
     pub inst_chunk: Option<InstChunk>,
+    pub plst_chunk: Option<PlstChunk>,
     pub cue__chunk: Option<CueChunk>,
     pub axml_chunk: Option<String>,
     pub ixml_chunk: Option<String>,
@@ -106,9 +108,11 @@ impl<'a> WaveWriter<'a> {
             fmt__chunk: FmtChunk::new(),
             riff_chunk: None,
             data_chunk: None,
+            slnt_chunk: None,
             bext_chunk: None,
             smpl_chunk: None,
             inst_chunk: None,
+            plst_chunk: None,
             cue__chunk: None,
             axml_chunk: None,
             ixml_chunk: None,
@@ -321,6 +325,9 @@ impl<'a> WaveWriter<'a> {
     pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
         self.inst_chunk = Some(*chunk);
     }
+    pub fn set_plst_chunk(&mut self, chunk: &PlstChunk) {
+        self.plst_chunk = Some(chunk.clone());
+    }
     pub fn set_cue__chunk(&mut self, chunk: &CueChunk) {
         self.cue__chunk = Some(chunk.clone());
     }
@@ -346,8 +353,10 @@ impl<'a> WaveWriter<'a> {
     // Transfers audio metadata (e.g., track info) from the reader.
     pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
+        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = reader.get_slnt_chunk().clone();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
         if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
+        if reader.get_plst_chunk().is_some() {self.plst_chunk = reader.get_plst_chunk().clone();}
         if reader.get_cue__chunk().is_some() {self.cue__chunk = reader.get_cue__chunk().clone();}
         if reader.get_axml_chunk().is_some() {self.axml_chunk = reader.get_axml_chunk().clone();}
         if reader.get_ixml_chunk().is_some() {self.ixml_chunk = reader.get_ixml_chunk().clone();}
