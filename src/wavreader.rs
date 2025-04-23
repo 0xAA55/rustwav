@@ -1,17 +1,18 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom, BufReader, BufWriter}};
+use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom, BufReader, BufWriter}, collections::BTreeMap};
 
 use crate::Reader;
 use crate::SampleType;
-use crate::AudioReadError;
+use crate::{AudioReadError, AudioError};
 use crate::readwrite::{self, string_io::*};
 use crate::wavcore;
 use crate::wavcore::Spec;
 use crate::wavcore::ChunkHeader;
 use crate::wavcore::{FmtChunk, ExtensionData};
 use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::FullInfoCuePoint;
 use crate::decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
@@ -338,6 +339,22 @@ impl WaveReader {
     pub fn get_trkn_chunk(&self) -> &Option<String> { &self.trkn_chunk }
     pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> { &self.id3__chunk }
     pub fn get_junk_chunks(&self) -> &Vec<JunkChunk> { &self.junk_chunks }
+
+    pub fn create_full_info_cue_data(&self) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
+        if let Some(ref list_chunk) = self.list_chunk {
+            if let ListChunk::Adtl(adtl) = list_chunk {
+                if let Some(ref cue__chunk) = self.cue__chunk {
+                    wavcore::create_full_info_cue_data(&cue__chunk, &adtl, &self.plst_chunk)
+                } else {
+                    Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
+                }
+            } else {
+                Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk)))
+            }
+        } else {
+            Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()))
+        }
+    }
 
     // To verify if a chunk had not read. Some chunks should not be duplicated.
     fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {

@@ -1,16 +1,18 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path};
+use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, collections::BTreeMap};
 
 use crate::Writer;
 use crate::WaveReader;
-use crate::AudioWriteError;
+use crate::{AudioWriteError, AudioError};
 use crate::SampleType;
+use crate::wavcore;
 use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::wavcore::{ChunkWriter};
 use crate::wavcore::FmtChunk;
 use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::FullInfoCuePoint;
 use crate::encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
 use crate::readwrite::string_io::*;
@@ -366,6 +368,22 @@ impl<'a> WaveWriter<'a> {
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
         if include_junk_chunks {
             self.junk_chunks.extend(reader.get_junk_chunks().clone());
+        }
+    }
+
+    pub fn create_full_info_cue_data(&self) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
+        if let Some(ref list_chunk) = self.list_chunk {
+            if let ListChunk::Adtl(adtl) = list_chunk {
+                if let Some(ref cue__chunk) = self.cue__chunk {
+                    wavcore::create_full_info_cue_data(&cue__chunk, &adtl, &self.plst_chunk)
+                } else {
+                    Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
+                }
+            } else {
+                Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk)))
+            }
+        } else {
+            Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()))
         }
     }
 
