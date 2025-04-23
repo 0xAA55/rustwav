@@ -1264,7 +1264,7 @@ impl CuePoint {
 #[derive(Debug, Clone)]
 pub enum ListChunk {
     Info(HashMap<String, String>),
-    Adtl(Vec<AdtlChunk>),
+    Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
 #[derive(Debug, Clone)]
@@ -1415,11 +1415,16 @@ impl ListChunk {
                 Ok(Self::Info(dict))
             },
             b"adtl" => {
-                let mut adtl = Vec::<AdtlChunk>::new();
+                let mut adtl_map = BTreeMap::<u32, AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
-                    adtl.push(AdtlChunk::read(reader, text_encoding)?);
+                    let adtl = AdtlChunk::read(reader, text_encoding)?;
+                    let cue_point_id = adtl.get_cue_point_id();
+                    if let Some(dup) = adtl_map.insert(cue_point_id, adtl.clone()) {
+                        // If the chunk point ID duplicates,  the new one will be used to overwrite the old one.
+                        eprintln!("Duplicated chunk point ID {cue_point_id} for the `Adtl` data: old is {:?}, and will be overwritten by the new one: {:?}", dup, adtl);
+                    }
                 }
-                Ok(Self::Adtl(adtl))
+                Ok(Self::Adtl(adtl_map))
             },
             other => {
                 Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", text_encoding.decode_flags(other))))
@@ -1436,7 +1441,7 @@ impl ListChunk {
             },
             Self::Adtl(adtls) => {
                 cw.writer.write_all(b"adtl")?;
-                for adtl in adtls.iter() {
+                for (_cue_point_id, adtl) in adtls.iter() {
                     adtl.write(&mut cw.writer, text_encoding)?;
                 }
             },
