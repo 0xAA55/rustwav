@@ -1685,6 +1685,71 @@ pub fn get_country_code_map() -> HashMap<u16, &'static str> {
     ].iter().copied().collect()
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq)]
+pub struct LanguageDialect {
+    lang: u16,
+    dial: u16,
+}
+
+impl Eq for LanguageDialect{}
+
+#[derive(Debug, Clone, Copy)]
+pub struct LanguageSpecification {
+    lang: &'static str,
+    spec: &'static str,
+}
+
+pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpecification> {
+    [ // https://wavref.til.cafe/chunk/cset/
+        (LanguageDialect{lang: 0 ,  dial: 0}, LanguageSpecification{lang: "None (assume 9,1 = US English)", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 1 ,  dial: 1}, LanguageSpecification{lang: "Arabic", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 2 ,  dial: 1}, LanguageSpecification{lang: "Bulgarian", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 3 ,  dial: 1}, LanguageSpecification{lang: "Catalan", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 4 ,  dial: 1}, LanguageSpecification{lang: "Traditional Chinese", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 4 ,  dial: 2}, LanguageSpecification{lang: "Simplified Chinese", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 5 ,  dial: 1}, LanguageSpecification{lang: "Czech", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 6 ,  dial: 1}, LanguageSpecification{lang: "Danish", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 7 ,  dial: 1}, LanguageSpecification{lang: "German", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 7 ,  dial: 2}, LanguageSpecification{lang: "Swiss German", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 8 ,  dial: 1}, LanguageSpecification{lang: "Greek", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 9 ,  dial: 1}, LanguageSpecification{lang: "US English", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 9 ,  dial: 2}, LanguageSpecification{lang: "UK English", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 10,  dial: 1}, LanguageSpecification{lang: "Spanish", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 10,  dial: 2}, LanguageSpecification{lang: "Spanish", spec: "Mexican RIFF1991"}),
+        (LanguageDialect{lang: 11,  dial: 1}, LanguageSpecification{lang: "Finnish", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 12,  dial: 1}, LanguageSpecification{lang: "French", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 12,  dial: 2}, LanguageSpecification{lang: "Belgian French", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 12,  dial: 3}, LanguageSpecification{lang: "Canadian French", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 12,  dial: 4}, LanguageSpecification{lang: "Swiss French", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 13,  dial: 1}, LanguageSpecification{lang: "Hebrew", spec: "RIFF1991"}),
+        (LanguageDialect{lang: 14,  dial: 1}, LanguageSpecification{lang: "Hungarian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 15,  dial: 1}, LanguageSpecification{lang: "Icelandic", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 16,  dial: 1}, LanguageSpecification{lang: "Italian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 16,  dial: 2}, LanguageSpecification{lang: "Swiss Italian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 17,  dial: 1}, LanguageSpecification{lang: "Japanese", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 18,  dial: 1}, LanguageSpecification{lang: "Korean", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 19,  dial: 1}, LanguageSpecification{lang: "Dutch", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 19,  dial: 2}, LanguageSpecification{lang: "Belgian Dutch", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 20,  dial: 1}, LanguageSpecification{lang: "Norwegian - Bokmal", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 20,  dial: 2}, LanguageSpecification{lang: "Norwegian - Nynorsk", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 21,  dial: 1}, LanguageSpecification{lang: "Polish", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 22,  dial: 1}, LanguageSpecification{lang: "Brazilian Portuguese", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 22,  dial: 2}, LanguageSpecification{lang: "Portuguese", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 23,  dial: 1}, LanguageSpecification{lang: "Rhaeto-Romanic", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 24,  dial: 1}, LanguageSpecification{lang: "Romanian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 25,  dial: 1}, LanguageSpecification{lang: "Russian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 26,  dial: 1}, LanguageSpecification{lang: "Serbo-Croatian (Latin)", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 26,  dial: 2}, LanguageSpecification{lang: "Serbo-Croatian (Cyrillic)", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 27,  dial: 1}, LanguageSpecification{lang: "Slovak", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 28,  dial: 1}, LanguageSpecification{lang: "Albanian", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 29,  dial: 1}, LanguageSpecification{lang: "Swedish", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 30,  dial: 1}, LanguageSpecification{lang: "Thai", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 31,  dial: 1}, LanguageSpecification{lang: "Turkish", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 32,  dial: 1}, LanguageSpecification{lang: "Urdu", spec: "RIFF1994"}),
+        (LanguageDialect{lang: 33,  dial: 1}, LanguageSpecification{lang: "Bahasa", spec: "RIFF1994"}),
+    ].iter().copied().collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct AcidChunk {
     pub flags: u32,
