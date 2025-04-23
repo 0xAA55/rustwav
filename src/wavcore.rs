@@ -1119,8 +1119,7 @@ impl InstChunk {
 }
 
 #[derive(Debug, Clone)]
-#[allow(non_camel_case_types)]
-pub struct CueChunk {
+pub struct CueChunk { // https://wavref.til.cafe/chunk/cue/
     pub num_cues: u32,
     pub cues: Vec<Cue>,
 }
