@@ -1124,15 +1124,27 @@ pub struct CueChunk { // https://wavref.til.cafe/chunk/cue/
     pub cues: Vec<Cue>,
 }
 
-#[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
 pub struct Cue {
-    pub identifier: u32,
+    pub identifier: [u8; 4],
     pub order: u32,
     pub chunk_id: u32,
     pub chunk_start: u32,
     pub block_start: u32,
     pub offset: u32,
+}
+
+impl Debug for Cue {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("Cue")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("order", &self.order)
+            .field("chunk_id", &self.chunk_id)
+            .field("chunk_start", &self.chunk_start)
+            .field("block_start", &self.block_start)
+            .field("offset", &self.offset)
+            .finish()
+    }
 }
 
 impl CueChunk {
