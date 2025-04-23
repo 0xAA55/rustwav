@@ -1831,6 +1831,22 @@ impl FullInfoCuePoint {
     }
 }
 
+pub fn create_full_info_cue_data(cue_chunk: &CueChunk, adtl_chunks: &BTreeMap<u32, AdtlChunk>, plstchunk: &Option<PlstChunk>) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
+    let country_code_map = get_country_code_map();
+    let dialect_code_map = get_language_dialect_code_map();
+    let plstmap = if let Some(plstchunk) = plstchunk {
+        plstchunk.build_map()
+    } else {
+        BTreeMap::<u32, Plst>::new()
+    };
+    cue_chunk.cue_points.iter().map(|cue| -> Result<(u32, FullInfoCuePoint), AudioError> {
+        match FullInfoCuePoint::new(cue.cue_point_id, cue, adtl_chunks, &plstmap.get(&cue.cue_point_id), &country_code_map, &dialect_code_map) {
+            Ok(full_info_cue_data) => Ok((cue.cue_point_id, full_info_cue_data)),
+            Err(e) => Err(e),
+        }
+    }).collect::<Result<BTreeMap<u32, FullInfoCuePoint>, AudioError>>()
+}
+
 #[derive(Debug, Clone)]
 pub struct AcidChunk {
     pub flags: u32,
@@ -1996,3 +2012,4 @@ pub mod Id3{
                 .finish_non_exhaustive()
         }
     }
+}
