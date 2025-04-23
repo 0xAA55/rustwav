@@ -90,7 +90,13 @@ pub mod string_io {
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
 
-    pub fn read_sz<T: Read>(r: &mut T, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
+    pub fn read_str_by_code_page<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
+        let mut buf = vec![0u8; size];
+        r.read_exact(&mut buf)?;
+        Ok(text_encoding.decode_bytes_by_code_page(&buf, code_page).trim_matches(char::from(0)).to_string())
+    }
+
+    pub fn read_sz_raw<T: Read>(r: &mut T) -> Result<Vec<u8>, io::Error> {
         let mut buf = Vec::<u8>::new();
         loop {
             let b = [0u8; 1];
@@ -102,7 +108,15 @@ pub mod string_io {
                 break;
             }
         }
-        Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
+        Ok(buf)
+    }
+
+    pub fn read_sz<T: Read>(r: &mut T, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
+        Ok(text_encoding.decode(&read_sz_raw(r)?).trim_matches(char::from(0)).to_string())
+    }
+
+    pub fn read_sz_by_code_page<T: Read>(r: &mut T, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
+        Ok(text_encoding.decode_bytes_by_code_page(&read_sz_raw(r)?, code_page).trim_matches(char::from(0)).to_string())
     }
 
     pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &str, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
@@ -114,6 +128,12 @@ pub mod string_io {
 
     pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
         let data = text_encoding.encode(data);
+        w.write_all(&data)?;
+        Ok(())
+    }
+
+    pub fn write_str_by_code_page<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps, code_page: u32) -> Result<(), io::Error> {
+        let data = text_encoding.encode_strings_by_code_page(data, code_page);
         w.write_all(&data)?;
         Ok(())
     }
