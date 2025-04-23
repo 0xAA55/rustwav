@@ -1198,6 +1198,179 @@ pub enum ListChunk {
     Adtl(Vec<AdtlChunk>),
 }
 
+#[derive(Debug, Clone)]
+pub enum AdtlChunk { // https://wavref.til.cafe/chunk/adtl/
+    Labl(LablChunk),
+    Note(NoteChunk),
+    Ltxt(LtxtChunk),
+    File(FileChunk),
+}
+
+#[derive(Clone)]
+pub struct LablChunk {
+    pub identifier: [u8; 4],
+    pub data: String,
+}
+
+impl Debug for LablChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("LablChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct NoteChunk {
+    pub identifier: [u8; 4],
+    pub data: String,
+}
+
+impl Debug for NoteChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("NoteChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct LtxtChunk {
+    pub identifier: [u8; 4],
+    pub sample_length: u32,
+    pub purpose_id: String,
+    pub country: u16,
+    pub language: u16,
+    pub dialect: u16,
+    pub code_page: u16,
+    pub data: String,
+}
+
+impl Debug for LtxtChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("NoteChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("sample_length", &self.sample_length)
+            .field("purpose_id", &self.purpose_id)
+            .field("country", &self.country)
+            .field("language", &self.language)
+            .field("dialect", &self.dialect)
+            .field("code_page", &self.code_page)
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct FileChunk {
+    pub identifier: [u8; 4],
+    pub media_type: u32,
+    pub file_data: Vec<u8>,
+}
+
+impl Debug for FileChunk {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("FileChunk")
+            .field("identifier", &String::from_utf8_lossy(&self.identifier))
+            .field("media_type", &self.media_type)
+            .field("file_data", &format_args!("[u8; {}]", self.file_data.len()))
+            .finish()
+    }
+}
+
+impl AdtlChunk {
+    pub fn read(reader: &mut impl Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
+        let sub_chunk = ChunkHeader::read(reader)?;
+        let mut buf = [0u8; 4];
+        let ret = match &sub_chunk.flag {
+            b"labl" => {
+                reader.read_exact(&mut buf)?;
+                Self::Labl(LablChunk{
+                    identifier: buf,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
+                })
+            },
+            b"note" => {
+                reader.read_exact(&mut buf)?;
+                Self::Note(NoteChunk{
+                    identifier: buf,
+                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
+                })
+            },
+            b"ltxt" => {
+                reader.read_exact(&mut buf)?;
+                Self::Ltxt(LtxtChunk{
+                    identifier: buf,
+                    sample_length: u32::read_le(reader)?,
+                    purpose_id: read_str(reader, 4, text_encoding)?,
+                    country: u16::read_le(reader)?,
+                    language: u16::read_le(reader)?,
+                    dialect: u16::read_le(reader)?,
+                    code_page: u16::read_le(reader)?,
+                    data: read_str(reader, (sub_chunk.size - 20) as usize, text_encoding)?,
+                })
+            },
+            b"file" => {
+                reader.read_exact(&mut buf)?;
+                Self::File(FileChunk{
+                    identifier: buf,
+                    media_type: u32::read_le(reader)?,
+                    file_data: read_bytes(reader, (sub_chunk.size - 8) as usize)?,
+                })
+            }
+            other => {
+                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()));
+            },
+        };
+        sub_chunk.seek_to_next_chunk(reader)?;
+        Ok(ret)
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+        fn to_sz(s: &String) -> String {
+            if s.len() != 0 {
+                let mut s = s.clone();
+                if s.chars().last().unwrap() != '\0' {s.push_str("\0");}
+                s
+            } else {
+                "\0".to_owned()
+            }
+        }
+        match self {
+            Self::Labl(labl) => {
+                let cw = ChunkWriter::begin(writer, b"labl")?;
+                cw.writer.write_all(&labl.identifier)?;
+                write_str(cw.writer, &to_sz(&labl.data), text_encoding)?;
+            },
+            Self::Note(note) => {
+                let cw = ChunkWriter::begin(writer, b"note")?;
+                cw.writer.write_all(&note.identifier)?;
+                write_str(cw.writer, &to_sz(&note.data), text_encoding)?;
+            },
+            Self::Ltxt(ltxt) => {
+                let cw = ChunkWriter::begin(writer, b"ltxt")?;
+                cw.writer.write_all(&ltxt.identifier)?;
+                ltxt.sample_length.write_le(cw.writer)?;
+                write_str_sized(cw.writer, &ltxt.purpose_id, 4, text_encoding)?;
+                ltxt.country.write_le(cw.writer)?;
+                ltxt.language.write_le(cw.writer)?;
+                ltxt.dialect.write_le(cw.writer)?;
+                ltxt.code_page.write_le(cw.writer)?;
+                write_str(cw.writer, &to_sz(&ltxt.data), text_encoding)?;
+            },
+            Self::File(file) => {
+                let cw = ChunkWriter::begin(writer, b"file")?;
+                cw.writer.write_all(&file.identifier)?;
+                file.media_type.write_le(cw.writer)?;
+                cw.writer.write_all(&file.file_data)?;
+            },
+        }
+        Ok(())
+    }
+}
+
 impl ListChunk {
     pub fn read(reader: &mut impl Reader, chunk_size: u64, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
         let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
@@ -1431,147 +1604,6 @@ impl ListInfo for ListChunk {
 }
 
 #[derive(Debug, Clone)]
-pub enum AdtlChunk {
-    Labl(LablChunk),
-    Note(NoteChunk),
-    Ltxt(LtxtChunk),
-}
-
-impl AdtlChunk {
-    pub fn read(reader: &mut impl Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
-        let sub_chunk = ChunkHeader::read(reader)?;
-        let mut buf = [0u8; 4];
-        let ret = match &sub_chunk.flag {
-            b"labl" => {
-                reader.read_exact(&mut buf)?;
-                Self::Labl(LablChunk{
-                    identifier: buf,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
-                })
-            },
-            b"note" => {
-                reader.read_exact(&mut buf)?;
-                Self::Note(NoteChunk{
-                    identifier: buf,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
-                })
-            },
-            b"ltxt" => {
-                reader.read_exact(&mut buf)?;
-                Self::Ltxt(LtxtChunk{
-                    identifier: buf,
-                    sample_length: u32::read_le(reader)?,
-                    purpose_id: read_str(reader, 4, text_encoding)?,
-                    country: u16::read_le(reader)?,
-                    language: u16::read_le(reader)?,
-                    dialect: u16::read_le(reader)?,
-                    code_page: u16::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 20) as usize, text_encoding)?,
-                })
-            },
-            other => {
-                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()));
-            },
-        };
-        sub_chunk.seek_to_next_chunk(reader)?;
-        Ok(ret)
-    }
-
-    pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
-        fn to_sz(s: &String) -> String {
-            if s.len() != 0 {
-                let mut s = s.clone();
-                if s.chars().last().unwrap() != '\0' {s.push_str("\0");}
-                s
-            } else {
-                "\0".to_owned()
-            }
-        }
-        match self {
-            Self::Labl(labl) => {
-                let cw = ChunkWriter::begin(writer, b"labl")?;
-                cw.writer.write_all(&labl.identifier)?;
-                write_str(cw.writer, &to_sz(&labl.data), text_encoding)?;
-            },
-            Self::Note(note) => {
-                let cw = ChunkWriter::begin(writer, b"note")?;
-                cw.writer.write_all(&note.identifier)?;
-                write_str(cw.writer, &to_sz(&note.data), text_encoding)?;
-            },
-            Self::Ltxt(ltxt) => {
-                let cw = ChunkWriter::begin(writer, b"ltxt")?;
-                cw.writer.write_all(&ltxt.identifier)?;
-                ltxt.sample_length.write_le(cw.writer)?;
-                write_str_sized(cw.writer, &ltxt.purpose_id, 4, text_encoding)?;
-                ltxt.country.write_le(cw.writer)?;
-                ltxt.language.write_le(cw.writer)?;
-                ltxt.dialect.write_le(cw.writer)?;
-                ltxt.code_page.write_le(cw.writer)?;
-                write_str(cw.writer, &to_sz(&ltxt.data), text_encoding)?;
-            },
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone)]
-pub struct LablChunk {
-    pub identifier: [u8; 4],
-    pub data: String,
-}
-
-impl Debug for LablChunk {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("LablChunk")
-            .field("identifier", &String::from_utf8_lossy(&self.identifier))
-            .field("data", &self.data)
-            .finish()
-    }
-}
-
-#[derive(Clone)]
-pub struct NoteChunk {
-    pub identifier: [u8; 4],
-    pub data: String,
-}
-
-impl Debug for NoteChunk {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("NoteChunk")
-            .field("identifier", &String::from_utf8_lossy(&self.identifier))
-            .field("data", &self.data)
-            .finish()
-    }
-}
-
-#[derive(Clone)]
-pub struct LtxtChunk {
-    pub identifier: [u8; 4],
-    pub sample_length: u32,
-    pub purpose_id: String,
-    pub country: u16,
-    pub language: u16,
-    pub dialect: u16,
-    pub code_page: u16,
-    pub data: String,
-}
-
-impl Debug for LtxtChunk {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("NoteChunk")
-            .field("identifier", &String::from_utf8_lossy(&self.identifier))
-            .field("sample_length", &self.sample_length)
-            .field("purpose_id", &self.purpose_id)
-            .field("country", &self.country)
-            .field("language", &self.language)
-            .field("dialect", &self.dialect)
-            .field("code_page", &self.code_page)
-            .field("data", &self.data)
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct AcidChunk {
     pub flags: u32,
     pub root_node: u16,
@@ -1613,8 +1645,8 @@ impl AcidChunk {
 
 #[derive(Clone)]
 pub enum JunkChunk{
-    FullZero(u64), // 全零
-    SomeData(Vec<u8>), // 有些数据
+    FullZero(u64),
+    SomeData(Vec<u8>),
 }
 
 impl JunkChunk {
