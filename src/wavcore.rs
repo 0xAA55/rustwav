@@ -1313,6 +1313,7 @@ pub trait ListInfo {
     fn get_source(&self) -> Option<&String>;
     fn get_orig_form(&self) -> Option<&String>;
     fn get_technician(&self) -> Option<&String>;
+    fn get_track_no(&self) -> Option<&String>;
 }
 
 impl ListInfo for ListChunk {
@@ -1391,6 +1392,11 @@ impl ListInfo for ListChunk {
     fn get_technician(&self) -> Option<&String> {
         if let Self::Info(dict) = self {dict.get("ITCH")} else {None}
     }
+
+    fn get_track_no(&self) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get("ITRK")} else {None}
+    }
+
 }
 
 #[derive(Debug, Clone)]
