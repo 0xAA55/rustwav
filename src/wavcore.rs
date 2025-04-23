@@ -1308,7 +1308,7 @@ pub trait ListInfo {
     fn get_medium(&self) -> Option<&String>;
     fn get_name(&self) -> Option<&String>;
     fn get_album(&self) -> Option<&String>;
-    fn get_subject_desc(&self) -> Option<&String>;
+    fn get_subject(&self) -> Option<&String>;
     fn get_software(&self) -> Option<&String>;
     fn get_source(&self) -> Option<&String>;
     fn get_orig_form(&self) -> Option<&String>;
@@ -1372,7 +1372,7 @@ impl ListInfo for ListChunk {
         if let Self::Info(dict) = self {dict.get("IPRD")} else {None}
     }
 
-    fn get_subject_desc(&self) -> Option<&String> {
+    fn get_subject(&self) -> Option<&String> {
         if let Self::Info(dict) = self {dict.get("ISBJ")} else {None}
     }
 
