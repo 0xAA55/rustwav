@@ -1198,49 +1198,35 @@ impl Plst {
 #[derive(Debug, Clone)]
 pub struct CueChunk {
     pub num_cues: u32,
-    pub cues: Vec<Cue>,
+    pub cue_points: Vec<CuePoint>,
 }
 
-#[derive(Clone, Copy)]
-pub struct Cue {
-    pub identifier: [u8; 4],
-    pub order: u32,
-    pub chunk_id: u32,
+#[derive(Debug, Clone, Copy)]
+pub struct CuePoint {
+    pub cue_point_id: u32,
+    pub position: u32,
+    pub data_chunk_id: [u8; 4],
     pub chunk_start: u32,
     pub block_start: u32,
     pub offset: u32,
 }
 
-impl Debug for Cue {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("Cue")
-            .field("identifier", &String::from_utf8_lossy(&self.identifier))
-            .field("order", &self.order)
-            .field("chunk_id", &self.chunk_id)
-            .field("chunk_start", &self.chunk_start)
-            .field("block_start", &self.block_start)
-            .field("offset", &self.offset)
-            .finish()
-    }
-}
-
 impl CueChunk {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        let mut ret = CueChunk {
-            num_cues: u32::read_le(reader)?,
-            cues: Vec::<Cue>::new(),
-        };
-        for _ in 0..ret.num_cues {
-            ret.cues.push(Cue::read(reader)?);
-        }
-        Ok(ret)
+        let num_cues = u32::read_le(reader)?;
+        Ok(Self {
+            num_cues,
+            cue_points: (0.. num_cues).into_iter().map(|_| -> Result<CuePoint, AudioReadError> {
+                CuePoint::read(reader)
+            }).collect::<Result<Vec<CuePoint>, AudioReadError>>()?,
+        })
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         let cw = ChunkWriter::begin(writer, b"cue ")?;
         self.num_cues.write_le(cw.writer)?;
-        for cue in self.cues.iter() {
-            cue.write(cw.writer)?;
+        for cue_point in self.cue_points.iter() {
+            cue_point.write(cw.writer)?;
         }
         Ok(())
     }
