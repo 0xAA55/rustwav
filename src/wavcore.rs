@@ -1650,6 +1650,41 @@ impl ListInfo for ListChunk {
     }
 }
 
+pub fn get_country_code_map() -> HashMap<u16, &'static str> {
+    [ // https://wavref.til.cafe/chunk/cset/
+        (000, "None (assume 001 = USA)"),
+        (001, "USA"),
+        (002, "Canada"),
+        (003, "Latin America"),
+        (030, "Greece"),
+        (031, "Netherlands"),
+        (032, "Belgium"),
+        (033, "France"),
+        (034, "Spain"),
+        (039, "Italy"),
+        (041, "Switzerland"),
+        (043, "Austria"),
+        (044, "United Kingdom"),
+        (045, "Denmark"),
+        (046, "Sweden"),
+        (047, "Norway"),
+        (049, "West Germany"),
+        (052, "Mexico"),
+        (055, "Brazil"),
+        (061, "Australia"),
+        (064, "New Zealand"),
+        (081, "Japan"),
+        (082, "Korea"),
+        (086, "People’s Republic of China"),
+        (088, "Taiwan"),
+        (090, "Turkey"),
+        (351, "Portugal"),
+        (352, "Luxembourg"),
+        (354, "Iceland"),
+        (358, "Finland"),
+    ].iter().copied().collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct AcidChunk {
     pub flags: u32,
