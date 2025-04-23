@@ -1751,6 +1751,87 @@ pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpeci
 }
 
 #[derive(Debug, Clone)]
+pub struct FullInfoCuePoint {
+    pub data_chunk_id: [u8; 4],
+    pub label: String,
+    pub note: String,
+    pub sample_length: u32,
+    pub purpose_id: String,
+    pub country: String,
+    pub language: String,
+    pub text_data: String,
+    pub media_type: u32,
+    pub file_data: Vec<u8>,
+    pub start_sample: u32,
+    pub num_samples: u32,
+    pub repeats: u32,
+}
+
+impl FullInfoCuePoint {
+    pub fn new(cue_point_id: u32, cue_point: &CuePoint, adtl_chunks: &BTreeMap<u32, AdtlChunk>, plst: &Option<&Plst>, country_code_map: &HashMap<u16, &'static str>, dialect_code_map: &HashMap<LanguageDialect, LanguageSpecification>) -> Result<Self, AudioError> {
+        let mut ret = Self {
+            data_chunk_id: cue_point.data_chunk_id,
+            label: String::new(),
+            note: String::new(),
+            sample_length: 0,
+            purpose_id: String::new(),
+            country: String::new(),
+            language: String::new(),
+            text_data: String::new(),
+            media_type: 0,
+            file_data: Vec::<u8>::new(),
+            start_sample: cue_point.position,
+            num_samples: 0,
+            repeats: 0,
+        };
+        if let Some(plst) = plst{
+            ret.num_samples = plst.num_samples;
+            ret.repeats = plst.repeats;
+        } else {
+            eprintln!("Lack of `plst` chunk, `num_samples` should be calculated by yourself, and `repeats` remains zero.");
+        }
+        if let Some(adtl) = adtl_chunks.get(&cue_point_id) {
+            match adtl {
+                AdtlChunk::Labl(labl) => ret.label = labl.data.clone(),
+                AdtlChunk::Note(note) => ret.note = note.data.clone(),
+                AdtlChunk::Ltxt(ltxt) => {
+                    let lang_dial = LanguageDialect{
+                        lang: ltxt.language,
+                        dial: ltxt.dialect,
+                    };
+                    let unknown_lang_spec = LanguageSpecification{
+                        lang: "Unknown",
+                        spec: "UKNW1994"
+                    };
+                    let country = if let Some(country) = country_code_map.get(&ltxt.country) {
+                        country.to_string()
+                    } else {
+                        format!("Unknown country code {}", ltxt.country)
+                    };
+                    let language = if let Some(lang_dial) = dialect_code_map.get(&lang_dial) {
+                        *lang_dial
+                    } else {
+                        unknown_lang_spec
+                    }.lang.to_owned();
+                    ret.sample_length = ltxt.sample_length;
+                    ret.purpose_id = ltxt.purpose_id.clone();
+                    ret.country = country;
+                    ret.language = language;
+                    ret.text_data = ltxt.data.clone();
+                },
+                AdtlChunk::File(file) => {
+                    ret.media_type = file.media_type;
+                    ret.file_data = file.file_data.clone();
+                },
+            }
+            Ok(ret)
+        } else {
+            Err(AudioError::NoSuchData(format!("ADTL data for cue point ID: {cue_point_id}")))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AcidChunk {
     pub flags: u32,
     pub root_node: u16,
