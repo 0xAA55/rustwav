@@ -1235,16 +1235,25 @@ impl ListChunk {
             let key_chunk = ChunkHeader::read(reader)?; // Every chunk's name is a key, its content is the value.
             let value_str = read_str(reader, key_chunk.size as usize, text_encoding)?;
             let key_str = text_encoding.decode(&key_chunk.flag);
-            let key_uppercase = key_str.to_uppercase();
-            // Let's try to store the key in uppercase form, if the INFO chunk provides both uppercase or lowercase, we store both of them.
-            if key_str == key_uppercase {
-                dict.insert(key_str, value_str);
-            } else if dict.contains_key(&key_uppercase) {
-                dict.insert(key_str, value_str);
-            } else {
-                dict.insert(key_uppercase, value_str);
-            }
+            dict.insert(key_str, value_str);
             key_chunk.seek_to_next_chunk(reader)?;
+        }
+        // Let's try to store the key in uppercase form, if the INFO chunk provides both uppercase or lowercase, we store both of them.
+        let mut to_be_added = Vec::<(String, String)>::new();
+        for (key, val) in dict.iter() {
+            let key_uppercase = key.to_uppercase();
+            if key_uppercase == *key {
+                // It is uppercase originally.
+                continue;
+            }
+            if dict.contains_key(&key_uppercase) {
+                // The LIST INFO chunk provided the uppercase key, and its value may be different from the lowercase key value, better not to overwrite it.
+                continue;
+            }
+            to_be_added.push((key_uppercase, val.clone()));
+        }
+        for (key_uppercase, val) in to_be_added.into_iter() {
+            dict.insert(key_uppercase, val);
         }
         Ok(dict)
     }
