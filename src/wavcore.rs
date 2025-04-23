@@ -1341,8 +1341,10 @@ impl AdtlChunk {
                     language: u16::read_le(reader)?,
                     dialect: u16::read_le(reader)?,
                     code_page: u16::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 20) as usize, text_encoding)?,
-                })
+                    data: String::new(),
+                };
+                ltxt.data = read_str_by_code_page(reader, (sub_chunk.size - 20) as usize, text_encoding, ltxt.code_page as u32)?;
+                Self::Ltxt(ltxt)
             },
             b"file" => {
                 Self::File(FileChunk{
