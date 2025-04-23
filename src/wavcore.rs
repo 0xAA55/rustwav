@@ -1402,6 +1402,15 @@ impl AdtlChunk {
         }
         Ok(())
     }
+
+    pub fn get_cue_point_id(&self) -> u32 {
+        match self {
+            Self::Labl(labl) => labl.cue_point_id,
+            Self::Note(lote) => lote.cue_point_id,
+            Self::Ltxt(ltxt) => ltxt.cue_point_id,
+            Self::File(lile) => lile.cue_point_id,
+        }
+    }
 }
 
 impl ListChunk {
@@ -1494,6 +1503,7 @@ impl ListChunk {
         }
         Ok(())
     }
+}
 
     pub fn get_dict_descriptions() -> HashMap<&'static str, &'static str> {
         [ // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
