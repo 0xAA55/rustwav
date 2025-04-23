@@ -308,8 +308,17 @@ fn test_flac() -> ExitCode {
     if let Some(list) = wavereader.get_list_chunk() {
         match list {
             ListChunk::Info(_) => {
+                if let Some(data) = list.get_track_no() {
+                    encoder.insert_comments("TRACKNUMBER", data).unwrap();
+                }
+                if let Some(data) = list.get_name() {
+                    encoder.insert_comments("TITLE", data).unwrap();
+                }
                 if let Some(data) = list.get_artist() {
                     encoder.insert_comments("ARTIST", data).unwrap();
+                }
+                if let Some(data) = list.get_album() {
+                    encoder.insert_comments("ALBUM", data).unwrap();
                 }
                 if let Some(data) = list.get_comment() {
                     encoder.insert_comments("COMMENT", data).unwrap();
@@ -324,10 +333,10 @@ fn test_flac() -> ExitCode {
                     encoder.insert_comments("GENRE", data).unwrap();
                 }
                 if let Some(data) = list.get_source() {
-                    encoder.insert_comments("ORGANIZATION", data).unwrap();
+                    encoder.insert_comments("ISRC", data).unwrap();
                 }
-                if let Some(data) = list.get_name() {
-                    encoder.insert_comments("TITLE", data).unwrap();
+                if let Some(data) = list.get_producer() {
+                    encoder.insert_comments("PRODUCER", data).unwrap();
                 }
             },
             ListChunk::Adtl(adtls) => {
