@@ -1227,20 +1227,29 @@ impl ListChunk {
         Ok(())
     }
 
-    pub fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError> {
+    fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError> {
         // The INFO chunk consists of multiple key-value pairs for song metadata. 
         // Within its byte size constraints, read all key-value entries.
         let mut dict = HashMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
             let key_chunk = ChunkHeader::read(reader)?; // Every chunk's name is a key, its content is the value.
             let value_str = read_str(reader, key_chunk.size as usize, text_encoding)?;
-            dict.insert(text_encoding.decode(&key_chunk.flag), value_str);
+            let key_str = text_encoding.decode(&key_chunk.flag);
+            let key_uppercase = key_str.to_uppercase();
+            // Let's try to store the key in uppercase form, if the INFO chunk provides both uppercase or lowercase, we store both of them.
+            if key_str == key_uppercase {
+                dict.insert(key_str, value_str);
+            } else if dict.contains_key(&key_uppercase) {
+                dict.insert(key_str, value_str);
+            } else {
+                dict.insert(key_uppercase, value_str);
+            }
             key_chunk.seek_to_next_chunk(reader)?;
         }
         Ok(dict)
     }
 
-    pub fn write_dict(writer: &mut dyn Writer, dict: &HashMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    fn write_dict(writer: &mut dyn Writer, dict: &HashMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
         for (key, val) in dict.iter() {
             if key.len() != 4 {
                 return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
