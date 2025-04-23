@@ -341,12 +341,13 @@ fn test_flac() -> ExitCode {
             },
             ListChunk::Adtl(adtls) => {
                 use wavcore::AdtlChunk;
-                // Don't know how to read these data, just print them if a test WAV file contains them.
+                // It's confirmed that these data are for the cue tracks data, not for the metadata.
                 for adtl in adtls.iter() {
                     match adtl{
                         AdtlChunk::Labl(labl) => println!("labl: {:?}", labl),
                         AdtlChunk::Note(note) => println!("note: {:?}", note),
                         AdtlChunk::Ltxt(ltxt) => println!("ltxt: {:?}", ltxt),
+                        AdtlChunk::File(file) => println!("file: {:?}", file),
                     }
                 }
             },
