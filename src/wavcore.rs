@@ -919,6 +919,25 @@ impl ExtensibleData {
     }
 }
 
+// https://www.recordingblogs.com/wiki/silent-chunk-of-a-wave-file
+#[derive(Debug, Clone, Copy)]
+pub struct SlntChunk {
+    data: u32,
+}
+
+impl SlntChunk {
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            data: u32::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        let cw = ChunkWriter::begin(writer, b"bext")?;
+        self.data.write_le(cw.writer)?;
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 pub struct BextChunk {
@@ -1118,8 +1137,66 @@ impl InstChunk {
     }
 }
 
+// https://www.recordingblogs.com/wiki/playlist-chunk-of-a-wave-file
 #[derive(Debug, Clone)]
-pub struct CueChunk { // https://wavref.til.cafe/chunk/cue/
+pub struct PlstChunk {
+    pub playlist_len: u32,
+    pub data: Vec<Plst>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Plst {
+    pub cue_point_id: u32,
+    pub num_samples: u32,
+    pub repeats: u32,
+}
+
+impl PlstChunk {
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        let playlist_len = u32::read_le(reader)?;
+        Ok(Self {
+            playlist_len,
+            data: (0..playlist_len).into_iter().map(|_| -> Result<Plst, AudioReadError> {
+                Plst::read(reader)
+            }).collect::<Result<Vec<Plst>, AudioReadError>>()?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        let cw = ChunkWriter::begin(writer, b"plst")?;
+        self.playlist_len.write_le(cw.writer)?;
+        for data in self.data.iter() {
+            data.write(cw.writer)?;
+        }
+        Ok(())
+    }
+
+    pub fn build_map(&self) -> BTreeMap<u32, Plst> {
+        self.data.iter().map(|plst|{(plst.cue_point_id, *plst)}).collect()
+    }
+}
+
+impl Plst {
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            cue_point_id: u32::read_le(reader)?,
+            num_samples: u32::read_le(reader)?,
+            repeats: u32::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.cue_point_id.write_le(writer)?;
+        self.num_samples.write_le(writer)?;
+        self.repeats.write_le(writer)?;
+        Ok(())
+    }
+}
+
+// https://www.recordingblogs.com/wiki/cue-chunk-of-a-wave-file
+// https://wavref.til.cafe/chunk/cue/
+#[derive(Debug, Clone)]
+pub struct CueChunk {
     pub num_cues: u32,
     pub cues: Vec<Cue>,
 }
