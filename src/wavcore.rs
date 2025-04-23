@@ -1314,6 +1314,7 @@ pub trait ListInfo {
     fn get_orig_form(&self) -> Option<&String>;
     fn get_technician(&self) -> Option<&String>;
     fn get_track_no(&self) -> Option<&String>;
+    fn get_track_no_as_number(&self) -> Result<i32, AudioError>;
 }
 
 impl ListInfo for ListChunk {
@@ -1397,6 +1398,16 @@ impl ListInfo for ListChunk {
         if let Self::Info(dict) = self {dict.get("ITRK")} else {None}
     }
 
+    fn get_track_no_as_number(&self) -> Result<i32, AudioError> {
+        if let Some(track_no) = self.get_track_no() {
+            match track_no.parse::<i32>() {
+                Ok(track_no) => Ok(track_no),
+                Err(_) => Err(AudioError::Unparseable(track_no.clone())),
+            }
+        } else {
+            Err(AudioError::NoSuchData("ITRK".to_owned()))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
