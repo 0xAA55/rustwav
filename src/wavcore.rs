@@ -1171,8 +1171,10 @@ impl CueChunk {
 
 impl Cue {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        let mut identifier = [0u8; 4];
+        reader.read_exact(&mut identifier)?;
         Ok(Self{
-            identifier: u32::read_le(reader)?,
+            identifier,
             order: u32::read_le(reader)?,
             chunk_id: u32::read_le(reader)?,
             chunk_start: u32::read_le(reader)?,
@@ -1182,7 +1184,7 @@ impl Cue {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        self.identifier.write_le(writer)?;
+        writer.write_all(&self.identifier)?;
         self.order.write_le(writer)?;
         self.chunk_id.write_le(writer)?;
         self.chunk_start.write_le(writer)?;
