@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, convert::From, collections::HashMap};
+use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, convert::From, collections::{HashMap, BTreeMap}};
 
 use crate::SampleType;
 use crate::{Reader, Writer};
@@ -1229,6 +1229,10 @@ impl CueChunk {
             cue_point.write(cw.writer)?;
         }
         Ok(())
+    }
+
+    pub fn build_map(&self) -> BTreeMap<u32, &CuePoint> {
+        self.cue_points.iter().map(|cue|{(cue.cue_point_id, cue)}).collect()
     }
 }
 
