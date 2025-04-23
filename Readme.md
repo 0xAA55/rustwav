@@ -191,8 +191,8 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     // Get the metadata from the decoder
     wavewriter.migrate_metadata_from_reader(&wavereader);
 
-    // Must call finalize() for the encoder
-    wavewriter.finalize()?;
+    // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
+    wavewriter.finalize();
 
     // Show debug info
     dbg!(&wavereader);
@@ -217,8 +217,8 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     // Get the metadata from the decoder
     wavewriter_2.migrate_metadata_from_reader(&wavereader_2);
 
-    // Must call finalize() for the encoder
-    wavewriter_2.finalize()?;
+    // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
+    wavewriter_2.finalize();
 
     // Show debug info
     dbg!(&wavereader_2);

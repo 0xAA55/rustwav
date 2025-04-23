@@ -381,7 +381,7 @@ fn test_flac() -> ExitCode {
         },
     }
 
-    encoder.finalize().unwrap();
+    encoder.finalize();
     println!("======== TEST 2 ========");
 
     const FFT_SIZE: usize = 65536;
@@ -527,7 +527,7 @@ fn test_flac() -> ExitCode {
         decoder.decode_all().unwrap();
     }
 
-    decoder.finalize().unwrap();
+    decoder.finalize();
 
     if !frames_buffer.is_empty() {
         let block = utils::do_resample_frames(&resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
@@ -535,7 +535,7 @@ fn test_flac() -> ExitCode {
         frames_buffer.clear();
     }
 
-    wavewriter.finalize().unwrap();
+    wavewriter.finalize();
 
     println!("======== TEST FINISHED ========");
 
