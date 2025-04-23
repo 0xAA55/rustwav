@@ -426,7 +426,8 @@ impl Debug for ChunkWriter<'_> {
 }
 
 impl<'a> ChunkWriter<'a> {
-    // 开始写入 Chunk，此时写入 Chunk Flag，然后记录 Chunk Size 的位置，以及 Chunk 数据的位置。
+    // Starts writing a chunk by first writing the chunk Flag, then recording the positions
+    // for both the chunk size and the chunk data.
     pub fn begin(writer: &'a mut dyn Writer, flag: &[u8; 4]) -> Result<Self, AudioWriteError> {
         writer.write_all(flag)?;
         let pos_of_chunk_len = writer.stream_position()?;
@@ -441,12 +442,9 @@ impl<'a> ChunkWriter<'a> {
         })
     }
 
-    // 结束写入 Chunk，更新 Chunk Size
-    pub fn end(mut self) -> Result<(), AudioWriteError> {
-        self.on_drop()
-    }
+    // At the end of the chunk, the chunk size will be updated since the ownership of `self` moved there, and `drop()` will be called.
+    pub fn end(self){}
 
-    // 实现 `drop()` 时调用。
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
         if self.ended {
             return Ok(());
@@ -504,7 +502,6 @@ impl<'a> ChunkWriter<'a> {
 
 impl Drop for ChunkWriter<'_> {
     fn drop(&mut self) {
-        // println!("dropping `ChunkWriter` {:?}", self);
         self.on_drop().unwrap()
     }
 }

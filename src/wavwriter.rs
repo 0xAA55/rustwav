@@ -58,7 +58,6 @@ pub struct WaveWriter<'a> {
     pub trkn_chunk: Option<String>,
     pub id3__chunk: Option<Id3::Tag>,
     pub junk_chunks: Vec<JunkChunk>,
-    finalized: bool,
 }
 
 impl<'a> WaveWriter<'a> {
@@ -118,7 +117,6 @@ impl<'a> WaveWriter<'a> {
             trkn_chunk: None,
             id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
-            finalized: false,
         };
         ret.write_header()?;
         Ok(ret)
@@ -151,7 +149,7 @@ impl<'a> WaveWriter<'a> {
         let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
         self.fmt_chunk_offset = cw.writer.stream_position()?;
         self.fmt__chunk.write(&mut cw.writer)?;
-        cw.end()?;
+        cw.end();
 
         // Reserves space here for the fact chunk, to be updated later.
         let mut cw = ChunkWriter::begin(&mut self.writer, b"fact")?;
@@ -164,7 +162,7 @@ impl<'a> WaveWriter<'a> {
                 0u64.write_le(&mut cw.writer)?;
             },
         }
-        cw.end()?;
+        cw.end();
 
         self.data_chunk = Some(ChunkWriter::begin(hacks::force_borrow!(*self.writer, dyn Writer), b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
@@ -362,13 +360,9 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    fn finalize_impl(&mut self) -> Result<(), AudioWriteError> {
-        if self.finalized {
-            return Ok(());
-        }
-
+    fn on_drop(&mut self) -> Result<(), AudioWriteError> {
         // Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
-        self.encoder.finalize(&mut self.writer)?;
+        self.encoder.finish(&mut self.writer)?;
 
         // Finalizes writing to the data chunk and records its size.
         let mut data_size = 0u64;
@@ -484,18 +478,14 @@ impl<'a> WaveWriter<'a> {
             },
         }
         self.writer.flush()?;
-        self.finalized = true;
         Ok(())
     }
 
-    pub fn finalize(mut self) -> Result<(), AudioWriteError> {
-        self.finalize_impl()
-    }
+    pub fn finalize(self) {}
 }
 
 impl Drop for WaveWriter<'_> {
     fn drop(&mut self) {
-        // println!("dropping `WaveWriter` {:?}", self);
-        self.finalize_impl().unwrap()
+        self.on_drop().unwrap()
     }
 }

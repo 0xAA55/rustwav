@@ -729,25 +729,16 @@ where
 
     fn on_drop(&mut self) {
         unsafe {
-            if !self.is_finalized() {
-                match self.finish() {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("On FlacEncoderUnmovable::finish(): {:?}", e),
-                }
-                self.metadata.clear();
-                FLAC__stream_encoder_delete(self.encoder);
-                self.encoder = ptr::null_mut();
+            if let Err(e) = self.finish() {
+                eprintln!("On FlacEncoderUnmovable::finish(): {:?}", e);
             }
+
+            self.metadata.clear();
+            FLAC__stream_encoder_delete(self.encoder);
         };
     }
 
-    pub fn finalize(mut self) -> Result<(), FlacEncoderError> {
-        self.finish()
-    }
-
-    pub fn is_finalized(&self) -> bool {
-        self.encoder.is_null()
-    }
+    pub fn finalize(self) {}
 }
 
 impl<Wr, Sk, Tl> Debug for FlacEncoderUnmovable<Wr, Sk, Tl>
@@ -847,9 +838,7 @@ where
         self.encoder.finish()
     }
 
-    pub fn finalize(self) -> Result<(), FlacEncoderError> {
-        Ok(())
-    }
+    pub fn finalize(self) {}
 }
 
 impl<Wr, Sk, Tl> Debug for FlacEncoder<Wr, Sk, Tl>
@@ -1279,27 +1268,19 @@ where
         }
     }
 
+
     fn on_drop(&mut self) {
         unsafe {
-            if !self.is_finalized() {
-                match self.finish() {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("On FlacDecoderUnmovable::finish(): {:?}", e),
-                }
-                FLAC__stream_decoder_delete(self.decoder);
-                self.decoder = ptr::null_mut();
+            if let Err(e) =  self.finish() {
+                eprintln!("On FlacDecoderUnmovable::finish(): {:?}", e);
             }
+
+            // Must delete `self.decoder` even `self.finish()` fails.
+            FLAC__stream_decoder_delete(self.decoder);
         };
     }
 
-    pub fn finalize(mut self) -> Result<(), FlacDecoderError> {
-        self.on_drop();
-        Ok(())
-    }
-
-    pub fn is_finalized(&self) -> bool {
-        self.decoder.is_null()
-    }
+    pub fn finalize(self) {}
 }
 
 impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> Debug for FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
@@ -1410,13 +1391,7 @@ where
         self.decoder.finish()
     }
 
-    pub fn finalize(self) -> Result<(), FlacDecoderError> {
-        Ok(())
-    }
-
-    pub fn is_finalized(&self) -> bool {
-        self.decoder.is_finalized()
-    }
+    pub fn finalize(self) {}
 }
 
 
