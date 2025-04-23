@@ -1467,16 +1467,25 @@ impl AdtlChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+        fn to_sz(s: &String) -> String {
+            if s.len() != 0 {
+                let mut s = s.clone();
+                if s.chars().last().unwrap() != '\0' {s.push_str("\0");}
+                s
+            } else {
+                "\0".to_owned()
+            }
+        }
         match self {
             Self::Labl(labl) => {
                 let cw = ChunkWriter::begin(writer, b"labl")?;
                 cw.writer.write_all(&labl.identifier)?;
-                write_str(cw.writer, &labl.data, text_encoding)?;
+                write_str(cw.writer, &to_sz(&labl.data), text_encoding)?;
             },
             Self::Note(note) => {
                 let cw = ChunkWriter::begin(writer, b"note")?;
                 cw.writer.write_all(&note.identifier)?;
-                write_str(cw.writer, &note.data, text_encoding)?;
+                write_str(cw.writer, &to_sz(&note.data), text_encoding)?;
             },
             Self::Ltxt(ltxt) => {
                 let cw = ChunkWriter::begin(writer, b"ltxt")?;
@@ -1487,7 +1496,7 @@ impl AdtlChunk {
                 ltxt.language.write_le(cw.writer)?;
                 ltxt.dialect.write_le(cw.writer)?;
                 ltxt.code_page.write_le(cw.writer)?;
-                write_str(cw.writer, &ltxt.data, text_encoding)?;
+                write_str(cw.writer, &to_sz(&ltxt.data), text_encoding)?;
             },
         }
         Ok(())
