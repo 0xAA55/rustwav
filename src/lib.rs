@@ -6,6 +6,7 @@ mod copiablebuf;
 mod filehasher;
 mod adpcm;
 mod xlaw;
+mod flac;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
@@ -15,9 +16,6 @@ mod hacks;
 pub mod utils;
 pub mod encoders;
 pub mod decoders;
-
-#[cfg(feature = "flac")]
-mod flac;
 
 pub use sampleutils::{SampleType, SampleFrom, i24, u24};
 pub use readwrite::{Reader, Writer};
