@@ -192,10 +192,11 @@ impl Display for CueTrack {
     }
 }
 
-pub const COMMENT_KEYS: [&str; 31] = [
+pub const COMMENT_KEYS: [&str; 33] = [
     "ACTOR",
     "ALBUM",
     "ARTIST",
+    "ALBUMARTIST",
     "COMMENT",
     "COMPOSER",
     "CONTACT",
@@ -222,6 +223,7 @@ pub const COMMENT_KEYS: [&str; 31] = [
     "REPLAYGAIN_TRACK_PEAK",
     "TITLE",
     "TRACKNUMBER",
+    "TRACKTOTAL",
     "VERSION",
     "vendor"
 ];
