@@ -36,7 +36,7 @@ pub enum FileSizeOption{
 
 #[derive(Debug)]
 pub struct WaveWriter<'a> {
-    writer: Box<dyn Writer + 'a>,
+    writer: Box<dyn Writer + 'static>,
     spec: Spec,
     data_format: DataFormat,
     file_size_option: FileSizeOption,
@@ -71,31 +71,7 @@ impl<'a> WaveWriter<'a> {
         Ok(wave_writer)
     }
 
-    pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
-        use DataFormat::{Unspecified, Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus};
-        let encoder = match data_format {
-            Pcm => {
-                spec.verify_for_pcm()?;
-                Encoder::new(Box::new(PcmEncoder::new(spec.sample_rate, spec.get_sample_type())?))
-            },
-            Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Ima, Ms, Yamaha};
-                match sub_format {
-                    Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(spec.channels, spec.sample_rate)?)),
-                    Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(spec.channels, spec.sample_rate)?)),
-                    Yamaha => Encoder::new(Box::new(AdpcmEncoderWrap::<EncYAMAHA>::new(spec.channels, spec.sample_rate)?)),
-                }
-            },
-            PcmALaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::ALaw))),
-            PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(spec.sample_rate, XLaw::MuLaw))),
-            #[cfg(feature = "mp3enc")]
-            Mp3(ref mp3_options) => Encoder::new(Box::new(Mp3Encoder::<f32>::new(spec.sample_rate, mp3_options)?)),
-            #[cfg(feature = "opus")]
-            Opus(ref opus_options) => Encoder::new(Box::new(OpusEncoder::new(spec.channels, spec.sample_rate, opus_options)?)),
-            Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {data_format}."))),
-            #[allow(unreachable_patterns)]
-            other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
-        };
+    pub fn from(writer: Box<dyn Writer + 'static>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let mut ret = Self{
             writer,
             spec: *spec,
@@ -105,7 +81,7 @@ impl<'a> WaveWriter<'a> {
             fact_chunk_offset: 0,
             num_frames_written: 0,
             data_offset: 0,
-            encoder,
+            encoder: Encoder::default(),
             text_encoding: StringCodecMaps::new(),
             fmt__chunk: FmtChunk::new(),
             riff_chunk: None,
@@ -124,8 +100,38 @@ impl<'a> WaveWriter<'a> {
             id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
         };
+        ret.create_decoder()?;
         ret.write_header()?;
         Ok(ret)
+    }
+
+    fn create_decoder(&mut self) -> Result<(), AudioWriteError> {
+        use DataFormat::{Unspecified, Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus, Flac};
+        let spec = self.spec;
+        self.encoder = match self.data_format {
+            Pcm => {
+                spec.verify_for_pcm()?;
+                Encoder::new(Box::new(PcmEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, spec.get_sample_type())?))
+            },
+            Adpcm(sub_format) => {
+                use AdpcmSubFormat::{Ima, Ms, Yamaha};
+                match sub_format {
+                    Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
+                    Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
+                    Yamaha => Encoder::new(Box::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
+                }
+            },
+            PcmALaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::ALaw))),
+            PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::MuLaw))),
+            #[cfg(feature = "mp3enc")]
+            Mp3(ref mp3_options) => Encoder::new(Box::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, mp3_options)?)),
+            #[cfg(feature = "opus")]
+            Opus(ref opus_options) => Encoder::new(Box::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate, opus_options)?)),
+            Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
+            #[allow(unreachable_patterns)]
+            other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
+        };
+        Ok(())
     }
 
     fn write_header(&mut self) -> Result<(), AudioWriteError> {
@@ -181,7 +187,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_samples(&mut self.writer, samples)?;
+            self.encoder.write_samples(samples)?;
             self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
@@ -193,7 +199,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_sample(&mut self.writer, mono)?;
+            self.encoder.write_sample(mono)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -205,7 +211,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_mono_channel(&mut self.writer, monos)?;
+            self.encoder.write_mono_channel(monos)?;
             self.num_frames_written += monos.len() as u64;
             Ok(())
         } else {
@@ -217,7 +223,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_monos<S>(&mut self, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_monos(&mut self.writer, monos)?;
+            self.encoder.write_monos(monos)?;
             self.num_frames_written += monos[0].len() as u64;
             Ok(())
         } else {
@@ -229,7 +235,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_stereo(&mut self.writer, stereo)?;
+            self.encoder.write_stereo(stereo)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -244,7 +250,7 @@ impl<'a> WaveWriter<'a> {
             if self.spec.channels != 2 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
             }
-            self.encoder.write_stereos(&mut self.writer, stereos)?;
+            self.encoder.write_stereos(stereos)?;
             self.num_frames_written += stereos.len() as u64;
             Ok(())
         } else {
@@ -256,7 +262,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_dual_mono(&mut self.writer, mono1, mono2)?;
+            self.encoder.write_dual_mono(mono1, mono2)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -268,7 +274,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_dual_monos(&mut self.writer, mono1, mono2)?;
+            self.encoder.write_dual_monos(mono1, mono2)?;
             self.num_frames_written += mono1.len() as u64;
             Ok(())
         } else {
@@ -280,7 +286,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_frame(&mut self.writer, frame)?;
+            self.encoder.write_frame(frame)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -292,7 +298,7 @@ impl<'a> WaveWriter<'a> {
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            self.encoder.write_frames(&mut self.writer, frames, self.spec.channels)?;
+            self.encoder.write_frames(frames, self.spec.channels)?;
             self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
@@ -380,7 +386,7 @@ impl<'a> WaveWriter<'a> {
 
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
         // Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
-        self.encoder.finish(&mut self.writer)?;
+        self.encoder.finish()?;
 
         // Finalizes writing to the data chunk and records its size.
         let mut data_size = 0u64;
