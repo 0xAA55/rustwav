@@ -15,6 +15,12 @@ pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bi
 #[allow(unused_imports)]
 pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
+#[cfg(feature = "flac")]
+#[allow(unused_imports)]
+pub use crate::flac::{
+    FlacEncoderParams,
+};
+
 // Did you assume WAV is solely for storing PCM data?
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -26,6 +32,7 @@ pub enum DataFormat{
     PcmMuLaw,
     Mp3(Mp3EncoderOptions),
     Opus(OpusEncoderOptions),
+    Flac(FlacEncoderParams),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,6 +59,7 @@ impl Display for DataFormat {
             Self::PcmMuLaw => write!(f, "PCM-MuLaw"),
             Self::Mp3(options) => write!(f, "MP3({:?})", options),
             Self::Opus(options) => write!(f, "Opus({:?})", options),
+            Self::Flac(options) => write!(f, "Flac({:?})", options),
        }
     }
 }
