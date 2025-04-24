@@ -9,7 +9,7 @@ use libflac_sys::*;
 #[cfg(feature = "id3")]
 use id3::{self, TagLike};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlacCompression {
     Level0 = 0,
     Level1 = 1,
@@ -128,7 +128,7 @@ impl From<FlacEncoderInitError> for FlacEncoderError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FlacEncoderParams {
     pub verify_decoded: bool,
     pub compression: FlacCompression,
