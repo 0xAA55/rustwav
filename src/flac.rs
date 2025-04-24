@@ -989,6 +989,9 @@ where
     md5_checking: bool,
     pub scale_to_i32_range: bool,
     pub desired_audio_form: AudioForm,
+    pub vendor_string: Option<String>,
+    pub meta_comments: BTreeMap<String, String>,
+    pub picture: Option<PictureData>,
 }
 
 impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
@@ -1024,6 +1027,9 @@ where
             md5_checking,
             scale_to_i32_range,
             desired_audio_form,
+            vendor_string: None,
+            meta_comments: BTreeMap::<String, String>::new(),
+            picture: None,
         };
 
         if ret.decoder.is_null() {
@@ -1234,9 +1240,59 @@ where
     }
 
     unsafe extern "C" fn metadata_callback(_decoder: *const FLAC__StreamDecoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
-        let _this = &mut *(client_data as *mut Self);
-        let meta = *metadata;
-        println!("{:?}", WrappedStreamMetadata(meta))
+        let this = &mut *(client_data as *mut Self);
+        let metadata = *metadata;
+        match metadata.type_ {
+            FLAC__METADATA_TYPE_VORBIS_COMMENT => {
+                let comments = metadata.data.vorbis_comment;
+
+                // First retrieve the vendor string
+                this.vendor_string = Some(entry_to_string(&comments.vendor_string));
+
+                // Then to get all of the key pairs, the key pairs should be all uppercase, but some of them are not.
+                // Read both the uppercase keys and the lowercase keys and store them, if it won't overwrite then we convert
+                // the key to uppercase and store it again.
+                let mut uppercase_keypairs = Vec::<(String, String)>::new();
+                for i in 0..comments.num_comments {
+                    let comment = entry_to_string(&*comments.comments.add(i as usize));
+
+                    // The key pair is split by the equal notation
+                    let mut iter = comment.split("=");
+                    if let Some(key) = iter.next() {
+                        let key = key.to_owned();
+
+                        // Ignore the later equal notations.
+                        let val = iter.map(|s: &str|{s.to_string()}).collect::<Vec<String>>().join("=");
+                        let key_upper = key.to_uppercase();
+                        if key != key_upper {
+                            uppercase_keypairs.push((key_upper, val.clone()));
+                        }
+
+                        // Duplication check
+                        let if_dup = format!("Duplicated comments: new comment is {key}: {val}, the previous is {key}: ");
+                        if let Some(old) = this.meta_comments.insert(key, val) {
+                            eprintln!("{if_dup}{old}");
+                        }
+                    } else {
+                        // No equal notation here
+                        eprintln!("Invalid comment: {comment}");
+                    }
+                }
+
+                // If it lacks the uppercase key pairs, we add it to the map.
+                for (key_upper, val) in uppercase_keypairs {
+                    if this.meta_comments.contains_key(&key_upper) {
+                        continue;
+                    } else {
+                        this.meta_comments.insert(key_upper, val);
+                    }
+                }
+            },
+            _ => {
+                #[cfg(debug_assertions)]
+                println!("On `metadata_callback()`: {:?}", WrappedStreamMetadata(metadata));
+            },
+        }
     }
 
     unsafe extern "C" fn error_callback(_decoder: *const FLAC__StreamDecoder, status: u32, client_data: *mut c_void) {
