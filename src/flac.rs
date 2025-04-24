@@ -960,6 +960,14 @@ pub struct SamplesInfo {
     pub audio_form: AudioForm,
 }
 
+fn entry_to_str<'a>(entry: &'a FLAC__StreamMetadata_VorbisComment_Entry) -> Cow<'a, str> {
+    unsafe{String::from_utf8_lossy(slice::from_raw_parts(entry.entry, entry.length as usize))}
+}
+
+fn entry_to_string(entry: &FLAC__StreamMetadata_VorbisComment_Entry) -> String {
+    entry_to_str(entry).to_string()
+}
+
 pub struct FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
 where
     Rd: FnMut(&mut [u8]) -> (usize, ReadStatus),
@@ -1493,10 +1501,6 @@ impl Debug for WrappedSeekTable {
             .field("points", &format_args!("{:?}", points))
             .finish()
     }
-}
-
-fn entry_to_string(entry: &FLAC__StreamMetadata_VorbisComment_Entry) -> String {
-    unsafe {String::from_utf8_lossy(slice::from_raw_parts(entry.entry, entry.length as usize)).to_string()}
 }
 
 #[derive(Clone, Copy)]
