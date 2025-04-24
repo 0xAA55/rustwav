@@ -1060,6 +1060,9 @@ where
             if FLAC__stream_decoder_set_md5_checking(self.decoder, self.md5_checking as i32) == 0 {
                 return self.get_status_as_error("FLAC__stream_decoder_set_md5_checking");
             }
+            if FLAC__stream_decoder_set_metadata_respond_all(self.decoder) == 0 {
+                return self.get_status_as_error("FLAC__stream_decoder_set_metadata_respond_all");
+            }
             let ret = FLAC__stream_decoder_init_stream(
                 self.decoder,
                 Some(Self::read_callback),
