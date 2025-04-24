@@ -109,6 +109,34 @@ pub mod impl_flac {
 
     impl_FlacError!(FlacEncoderError);
 
+    #[derive(Debug, Clone, Copy)]
+    pub enum FlacEncoderErrorCode {
+        StreamOk = FLAC__STREAM_ENCODER_OK as isize,
+        StreamEncoderUninitialized = FLAC__STREAM_ENCODER_UNINITIALIZED as isize,
+        StreamEncoderOggError = FLAC__STREAM_ENCODER_OGG_ERROR as isize,
+        StreamEncoderVerifyDecoderError = FLAC__STREAM_ENCODER_VERIFY_DECODER_ERROR as isize,
+        StreamEncoderVerifyMismatchInAudioData = FLAC__STREAM_ENCODER_VERIFY_MISMATCH_IN_AUDIO_DATA as isize,
+        StreamEncoderClientError = FLAC__STREAM_ENCODER_CLIENT_ERROR as isize,
+        StreamEncoderIOError = FLAC__STREAM_ENCODER_IO_ERROR as isize,
+        StreamEncoderFramingError = FLAC__STREAM_ENCODER_FRAMING_ERROR as isize,
+        StreamEncoderMemoryAllocationError = FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR as isize,
+    }
+
+    impl From<u32> for FlacEncoderErrorCode {
+        fn from(code: u32) -> Self {
+            use FlacEncoderErrorCode::*;
+            match code {
+                FLAC__STREAM_ENCODER_OK => StreamOk,
+                FLAC__STREAM_ENCODER_UNINITIALIZED => StreamEncoderUninitialized,
+                FLAC__STREAM_ENCODER_OGG_ERROR => StreamEncoderOggError,
+                FLAC__STREAM_ENCODER_VERIFY_DECODER_ERROR => StreamEncoderVerifyDecoderError,
+                FLAC__STREAM_ENCODER_VERIFY_MISMATCH_IN_AUDIO_DATA => StreamEncoderVerifyMismatchInAudioData,
+                FLAC__STREAM_ENCODER_CLIENT_ERROR => StreamEncoderClientError,
+                FLAC__STREAM_ENCODER_IO_ERROR => StreamEncoderIOError,
+                FLAC__STREAM_ENCODER_FRAMING_ERROR  => StreamEncoderFramingError,
+                FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR => StreamEncoderMemoryAllocationError,
+                o => panic!("Not an encoder error code: {o}."),
+            }
         }
     }
 
@@ -137,6 +165,44 @@ pub mod impl_flac {
 
     impl_FlacError!(FlacEncoderInitError);
 
+    #[derive(Debug, Clone, Copy)]
+    pub enum FlacEncoderInitErrorCode {
+        StreamEncoderInitStatusOk = FLAC__STREAM_ENCODER_INIT_STATUS_OK as isize,
+        StreamEncoderInitStatusEncoderError = FLAC__STREAM_ENCODER_INIT_STATUS_ENCODER_ERROR as isize,
+        StreamEncoderInitStatusUnsupportedContainer = FLAC__STREAM_ENCODER_INIT_STATUS_UNSUPPORTED_CONTAINER as isize,
+        StreamEncoderInitStatusInvalidCallbacks = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_CALLBACKS as isize,
+        StreamEncoderInitStatusInvalidNumberOfChannels = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_NUMBER_OF_CHANNELS as isize,
+        StreamEncoderInitStatusInvalidBitsPerSample = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_BITS_PER_SAMPLE as isize,
+        StreamEncoderInitStatusInvalidSampleRate = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_SAMPLE_RATE as isize,
+        StreamEncoderInitStatusInvalidBlockSize = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_BLOCK_SIZE as isize,
+        StreamEncoderInitStatusInvalidMaxLpcOrder = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_MAX_LPC_ORDER as isize,
+        StreamEncoderInitStatusInvalidQlpCoeffPrecision = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_QLP_COEFF_PRECISION as isize,
+        StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder = FLAC__STREAM_ENCODER_INIT_STATUS_BLOCK_SIZE_TOO_SMALL_FOR_LPC_ORDER as isize,
+        StreamEncoderInitStatusNotStreamable = FLAC__STREAM_ENCODER_INIT_STATUS_NOT_STREAMABLE as isize,
+        StreamEncoderInitStatusInvalidMetadata = FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_METADATA as isize,
+        StreamEncoderInitStatusAlreadyInitialized = FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED as isize,
+    }
+
+    impl From<u32> for FlacEncoderInitErrorCode {
+        fn from(code: u32) -> Self {
+            use FlacEncoderInitErrorCode::*;
+            match code {
+                FLAC__STREAM_ENCODER_INIT_STATUS_OK => StreamEncoderInitStatusOk,
+                FLAC__STREAM_ENCODER_INIT_STATUS_ENCODER_ERROR => StreamEncoderInitStatusEncoderError,
+                FLAC__STREAM_ENCODER_INIT_STATUS_UNSUPPORTED_CONTAINER => StreamEncoderInitStatusUnsupportedContainer,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_CALLBACKS => StreamEncoderInitStatusInvalidCallbacks,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_NUMBER_OF_CHANNELS => StreamEncoderInitStatusInvalidNumberOfChannels,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_BITS_PER_SAMPLE => StreamEncoderInitStatusInvalidBitsPerSample,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_SAMPLE_RATE => StreamEncoderInitStatusInvalidSampleRate,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_BLOCK_SIZE => StreamEncoderInitStatusInvalidBlockSize,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_MAX_LPC_ORDER => StreamEncoderInitStatusInvalidMaxLpcOrder,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_QLP_COEFF_PRECISION => StreamEncoderInitStatusInvalidQlpCoeffPrecision,
+                FLAC__STREAM_ENCODER_INIT_STATUS_BLOCK_SIZE_TOO_SMALL_FOR_LPC_ORDER => StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder,
+                FLAC__STREAM_ENCODER_INIT_STATUS_NOT_STREAMABLE => StreamEncoderInitStatusNotStreamable,
+                FLAC__STREAM_ENCODER_INIT_STATUS_INVALID_METADATA => StreamEncoderInitStatusInvalidMetadata,
+                FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED => StreamEncoderInitStatusAlreadyInitialized,
+                o => panic!("Not an encoder init error code: {o}."),
+            }
         }
     }
 
@@ -917,6 +983,39 @@ pub mod impl_flac {
     impl_FlacError!(FlacDecoderError);
 
     #[derive(Debug, Clone, Copy)]
+    pub enum FlacDecoderErrorCode {
+        StreamDecoderSearchForMetadata = FLAC__STREAM_DECODER_SEARCH_FOR_METADATA as isize,
+        StreamDecoderReadMetadata = FLAC__STREAM_DECODER_READ_METADATA as isize,
+        StreamDecoderSearchForFrameSync = FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC as isize,
+        StreamDecoderReadFrame = FLAC__STREAM_DECODER_READ_FRAME as isize,
+        StreamDecoderEndOfStream = FLAC__STREAM_DECODER_END_OF_STREAM as isize,
+        StreamDecoderOggError = FLAC__STREAM_DECODER_OGG_ERROR as isize,
+        StreamDecoderSeekError = FLAC__STREAM_DECODER_SEEK_ERROR as isize,
+        StreamDecoderAborted = FLAC__STREAM_DECODER_ABORTED as isize,
+        StreamDecoderMemoryAllocationError = FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR as isize,
+        StreamDecoderUninitialized = FLAC__STREAM_DECODER_UNINITIALIZED as isize,
+    }
+
+    impl From<u32> for FlacDecoderErrorCode {
+        fn from(code: u32) -> Self {
+            use FlacDecoderErrorCode::*;
+            match code {
+                FLAC__STREAM_DECODER_SEARCH_FOR_METADATA => StreamDecoderSearchForMetadata,
+                FLAC__STREAM_DECODER_READ_METADATA => StreamDecoderReadMetadata,
+                FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC => StreamDecoderSearchForFrameSync,
+                FLAC__STREAM_DECODER_READ_FRAME => StreamDecoderReadFrame,
+                FLAC__STREAM_DECODER_END_OF_STREAM => StreamDecoderEndOfStream,
+                FLAC__STREAM_DECODER_OGG_ERROR => StreamDecoderOggError,
+                FLAC__STREAM_DECODER_SEEK_ERROR => StreamDecoderSeekError,
+                FLAC__STREAM_DECODER_ABORTED => StreamDecoderAborted,
+                FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR => StreamDecoderMemoryAllocationError,
+                FLAC__STREAM_DECODER_UNINITIALIZED => StreamDecoderUninitialized,
+                o => panic!("Not an decoder error code: {o}."),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
     pub struct FlacDecoderInitError {
         code: u32,
         message: &'static str,
@@ -940,6 +1039,31 @@ pub mod impl_flac {
     }
 
     impl_FlacError!(FlacDecoderInitError);
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum FlacDecoderInitErrorCode {
+        StreamDecoderInitStatusOk = FLAC__STREAM_DECODER_INIT_STATUS_OK as isize,
+        StreamDecoderInitStatusUnsupportedContainer = FLAC__STREAM_DECODER_INIT_STATUS_UNSUPPORTED_CONTAINER as isize,
+        StreamDecoderInitStatusInvalidCallbacks = FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS as isize,
+        StreamDecoderInitStatusMemoryAllocationError = FLAC__STREAM_DECODER_INIT_STATUS_MEMORY_ALLOCATION_ERROR as isize,
+        StreamDecoderInitStatusErrorOpeningFile = FLAC__STREAM_DECODER_INIT_STATUS_ERROR_OPENING_FILE as isize,
+        StreamDecoderInitStatusAlreadyInitialized = FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED as isize,
+    }
+
+    impl From<u32> for FlacDecoderInitErrorCode {
+        fn from(code: u32) -> Self {
+            use FlacDecoderInitErrorCode::*;
+            match code {
+                FLAC__STREAM_DECODER_INIT_STATUS_OK => StreamDecoderInitStatusOk,
+                FLAC__STREAM_DECODER_INIT_STATUS_UNSUPPORTED_CONTAINER => StreamDecoderInitStatusUnsupportedContainer,
+                FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS => StreamDecoderInitStatusInvalidCallbacks,
+                FLAC__STREAM_DECODER_INIT_STATUS_MEMORY_ALLOCATION_ERROR => StreamDecoderInitStatusMemoryAllocationError,
+                FLAC__STREAM_DECODER_INIT_STATUS_ERROR_OPENING_FILE => StreamDecoderInitStatusErrorOpeningFile,
+                FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED => StreamDecoderInitStatusAlreadyInitialized,
+                o => panic!("Not an decoder init error code: {o}."),
+            }
+        }
+    }
 
     impl From<FlacDecoderError> for FlacDecoderInitError {
         fn from(err: FlacDecoderError) -> Self {
@@ -1354,11 +1478,11 @@ pub mod impl_flac {
         unsafe extern "C" fn error_callback(_decoder: *const FLAC__StreamDecoder, status: u32, client_data: *mut c_void) {
             let this = &mut *(client_data as *mut Self);
             (this.on_error)(match status {
-                FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC => FlacInternalDecodeError::LostSync,
-                FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER => FlacInternalDecodeError::BadHeader,
-                FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH => FlacInternalDecodeError::FrameCrcMismatch,
-                FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM => FlacInternalDecodeError::UnparseableStream,
-                FLAC__STREAM_DECODER_ERROR_STATUS_BAD_METADATA => FlacInternalDecodeError::BadMetadata,
+                FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC => FlacInternalDecoderError::LostSync,
+                FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER => FlacInternalDecoderError::BadHeader,
+                FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH => FlacInternalDecoderError::FrameCrcMismatch,
+                FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM => FlacInternalDecoderError::UnparseableStream,
+                FLAC__STREAM_DECODER_ERROR_STATUS_BAD_METADATA => FlacInternalDecoderError::BadMetadata,
                 o => panic!("Unknown value of `FLAC__StreamDecodeErrorStatus`: {o}"),
             });
         }
