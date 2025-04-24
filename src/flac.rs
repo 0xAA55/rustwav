@@ -538,7 +538,7 @@ where
     }
 
     #[cfg(feature = "id3")]
-    fn migrate_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
+    fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
         if let Some(artist) = tag.artist() {self.insert_comments("ARTIST", artist)?;}
         if let Some(album) = tag.album() {self.insert_comments("ALBUM", album)?;}
         if let Some(title) = tag.title() {self.insert_comments("TITLE", title)?;}
@@ -671,8 +671,9 @@ where
 
     unsafe extern "C" fn metadata_callback(_encoder: *const FLAC__StreamEncoder, metadata: *const FLAC__StreamMetadata, client_data: *mut c_void) {
         let _this = &mut *(client_data as *mut Self);
-        let meta = *metadata;
-        println!("{:?}", WrappedStreamMetadata(meta))
+        let _meta = *metadata;
+        #[cfg(debug_assertions)]
+        println!("{:?}", WrappedStreamMetadata(_meta))
     }
 
     pub fn write_monos(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
@@ -809,8 +810,8 @@ where
     }
 
     #[cfg(feature = "id3")]
-    pub fn migrate_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
-        self.encoder.migrate_metadata_from_id3(tag)
+    pub fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
+        self.encoder.inherit_metadata_from_id3(tag)
     }
 
     fn ensure_initialized(&mut self) -> Result<(), FlacEncoderInitError> {
@@ -1446,6 +1447,18 @@ where
         };
         ret.decoder.init()?;
         Ok(ret)
+    }
+
+    pub fn get_vendor_string(&self) -> &Option<String> {
+        &self.decoder.vendor_string
+    }
+
+    pub fn get_comments(&self) -> &BTreeMap<String, String> {
+        &self.decoder.meta_comments
+    }
+
+    pub fn get_picture(&self) -> &Option<PictureData> {
+        &self.decoder.picture
     }
 
     pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {

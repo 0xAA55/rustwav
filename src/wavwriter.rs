@@ -353,7 +353,7 @@ impl<'a> WaveWriter<'a> {
     }
 
     // Transfers audio metadata (e.g., track info) from the reader.
-    pub fn migrate_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
+    pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
         if reader.get_slnt_chunk().is_some() {self.slnt_chunk = reader.get_slnt_chunk().clone();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}

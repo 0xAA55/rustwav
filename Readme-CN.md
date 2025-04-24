@@ -189,7 +189,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
 
     // Get the metadata from the decoder
-    wavewriter.migrate_metadata_from_reader(&wavereader);
+    wavewriter.inherit_metadata_from_reader(&wavereader);
 
     // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
     wavewriter.finalize();
@@ -215,7 +215,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
     // Get the metadata from the decoder
-    wavewriter_2.migrate_metadata_from_reader(&wavereader_2);
+    wavewriter_2.inherit_metadata_from_reader(&wavereader_2);
 
     // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
     wavewriter_2.finalize();

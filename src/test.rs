@@ -180,7 +180,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
 
     // Get the metadata from the decoder
-    wavewriter.migrate_metadata_from_reader(&wavereader, true);
+    wavewriter.inherit_metadata_from_reader(&wavereader, true);
 
     // Show debug info
     dbg!(&wavereader);
@@ -206,7 +206,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
     // Get the metadata from the decoder
-    wavewriter_2.migrate_metadata_from_reader(&wavereader_2, true);
+    wavewriter_2.inherit_metadata_from_reader(&wavereader_2, true);
 
 
     // Show debug info
@@ -307,7 +307,7 @@ fn test_flac() -> ExitCode {
 
     #[cfg(feature = "id3")]
     if let Some(id3_tag) = wavereader.get_id3__chunk() {
-        encoder.migrate_metadata_from_id3(id3_tag).unwrap();
+        encoder.inherit_metadata_from_id3(id3_tag).unwrap();
     }
     if let Some(list) = wavereader.get_list_chunk() {
         match list {
