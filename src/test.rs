@@ -405,20 +405,20 @@ fn test_flac() -> ExitCode {
     let mut frames_buffer = Vec::<Vec<i32>>::new();
     let mut cur_sample_rate = 0;
 
-    let on_read = |buffer: &mut [u8]| -> (usize, flac::ReadStatus) {
-        reader.escorted_work(|reader| -> Result<(usize, flac::ReadStatus), io::Error> {
+    let on_read = |buffer: &mut [u8]| -> (usize, flac::FlacReadStatus) {
+        reader.escorted_work(|reader| -> Result<(usize, flac::FlacReadStatus), io::Error> {
             let to_read = buffer.len();
             Ok(match reader.read(buffer) {
                 Ok(size) => {
                     match size.cmp(&to_read) {
-                        Ordering::Equal => (size, flac::ReadStatus::GoOn),
-                        Ordering::Less => (size, flac::ReadStatus::Eof),
+                        Ordering::Equal => (size, flac::FlacReadStatus::GoOn),
+                        Ordering::Less => (size, flac::FlacReadStatus::Eof),
                         Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
                     }
                 },
                 Err(e) => {
                     eprintln!("on_read(): {:?}", e);
-                    (0, flac::ReadStatus::Abort)
+                    (0, flac::FlacReadStatus::Abort)
                 }
             })
         }).unwrap()
@@ -484,7 +484,7 @@ fn test_flac() -> ExitCode {
         cur_sample_rate = sample_rate;
         Ok(())
     };
-    let on_error = |error: flac::DecoderError| {
+    let on_error = |error: flac::FlacInternalDecoderError| {
         eprintln!("on_error({error})");
     };
 
@@ -498,7 +498,7 @@ fn test_flac() -> ExitCode {
         on_error,
         true,
         true,
-        flac::AudioForm::FrameArray,
+        flac::FlacAudioForm::FrameArray,
     ).unwrap();
 
     const BY_BLOCKS: bool = false;
