@@ -64,46 +64,46 @@ pub trait EncoderToImpl: Debug {
     fn write_frames_f64(&mut self, writer: &mut dyn Writer, frames: &[Vec<f64>], channels: u16) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::frames_to_interleaved_samples(frames, Some(channels))?)}
 
     // Interfaces for writing mono audio frames (single-channel). Default implementations are provided.
-    fn write_mono__i8(&mut self, writer: &mut dyn Writer, frame: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[frame])}
-    fn write_mono_i16(&mut self, writer: &mut dyn Writer, frame: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[frame])}
-    fn write_mono_i24(&mut self, writer: &mut dyn Writer, frame: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[frame])}
-    fn write_mono_i32(&mut self, writer: &mut dyn Writer, frame: i32) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, &[frame])}
-    fn write_mono_i64(&mut self, writer: &mut dyn Writer, frame: i64) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, &[frame])}
-    fn write_mono__u8(&mut self, writer: &mut dyn Writer, frame: u8 ) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, &[frame])}
-    fn write_mono_u16(&mut self, writer: &mut dyn Writer, frame: u16) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, &[frame])}
-    fn write_mono_u24(&mut self, writer: &mut dyn Writer, frame: u24) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, &[frame])}
-    fn write_mono_u32(&mut self, writer: &mut dyn Writer, frame: u32) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, &[frame])}
-    fn write_mono_u64(&mut self, writer: &mut dyn Writer, frame: u64) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &[frame])}
-    fn write_mono_f32(&mut self, writer: &mut dyn Writer, frame: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[frame])}
-    fn write_mono_f64(&mut self, writer: &mut dyn Writer, frame: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[frame])}
+    fn write_sample__i8(&mut self, writer: &mut dyn Writer, sample: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[sample])}
+    fn write_sample_i16(&mut self, writer: &mut dyn Writer, sample: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[sample])}
+    fn write_sample_i24(&mut self, writer: &mut dyn Writer, sample: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[sample])}
+    fn write_sample_i32(&mut self, writer: &mut dyn Writer, sample: i32) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, &[sample])}
+    fn write_sample_i64(&mut self, writer: &mut dyn Writer, sample: i64) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, &[sample])}
+    fn write_sample__u8(&mut self, writer: &mut dyn Writer, sample: u8 ) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, &[sample])}
+    fn write_sample_u16(&mut self, writer: &mut dyn Writer, sample: u16) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, &[sample])}
+    fn write_sample_u24(&mut self, writer: &mut dyn Writer, sample: u24) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, &[sample])}
+    fn write_sample_u32(&mut self, writer: &mut dyn Writer, sample: u32) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, &[sample])}
+    fn write_sample_u64(&mut self, writer: &mut dyn Writer, sample: u64) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &[sample])}
+    fn write_sample_f32(&mut self, writer: &mut dyn Writer, sample: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[sample])}
+    fn write_sample_f64(&mut self, writer: &mut dyn Writer, sample: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[sample])}
 
     // Interfaces for writing batched mono audio frames. Default implementations are provided.
-    fn write_monos__i8(&mut self, writer: &mut dyn Writer, frames: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, frames)}
-    fn write_monos_i16(&mut self, writer: &mut dyn Writer, frames: &[i16]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, frames)}
-    fn write_monos_i24(&mut self, writer: &mut dyn Writer, frames: &[i24]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, frames)}
-    fn write_monos_i32(&mut self, writer: &mut dyn Writer, frames: &[i32]) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, frames)}
-    fn write_monos_i64(&mut self, writer: &mut dyn Writer, frames: &[i64]) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, frames)}
-    fn write_monos__u8(&mut self, writer: &mut dyn Writer, frames: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, frames)}
-    fn write_monos_u16(&mut self, writer: &mut dyn Writer, frames: &[u16]) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, frames)}
-    fn write_monos_u24(&mut self, writer: &mut dyn Writer, frames: &[u24]) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, frames)}
-    fn write_monos_u32(&mut self, writer: &mut dyn Writer, frames: &[u32]) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, frames)}
-    fn write_monos_u64(&mut self, writer: &mut dyn Writer, frames: &[u64]) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, frames)}
-    fn write_monos_f32(&mut self, writer: &mut dyn Writer, frames: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, frames)}
-    fn write_monos_f64(&mut self, writer: &mut dyn Writer, frames: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, frames)}
+    fn write_mono_channel__i8(&mut self, writer: &mut dyn Writer, monos: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, monos)}
+    fn write_mono_channel_i16(&mut self, writer: &mut dyn Writer, monos: &[i16]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, monos)}
+    fn write_mono_channel_i24(&mut self, writer: &mut dyn Writer, monos: &[i24]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, monos)}
+    fn write_mono_channel_i32(&mut self, writer: &mut dyn Writer, monos: &[i32]) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, monos)}
+    fn write_mono_channel_i64(&mut self, writer: &mut dyn Writer, monos: &[i64]) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, monos)}
+    fn write_mono_channel__u8(&mut self, writer: &mut dyn Writer, monos: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, monos)}
+    fn write_mono_channel_u16(&mut self, writer: &mut dyn Writer, monos: &[u16]) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, monos)}
+    fn write_mono_channel_u24(&mut self, writer: &mut dyn Writer, monos: &[u24]) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, monos)}
+    fn write_mono_channel_u32(&mut self, writer: &mut dyn Writer, monos: &[u32]) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, monos)}
+    fn write_mono_channel_u64(&mut self, writer: &mut dyn Writer, monos: &[u64]) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, monos)}
+    fn write_mono_channel_f32(&mut self, writer: &mut dyn Writer, monos: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, monos)}
+    fn write_mono_channel_f64(&mut self, writer: &mut dyn Writer, monos: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, monos)}
 
     // Interfaces for writing stereo audio (composed of two separate channel buffers). Default implementations are provided.
-    fn write_dual_mono__i8(&mut self, writer: &mut dyn Writer, mono1: i8 , mono2: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[mono1, mono2])}
-    fn write_dual_mono_i16(&mut self, writer: &mut dyn Writer, mono1: i16, mono2: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[mono1, mono2])}
-    fn write_dual_mono_i24(&mut self, writer: &mut dyn Writer, mono1: i24, mono2: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[mono1, mono2])}
-    fn write_dual_mono_i32(&mut self, writer: &mut dyn Writer, mono1: i32, mono2: i32) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, &[mono1, mono2])}
-    fn write_dual_mono_i64(&mut self, writer: &mut dyn Writer, mono1: i64, mono2: i64) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, &[mono1, mono2])}
-    fn write_dual_mono__u8(&mut self, writer: &mut dyn Writer, mono1: u8 , mono2: u8 ) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, &[mono1, mono2])}
-    fn write_dual_mono_u16(&mut self, writer: &mut dyn Writer, mono1: u16, mono2: u16) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, &[mono1, mono2])}
-    fn write_dual_mono_u24(&mut self, writer: &mut dyn Writer, mono1: u24, mono2: u24) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, &[mono1, mono2])}
-    fn write_dual_mono_u32(&mut self, writer: &mut dyn Writer, mono1: u32, mono2: u32) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, &[mono1, mono2])}
-    fn write_dual_mono_u64(&mut self, writer: &mut dyn Writer, mono1: u64, mono2: u64) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &[mono1, mono2])}
-    fn write_dual_mono_f32(&mut self, writer: &mut dyn Writer, mono1: f32, mono2: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[mono1, mono2])}
-    fn write_dual_mono_f64(&mut self, writer: &mut dyn Writer, mono1: f64, mono2: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[mono1, mono2])}
+    fn write_dual_sample__i8(&mut self, writer: &mut dyn Writer, mono1: i8 , mono2: i8 ) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[mono1, mono2])}
+    fn write_dual_sample_i16(&mut self, writer: &mut dyn Writer, mono1: i16, mono2: i16) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &[mono1, mono2])}
+    fn write_dual_sample_i24(&mut self, writer: &mut dyn Writer, mono1: i24, mono2: i24) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &[mono1, mono2])}
+    fn write_dual_sample_i32(&mut self, writer: &mut dyn Writer, mono1: i32, mono2: i32) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, &[mono1, mono2])}
+    fn write_dual_sample_i64(&mut self, writer: &mut dyn Writer, mono1: i64, mono2: i64) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, &[mono1, mono2])}
+    fn write_dual_sample__u8(&mut self, writer: &mut dyn Writer, mono1: u8 , mono2: u8 ) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, &[mono1, mono2])}
+    fn write_dual_sample_u16(&mut self, writer: &mut dyn Writer, mono1: u16, mono2: u16) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, &[mono1, mono2])}
+    fn write_dual_sample_u24(&mut self, writer: &mut dyn Writer, mono1: u24, mono2: u24) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, &[mono1, mono2])}
+    fn write_dual_sample_u32(&mut self, writer: &mut dyn Writer, mono1: u32, mono2: u32) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, &[mono1, mono2])}
+    fn write_dual_sample_u64(&mut self, writer: &mut dyn Writer, mono1: u64, mono2: u64) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &[mono1, mono2])}
+    fn write_dual_sample_f32(&mut self, writer: &mut dyn Writer, mono1: f32, mono2: f32) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &[mono1, mono2])}
+    fn write_dual_sample_f64(&mut self, writer: &mut dyn Writer, mono1: f64, mono2: f64) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &[mono1, mono2])}
 
     // Interfaces for writing batched stereo audio (two separate channel buffers). Default implementations are provided.
     fn write_dual_monos__i8(&mut self, writer: &mut dyn Writer, mono1: &[i8 ], mono2: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
@@ -118,6 +118,20 @@ pub trait EncoderToImpl: Debug {
     fn write_dual_monos_u64(&mut self, writer: &mut dyn Writer, mono1: &[u64], mono2: &[u64]) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
     fn write_dual_monos_f32(&mut self, writer: &mut dyn Writer, mono1: &[f32], mono2: &[f32]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
     fn write_dual_monos_f64(&mut self, writer: &mut dyn Writer, mono1: &[f64], mono2: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::monos_to_interleaved_samples(&[mono1.to_vec(), mono2.to_vec()])?)}
+
+    // Interfaces for writing batched stereo audio (two separate channel buffers). Default implementations are provided.
+    fn write_monos__i8(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_i16(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_samples_i16(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_i24(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_samples_i24(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_i32(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_samples_i32(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_i64(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_samples_i64(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos__u8(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_samples__u8(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_u16(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_samples_u16(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_u24(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_samples_u24(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_u32(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_samples_u32(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_u64(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_samples_u64(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_f32(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_samples_f32(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
+    fn write_monos_f64(&mut self, writer: &mut dyn Writer, monos_array: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_samples_f64(writer, &utils::monos_to_interleaved_samples(monos_array)?)}
 
     // Interfaces for writing stereo audio frames using tuples (L, R). Default implementations are provided.
     fn write_stereo__i8(&mut self, writer: &mut dyn Writer, stereo: (i8 , i8 )) -> Result<(), AudioWriteError> {self.write_samples__i8(writer, &[stereo.0, stereo.1])}
@@ -268,26 +282,26 @@ impl Encoder {
         }
     }
 
-    pub fn write_mono<S>(&mut self, writer: &mut dyn Writer, mono: S) -> Result<(), AudioWriteError>
+    pub fn write_sample<S>(&mut self, writer: &mut dyn Writer, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_mono__i8(writer, mono.to_i8() ),
-            "i16" => self.encoder.write_mono_i16(writer, mono.to_i16()),
-            "i24" => self.encoder.write_mono_i24(writer, mono.to_i24()),
-            "i32" => self.encoder.write_mono_i32(writer, mono.to_i32()),
-            "i64" => self.encoder.write_mono_i64(writer, mono.to_i64()),
-            "u8"  => self.encoder.write_mono__u8(writer, mono.to_u8() ),
-            "u16" => self.encoder.write_mono_u16(writer, mono.to_u16()),
-            "u24" => self.encoder.write_mono_u24(writer, mono.to_u24()),
-            "u32" => self.encoder.write_mono_u32(writer, mono.to_u32()),
-            "u64" => self.encoder.write_mono_u64(writer, mono.to_u64()),
-            "f32" => self.encoder.write_mono_f32(writer, mono.to_f32()),
-            "f64" => self.encoder.write_mono_f64(writer, mono.to_f64()),
+            "i8"  => self.encoder.write_sample__i8(writer, mono.to_i8() ),
+            "i16" => self.encoder.write_sample_i16(writer, mono.to_i16()),
+            "i24" => self.encoder.write_sample_i24(writer, mono.to_i24()),
+            "i32" => self.encoder.write_sample_i32(writer, mono.to_i32()),
+            "i64" => self.encoder.write_sample_i64(writer, mono.to_i64()),
+            "u8"  => self.encoder.write_sample__u8(writer, mono.to_u8() ),
+            "u16" => self.encoder.write_sample_u16(writer, mono.to_u16()),
+            "u24" => self.encoder.write_sample_u24(writer, mono.to_u24()),
+            "u32" => self.encoder.write_sample_u32(writer, mono.to_u32()),
+            "u64" => self.encoder.write_sample_u64(writer, mono.to_u64()),
+            "f32" => self.encoder.write_sample_f32(writer, mono.to_f32()),
+            "f64" => self.encoder.write_sample_f64(writer, mono.to_f64()),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
 
-    pub fn write_monos<S>(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError>
+    pub fn write_mono_channel<S>(&mut self, writer: &mut dyn Writer, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
             "i8"  => self.encoder.write_samples__i8(writer, &sample_conv(monos)),
@@ -309,18 +323,18 @@ impl Encoder {
     pub fn write_dual_mono<S>(&mut self, writer: &mut dyn Writer, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_dual_mono__i8(writer, mono1.to_i8() , mono2.to_i8() ),
-            "i16" => self.encoder.write_dual_mono_i16(writer, mono1.to_i16(), mono2.to_i16()),
-            "i24" => self.encoder.write_dual_mono_i24(writer, mono1.to_i24(), mono2.to_i24()),
-            "i32" => self.encoder.write_dual_mono_i32(writer, mono1.to_i32(), mono2.to_i32()),
-            "i64" => self.encoder.write_dual_mono_i64(writer, mono1.to_i64(), mono2.to_i64()),
-            "u8"  => self.encoder.write_dual_mono__u8(writer, mono1.to_u8() , mono2.to_u8() ),
-            "u16" => self.encoder.write_dual_mono_u16(writer, mono1.to_u16(), mono2.to_u16()),
-            "u24" => self.encoder.write_dual_mono_u24(writer, mono1.to_u24(), mono2.to_u24()),
-            "u32" => self.encoder.write_dual_mono_u32(writer, mono1.to_u32(), mono2.to_u32()),
-            "u64" => self.encoder.write_dual_mono_u64(writer, mono1.to_u64(), mono2.to_u64()),
-            "f32" => self.encoder.write_dual_mono_f32(writer, mono1.to_f32(), mono2.to_f32()),
-            "f64" => self.encoder.write_dual_mono_f64(writer, mono1.to_f64(), mono2.to_f64()),
+            "i8"  => self.encoder.write_dual_sample__i8(writer, mono1.to_i8() , mono2.to_i8() ),
+            "i16" => self.encoder.write_dual_sample_i16(writer, mono1.to_i16(), mono2.to_i16()),
+            "i24" => self.encoder.write_dual_sample_i24(writer, mono1.to_i24(), mono2.to_i24()),
+            "i32" => self.encoder.write_dual_sample_i32(writer, mono1.to_i32(), mono2.to_i32()),
+            "i64" => self.encoder.write_dual_sample_i64(writer, mono1.to_i64(), mono2.to_i64()),
+            "u8"  => self.encoder.write_dual_sample__u8(writer, mono1.to_u8() , mono2.to_u8() ),
+            "u16" => self.encoder.write_dual_sample_u16(writer, mono1.to_u16(), mono2.to_u16()),
+            "u24" => self.encoder.write_dual_sample_u24(writer, mono1.to_u24(), mono2.to_u24()),
+            "u32" => self.encoder.write_dual_sample_u32(writer, mono1.to_u32(), mono2.to_u32()),
+            "u64" => self.encoder.write_dual_sample_u64(writer, mono1.to_u64(), mono2.to_u64()),
+            "f32" => self.encoder.write_dual_sample_f32(writer, mono1.to_f32(), mono2.to_f32()),
+            "f64" => self.encoder.write_dual_sample_f64(writer, mono1.to_f64(), mono2.to_f64()),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
@@ -340,6 +354,25 @@ impl Encoder {
             "u64" => self.encoder.write_dual_monos_u64(writer, &sample_conv(mono1), &sample_conv(mono2)),
             "f32" => self.encoder.write_dual_monos_f32(writer, &sample_conv(mono1), &sample_conv(mono2)),
             "f64" => self.encoder.write_dual_monos_f64(writer, &sample_conv(mono1), &sample_conv(mono2)),
+            other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
+        }
+    }
+
+    pub fn write_monos<S>(&mut self, writer: &mut dyn Writer, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        match std::any::type_name::<S>() {
+            "i8"  => self.encoder.write_monos__i8(writer, &sample_conv_batch(monos)),
+            "i16" => self.encoder.write_monos_i16(writer, &sample_conv_batch(monos)),
+            "i24" => self.encoder.write_monos_i24(writer, &sample_conv_batch(monos)),
+            "i32" => self.encoder.write_monos_i32(writer, &sample_conv_batch(monos)),
+            "i64" => self.encoder.write_monos_i64(writer, &sample_conv_batch(monos)),
+            "u8"  => self.encoder.write_monos__u8(writer, &sample_conv_batch(monos)),
+            "u16" => self.encoder.write_monos_u16(writer, &sample_conv_batch(monos)),
+            "u24" => self.encoder.write_monos_u24(writer, &sample_conv_batch(monos)),
+            "u32" => self.encoder.write_monos_u32(writer, &sample_conv_batch(monos)),
+            "u64" => self.encoder.write_monos_u64(writer, &sample_conv_batch(monos)),
+            "f32" => self.encoder.write_monos_f32(writer, &sample_conv_batch(monos)),
+            "f64" => self.encoder.write_monos_f64(writer, &sample_conv_batch(monos)),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }

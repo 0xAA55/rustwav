@@ -190,13 +190,13 @@ impl<'a> WaveWriter<'a> {
     }
 
     // Saves a single mono sample. Avoid frequent calls due to inefficiency.
-    pub fn write_mono<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
+    pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
             if self.spec.channels != 1 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
             }
-            self.encoder.write_mono(&mut self.writer, mono)?;
+            self.encoder.write_sample(&mut self.writer, mono)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -205,14 +205,26 @@ impl<'a> WaveWriter<'a> {
     }
 
     // Batch-saves mono samples.
-    pub fn write_monos<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
+    pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
             if self.spec.channels != 1 {
                 return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
             }
-            self.encoder.write_monos(&mut self.writer, monos)?;
+            self.encoder.write_mono_channel(&mut self.writer, monos)?;
             self.num_frames_written += monos.len() as u64;
+            Ok(())
+        } else {
+            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+        }
+    }
+
+    // Batch-saves multiple mono channels.
+    pub fn write_monos<S>(&mut self, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
+    where S: SampleType {
+        if self.data_chunk.is_some() {
+            self.encoder.write_monos(&mut self.writer, monos)?;
+            self.num_frames_written += monos[0].len() as u64;
             Ok(())
         } else {
             Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))

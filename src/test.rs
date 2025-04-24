@@ -96,7 +96,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                     break;
                 }
                 let block = utils::do_resample_mono(&resampler, &block, decode_sample_rate, encode_sample_rate);
-                encoder.write_monos(&block).unwrap();
+                encoder.write_mono_channel(&block).unwrap();
             }
         },
         2 => {
@@ -349,7 +349,7 @@ fn test_flac() -> ExitCode {
                     break;
                 }
                 let block: Vec<i32> = block.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect();
-                encoder.write_monos(&block).unwrap();
+                encoder.write_mono_channel(&block).unwrap();
             }
         },
         2 => {

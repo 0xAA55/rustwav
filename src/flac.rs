@@ -676,7 +676,7 @@ where
         println!("{:?}", WrappedStreamMetadata(_meta))
     }
 
-    pub fn write_monos(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
+    pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
         if monos.is_empty() {return Ok(())}
         match self.params.channels {
             1 => unsafe {
@@ -693,7 +693,7 @@ where
     pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), FlacEncoderError> {
         if stereos.is_empty() {return Ok(())}
         match self.params.channels {
-            1 => self.write_monos(&stereos.iter().map(|(l, r): &(i32, i32)| -> i32 {((*l as i64 + *r as i64) / 2) as i32}).collect::<Vec<i32>>()),
+            1 => self.write_mono_channel(&stereos.iter().map(|(l, r): &(i32, i32)| -> i32 {((*l as i64 + *r as i64) / 2) as i32}).collect::<Vec<i32>>()),
             2 => unsafe {
                 let samples: Vec<i32> = stereos.iter().flat_map(|(l, r): &(i32, i32)| -> [i32; 2] {[*l, *r]}).collect();
                 if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr(), stereos.len() as u32) == 0 {
@@ -702,6 +702,27 @@ where
                 Ok(())
             },
             o => panic!("Can't turn stereo audio into {o} channels audio."),
+        }
+    }
+
+    pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
+        if monos.len() != self.params.channels as usize {
+            Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_FRAMING_ERROR, "FlacEncoderUnmovable::write_monos"))
+        } else {
+            unsafe {
+                let len = monos[0].len();
+                for mono in monos.iter() {
+                    if mono.len() != len {
+                        return Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_FRAMING_ERROR, "FlacEncoderUnmovable::write_monos"));
+                    }
+                }
+                let ptr_arr: Vec<*const i32> = monos.iter().map(|v|{v.as_ptr()}).collect();
+                if FLAC__stream_encoder_process(self.encoder, ptr_arr.as_ptr(), len as u32) == 0 {
+                    self.get_status_as_error("FLAC__stream_encoder_process")
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -821,14 +842,19 @@ where
         Ok(())
     }
 
-    pub fn write_monos(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
+    pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
         self.ensure_initialized()?;
-        self.encoder.write_monos(monos)
+        self.encoder.write_mono_channel(monos)
     }
 
     pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), FlacEncoderError> {
         self.ensure_initialized()?;
         self.encoder.write_stereos(stereos)
+    }
+
+    pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
+        self.ensure_initialized()?;
+        self.encoder.write_monos(monos)
     }
 
     pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
