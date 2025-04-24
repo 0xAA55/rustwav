@@ -251,6 +251,21 @@ use crate::flac::FlacError;
 fn test_flac() -> ExitCode {
     const ALLOW_SEEK: bool = true;
 
+    let listinfo_flacmeta: BTreeMap<&'static str, &'static str> = [
+        ("ITRK", "TRACKNUMBER"),
+        ("INAM", "TITLE"),
+        ("IART", "ARTIST"),
+        ("IPRD", "ALBUM"),
+        ("ICMT", "COMMENT"),
+        ("ICOP", "COPYRIGHT"),
+        ("ICRD", "DATE"),
+        ("IGNR", "GENRE"),
+        ("ISRC", "ISRC"),
+        ("ICMS", "PRODUCER"),
+    ].iter().copied().collect();
+
+    let flacmeta_listinfo: BTreeMap<&'static str, &'static str> = listinfo_flacmeta.iter().map(|(k, v)|{(*v, *k)}).collect();
+
     let args: Vec<String> = args().collect();
     if args.len() < 5 {return ExitCode::from(1);}
     let input_wav = &args[1];
@@ -312,35 +327,10 @@ fn test_flac() -> ExitCode {
     if let Some(list) = wavereader.get_list_chunk() {
         match list {
             ListChunk::Info(_) => {
-                if let Some(data) = list.get_track_no() {
-                    encoder.insert_comments("TRACKNUMBER", data).unwrap();
-                }
-                if let Some(data) = list.get_name() {
-                    encoder.insert_comments("TITLE", data).unwrap();
-                }
-                if let Some(data) = list.get_artist() {
-                    encoder.insert_comments("ARTIST", data).unwrap();
-                }
-                if let Some(data) = list.get_album() {
-                    encoder.insert_comments("ALBUM", data).unwrap();
-                }
-                if let Some(data) = list.get_comment() {
-                    encoder.insert_comments("COMMENT", data).unwrap();
-                }
-                if let Some(data) = list.get_copyright() {
-                    encoder.insert_comments("COPYRIGHT", data).unwrap();
-                }
-                if let Some(data) = list.get_create_date() {
-                    encoder.insert_comments("DATE", data).unwrap();
-                }
-                if let Some(data) = list.get_genre() {
-                    encoder.insert_comments("GENRE", data).unwrap();
-                }
-                if let Some(data) = list.get_source() {
-                    encoder.insert_comments("ISRC", data).unwrap();
-                }
-                if let Some(data) = list.get_producer() {
-                    encoder.insert_comments("PRODUCER", data).unwrap();
+                for (list_key, flac_key) in listinfo_flacmeta.iter() {
+                    if let Some(data) = list.get(list_key.to_owned()) {
+                        encoder.insert_comments(flac_key, data).unwrap();
+                    }
                 }
             },
             ListChunk::Adtl(_) => {
@@ -535,35 +525,10 @@ fn test_flac() -> ExitCode {
     let comments = decoder.get_comments();
     let mut listinfo = ListChunk::Info(BTreeMap::<String, String>::new());
 
-    if let Some(data) = comments.get("TITLE") {
-        listinfo.set_name(data).unwrap();
-    }
-    if let Some(data) = comments.get("TRACKNUMBER") {
-        listinfo.set_track_no(data).unwrap();
-    }
-    if let Some(data) = comments.get("ARTIST") {
-        listinfo.set_artist(data).unwrap();
-    }
-    if let Some(data) = comments.get("ALBUM") {
-        listinfo.set_album(data).unwrap();
-    }
-    if let Some(data) = comments.get("COMMENT") {
-        listinfo.set_comment(data).unwrap();
-    }
-    if let Some(data) = comments.get("COPYRIGHT") {
-        listinfo.set_copyright(data).unwrap();
-    }
-    if let Some(data) = comments.get("DATE") {
-        listinfo.set_create_date(data).unwrap();
-    }
-    if let Some(data) = comments.get("ISRC") {
-        listinfo.set_source(data).unwrap();
-    }
-    if let Some(data) = comments.get("GENRE") {
-        listinfo.set_genre(data).unwrap();
-    }
-    if let Some(data) = comments.get("PRODUCER") {
-        listinfo.set_producer(data).unwrap();
+    for (flac_key, list_key) in flacmeta_listinfo.iter() {
+        if let Some(data) = comments.get(flac_key.to_owned()) {
+            listinfo.set(list_key, data).unwrap();
+        }
     }
     decoder.finalize();
 
