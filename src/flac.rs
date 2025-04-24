@@ -2,7 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 // need `libflac-sys`
 
-use std::{any::type_name, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr, collections::BTreeMap};
+use std::{any::type_name, borrow::Cow, io::{self, ErrorKind}, fmt::{self, Debug, Display, Formatter}, slice, ffi::{CStr, c_void}, ptr, collections::BTreeMap};
 
 use libflac_sys::*;
 
