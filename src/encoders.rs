@@ -483,10 +483,10 @@ where S: SampleType {
 }
 
 #[derive(Debug)]
-pub struct PcmEncoder {
+pub struct PcmEncoder<'a> {
     sample_rate: u32,
     sample_type: WaveSampleType,
-    writer: &'static mut dyn Writer,
+    writer: &'a mut dyn Writer,
     writer_from__i8: PcmEncoderFrom< i8>,
     writer_from_i16: PcmEncoderFrom<i16>,
     writer_from_i24: PcmEncoderFrom<i24>,
@@ -501,9 +501,9 @@ pub struct PcmEncoder {
     writer_from_f64: PcmEncoderFrom<f64>,
 }
 
-impl PcmEncoder {
+impl<'a> PcmEncoder<'a> {
     // target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
-    pub fn new(writer: &'static mut dyn Writer, sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
+    pub fn new(writer: &'a mut dyn Writer, sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
         Ok(Self {
             sample_rate,
             sample_type: target_sample,
@@ -524,7 +524,7 @@ impl PcmEncoder {
     }
 }
 
-impl EncoderToImpl for PcmEncoder {
+impl<'a> EncoderToImpl for PcmEncoder<'_> {
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64, Unknown};
         let bytes_per_sample = bits_per_sample / 8;

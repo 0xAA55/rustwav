@@ -36,7 +36,7 @@ pub enum FileSizeOption{
 
 #[derive(Debug)]
 pub struct WaveWriter<'a> {
-    writer: Box<dyn Writer + 'static>,
+    writer: Box<dyn Writer + 'a>,
     spec: Spec,
     data_format: DataFormat,
     file_size_option: FileSizeOption,
@@ -71,7 +71,7 @@ impl<'a> WaveWriter<'a> {
         Ok(wave_writer)
     }
 
-    pub fn from(writer: Box<dyn Writer + 'static>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
+    pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let mut ret = Self{
             writer,
             spec: *spec,
