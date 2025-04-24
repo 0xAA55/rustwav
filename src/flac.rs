@@ -941,6 +941,26 @@ pub mod impl_flac {
 
     impl_FlacError!(FlacDecoderInitError);
 
+    impl From<FlacDecoderError> for FlacDecoderInitError {
+        fn from(err: FlacDecoderError) -> Self {
+            Self {
+                code: err.code,
+                message: err.message,
+                function: err.function,
+            }
+        }
+    }
+
+    impl From<FlacDecoderInitError> for FlacDecoderError {
+        fn from(err: FlacDecoderInitError) -> Self {
+            Self {
+                code: err.code,
+                message: err.message,
+                function: err.function,
+            }
+        }
+    }
+
     #[derive(Debug, Clone, Copy)]
     pub enum FlacReadStatus {
         GoOn,
