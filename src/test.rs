@@ -247,6 +247,7 @@ use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder};
 #[allow(unused_imports)]
 use crate::flac::FlacError;
 
+#[cfg(feature = "flac")]
 #[allow(dead_code)]
 fn test_flac() -> ExitCode {
     const ALLOW_SEEK: bool = true;
@@ -546,6 +547,24 @@ fn test_flac() -> ExitCode {
     ExitCode::from(0)
 }
 
+fn test_wav() -> ExitCode {
+    let args: Vec<String> = args().collect();
+    if args.len() < 5 {return ExitCode::from(1);}
+    let input_wav = &args[1];
+    let output_wav = &args[2];
+    let reinput_wav = &args[3];
+    let reoutput_wav = &args[4];
+    match test(input_wav, output_wav, reinput_wav, reoutput_wav) {
+        Ok(_) => ExitCode::from(0),
+        Err(e) => {
+            eprintln!("{:?}", e);
+            ExitCode::from(2)
+        },
+    }
+}
+
 fn main() -> ExitCode {
-    test_flac()
+    test_wav()
+    // #[cfg(feature = "flac")]
+    // test_flac()
 }
