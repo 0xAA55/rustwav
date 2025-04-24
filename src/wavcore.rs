@@ -1164,7 +1164,7 @@ impl PlstChunk {
         let playlist_len = u32::read_le(reader)?;
         Ok(Self {
             playlist_len,
-            data: (0..playlist_len).into_iter().map(|_| -> Result<Plst, AudioReadError> {
+            data: (0..playlist_len).map(|_| -> Result<Plst, AudioReadError> {
                 Plst::read(reader)
             }).collect::<Result<Vec<Plst>, AudioReadError>>()?,
         })
@@ -1224,7 +1224,7 @@ impl CueChunk {
         let num_cues = u32::read_le(reader)?;
         Ok(Self {
             num_cues,
-            cue_points: (0.. num_cues).into_iter().map(|_| -> Result<CuePoint, AudioReadError> {
+            cue_points: (0.. num_cues).map(|_| -> Result<CuePoint, AudioReadError> {
                 CuePoint::read(reader)
             }).collect::<Result<Vec<CuePoint>, AudioReadError>>()?,
         })
@@ -1370,10 +1370,10 @@ impl AdtlChunk {
     }
 
     pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
-        fn to_sz(s: &String) -> String {
-            if s.len() != 0 {
-                let mut s = s.clone();
-                if s.chars().last().unwrap() != '\0' {s.push_str("\0");}
+        fn to_sz(s: &str) -> String {
+            if !s.is_empty() {
+                let mut s = s.to_owned();
+                if !s.ends_with('\0') {s.push('\0');}
                 s
             } else {
                 "\0".to_owned()
@@ -1544,7 +1544,7 @@ pub fn get_list_info_map() -> BTreeMap<&'static str, &'static str> {
 pub trait ListInfo {
     fn get_is_list_info(&self) -> bool;
     fn get(&self, key: &str) -> Option<&String>;
-    fn set(&mut self, key: &str, value: &String) -> Result<Option<String>, AudioError>;
+    fn set(&mut self, key: &str, value: &str) -> Result<Option<String>, AudioError>;
 
     fn get_archive(&self) -> Option<&String> {self.get("IARL")}
     fn get_artist(&self) -> Option<&String> {self.get("IART")}
@@ -1577,25 +1577,25 @@ pub trait ListInfo {
         }
     }
 
-    fn set_archive(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IARL", value)}
-    fn set_artist(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IART", value)}
-    fn set_comment(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICMT", value)}
-    fn set_producer(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICMS", value)}
-    fn set_copyright(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICOP", value)}
-    fn set_create_date(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICRD", value)}
-    fn set_engineer(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IENG", value)}
-    fn set_genre(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IGNR", value)}
-    fn set_keywords(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IKEY", value)}
-    fn set_lightness(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ILGT", value)}
-    fn set_medium(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IMED", value)}
-    fn set_name(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("INAM", value)}
-    fn set_album(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IPRD", value)}
-    fn set_description(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISBJ", value)}
-    fn set_software(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISFT", value)}
-    fn set_source(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISRC", value)}
-    fn set_orig_form(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISRF", value)}
-    fn set_technician(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ITCH", value)}
-    fn set_track_no(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ITRK", value)}
+    fn set_archive(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IARL", value)}
+    fn set_artist(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IART", value)}
+    fn set_comment(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ICMT", value)}
+    fn set_producer(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ICMS", value)}
+    fn set_copyright(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ICOP", value)}
+    fn set_create_date(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ICRD", value)}
+    fn set_engineer(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IENG", value)}
+    fn set_genre(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IGNR", value)}
+    fn set_keywords(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IKEY", value)}
+    fn set_lightness(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ILGT", value)}
+    fn set_medium(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IMED", value)}
+    fn set_name(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("INAM", value)}
+    fn set_album(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("IPRD", value)}
+    fn set_description(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ISBJ", value)}
+    fn set_software(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ISFT", value)}
+    fn set_source(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ISRC", value)}
+    fn set_orig_form(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ISRF", value)}
+    fn set_technician(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ITCH", value)}
+    fn set_track_no(&mut self, value: &str) -> Result<Option<String>, AudioError> {self.set("ITRK", value)}
     fn set_track_no_as_number(&mut self, track_no: u32) -> Result<u32, AudioError> {
         match self.set_track_no(&format!("{track_no}")) {
             Err(e) => Err(e),
@@ -1622,15 +1622,16 @@ impl ListInfo for ListChunk {
         if let Self::Info(dict) = self {dict.get(key)} else {None}
     }
 
-    fn set(&mut self, key: &str, value: &String) -> Result<Option<String>, AudioError> {
+    fn set(&mut self, key: &str, value: &str) -> Result<Option<String>, AudioError> {
         if let Self::Info(ref mut dict) = self {
-            Ok(dict.insert(key.to_owned(), value.clone()))
+            Ok(dict.insert(key.to_owned(), value.to_string()))
         } else {
             Err(AudioError::InvalidArguments("The type of the `LIST` chunk is `adtl`, not `INFO`, so can not set the metadata values.".to_owned()))
         }
     }
 }
 
+#[allow(clippy::zero_prefixed_literal)]
 pub fn get_country_code_map() -> HashMap<u16, &'static str> {
     [ // https://wavref.til.cafe/chunk/cset/
         (000, "None (assume 001 = USA)"),

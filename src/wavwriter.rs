@@ -352,7 +352,7 @@ impl<'a> WaveWriter<'a> {
     // Transfers audio metadata (e.g., track info) from the reader.
     pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
-        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = reader.get_slnt_chunk().clone();}
+        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = *reader.get_slnt_chunk();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
         if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
         if reader.get_plst_chunk().is_some() {self.plst_chunk = reader.get_plst_chunk().clone();}
@@ -372,7 +372,7 @@ impl<'a> WaveWriter<'a> {
         if let Some(ref list_chunk) = self.list_chunk {
             if let ListChunk::Adtl(adtl) = list_chunk {
                 if let Some(ref cue__chunk) = self.cue__chunk {
-                    wavcore::create_full_info_cue_data(&cue__chunk, &adtl, &self.plst_chunk)
+                    wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
                     Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
                 }

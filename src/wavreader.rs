@@ -344,7 +344,7 @@ impl WaveReader {
         if let Some(ref list_chunk) = self.list_chunk {
             if let ListChunk::Adtl(adtl) = list_chunk {
                 if let Some(ref cue__chunk) = self.cue__chunk {
-                    wavcore::create_full_info_cue_data(&cue__chunk, &adtl, &self.plst_chunk)
+                    wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
                     Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
                 }

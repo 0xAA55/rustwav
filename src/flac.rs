@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::map_entry)]
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlacCompression {
@@ -34,6 +36,12 @@ impl FlacEncoderParams {
             bits_per_sample: 16,
             total_samples_estimate: 0,
         }
+    }
+}
+
+impl Default for FlacEncoderParams {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -438,7 +446,7 @@ pub mod impl_flac {
 
     fn make_sz(s: &str) -> String {
         let mut s = s.to_owned();
-        s.push_str("\0");
+        s.push('\0');
         s
     }
 
@@ -1217,7 +1225,7 @@ pub mod impl_flac {
         pub audio_form: FlacAudioForm,
     }
 
-    fn entry_to_str<'a>(entry: &'a FLAC__StreamMetadata_VorbisComment_Entry) -> Cow<'a, str> {
+    fn entry_to_str(entry: &FLAC__StreamMetadata_VorbisComment_Entry) -> Cow<'_, str> {
         unsafe{String::from_utf8_lossy(slice::from_raw_parts(entry.entry, entry.length as usize))}
     }
 
