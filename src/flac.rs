@@ -357,6 +357,10 @@ pub mod impl_flac {
         pub picture: Vec<u8>,
         pub mime_type: String,
         pub description: String,
+        pub width: u32,
+        pub height: u32,
+        pub depth: u32,
+        pub colors: u32,
     }
 
     impl Debug for PictureData {
@@ -365,6 +369,10 @@ pub mod impl_flac {
                 .field("picture", &format_args!("[u8; {}]", self.picture.len()))
                 .field("mime_type", &self.mime_type)
                 .field("description", &self.description)
+                .field("width", &self.width)
+                .field("height", &self.height)
+                .field("depth", &self.depth)
+                .field("colors", &self.colors)
                 .finish()
         }
     }
@@ -375,6 +383,10 @@ pub mod impl_flac {
                 picture: Vec::<u8>::new(),
                 mime_type: "".to_owned(),
                 description: "".to_owned(),
+                width: 0,
+                height: 0,
+                depth: 0,
+                colors: 0,
             }
         }
 
@@ -573,7 +585,7 @@ pub mod impl_flac {
         on_tell: Tl,
         comments: BTreeMap<&'static str, String>,
         cue_sheet: BTreeMap<u8, CueTrack>,
-        picture_data: PictureData,
+        pictures: Vec<PictureData>,
     }
 
     impl<Wr, Sk, Tl> FlacEncoderUnmovable<Wr, Sk, Tl>
@@ -597,7 +609,7 @@ pub mod impl_flac {
                 on_tell,
                 comments: BTreeMap::new(),
                 cue_sheet: BTreeMap::new(),
-                picture_data: PictureData::new(),
+                pictures: Vec::<PictureData>::new(),
             };
             if ret.encoder.is_null() {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__stream_encoder_new"))
@@ -650,13 +662,19 @@ pub mod impl_flac {
             }
         }
 
-        fn set_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str) -> Result<(), FlacEncoderInitError> {
+        fn add_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str, width: u32, height: u32, depth: u32, colors: u32) -> Result<(), FlacEncoderInitError> {
             if self.encoder_initialized {
                 Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::set_picture"))
             } else {
-                self.picture_data.picture = picture_binary.to_vec();
-                self.picture_data.description = description.to_owned();
-                self.picture_data.mime_type = mime_type.to_owned();
+                self.pictures.push(PictureData{
+                    picture: picture_binary.to_vec(),
+                    description: description.to_owned(),
+                    mime_type: mime_type.to_owned(),
+                    width,
+                    height,
+                    depth,
+                    colors
+                });
                 Ok(())
             }
         }
@@ -667,8 +685,8 @@ pub mod impl_flac {
             if let Some(album) = tag.album() {self.insert_comments("ALBUM", album)?;}
             if let Some(title) = tag.title() {self.insert_comments("TITLE", title)?;}
             if let Some(genre) = tag.genre() {self.insert_comments("GENRE", genre)?;}
-            if let Some(picture) = tag.pictures().next() {
-                self.set_picture(&picture.data, &picture.description, &picture.mime_type)?;
+            for picture in tag.pictures() {
+                self.add_picture(&picture.data, &picture.description, &picture.mime_type, 0, 0, 0, 0)?;
             }
             let comm_str = tag.comments().enumerate().map(|(i, comment)| -> String {
                 let lang = &comment.lang;
@@ -719,9 +737,9 @@ pub mod impl_flac {
                         }
                         self.metadata.push(metadata);
                     }
-                    if !self.picture_data.is_empty() {
+                    for picture in self.pictures.iter_mut() {
                         let mut metadata = FlacMetadata::new_picture()?;
-                        metadata.set_picture(&mut self.picture_data.picture, &mut self.picture_data.description, &mut self.picture_data.mime_type)?;
+                        metadata.set_picture(&mut picture.picture, &mut picture.description, &mut picture.mime_type)?;
                         self.metadata.push(metadata);
                     }
                     if !self.metadata.is_empty() {
@@ -950,8 +968,8 @@ pub mod impl_flac {
             self.encoder.insert_cue_track(track_no, cue_track)
         }
 
-        pub fn set_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str) -> Result<(), FlacEncoderInitError> {
-            self.encoder.set_picture(picture_binary, description, mime_type)
+        pub fn add_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str, width: u32, height: u32, depth: u32, colors: u32) -> Result<(), FlacEncoderInitError> {
+            self.encoder.add_picture(picture_binary, description, mime_type, width, height, depth, colors)
         }
 
         #[cfg(feature = "id3")]
@@ -1256,7 +1274,7 @@ pub mod impl_flac {
         pub desired_audio_form: FlacAudioForm,
         pub vendor_string: Option<String>,
         pub meta_comments: BTreeMap<String, String>,
-        pub picture: Option<PictureData>,
+        pub pictures: Vec<PictureData>,
     }
 
     impl<Rd, Sk, Tl, Ln, Ef, Wr, Er> FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>
@@ -1293,8 +1311,8 @@ pub mod impl_flac {
                 scale_to_i32_range,
                 desired_audio_form,
                 vendor_string: None,
-                meta_comments: BTreeMap::<String, String>::new(),
-                picture: None,
+                meta_comments: BTreeMap::new(),
+                pictures: Vec::<PictureData>::new(),
             };
 
             if ret.decoder.is_null() {
@@ -1553,6 +1571,18 @@ pub mod impl_flac {
                         }
                     }
                 },
+                FLAC__METADATA_TYPE_PICTURE => {
+                    let picture = metadata.data.picture;
+                    this.pictures.push(PictureData{
+                        picture: slice::from_raw_parts(picture.data, picture.data_length as usize).to_vec(),
+                        description: CStr::from_ptr(picture.description as *const i8).to_string_lossy().to_string(),
+                        mime_type: CStr::from_ptr(picture.mime_type).to_string_lossy().to_string(),
+                        width: picture.width,
+                        height: picture.height,
+                        depth: picture.depth,
+                        colors: picture.colors,
+                    });
+                },
                 _ => {
                     #[cfg(debug_assertions)]
                     println!("On `metadata_callback()`: {:?}", WrappedStreamMetadata(metadata));
@@ -1721,8 +1751,8 @@ pub mod impl_flac {
             &self.decoder.meta_comments
         }
 
-        pub fn get_picture(&self) -> &Option<PictureData> {
-            &self.decoder.picture
+        pub fn get_pictures(&self) -> &Vec<PictureData> {
+            &self.decoder.pictures
         }
 
         pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
