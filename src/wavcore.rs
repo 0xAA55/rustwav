@@ -1263,7 +1263,7 @@ impl CuePoint {
 
 #[derive(Debug, Clone)]
 pub enum ListChunk {
-    Info(HashMap<String, String>),
+    Info(BTreeMap<String, String>),
     Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
@@ -1458,10 +1458,10 @@ impl ListChunk {
         Ok(())
     }
 
-    fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<HashMap<String, String>, AudioReadError> {
+    fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<BTreeMap<String, String>, AudioReadError> {
         // The INFO chunk consists of multiple key-value pairs for song metadata. 
         // Within its byte size constraints, read all key-value entries.
-        let mut dict = HashMap::<String, String>::new();
+        let mut dict = BTreeMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
             let key_chunk = ChunkHeader::read(reader)?; // Every chunk's name is a key, its content is the value.
             let value_str = read_str(reader, key_chunk.size as usize, text_encoding)?;
@@ -1489,7 +1489,7 @@ impl ListChunk {
         Ok(dict)
     }
 
-    fn write_dict(writer: &mut dyn Writer, dict: &HashMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    fn write_dict(writer: &mut dyn Writer, dict: &BTreeMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
         for (key, val) in dict.iter() {
             if key.len() != 4 {
                 return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
@@ -1505,7 +1505,7 @@ impl ListChunk {
     }
 }
 
-pub fn get_list_info_map() -> HashMap<&'static str, &'static str> {
+pub fn get_list_info_map() -> BTreeMap<&'static str, &'static str> {
     [ // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
         ("IARL", "The location where the subject of the file is archived"),
         ("IART", "The artist of the original subject of the file"),
@@ -1535,26 +1535,74 @@ pub fn get_list_info_map() -> HashMap<&'static str, &'static str> {
 
 pub trait ListInfo {
     fn get_is_list_info(&self) -> bool;
-    fn get_archive(&self) -> Option<&String>;
-    fn get_artist(&self) -> Option<&String>;
-    fn get_comment(&self) -> Option<&String>;
-    fn get_producer(&self) -> Option<&String>;
-    fn get_copyright(&self) -> Option<&String>;
-    fn get_create_date(&self) -> Option<&String>;
-    fn get_engineer(&self) -> Option<&String>;
-    fn get_genre(&self) -> Option<&String>;
-    fn get_keywords(&self) -> Option<&String>;
-    fn get_lightness(&self) -> Option<&String>;
-    fn get_medium(&self) -> Option<&String>;
-    fn get_name(&self) -> Option<&String>;
-    fn get_album(&self) -> Option<&String>;
-    fn get_subject(&self) -> Option<&String>;
-    fn get_software(&self) -> Option<&String>;
-    fn get_source(&self) -> Option<&String>;
-    fn get_orig_form(&self) -> Option<&String>;
-    fn get_technician(&self) -> Option<&String>;
-    fn get_track_no(&self) -> Option<&String>;
-    fn get_track_no_as_number(&self) -> Result<i32, AudioError>;
+    fn get(&self, key: &str) -> Option<&String>;
+    fn set(&mut self, key: &str, value: &String) -> Result<Option<String>, AudioError>;
+
+    fn get_archive(&self) -> Option<&String> {self.get("IARL")}
+    fn get_artist(&self) -> Option<&String> {self.get("IART")}
+    fn get_comment(&self) -> Option<&String> {self.get("ICMT")}
+    fn get_producer(&self) -> Option<&String> {self.get("ICMS")}
+    fn get_copyright(&self) -> Option<&String> {self.get("ICOP")}
+    fn get_create_date(&self) -> Option<&String> {self.get("ICRD")}
+    fn get_engineer(&self) -> Option<&String> {self.get("IENG")}
+    fn get_genre(&self) -> Option<&String> {self.get("IGNR")}
+    fn get_keywords(&self) -> Option<&String> {self.get("IKEY")}
+    fn get_lightness(&self) -> Option<&String> {self.get("ILGT")}
+    fn get_medium(&self) -> Option<&String> {self.get("IMED")}
+    fn get_name(&self) -> Option<&String> {self.get("INAM")}
+    fn get_album(&self) -> Option<&String> {self.get("IPRD")}
+    fn get_description(&self) -> Option<&String> {self.get("ISBJ")}
+    fn get_software(&self) -> Option<&String> {self.get("ISFT")}
+    fn get_source(&self) -> Option<&String> {self.get("ISRC")}
+    fn get_orig_form(&self) -> Option<&String> {self.get("ISRF")}
+    fn get_technician(&self) -> Option<&String> {self.get("ITCH")}
+    fn get_track_no(&self) -> Option<&String> {self.get("ITRK")}
+
+    fn get_track_no_as_number(&self) -> Result<u32, AudioError> {
+        if let Some(track_no) = self.get_track_no() {
+            match track_no.parse::<u32>() {
+                Ok(track_no) => Ok(track_no),
+                Err(_) => Err(AudioError::Unparseable(track_no.clone())),
+            }
+        } else {
+            Err(AudioError::NoSuchData("ITRK".to_owned()))
+        }
+    }
+
+    fn set_archive(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IARL", value)}
+    fn set_artist(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IART", value)}
+    fn set_comment(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICMT", value)}
+    fn set_producer(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICMS", value)}
+    fn set_copyright(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICOP", value)}
+    fn set_create_date(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ICRD", value)}
+    fn set_engineer(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IENG", value)}
+    fn set_genre(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IGNR", value)}
+    fn set_keywords(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IKEY", value)}
+    fn set_lightness(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ILGT", value)}
+    fn set_medium(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IMED", value)}
+    fn set_name(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("INAM", value)}
+    fn set_album(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("IPRD", value)}
+    fn set_description(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISBJ", value)}
+    fn set_software(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISFT", value)}
+    fn set_source(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISRC", value)}
+    fn set_orig_form(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ISRF", value)}
+    fn set_technician(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ITCH", value)}
+    fn set_track_no(&mut self, value: &String) -> Result<Option<String>, AudioError> {self.set("ITRK", value)}
+    fn set_track_no_as_number(&mut self, track_no: u32) -> Result<u32, AudioError> {
+        match self.set_track_no(&format!("{track_no}")) {
+            Err(e) => Err(e),
+            Ok(track_no) => {
+                if let Some(track_no) = track_no {
+                    match track_no.parse::<u32>() {
+                        Ok(track_no) => Ok(track_no),
+                        Err(_) => Err(AudioError::Unparseable(track_no.clone())),
+                    }
+                } else {
+                    Ok(0)
+                }
+            },
+        }
+    }
 }
 
 impl ListInfo for ListChunk {
@@ -1562,90 +1610,15 @@ impl ListInfo for ListChunk {
         matches!(self, Self::Info(_))
     }
 
-    fn get_archive(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IARL")} else {None}
+    fn get(&self, key: &str) -> Option<&String> {
+        if let Self::Info(dict) = self {dict.get(key)} else {None}
     }
 
-    fn get_artist(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IART")} else {None}
-    }
-
-    fn get_comment(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ICMT")} else {None}
-    }
-
-    fn get_producer(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ICMS")} else {None}
-    }
-
-    fn get_copyright(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ICOP")} else {None}
-    }
-
-    fn get_create_date(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ICRD")} else {None}
-    }
-
-    fn get_engineer(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IENG")} else {None}
-    }
-
-    fn get_genre(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IGNR")} else {None}
-    }
-
-    fn get_keywords(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IKEY")} else {None}
-    }
-
-    fn get_lightness(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ILGT")} else {None}
-    }
-
-    fn get_medium(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IMED")} else {None}
-    }
-
-    fn get_name(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("INAM")} else {None}
-    }
-
-    fn get_album(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("IPRD")} else {None}
-    }
-
-    fn get_subject(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ISBJ")} else {None}
-    }
-
-    fn get_software(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ISFT")} else {None}
-    }
-
-    fn get_source(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ISRC")} else {None}
-    }
-
-    fn get_orig_form(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ISRF")} else {None}
-    }
-
-    fn get_technician(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ITCH")} else {None}
-    }
-
-    fn get_track_no(&self) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get("ITRK")} else {None}
-    }
-
-    fn get_track_no_as_number(&self) -> Result<i32, AudioError> {
-        if let Some(track_no) = self.get_track_no() {
-            match track_no.parse::<i32>() {
-                Ok(track_no) => Ok(track_no),
-                Err(_) => Err(AudioError::Unparseable(track_no.clone())),
-            }
+    fn set(&mut self, key: &str, value: &String) -> Result<Option<String>, AudioError> {
+        if let Self::Info(ref mut dict) = self {
+            Ok(dict.insert(key.to_owned(), value.clone()))
         } else {
-            Err(AudioError::NoSuchData("ITRK".to_owned()))
+            Err(AudioError::InvalidArguments("The type of the `LIST` chunk is `adtl`, not `INFO`, so can not set the metadata values.".to_owned()))
         }
     }
 }
