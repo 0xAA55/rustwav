@@ -111,7 +111,7 @@ pub mod impl_flac {
 
     #[derive(Debug, Clone, Copy)]
     pub enum FlacEncoderErrorCode {
-        StreamOk = FLAC__STREAM_ENCODER_OK as isize,
+        StreamEncoderOk = FLAC__STREAM_ENCODER_OK as isize,
         StreamEncoderUninitialized = FLAC__STREAM_ENCODER_UNINITIALIZED as isize,
         StreamEncoderOggError = FLAC__STREAM_ENCODER_OGG_ERROR as isize,
         StreamEncoderVerifyDecoderError = FLAC__STREAM_ENCODER_VERIFY_DECODER_ERROR as isize,
@@ -122,11 +122,27 @@ pub mod impl_flac {
         StreamEncoderMemoryAllocationError = FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR as isize,
     }
 
+    impl Display for FlacEncoderErrorCode {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            match self {
+                Self::StreamEncoderOk => write!(f, "The encoder is in the normal OK state and samples can be processed."),
+                Self::StreamEncoderUninitialized => write!(f, "The encoder is in the uninitialized state; one of the FLAC__stream_encoder_init_*() functions must be called before samples can be processed."),
+                Self::StreamEncoderOggError => write!(f, "An error occurred in the underlying Ogg layer."),
+                Self::StreamEncoderVerifyDecoderError => write!(f, "An error occurred in the underlying verify stream decoder; check FLAC__stream_encoder_get_verify_decoder_state()."),
+                Self::StreamEncoderVerifyMismatchInAudioData => write!(f, "The verify decoder detected a mismatch between the original audio signal and the decoded audio signal."),
+                Self::StreamEncoderClientError => write!(f, "One of the callbacks returned a fatal error."),
+                Self::StreamEncoderIOError => write!(f, "An I/O error occurred while opening/reading/writing a file. Check errno."),
+                Self::StreamEncoderFramingError => write!(f, "An error occurred while writing the stream; usually, the write_callback returned an error."),
+                Self::StreamEncoderMemoryAllocationError => write!(f, "Memory allocation failed."),
+            }
+        }
+    }
+
     impl From<u32> for FlacEncoderErrorCode {
         fn from(code: u32) -> Self {
             use FlacEncoderErrorCode::*;
             match code {
-                FLAC__STREAM_ENCODER_OK => StreamOk,
+                FLAC__STREAM_ENCODER_OK => StreamEncoderOk,
                 FLAC__STREAM_ENCODER_UNINITIALIZED => StreamEncoderUninitialized,
                 FLAC__STREAM_ENCODER_OGG_ERROR => StreamEncoderOggError,
                 FLAC__STREAM_ENCODER_VERIFY_DECODER_ERROR => StreamEncoderVerifyDecoderError,
@@ -139,6 +155,8 @@ pub mod impl_flac {
             }
         }
     }
+
+    impl std::error::Error for FlacEncoderErrorCode {}
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacEncoderInitError {
@@ -183,6 +201,27 @@ pub mod impl_flac {
         StreamEncoderInitStatusAlreadyInitialized = FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED as isize,
     }
 
+    impl Display for FlacEncoderInitErrorCode {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            match self {
+                Self::StreamEncoderInitStatusOk => write!(f, "Initialization was successful."),
+                Self::StreamEncoderInitStatusEncoderError => write!(f, "General failure to set up encoder; call FLAC__stream_encoder_get_state() for cause."),
+                Self::StreamEncoderInitStatusUnsupportedContainer => write!(f, "The library was not compiled with support for the given container format."),
+                Self::StreamEncoderInitStatusInvalidCallbacks => write!(f, "A required callback was not supplied."),
+                Self::StreamEncoderInitStatusInvalidNumberOfChannels => write!(f, "The encoder has an invalid setting for number of channels."),
+                Self::StreamEncoderInitStatusInvalidBitsPerSample => write!(f, "The encoder has an invalid setting for bits-per-sample. FLAC supports 4-32 bps."),
+                Self::StreamEncoderInitStatusInvalidSampleRate => write!(f, "The encoder has an invalid setting for the input sample rate."),
+                Self::StreamEncoderInitStatusInvalidBlockSize => write!(f, "The encoder has an invalid setting for the block size."),
+                Self::StreamEncoderInitStatusInvalidMaxLpcOrder => write!(f, "The encoder has an invalid setting for the maximum LPC order."),
+                Self::StreamEncoderInitStatusInvalidQlpCoeffPrecision => write!(f, "The encoder has an invalid setting for the precision of the quantized linear predictor coefficients."),
+                Self::StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder => write!(f, "The specified block size is less than the maximum LPC order."),
+                Self::StreamEncoderInitStatusNotStreamable => write!(f, "The encoder is bound to the Subset but other settings violate it."),
+                Self::StreamEncoderInitStatusInvalidMetadata => write!(f, "The metadata input to the encoder is invalid, in one of the following ways:\n\n* FLAC__stream_encoder_set_metadata() was called with a null pointer but a block count > 0\n* One of the metadata blocks contains an undefined type\n* It contains an illegal CUESHEET as checked by FLAC__format_cuesheet_is_legal()\n* It contains an illegal SEEKTABLE as checked by FLAC__format_seektable_is_legal()\n* It contains more than one SEEKTABLE block or more than one VORBIS_COMMENT block\n* FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED\n* FLAC__stream_encoder_init_*() was called when the encoder was already initialized, usually because FLAC__stream_encoder_finish() was not called."),
+                Self::StreamEncoderInitStatusAlreadyInitialized => write!(f, "FLAC__stream_encoder_init_*() was called when the encoder was already initialized, usually because FLAC__stream_encoder_finish() was not called."),
+            }
+        }
+    }
+
     impl From<u32> for FlacEncoderInitErrorCode {
         fn from(code: u32) -> Self {
             use FlacEncoderInitErrorCode::*;
@@ -205,6 +244,8 @@ pub mod impl_flac {
             }
         }
     }
+
+    impl std::error::Error for FlacEncoderInitErrorCode {}
 
     impl From<FlacEncoderError> for FlacEncoderInitError {
         fn from(err: FlacEncoderError) -> Self {
@@ -996,6 +1037,23 @@ pub mod impl_flac {
         StreamDecoderUninitialized = FLAC__STREAM_DECODER_UNINITIALIZED as isize,
     }
 
+    impl Display for FlacDecoderErrorCode {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            match self {
+                Self::StreamDecoderSearchForMetadata => write!(f, "The decoder is ready to search for metadata."),
+                Self::StreamDecoderReadMetadata => write!(f, "The decoder is ready to or is in the process of reading metadata."),
+                Self::StreamDecoderSearchForFrameSync => write!(f, "The decoder is ready to or is in the process of searching for the frame sync code."),
+                Self::StreamDecoderReadFrame => write!(f, "The decoder is ready to or is in the process of reading a frame."),
+                Self::StreamDecoderEndOfStream => write!(f, "The decoder has reached the end of the stream."),
+                Self::StreamDecoderOggError => write!(f, "An error occurred in the underlying Ogg layer."),
+                Self::StreamDecoderSeekError => write!(f, "An error occurred while seeking. The decoder must be flushed with FLAC__stream_decoder_flush() or reset with FLAC__stream_decoder_reset() before decoding can continue."),
+                Self::StreamDecoderAborted => write!(f, "The decoder was aborted by the read or write callback."),
+                Self::StreamDecoderMemoryAllocationError => write!(f, "An error occurred allocating memory. The decoder is in an invalid state and can no longer be used."),
+                Self::StreamDecoderUninitialized => write!(f, "The decoder is in the uninitialized state; one of the FLAC__stream_decoder_init_*() functions must be called before samples can be processed."),
+            }
+        }
+    }
+
     impl From<u32> for FlacDecoderErrorCode {
         fn from(code: u32) -> Self {
             use FlacDecoderErrorCode::*;
@@ -1014,6 +1072,8 @@ pub mod impl_flac {
             }
         }
     }
+
+    impl std::error::Error for FlacDecoderErrorCode {}
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacDecoderInitError {
@@ -1050,6 +1110,19 @@ pub mod impl_flac {
         StreamDecoderInitStatusAlreadyInitialized = FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED as isize,
     }
 
+    impl Display for FlacDecoderInitErrorCode {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            match self {
+                Self::StreamDecoderInitStatusOk => write!(f, "Initialization was successful."),
+                Self::StreamDecoderInitStatusUnsupportedContainer => write!(f, "The library was not compiled with support for the given container format."),
+                Self::StreamDecoderInitStatusInvalidCallbacks => write!(f, "A required callback was not supplied."),
+                Self::StreamDecoderInitStatusMemoryAllocationError => write!(f, "An error occurred allocating memory."),
+                Self::StreamDecoderInitStatusErrorOpeningFile => write!(f, "fopen() failed in FLAC__stream_decoder_init_file() or FLAC__stream_decoder_init_ogg_file()."),
+                Self::StreamDecoderInitStatusAlreadyInitialized => write!(f, "FLAC__stream_decoder_init_*() was called when the decoder was already initialized, usually because FLAC__stream_decoder_finish() was not called."),
+            }
+        }
+    }
+
     impl From<u32> for FlacDecoderInitErrorCode {
         fn from(code: u32) -> Self {
             use FlacDecoderInitErrorCode::*;
@@ -1064,6 +1137,8 @@ pub mod impl_flac {
             }
         }
     }
+
+    impl std::error::Error for FlacDecoderInitErrorCode {}
 
     impl From<FlacDecoderError> for FlacDecoderInitError {
         fn from(err: FlacDecoderError) -> Self {
@@ -1124,6 +1199,8 @@ pub mod impl_flac {
             }
         }
     }
+
+    impl std::error::Error for FlacInternalDecoderError {}
 
     #[derive(Debug, Clone, Copy)]
     pub enum FlacAudioForm {
@@ -1885,5 +1962,6 @@ pub mod impl_flac {
     }
 }
 
+#[allow(unused_imports)]
 #[cfg(feature = "flac")]
 pub use impl_flac::*;
