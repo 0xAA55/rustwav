@@ -979,7 +979,7 @@ pub mod impl_flac {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub enum FlacInternalDecodeError {
+    pub enum FlacInternalDecoderError {
         LostSync,
         BadHeader,
         FrameCrcMismatch,
@@ -988,7 +988,7 @@ pub mod impl_flac {
         OutOfBounds,
     }
 
-    impl Display for FlacInternalDecodeError {
+    impl Display for FlacInternalDecoderError {
         fn fmt(&self, f: &mut Formatter) -> fmt::Result {
             match self {
                 Self::LostSync => write!(f, "FLAC: An error in the stream caused the decoder to lose synchronization."),
@@ -1032,7 +1032,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>, // monos, sample_rate
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         // https://xiph.org/flac/api/group__flac__stream__decoder.html
         decoder: *mut FLAC__StreamDecoder,
         on_read: Rd,
@@ -1058,7 +1058,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         pub fn new(
             on_read: Rd,
             on_seek: Sk,
@@ -1416,7 +1416,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct(&format!("FlacDecoderUnmovable<{}, {}, {}, {}, {}, {}, {}>",
                     type_name::<Rd>(),
@@ -1447,7 +1447,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         fn drop(&mut self) {
             self.on_drop();
         }
@@ -1461,7 +1461,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         decoder: Box<FlacDecoderUnmovable<Rd, Sk, Tl, Ln, Ef, Wr, Er>>,
     }
 
@@ -1473,7 +1473,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         pub fn new(
             on_read: Rd,
             on_seek: Sk,
@@ -1540,7 +1540,7 @@ pub mod impl_flac {
         Ln: FnMut() -> Result<u64, io::Error>,
         Ef: FnMut() -> bool,
         Wr: FnMut(&[Vec<i32>], &SamplesInfo) -> Result<(), io::Error>,
-        Er: FnMut(FlacInternalDecodeError) {
+        Er: FnMut(FlacInternalDecoderError) {
         fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct(&format!("FlacDecoder<{}, {}, {}, {}, {}, {}, {}>",
                     type_name::<Rd>(),
