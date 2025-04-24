@@ -207,16 +207,15 @@ pub struct Encoder {
 
 impl Default for Encoder {
     fn default() -> Self {
-        Self {
-            encoder: Box::new(DummyEncoder{})
-        }
+        Self::new(DummyEncoder{})
     }
 }
 
 impl Encoder {
-    pub fn new(encoder: Box<dyn EncoderToImpl>) -> Self {
+    pub fn new<T>(encoder: T) -> Self
+    where T: EncoderToImpl + 'static {
         Self {
-            encoder,
+            encoder: Box::new(encoder),
         }
     }
 

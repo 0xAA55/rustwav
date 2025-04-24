@@ -111,22 +111,22 @@ impl<'a> WaveWriter<'a> {
         self.encoder = match self.data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(Box::new(PcmEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, spec.get_sample_type())?))
+                Encoder::new(PcmEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, spec.get_sample_type())?)
             },
             Adpcm(sub_format) => {
                 use AdpcmSubFormat::{Ima, Ms, Yamaha};
                 match sub_format {
-                    Ima => Encoder::new(Box::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
-                    Ms => Encoder::new(Box::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
-                    Yamaha => Encoder::new(Box::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?)),
+                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
+                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
+                    Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
                 }
             },
-            PcmALaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::ALaw))),
-            PcmMuLaw => Encoder::new(Box::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::MuLaw))),
+            PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::ALaw)),
+            PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::MuLaw)),
             #[cfg(feature = "mp3enc")]
-            Mp3(ref mp3_options) => Encoder::new(Box::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, mp3_options)?)),
+            Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, mp3_options)?),
             #[cfg(feature = "opus")]
-            Opus(ref opus_options) => Encoder::new(Box::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate, opus_options)?)),
+            Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate, opus_options)?),
             Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
             #[allow(unreachable_patterns)]
             other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
