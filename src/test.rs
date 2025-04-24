@@ -240,7 +240,7 @@ fn test_normal() -> ExitCode {
     }
 }
 
-use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering};
+use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap};
 use crate::wavcore::{ListChunk, ListInfo};
 use crate::readwrite::{SharedReader, SharedWriter};
 use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder};
@@ -532,6 +532,39 @@ fn test_flac() -> ExitCode {
         decoder.decode_all().unwrap();
     }
 
+    let comments = decoder.get_comments();
+    let mut listinfo = ListChunk::Info(BTreeMap::<String, String>::new());
+
+    if let Some(data) = comments.get("TITLE") {
+        listinfo.set_name(data).unwrap();
+    }
+    if let Some(data) = comments.get("TRACKNUMBER") {
+        listinfo.set_track_no(data).unwrap();
+    }
+    if let Some(data) = comments.get("ARTIST") {
+        listinfo.set_artist(data).unwrap();
+    }
+    if let Some(data) = comments.get("ALBUM") {
+        listinfo.set_album(data).unwrap();
+    }
+    if let Some(data) = comments.get("COMMENT") {
+        listinfo.set_comment(data).unwrap();
+    }
+    if let Some(data) = comments.get("COPYRIGHT") {
+        listinfo.set_copyright(data).unwrap();
+    }
+    if let Some(data) = comments.get("DATE") {
+        listinfo.set_create_date(data).unwrap();
+    }
+    if let Some(data) = comments.get("ISRC") {
+        listinfo.set_source(data).unwrap();
+    }
+    if let Some(data) = comments.get("GENRE") {
+        listinfo.set_genre(data).unwrap();
+    }
+    if let Some(data) = comments.get("PRODUCER") {
+        listinfo.set_producer(data).unwrap();
+    }
     decoder.finalize();
 
     if !frames_buffer.is_empty() {
@@ -540,6 +573,7 @@ fn test_flac() -> ExitCode {
         frames_buffer.clear();
     }
 
+    wavewriter.list_chunk = Some(listinfo);
     wavewriter.finalize();
 
     println!("======== TEST FINISHED ========");
