@@ -193,9 +193,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if self.spec.channels != 1 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
-            }
             self.encoder.write_sample(&mut self.writer, mono)?;
             self.num_frames_written += 1;
             Ok(())
@@ -208,9 +205,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if self.spec.channels != 1 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write mono audio to {} channels audio file.", self.spec.channels)));
-            }
             self.encoder.write_mono_channel(&mut self.writer, monos)?;
             self.num_frames_written += monos.len() as u64;
             Ok(())
@@ -235,9 +229,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if self.spec.channels != 2 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
-            }
             self.encoder.write_stereo(&mut self.writer, stereo)?;
             self.num_frames_written += 1;
             Ok(())
@@ -265,9 +256,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if self.spec.channels != 2 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
-            }
             self.encoder.write_dual_mono(&mut self.writer, mono1, mono2)?;
             self.num_frames_written += 1;
             Ok(())
@@ -280,12 +268,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if mono1.len() != mono2.len() {
-                return Err(AudioWriteError::MultipleMonosAreNotSameSize);
-            }
-            if self.spec.channels != 2 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write dual mono to {} channels audio file.", self.spec.channels)));
-            }
             self.encoder.write_dual_monos(&mut self.writer, mono1, mono2)?;
             self.num_frames_written += mono1.len() as u64;
             Ok(())
@@ -298,9 +280,6 @@ impl<'a> WaveWriter<'a> {
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
-            if self.spec.channels != frame.len() as u16 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write {} channel audio to {} channels audio file.", frame.len(), self.spec.channels)));
-            }
             self.encoder.write_frame(&mut self.writer, frame)?;
             self.num_frames_written += 1;
             Ok(())
