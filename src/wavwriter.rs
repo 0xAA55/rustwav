@@ -103,12 +103,12 @@ impl<'a> WaveWriter<'a> {
             id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
         };
-        ret.create_decoder()?;
+        ret.create_encoder()?;
         ret.write_header()?;
         Ok(ret)
     }
 
-    fn create_decoder(&mut self) -> Result<(), AudioWriteError> {
+    fn create_encoder(&mut self) -> Result<(), AudioWriteError> {
         use DataFormat::{Unspecified, Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus, Flac};
         let spec = self.spec;
         self.encoder = match self.data_format {
