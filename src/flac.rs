@@ -823,6 +823,10 @@ pub mod impl_flac {
             println!("{:?}", WrappedStreamMetadata(_meta))
         }
 
+        pub fn tell(&mut self) -> Result<u64, io::Error> {
+            (self.on_tell)(self.writer)
+        }
+
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
             if monos.is_empty() {return Ok(())}
             match self.params.channels {
@@ -966,6 +970,10 @@ pub mod impl_flac {
         #[cfg(feature = "id3")]
         pub fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
             self.encoder.inherit_metadata_from_id3(tag)
+        }
+
+        pub fn tell(&mut self) -> Result<u64, io::Error> {
+            self.encoder.tell()
         }
 
         fn ensure_initialized(&mut self) -> Result<(), FlacEncoderInitError> {
@@ -1578,6 +1586,18 @@ pub mod impl_flac {
             });
         }
 
+        pub fn tell(&mut self) -> Result<u64, io::Error> {
+            (self.on_tell)(self.reader)
+        }
+
+        pub fn length(&mut self) -> Result<u64, io::Error> {
+            (self.on_length)(self.reader)
+        }
+
+        pub fn eof(&mut self) -> bool {
+            (self.on_eof)(self.reader)
+        }
+
         pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
             if unsafe {FLAC__stream_decoder_process_single(self.decoder) != 0} {
                 Ok(true)
@@ -1684,6 +1704,18 @@ pub mod impl_flac {
             };
             ret.decoder.init()?;
             Ok(ret)
+        }
+
+        pub fn tell(&mut self) -> Result<u64, io::Error> {
+            self.decoder.tell()
+        }
+
+        pub fn length(&mut self) -> Result<u64, io::Error> {
+            self.decoder.length()
+        }
+
+        pub fn eof(&mut self) -> bool {
+            self.decoder.eof()
         }
 
         pub fn get_vendor_string(&self) -> &Option<String> {
