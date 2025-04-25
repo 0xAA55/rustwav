@@ -1110,3 +1110,7 @@ pub mod opus {
     }
 }
 
+#[cfg(feature = "flac")]
+pub mod flac {
+    
+}
