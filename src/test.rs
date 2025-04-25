@@ -180,6 +180,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
         DataFormat::Flac(ref mut options) => {
             options.channels = spec.channels;
             options.sample_rate = spec.sample_rate;
+            options.bits_per_sample = spec.bits_per_sample as u32;
         },
         _ => (),
     }
