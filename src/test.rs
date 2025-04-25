@@ -27,12 +27,13 @@ pub use errors::{AudioReadError, AudioError, AudioWriteError};
 pub use wavcore::{AdpcmSubFormat};
 pub use wavcore::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
 pub use wavcore::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+pub use wavcore::{FlacEncoderParams, FlacCompression};
 
 use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
 
-const FORMATS: [(&str, DataFormat); 8] = [
+const FORMATS: [(&str, DataFormat); 9] = [
         ("pcm", DataFormat::Pcm),
         ("pcm-alaw", DataFormat::PcmALaw),
         ("pcm-ulaw", DataFormat::PcmMuLaw),
@@ -50,6 +51,14 @@ const FORMATS: [(&str, DataFormat); 8] = [
             bitrate: OpusBitrate::Max,
             encode_vbr: false,
             samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
+        })),
+        ("flac", DataFormat::Flac(FlacEncoderParams{
+            verify_decoded: false,
+            compression: FlacCompression::Level8,
+            channels: 2,
+            sample_rate: 44100,
+            bits_per_sample: 32,
+            total_samples_estimate: 0,
         })),
 ];
 
@@ -168,6 +177,10 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
         DataFormat::Opus(ref options) => {
             spec.sample_rate = options.get_rounded_up_sample_rate(spec.sample_rate);
         },
+        DataFormat::Flac(ref mut options) => {
+            options.channels = spec.channels;
+            options.sample_rate = spec.sample_rate;
+        },
         _ => (),
     }
 
@@ -240,7 +253,7 @@ fn test_normal() -> ExitCode {
 
 use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap};
 use crate::wavcore::{ListChunk, ListInfo};
-use crate::flac::{FlacEncoder, FlacEncoderParams, FlacCompression, FlacDecoder};
+use crate::flac::{FlacEncoder, FlacDecoder};
 use crate::flac::{ReadSeek, WriteSeek};
 
 #[allow(unused_imports)]
