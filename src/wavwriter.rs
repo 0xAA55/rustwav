@@ -26,6 +26,9 @@ use crate::encoders::mp3::Mp3Encoder;
 #[cfg(feature = "opus")]
 use crate::encoders::opus::OpusEncoder;
 
+#[cfg(feature = "flac")]
+use crate::encoders::flac::FlacEncoderWrap;
+
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]
 pub enum FileSizeOption{
@@ -127,6 +130,8 @@ impl<'a> WaveWriter<'a> {
             Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, mp3_options)?),
             #[cfg(feature = "opus")]
             Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, opus_options)?),
+            #[cfg(feature = "flac")]
+            Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), flac_options)?),
             Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
             #[allow(unreachable_patterns)]
             other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
