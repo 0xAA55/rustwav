@@ -1745,6 +1745,7 @@ pub mod flac {
                     }),
                     params
                 )?,
+                params: *params,
                 write_offset,
                 frames_written: 0,
                 bytes_written,
@@ -1752,11 +1753,11 @@ pub mod flac {
         }
 
         pub fn get_channels(&self) -> u16 {
-            self.encoder.get_params().channels
+            self.params.channels
         }
 
         pub fn get_sample_rate(&self) -> u32 {
-            self.encoder.get_params().sample_rate
+            self.params.sample_rate
         }
 
         pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {
