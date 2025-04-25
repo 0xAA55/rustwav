@@ -104,9 +104,9 @@ pub mod impl_flac {
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacEncoderError {
-        code: u32,
-        message: &'static str,
-        function: &'static str,
+        pub code: u32,
+        pub message: &'static str,
+        pub function: &'static str,
     }
 
     impl FlacEncoderError {
@@ -178,9 +178,9 @@ pub mod impl_flac {
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacEncoderInitError {
-        code: u32,
-        message: &'static str,
-        function: &'static str,
+        pub code: u32,
+        pub message: &'static str,
+        pub function: &'static str,
     }
 
     impl FlacEncoderInitError {
@@ -1013,9 +1013,9 @@ pub mod impl_flac {
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacDecoderError {
-        code: u32,
-        message: &'static str,
-        function: &'static str,
+        pub code: u32,
+        pub message: &'static str,
+        pub function: &'static str,
     }
 
     impl FlacDecoderError {
@@ -1090,9 +1090,9 @@ pub mod impl_flac {
 
     #[derive(Debug, Clone, Copy)]
     pub struct FlacDecoderInitError {
-        code: u32,
-        message: &'static str,
-        function: &'static str,
+        pub code: u32,
+        pub message: &'static str,
+        pub function: &'static str,
     }
 
     impl FlacDecoderInitError {
