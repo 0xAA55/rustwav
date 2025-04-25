@@ -1731,12 +1731,47 @@ pub mod flac {
         pub fn get_sample_rate(&self) -> u32 {
             self.encoder.get_params().sample_rate
         }
+
+        pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {
+            match self.encoder.write_interleaved_samples(samples) {
+                Ok(_) => Ok(self.frames_written += samples.len() as u64 / self.get_channels() as u64),
+                Err(e) => Err(AudioWriteError::from(e)),
+            }
+        }
+
+        pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {
+            match self.encoder.write_mono_channel(monos) {
+                Ok(_) => Ok(self.frames_written += monos.len() as u64),
+                Err(e) => Err(AudioWriteError::from(e)),
+            }
+        }
+
+        pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {
+            match self.encoder.write_stereos(stereos) {
+                Ok(_) => Ok(self.frames_written += stereos.len() as u64),
+                Err(e) => Err(AudioWriteError::from(e)),
+            }
+        }
+
+        pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), AudioWriteError> {
+            match self.encoder.write_monos(monos) {
+                Ok(_) => Ok(self.frames_written += monos[0].len() as u64),
+                Err(e) => Err(AudioWriteError::from(e)),
+            }
+        }
+
+        pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {
+            match self.encoder.write_frames(frames) {
+                Ok(_) => Ok(self.frames_written += frames.len() as u64),
+                Err(e) => Err(AudioWriteError::from(e)),
+            }
+        }
     }
 
     impl<'a> EncoderToImpl for FlacEncoderWrap<'_> {
         fn get_bitrate(&self) -> u32 {
             if self.frames_written != 0 {
-                (self.bytes_written * self.get_sample_rate() as u64 * self.get_channels() as u64 * 8 / self.frames_written) as u32
+                (*self.bytes_written * self.get_sample_rate() as u64 * self.get_channels() as u64 * 8 / self.frames_written) as u32
             } else {
                 self.get_sample_rate() as u32 * self.get_channels() as u32 * 8 // Fake data
             }
@@ -1764,70 +1799,70 @@ pub mod flac {
             Ok(self.encoder.finish()?)
         }
 
-        fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_i16(&mut self, samples: &[i16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_i24(&mut self, samples: &[i24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_i32(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_i64(&mut self, samples: &[i64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples__u8(&mut self, samples: &[u8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_u16(&mut self, samples: &[u16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_u24(&mut self, samples: &[u24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_u32(&mut self, samples: &[u32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_u64(&mut self, samples: &[u64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_f32(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
-        fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_i16(&mut self, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_i24(&mut self, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_i32(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_i64(&mut self, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples__u8(&mut self, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_u16(&mut self, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_u24(&mut self, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_u32(&mut self, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_u64(&mut self, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_f32(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
+        fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
 
-        fn write_mono_channel__i8(&mut self, monos: &[i8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_i16(&mut self, monos: &[i16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_i24(&mut self, monos: &[i24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_i32(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_i64(&mut self, monos: &[i64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel__u8(&mut self, monos: &[u8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_u16(&mut self, monos: &[u16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_u24(&mut self, monos: &[u24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_u32(&mut self, monos: &[u32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_u64(&mut self, monos: &[u64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_f32(&mut self, monos: &[f32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
-        fn write_mono_channel_f64(&mut self, monos: &[f64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel__i8(&mut self, monos: &[i8 ]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_i16(&mut self, monos: &[i16]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_i24(&mut self, monos: &[i24]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_i32(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_i64(&mut self, monos: &[i64]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel__u8(&mut self, monos: &[u8 ]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_u16(&mut self, monos: &[u16]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_u24(&mut self, monos: &[u24]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_u32(&mut self, monos: &[u32]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_u64(&mut self, monos: &[u64]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_f32(&mut self, monos: &[f32]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
+        fn write_mono_channel_f64(&mut self, monos: &[f64]) -> Result<(), AudioWriteError> {self.write_mono_channel(&sample_conv(monos))}
 
-        fn write_stereos__i8(&mut self, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_i16(&mut self, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_i24(&mut self, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_i32(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_i64(&mut self, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos__u8(&mut self, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_u16(&mut self, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_u24(&mut self, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_u32(&mut self, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_u64(&mut self, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_f32(&mut self, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
-        fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos__i8(&mut self, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_i16(&mut self, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_i24(&mut self, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_i32(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_i64(&mut self, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos__u8(&mut self, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_u16(&mut self, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_u24(&mut self, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_u32(&mut self, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_u64(&mut self, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_f32(&mut self, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
+        fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
 
-        fn write_monos__i8(&mut self, monos_array: &[Vec<i8 >]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_i16(&mut self, monos_array: &[Vec<i16>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_i24(&mut self, monos_array: &[Vec<i24>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_i32(&mut self, monos_array: &[Vec<i32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_i64(&mut self, monos_array: &[Vec<i64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos__u8(&mut self, monos_array: &[Vec<u8 >]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_u16(&mut self, monos_array: &[Vec<u16>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_u24(&mut self, monos_array: &[Vec<u24>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_u32(&mut self, monos_array: &[Vec<u32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_u64(&mut self, monos_array: &[Vec<u64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_f32(&mut self, monos_array: &[Vec<f32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
-        fn write_monos_f64(&mut self, monos_array: &[Vec<f64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos__i8(&mut self, monos_array: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_i16(&mut self, monos_array: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_i24(&mut self, monos_array: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_i32(&mut self, monos_array: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_i64(&mut self, monos_array: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos__u8(&mut self, monos_array: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_u16(&mut self, monos_array: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_u24(&mut self, monos_array: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_u32(&mut self, monos_array: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_u64(&mut self, monos_array: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_f32(&mut self, monos_array: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+        fn write_monos_f64(&mut self, monos_array: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
 
-        fn write_frames__i8(&mut self, frames: &[Vec<i8 >], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_i16(&mut self, frames: &[Vec<i16>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_i24(&mut self, frames: &[Vec<i24>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_i32(&mut self, frames: &[Vec<i32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_i64(&mut self, frames: &[Vec<i64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames__u8(&mut self, frames: &[Vec<u8 >], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_u16(&mut self, frames: &[Vec<u16>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_u24(&mut self, frames: &[Vec<u24>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_u32(&mut self, frames: &[Vec<u32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_u64(&mut self, frames: &[Vec<u64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_f32(&mut self, frames: &[Vec<f32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
-        fn write_frames_f64(&mut self, frames: &[Vec<f64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {Ok(self.encoder.write_frames(&sample_conv_batch(frames))?)}}
+        fn write_frames__i8(&mut self, frames: &[Vec<i8 >], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_i16(&mut self, frames: &[Vec<i16>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_i24(&mut self, frames: &[Vec<i24>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_i32(&mut self, frames: &[Vec<i32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_i64(&mut self, frames: &[Vec<i64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames__u8(&mut self, frames: &[Vec<u8 >], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_u16(&mut self, frames: &[Vec<u16>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_u24(&mut self, frames: &[Vec<u24>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_u32(&mut self, frames: &[Vec<u32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_u64(&mut self, frames: &[Vec<u64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_f32(&mut self, frames: &[Vec<f32>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
+        fn write_frames_f64(&mut self, frames: &[Vec<f64>], channels: u16) -> Result<(), AudioWriteError> {if channels != self.encoder.get_params().channels {Err(AudioWriteError::WrongChannels(format!("The encoder channels is {} but {channels} channels audio data are asked to be written.", self.encoder.get_params().channels)))} else {self.write_frames(&sample_conv_batch(frames))}}
     }
 }
 
