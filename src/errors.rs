@@ -262,3 +262,236 @@ impl From<opus::Error> for AudioWriteError {
     }
 }
 
+#[cfg(feature = "flac")]
+use crate::flac;
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacEncoderError> for AudioReadError {
+    fn from(err: flac::FlacEncoderError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacEncoderErrorCode::*;
+        let err_code = flac::FlacEncoderErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamEncoderOk => Self::OtherReason(err_string),
+            StreamEncoderUninitialized => Self::OtherReason(err_string),
+            StreamEncoderOggError => Self::OtherReason(err_string),
+            StreamEncoderVerifyDecoderError => Self::OtherReason(err_string),
+            StreamEncoderVerifyMismatchInAudioData => Self::OtherReason(err_string),
+            StreamEncoderClientError => Self::OtherReason(err_string),
+            StreamEncoderIOError => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamEncoderFramingError => Self::FormatError(err_string),
+            StreamEncoderMemoryAllocationError => Self::OtherReason(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacEncoderInitError> for AudioReadError {
+    fn from(err: flac::FlacEncoderInitError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacEncoderInitErrorCode::*;
+        let err_code = flac::FlacEncoderInitErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamEncoderInitStatusOk => Self::OtherReason(err_string),
+            StreamEncoderInitStatusEncoderError => Self::OtherReason(err_string),
+            StreamEncoderInitStatusUnsupportedContainer => Self::OtherReason(err_string),
+            StreamEncoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidNumberOfChannels => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidBitsPerSample => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidSampleRate => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidBlockSize => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidMaxLpcOrder => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidQlpCoeffPrecision => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder => Self::BufferTooSmall(err_string),
+            StreamEncoderInitStatusNotStreamable => Self::OtherReason(err_string),
+            StreamEncoderInitStatusInvalidMetadata => Self::FormatError(err_string),
+            StreamEncoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacDecoderError> for AudioReadError {
+    fn from(err: flac::FlacDecoderError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacDecoderInitErrorCode::*;
+        let err_code = flac::FlacDecoderInitErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamDecoderInitStatusOk => Self::OtherReason(err_string),
+            StreamDecoderInitStatusUnsupportedContainer => Self::Unsupported(err_string),
+            StreamDecoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+            StreamDecoderInitStatusMemoryAllocationError => Self::OtherReason(err_string),
+            StreamDecoderInitStatusErrorOpeningFile => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamDecoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacDecoderInitError> for AudioReadError {
+    fn from(err: flac::FlacDecoderInitError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacDecoderErrorCode::*;
+        let err_code = flac::FlacDecoderErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamDecoderSearchForMetadata => Self::OtherReason(err_string),
+            StreamDecoderReadMetadata => Self::OtherReason(err_string),
+            StreamDecoderSearchForFrameSync => Self::OtherReason(err_string),
+            StreamDecoderReadFrame => Self::OtherReason(err_string),
+            StreamDecoderEndOfStream => Self::OtherReason(err_string),
+            StreamDecoderOggError => Self::OtherReason(err_string),
+            StreamDecoderSeekError => Self::OtherReason(err_string),
+            StreamDecoderAborted => Self::OtherReason(err_string),
+            StreamDecoderMemoryAllocationError => Self::OtherReason(err_string),
+            StreamDecoderUninitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<&dyn flac::FlacError> for AudioReadError {
+    fn from(err: &dyn flac::FlacError) -> Self {
+        let err_code = err.get_code();
+        let err_func = err.get_function();
+        let err_desc = err.get_message();
+        if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
+            AudioReadError::from(*encoder_err)
+        } else  if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>() {
+            AudioReadError::from(*encoder_err)
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
+            AudioReadError::from(*decoder_err)
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>() {
+            AudioReadError::from(*decoder_err)
+        } else {
+            Self::OtherReason(format!("Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"))
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacEncoderError> for AudioWriteError {
+    fn from(err: flac::FlacEncoderError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacEncoderErrorCode::*;
+        let err_code = flac::FlacEncoderErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamEncoderOk => Self::OtherReason(err_string),
+            StreamEncoderUninitialized => Self::OtherReason(err_string),
+            StreamEncoderOggError => Self::OtherReason(err_string),
+            StreamEncoderVerifyDecoderError => Self::OtherReason(err_string),
+            StreamEncoderVerifyMismatchInAudioData => Self::OtherReason(err_string),
+            StreamEncoderClientError => Self::OtherReason(err_string),
+            StreamEncoderIOError => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamEncoderFramingError => Self::InvalidInput(err_string),
+            StreamEncoderMemoryAllocationError => Self::OtherReason(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacEncoderInitError> for AudioWriteError {
+    fn from(err: flac::FlacEncoderInitError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacEncoderInitErrorCode::*;
+        let err_code = flac::FlacEncoderInitErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamEncoderInitStatusOk => Self::OtherReason(err_string),
+            StreamEncoderInitStatusEncoderError => Self::OtherReason(err_string),
+            StreamEncoderInitStatusUnsupportedContainer => Self::OtherReason(err_string),
+            StreamEncoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidNumberOfChannels => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidBitsPerSample => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidSampleRate => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidBlockSize => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidMaxLpcOrder => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusInvalidQlpCoeffPrecision => Self::InvalidArguments(err_string),
+            StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder => Self::BufferIsFull(err_string),
+            StreamEncoderInitStatusNotStreamable => Self::OtherReason(err_string),
+            StreamEncoderInitStatusInvalidMetadata => Self::InvalidInput(err_string),
+            StreamEncoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacDecoderError> for AudioWriteError {
+    fn from(err: flac::FlacDecoderError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacDecoderErrorCode::*;
+        let err_code = flac::FlacDecoderErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamDecoderSearchForMetadata => Self::OtherReason(err_string),
+            StreamDecoderReadMetadata => Self::OtherReason(err_string),
+            StreamDecoderSearchForFrameSync => Self::OtherReason(err_string),
+            StreamDecoderReadFrame => Self::OtherReason(err_string),
+            StreamDecoderEndOfStream => Self::OtherReason(err_string),
+            StreamDecoderOggError => Self::OtherReason(err_string),
+            StreamDecoderSeekError => Self::OtherReason(err_string),
+            StreamDecoderAborted => Self::OtherReason(err_string),
+            StreamDecoderMemoryAllocationError => Self::OtherReason(err_string),
+            StreamDecoderUninitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<flac::FlacDecoderInitError> for AudioWriteError {
+    fn from(err: flac::FlacDecoderInitError) -> Self {
+        let err_code = err.code;
+        let err_func = err.function;
+        let err_desc = err.message;
+        use flac::FlacDecoderInitErrorCode::*;
+        let err_code = flac::FlacDecoderInitErrorCode::from(err_code);
+        let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+        match err_code {
+            StreamDecoderInitStatusOk => Self::OtherReason(err_string),
+            StreamDecoderInitStatusUnsupportedContainer => Self::Unsupported(err_string),
+            StreamDecoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+            StreamDecoderInitStatusMemoryAllocationError => Self::OtherReason(err_string),
+            StreamDecoderInitStatusErrorOpeningFile => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamDecoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+        }
+    }
+}
+
+#[cfg(feature = "flac")]
+impl From<&dyn flac::FlacError> for AudioWriteError {
+    fn from(err: &dyn flac::FlacError) -> Self {
+        let err_code = err.get_code();
+        let err_func = err.get_function();
+        let err_desc = err.get_message();
+        if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
+            AudioWriteError::from(*encoder_err)
+        } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>() {
+            AudioWriteError::from(*encoder_err)
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
+            AudioWriteError::from(*decoder_err)
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>() {
+            AudioWriteError::from(*decoder_err)
+        } else {
+            Self::OtherReason(format!("Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"))
+        }
+    }
+}

@@ -3,7 +3,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::map_entry)]
 
-use std::{io::{Read, Write, Seek}, fmt::Debug};
+use std::{any::Any, io::{Read, Write, Seek}, fmt::Debug};
 
 pub trait ReadSeek: Read + Seek + Debug {}
 pub trait WriteSeek: Write + Seek + Debug {}
@@ -64,7 +64,8 @@ pub mod impl_flac {
 
     use libflac_sys::*;
 
-    pub trait FlacError {
+    pub trait FlacError: Any {
+        fn as_any(&self) -> &dyn Any;
         fn get_code(&self) -> u32;
         fn get_message(&self) -> &'static str;
         fn get_function(&self) -> &'static str;
@@ -82,6 +83,7 @@ pub mod impl_flac {
     macro_rules! impl_FlacError {
         ($error:ty) => {
             impl FlacError for $error {
+                fn as_any(&self) -> &dyn Any {self}
                 fn get_code(&self) -> u32 {self.code}
                 fn get_message(&self) -> &'static str {self.message}
                 fn get_function(&self) -> &'static str {self.function}
