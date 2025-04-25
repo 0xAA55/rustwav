@@ -776,6 +776,10 @@ pub mod impl_flac {
             self.get_status_as_result("FlacEncoderUnmovable::Init()")
         }
 
+        fn get_params(&self) -> FlacEncoderParams {
+            self.params
+        }
+
         unsafe extern "C" fn write_callback(_encoder: *const FLAC__StreamEncoder, buffer: *const u8, bytes: usize, _samples: u32, _current_frame: u32, client_data: *mut c_void) -> u32 {
             let this = &mut *(client_data as *mut Self);
             match (this.on_write)(this.writer, slice::from_raw_parts(buffer, bytes)) {
@@ -970,6 +974,10 @@ pub mod impl_flac {
         #[cfg(feature = "id3")]
         pub fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
             self.encoder.inherit_metadata_from_id3(tag)
+        }
+
+        pub fn get_params(&self) -> FlacEncoderParams {
+            self.encoder.get_params()
         }
 
         pub fn tell(&mut self) -> Result<u64, io::Error> {
