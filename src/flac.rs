@@ -1203,12 +1203,12 @@ pub mod impl_flac {
     impl Display for FlacInternalDecoderError {
         fn fmt(&self, f: &mut Formatter) -> fmt::Result {
             match self {
-                Self::LostSync => write!(f, "FLAC: An error in the stream caused the decoder to lose synchronization."),
-                Self::BadHeader => write!(f, "FLAC: The decoder encountered a corrupted frame header."),
-                Self::FrameCrcMismatch => write!(f, "FLAC: The frame's data did not match the CRC in the footer."),
-                Self::UnparseableStream => write!(f, "FLAC: The decoder encountered reserved fields in use in the stream."),
-                Self::BadMetadata => write!(f, "FLAC: The decoder encountered a corrupted metadata block."),
-                Self::OutOfBounds => write!(f, "FLAC: The decoder encountered a otherwise valid frame in which the decoded samples exceeded the range offered by the stated bit depth."),
+                Self::LostSync => write!(f, "An error in the stream caused the decoder to lose synchronization."),
+                Self::BadHeader => write!(f, "The decoder encountered a corrupted frame header."),
+                Self::FrameCrcMismatch => write!(f, "The frame's data did not match the CRC in the footer."),
+                Self::UnparseableStream => write!(f, "The decoder encountered reserved fields in use in the stream."),
+                Self::BadMetadata => write!(f, "The decoder encountered a corrupted metadata block."),
+                Self::OutOfBounds => write!(f, "The decoder encountered a otherwise valid frame in which the decoded samples exceeded the range offered by the stated bit depth."),
             }
         }
     }
