@@ -7,7 +7,7 @@ use crate::Writer;
 use crate::{SampleType, i24, u24};
 use crate::AudioWriteError;
 use crate::adpcm;
-use crate::wavcore::{WaveSampleType, SpeakerPosition};
+use crate::wavcore::{Spec, WaveSampleType};
 use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 use crate::xlaw::{XLaw, PcmXLawEncoder};
@@ -16,12 +16,12 @@ use crate::xlaw::{XLaw, PcmXLawEncoder};
 // Due to trait bounds prohibiting generic parameters, each function must be explicitly 
 // implemented for every supported type.
 pub trait EncoderToImpl: Debug {
-    fn get_bitrate(&self, channels: u16) -> u32;
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError>;
+    fn get_bitrate(&self) -> u32;
+    fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
     fn finish(&mut self) -> Result<(), AudioWriteError>;
 
-    // Channel-agnostic low-level sample writers. Default impls exist except for `f32`.
+    // Channel-agnostic low-level sample writers.
     fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError>;
     fn write_samples_i16(&mut self, samples: &[i16]) -> Result<(), AudioWriteError>;
     fn write_samples_i24(&mut self, samples: &[i24]) -> Result<(), AudioWriteError>;
@@ -167,11 +167,11 @@ pub struct DummyEncoder;
 
 // Default implementations: all input formats are normalized to `f32` for encoding.
 impl EncoderToImpl for DummyEncoder {
-    fn get_bitrate(&self, _channels: u16) -> u32 {
+    fn get_bitrate(&self) -> u32 {
         panic!("Must implement `get_bitrate()` for your encoder.");
     }
 
-    fn new_fmt_chunk(&mut self, _channels: u16, _sample_rate: u32, _bits_per_sample: u16, _channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+    fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         panic!("Must implement `new_fmt_chunk()` for your encoder.");
     }
 
@@ -219,12 +219,12 @@ impl<'a> Encoder<'a> {
         }
     }
 
-    pub fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-        self.encoder.new_fmt_chunk(channels, sample_rate, bits_per_sample, channel_mask)
+    pub fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+        self.encoder.new_fmt_chunk()
     }
 
-    pub fn get_bitrate(&self, channels: u16) -> u32 {
-        self.encoder.get_bitrate(channels)
+    pub fn get_bitrate(&self) -> u32 {
+        self.encoder.get_bitrate()
     }
 
     pub fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -484,7 +484,7 @@ where S: SampleType {
 
 #[derive(Debug)]
 pub struct PcmEncoder<'a> {
-    sample_rate: u32,
+    spec: Spec,
     sample_type: WaveSampleType,
     writer: &'a mut dyn Writer,
     writer_from__i8: PcmEncoderFrom< i8>,
@@ -503,9 +503,13 @@ pub struct PcmEncoder<'a> {
 
 impl<'a> PcmEncoder<'a> {
     // target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
-    pub fn new(writer: &'a mut dyn Writer, sample_rate: u32, target_sample: WaveSampleType) -> Result<Self, AudioWriteError> {
+    pub fn new(writer: &'a mut dyn Writer, spec: Spec) -> Result<Self, AudioWriteError> {
+        if spec.is_channel_mask_valid() == false {
+            return Err(AudioWriteError::InvalidArguments(format!("Number of bits of channel mask 0x{:08x} does not match {} channels", spec.channel_mask, spec.channels)));
+        }
+        let target_sample = spec.get_sample_type();
         Ok(Self {
-            sample_rate,
+            spec,
             sample_type: target_sample,
             writer,
             writer_from__i8: PcmEncoderFrom::< i8>::new(target_sample)?,
@@ -525,14 +529,14 @@ impl<'a> PcmEncoder<'a> {
 }
 
 impl<'a> EncoderToImpl for PcmEncoder<'_> {
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
+    fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64, Unknown};
-        let bytes_per_sample = bits_per_sample / 8;
-        let byte_rate = sample_rate * channels as u32 * bytes_per_sample as u32;
-        let extensible = match channel_mask {
-            None => None,
-            Some(channel_mask) => Some(FmtExtension::new_extensible(ExtensibleData {
-                valid_bits_per_sample: bits_per_sample,
+        let bytes_per_sample = self.spec.bits_per_sample / 8;
+        let byte_rate = self.spec.sample_rate * self.spec.channels as u32 * bytes_per_sample as u32;
+        let extensible = match self.spec.channel_mask {
+            0 => None,
+            channel_mask => Some(FmtExtension::new_extensible(ExtensibleData {
+                valid_bits_per_sample: self.spec.bits_per_sample,
                 channel_mask,
                 sub_format: match self.sample_type {
                     U8 | S16 | S24 | S32 | S64 => GUID_PCM_FORMAT,
@@ -552,17 +556,17 @@ impl<'a> EncoderToImpl for PcmEncoder<'_> {
                     Unknown => panic!("Can't encode \"Unknown\" format to PCM."),
                 }
             },
-            channels,
-            sample_rate,
+            channels: self.spec.channels,
+            sample_rate: self.spec.sample_rate,
             byte_rate,
-            block_align: bytes_per_sample * channels,
-            bits_per_sample,
+            block_align: bytes_per_sample * self.spec.channels,
+            bits_per_sample: self.spec.bits_per_sample,
             extension: extensible,
         })
     }
 
-    fn get_bitrate(&self, channels: u16) -> u32 {
-        channels as u32 * self.sample_rate * self.sample_type.sizeof() as u32 * 8
+    fn get_bitrate(&self) -> u32 {
+        self.spec.channels as u32 * self.spec.sample_rate * self.sample_type.sizeof() as u32 * 8
     }
 
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -602,19 +606,20 @@ const MAX_BUFFER_USAGE: usize = 1024;
 
 impl<'a, E> AdpcmEncoderWrap<'a, E>
 where E: adpcm::AdpcmEncoder {
-    pub fn new(writer: &'a mut dyn Writer, channels: u16, sample_rate: u32) -> Result<Self, AudioWriteError> {
+    pub fn new(writer: &'a mut dyn Writer, spec: Spec) -> Result<Self, AudioWriteError> {
         Ok(Self {
             writer,
-            channels,
-            sample_rate,
+            channels: spec.channels,
+            sample_rate: spec.sample_rate,
             bytes_written: 0,
-            encoder: E::new(channels)?,
+            encoder: E::new(spec.channels)?,
             nibbles: Vec::<u8>::with_capacity(MAX_BUFFER_USAGE),
         })
     }
 
     fn flush_buffers(&mut self) -> Result<(), AudioWriteError> {
         self.writer.write_all(&self.nibbles)?;
+
         // Avoid using `clear()`. If a user writes a large batch of samples once, 
         // `clear()` retains the original capacity without shrinking it, leading to persistent memory usage.
         self.nibbles = Vec::<u8>::with_capacity(MAX_BUFFER_USAGE);
@@ -645,21 +650,12 @@ where E: adpcm::AdpcmEncoder {
 
 impl<'a, E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
 where E: adpcm::AdpcmEncoder {
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-        if let Some(channel_mask) = channel_mask {
-            const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
-            const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
-            match (channels, channel_mask) {
-                (1, MONO_MASK) => (),
-                (2, STEREO_MASK) => (),
-                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ADPCM format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
-            }
-        }
-        Ok(self.encoder.new_fmt_chunk(channels, sample_rate, 4)?)
+    fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+        Ok(self.encoder.new_fmt_chunk(self.channels, self.sample_rate, 4)?)
     }
 
-    fn get_bitrate(&self, channels: u16) -> u32 {
-        self.sample_rate * channels as u32 * 4
+    fn get_bitrate(&self) -> u32 {
+        self.sample_rate * self.channels as u32 * 4
     }
 
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -703,15 +699,17 @@ where E: adpcm::AdpcmEncoder {
 pub struct PcmXLawEncoderWrap<'a> {
     writer: &'a mut dyn Writer,
     enc: PcmXLawEncoder,
+    channels: u16,
     sample_rate: u32,
 }
 
 impl<'a> PcmXLawEncoderWrap<'a> {
-    pub fn new(writer: &'a mut dyn Writer, sample_rate: u32, which_law: XLaw) -> Self {
+    pub fn new(writer: &'a mut dyn Writer, spec: Spec, which_law: XLaw) -> Self {
         Self {
             writer,
             enc: PcmXLawEncoder::new(which_law),
-            sample_rate,
+            channels: spec.channels,
+            sample_rate: spec.sample_rate,
         }
     }
 
@@ -722,37 +720,25 @@ impl<'a> PcmXLawEncoderWrap<'a> {
 }
 
 impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-        if let Some(channel_mask) = channel_mask {
-            const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
-            const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
-            match (channels, channel_mask) {
-                (1, MONO_MASK) => (),
-                (2, STEREO_MASK) => (),
-                _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the ALaw PCM format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
-            }
-        }
-        if bits_per_sample != 8 {
-            eprintln!("For {} PCM, bits_per_sample bust be 8, the value `{bits_per_sample}` is ignored.", self.enc.get_which_law());
-        }
+    fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         let bits_per_sample = 8u16;
-        let block_align = channels;
+        let block_align = self.channels;
         Ok(FmtChunk {
             format_tag: match self.enc.get_which_law() {
                 XLaw::ALaw => 0x0006,
                 XLaw::MuLaw => 0x0007,
             },
-            channels,
-            sample_rate,
-            byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
+            channels: self.channels,
+            sample_rate: self.sample_rate,
+            byte_rate: self.sample_rate * bits_per_sample as u32 * self.channels as u32 / 8,
             block_align,
             bits_per_sample,
             extension: None,
         })
     }
 
-    fn get_bitrate(&self, channels: u16) -> u32 {
-        self.sample_rate * channels as u32 * 8
+    fn get_bitrate(&self) -> u32 {
+        self.sample_rate * self.channels as u32 * 8
     }
 
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -915,7 +901,7 @@ pub mod mp3 {
         use crate::Writer;
         use crate::AudioWriteError;
         use crate::{SampleType, i24, u24};
-        use crate::wavcore::{FmtChunk, FmtExtension, Mp3Data, SpeakerPosition};
+        use crate::wavcore::{Spec, FmtChunk, FmtExtension, Mp3Data};
         use crate::utils::{self, sample_conv, stereos_conv};
         use crate::hacks;
         use mp3lame_encoder::{Builder, Encoder, MonoPcm, DualPcm, FlushNoGap};
@@ -1028,6 +1014,7 @@ pub mod mp3 {
         pub struct Mp3Encoder<'a, S>
         where S: SampleType {
             channels: u16,
+            sample_rate: u32,
             bitrate: u32,
             encoder: SharedMp3Encoder,
             encoder_options: Mp3EncoderOptions,
@@ -1036,7 +1023,11 @@ pub mod mp3 {
 
         impl<'a, S> Mp3Encoder<'a, S>
         where S: SampleType {
-            pub fn new(mut writer: &'a mut dyn Writer, sample_rate: u32, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
+            pub fn new(mut writer: &'a mut dyn Writer, spec: Spec, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
+                if spec.channels != mp3_options.get_channels() {
+                    return Err(AudioWriteError::InvalidArguments(format!("The number of channels from `spec` is {}, but from `mp3_options` is {}", spec.channels, mp3_options.get_channels())));
+                }
+
                 let mp3_builder = Builder::new();
                 let mut mp3_builder = match mp3_builder {
                     Some(mp3_builder) => mp3_builder,
@@ -1045,7 +1036,7 @@ pub mod mp3 {
                 let options = mp3_options.to_lame_options();
 
                 mp3_builder.set_mode(options.channels)?;
-                mp3_builder.set_sample_rate(sample_rate)?;
+                mp3_builder.set_sample_rate(spec.sample_rate)?;
                 mp3_builder.set_brate(options.bitrate)?;
                 mp3_builder.set_quality(options.quality)?;
                 mp3_builder.set_vbr_mode(options.vbr_mode)?;
@@ -1074,6 +1065,7 @@ pub mod mp3 {
                 let channels = mp3_options.get_channels();
                 Ok(Self {
                     channels,
+                    sample_rate: spec.sample_rate,
                     bitrate: mp3_options.get_bitrate(),
                     encoder: encoder.clone(),
                     encoder_options: *mp3_options,
@@ -1336,29 +1328,20 @@ pub mod mp3 {
 
         impl<'a, S> EncoderToImpl for Mp3Encoder<'_, S>
         where S: SampleType {
-            fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-                if let Some(channel_mask) = channel_mask {
-                    const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
-                    const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
-                    match (channels, channel_mask) {
-                        (1, MONO_MASK) => (),
-                        (2, STEREO_MASK) => (),
-                        _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the MP3 format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
-                    }
-                }
+            fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
                     format_tag: 0x0055,
-                    channels,
-                    sample_rate,
+                    channels: self.channels,
+                    sample_rate: self.sample_rate,
                     byte_rate: self.bitrate / 8,
                     block_align: 1,
                     bits_per_sample: 0,
-                    extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, sample_rate))),
+                    extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, self.sample_rate))),
                 })
             }
 
-            fn get_bitrate(&self, channels: u16) -> u32 {
-                self.bitrate * channels as u32
+            fn get_bitrate(&self) -> u32 {
+                self.bitrate * self.channels as u32
             }
 
             fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
@@ -1523,7 +1506,7 @@ pub mod opus {
 
         use super::*;
         use crate::Writer;
-        use crate::wavcore::{FmtChunk, SpeakerPosition};
+        use crate::wavcore::{Spec, FmtChunk};
         use crate::AudioWriteError;
         use crate::{i24, u24};
         use crate::utils::sample_conv;
@@ -1553,26 +1536,26 @@ pub mod opus {
         }
 
         impl<'a> OpusEncoder<'a> {
-            pub fn new(writer: &'a mut dyn Writer, channels: u16, sample_rate: u32, options: &OpusEncoderOptions) -> Result<Self, AudioWriteError> {
-                let opus_channels = match channels {
+            pub fn new(writer: &'a mut dyn Writer, spec: Spec, options: &OpusEncoderOptions) -> Result<Self, AudioWriteError> {
+                let opus_channels = match spec.channels {
                     1 => Channels::Mono,
                     2 => Channels::Stereo,
                     o => return Err(AudioWriteError::InvalidArguments(format!("Bad channels: {o} for the opus encoder."))),
                 };
-                if !OPUS_ALLOWED_SAMPLE_RATES.contains(&sample_rate) {
-                    return Err(AudioWriteError::InvalidArguments(format!("Bad sample rate: {sample_rate} for the opus encoder. The sample rate must be one of {}",
-                        OPUS_ALLOWED_SAMPLE_RATES.iter().map(|s|{format!("{s}")}).collect::<Vec<String>>().join(", ")
+                if !OPUS_ALLOWED_SAMPLE_RATES.contains(&spec.sample_rate) {
+                    return Err(AudioWriteError::InvalidArguments(format!("Bad sample rate: {} for the opus encoder. The sample rate must be one of {}",
+                        spec.sample_rate, OPUS_ALLOWED_SAMPLE_RATES.iter().map(|s|{format!("{s}")}).collect::<Vec<String>>().join(", ")
                     )));
                 }
-                let mut encoder = Encoder::new(sample_rate, opus_channels, Application::Audio)?;
+                let mut encoder = Encoder::new(spec.sample_rate, opus_channels, Application::Audio)?;
                 encoder.set_bitrate(options.bitrate.to_opus_bitrate())?;
                 encoder.set_vbr(options.encode_vbr)?;
-                let num_samples_per_encode = options.samples_cache_duration.get_num_samples(channels, sample_rate);
+                let num_samples_per_encode = options.samples_cache_duration.get_num_samples(spec.channels, spec.sample_rate);
                 Ok(Self {
                     writer,
                     encoder,
-                    channels,
-                    sample_rate,
+                    channels: spec.channels,
+                    sample_rate: spec.sample_rate,
                     cache_duration: options.samples_cache_duration,
                     num_samples_per_encode,
                     sample_cache: Vec::<f32>::new(),
@@ -1591,12 +1574,20 @@ pub mod opus {
                 let mut cached_length = self.sample_cache.len();
                 let mut iter = mem::take(&mut self.sample_cache).into_iter();
                 while cached_length >= self.num_samples_per_encode {
+
+                    // Extract `self.num_samples_per_encode` samples to encode
                     let samples_to_write: Vec<f32> = iter.by_ref().take(self.num_samples_per_encode).collect();
                     if samples_to_write.is_empty() {break;}
-                    let mut buf = vec![0u8; self.num_samples_per_encode]; // Allocates a buffer of sufficient size, reserving one byte per sample.
+
+                    // Allocates a buffer of sufficient size, reserving one byte per sample.
+                    let mut buf = vec![0u8; self.num_samples_per_encode];
+
+                    // Do encode. The output size should be the same as the input samples a.k.a. block size.
                     let size = self.encoder.encode_float(&samples_to_write, &mut buf)?;
-                    buf.truncate(size);
+                    assert_eq!(size, buf.len());
                     self.writer.write_all(&buf)?;
+
+                    // Update statistics
                     cached_length -= self.num_samples_per_encode;
                     self.samples_written += self.num_samples_per_encode as u64;
                     self.bytes_written += buf.len() as u64;
@@ -1608,6 +1599,8 @@ pub mod opus {
             pub fn flush(&mut self) -> Result<(), AudioWriteError> {
                 if !self.sample_cache.is_empty() {
                     let pad = (self.num_samples_per_encode - self.sample_cache.len() % self.num_samples_per_encode) % self.num_samples_per_encode;
+
+                    // Pad to the block size to trigger it to write.
                     self.write_samples(&vec![0.0f32; pad])?;
                 }
                 Ok(())
@@ -1631,41 +1624,26 @@ pub mod opus {
         }
 
         impl<'a> EncoderToImpl for OpusEncoder<'_> {
-            fn get_bitrate(&self, channels: u16) -> u32 {
-                if self.samples_written > 0 {
-                    (self.sample_rate as u64 * self.bytes_written / self.samples_written * channels as u64 * 8) as u32
+            fn get_bitrate(&self) -> u32 {
+                if self.samples_written != 0 {
+                    (self.sample_rate as u64 * self.bytes_written / self.samples_written * self.channels as u64 * 8) as u32
                 } else {
-                    0
+                    self.sample_rate * self.channels as u32 * 8 // Fake data
                 }
             }
-            fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
-                if let Some(channel_mask) = channel_mask {
-                    const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
-                    const STEREO_MASK: u32 = SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32;
-                    match (channels, channel_mask) {
-                        (1, MONO_MASK) => (),
-                        (2, STEREO_MASK) => (),
-                        _ => return Err(AudioWriteError::Unsupported(format!("Channel masks is not supported by the opus format, and the mask is 0x{:08x} for {channels} channels.", channel_mask))),
-                    }
-                }
-                if channels != self.channels {
-                    return Err(AudioWriteError::InvalidArguments(format!("The opus encoder has already configured the channels {}, which is different from the new channels {channels}", self.channels)));
-                }
-                if sample_rate != self.sample_rate {
-                    return Err(AudioWriteError::InvalidArguments(format!("The opus encoder has already configured the sample rate {}, which is different from the new sample rate {sample_rate}", self.sample_rate)));
-                }
+            fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
                     format_tag: 0x704F,
-                    channels,
-                    sample_rate,
-                    byte_rate: self.get_bitrate(channels) / 8,
+                    channels: self.channels,
+                    sample_rate: self.sample_rate,
+                    byte_rate: self.get_bitrate() / 8,
                     block_align: self.num_samples_per_encode as u16,
                     bits_per_sample: 0,
                     extension: None,
                 })
             }
             fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-                fmt.byte_rate = self.get_bitrate(fmt.channels) / 8;
+                fmt.byte_rate = self.get_bitrate() / 8;
                 fmt.block_align = self.num_samples_per_encode as u16;
                 Ok(())
             }
@@ -1696,24 +1674,145 @@ pub mod opus {
 
 #[cfg(feature = "flac")]
 pub mod flac {
-    // use super::*;
-    // use crate::flac::*;
-    // use crate::AudioWriteError;
+    use std::{io::{self, SeekFrom}};
 
-    // pub struct FlacEncoderWrap {
-    //     encoder: FlacEncoder,
-    // }
-    // 
-    // impl FlacEncoderWrap {
-    //     pub fn new(params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
-    //         Ok(Self{
-    //             encoder: FlacEncoder::new(
-    //             ),
-    //         })
-    //     }
-    // }
+    use super::EncoderToImpl;
 
-    // impl EncoderToImpl for FlacEncoderWrap {    }
+    use crate::Writer;
+    use crate::{i24, u24};
+    use crate::AudioWriteError;
+    use crate::wavcore::FmtChunk;
+    use crate::flac::*;
+    use crate::hacks;
+    use crate::utils::{sample_conv, stereos_conv, sample_conv_batch};
+
+    #[derive(Debug)]
+    pub struct FlacEncoderWrap<'a> {
+        encoder: FlacEncoder<'a>,
+        write_offset: Box<u64>,
+        frames_written: u64,
+        bytes_written: u64,
+    }
+    
+    impl<'a> FlacEncoderWrap<'a> {
+        pub fn new(mut writer: &'a mut dyn Writer, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
+            let mut write_offset = Box::new(writer.stream_position()?);
+            let write_offset_ptr = (&mut *write_offset) as *mut u64;
+            Ok(Self{
+                encoder: FlacEncoder::new(
+                    hacks::force_borrow!(writer, dyn WriteSeek),
+                    Box::new(move |writer: &mut dyn WriteSeek, data: &[u8]| -> Result<(), io::Error> {
+                        writer.write_all(data)
+                    }),
+                    Box::new(move |writer: &mut dyn WriteSeek, position: u64| -> Result<(), io::Error> {
+                        let write_offset = unsafe{*write_offset_ptr};
+                        writer.seek(SeekFrom::Start(write_offset + position))?;
+                        Ok(())
+                    }),
+                    Box::new(move |writer: &mut dyn WriteSeek| -> Result<u64, io::Error> {
+                        let write_offset = unsafe{*write_offset_ptr};
+                        Ok(write_offset + writer.stream_position()?)
+                    }),
+                    params
+                )?,
+                write_offset,
+                frames_written: 0,
+                bytes_written: 0,
+            })
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            self.encoder.get_params().channels
+        }
+
+        pub fn get_sample_rate(&self) -> u32 {
+            self.encoder.get_params().sample_rate
+        }
+    }
+
+    impl<'a> EncoderToImpl for FlacEncoderWrap<'_> {
+        fn get_bitrate(&self) -> u32 {
+            if self.frames_written != 0 {
+                (self.bytes_written * self.get_sample_rate() as u64 * self.get_channels() as u64 * 8 / self.frames_written) as u32
+            } else {
+                self.get_sample_rate() as u32 * self.get_channels() as u32 * 8 // Fake data
+            }
+        }
+
+        fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+            self.encoder.initialize()?;
+            Ok(FmtChunk{
+                format_tag: 0xF1AC,
+                channels: self.get_channels(),
+                sample_rate: self.get_sample_rate(),
+                byte_rate: self.get_bitrate() / 8,
+                block_align: 1,
+                bits_per_sample: 0,
+                extension: None,
+            })
+        }
+
+        fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+            fmt.byte_rate = self.get_bitrate() / 8;
+            Ok(())
+        }
+
+        fn finish(&mut self) -> Result<(), AudioWriteError> {
+            Ok(self.encoder.finish()?)
+        }
+
+        fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_i16(&mut self, samples: &[i16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_i24(&mut self, samples: &[i24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_i32(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_i64(&mut self, samples: &[i64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples__u8(&mut self, samples: &[u8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_u16(&mut self, samples: &[u16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_u24(&mut self, samples: &[u24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_u32(&mut self, samples: &[u32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_u64(&mut self, samples: &[u64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_f32(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+        fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_interleaved_samples(&sample_conv(samples))?)}
+
+        fn write_mono_channel__i8(&mut self, monos: &[i8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_i16(&mut self, monos: &[i16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_i24(&mut self, monos: &[i24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_i32(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_i64(&mut self, monos: &[i64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel__u8(&mut self, monos: &[u8 ]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_u16(&mut self, monos: &[u16]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_u24(&mut self, monos: &[u24]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_u32(&mut self, monos: &[u32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_u64(&mut self, monos: &[u64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_f32(&mut self, monos: &[f32]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+        fn write_mono_channel_f64(&mut self, monos: &[f64]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_mono_channel(&sample_conv(monos))?)}
+
+        fn write_stereos__i8(&mut self, stereos: &[(i8 , i8 )]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_i16(&mut self, stereos: &[(i16, i16)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_i24(&mut self, stereos: &[(i24, i24)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_i32(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_i64(&mut self, stereos: &[(i64, i64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos__u8(&mut self, stereos: &[(u8 , u8 )]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_u16(&mut self, stereos: &[(u16, u16)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_u24(&mut self, stereos: &[(u24, u24)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_u32(&mut self, stereos: &[(u32, u32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_u64(&mut self, stereos: &[(u64, u64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_f32(&mut self, stereos: &[(f32, f32)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+        fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_stereos(&stereos_conv(stereos))?)}
+
+        fn write_monos__i8(&mut self, monos_array: &[Vec<i8 >]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_i16(&mut self, monos_array: &[Vec<i16>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_i24(&mut self, monos_array: &[Vec<i24>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_i32(&mut self, monos_array: &[Vec<i32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_i64(&mut self, monos_array: &[Vec<i64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos__u8(&mut self, monos_array: &[Vec<u8 >]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_u16(&mut self, monos_array: &[Vec<u16>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_u24(&mut self, monos_array: &[Vec<u24>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_u32(&mut self, monos_array: &[Vec<u32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_u64(&mut self, monos_array: &[Vec<u64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_f32(&mut self, monos_array: &[Vec<f32>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+        fn write_monos_f64(&mut self, monos_array: &[Vec<f64>]) -> Result<(), AudioWriteError> {Ok(self.encoder.write_monos(&sample_conv_batch(monos_array))?)}
+    }
 
 
 }

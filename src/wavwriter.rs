@@ -111,22 +111,22 @@ impl<'a> WaveWriter<'a> {
         self.encoder = match self.data_format {
             Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(PcmEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, spec.get_sample_type())?)
+                Encoder::new(PcmEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec)?)
             },
             Adpcm(sub_format) => {
                 use AdpcmSubFormat::{Ima, Ms, Yamaha};
                 match sub_format {
-                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
-                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
-                    Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate)?),
+                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec)?),
+                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec)?),
+                    Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec)?),
                 }
             },
-            PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::ALaw)),
-            PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, XLaw::MuLaw)),
+            PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, XLaw::ALaw)),
+            PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, XLaw::MuLaw)),
             #[cfg(feature = "mp3enc")]
-            Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.sample_rate, mp3_options)?),
+            Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, mp3_options)?),
             #[cfg(feature = "opus")]
-            Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec.channels, spec.sample_rate, opus_options)?),
+            Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow!(*self.writer, dyn Writer), spec, opus_options)?),
             Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
             #[allow(unreachable_patterns)]
             other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
@@ -153,10 +153,7 @@ impl<'a> WaveWriter<'a> {
         }
 
         // Uses the encoder's `new_fmt_chunk()` to generate the fmt chunk data.
-        self.fmt__chunk = self.encoder.new_fmt_chunk(self.spec.channels, self.spec.sample_rate, self.spec.bits_per_sample, match self.spec.is_channel_mask_valid() {
-            true => Some(self.spec.channel_mask),
-            false => None
-        })?;
+        self.fmt__chunk = self.encoder.new_fmt_chunk()?;
 
         let mut cw = ChunkWriter::begin(&mut self.writer, b"fmt ")?;
         self.fmt_chunk_offset = cw.writer.stream_position()?;
