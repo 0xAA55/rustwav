@@ -44,7 +44,7 @@ pub struct WaveWriter<'a> {
     fact_chunk_offset: u64,
     num_frames_written: u64,
     data_offset: u64,
-    encoder: Encoder,
+    encoder: Encoder<'a>,
     text_encoding: StringCodecMaps,
     riff_chunk: Option<ChunkWriter<'a>>,
     data_chunk: Option<ChunkWriter<'a>>,

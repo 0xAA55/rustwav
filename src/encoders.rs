@@ -201,19 +201,19 @@ impl EncoderToImpl for DummyEncoder {
 }
 
 #[derive(Debug)]
-pub struct Encoder {
-    encoder: Box<dyn EncoderToImpl>,
+pub struct Encoder<'a> {
+    encoder: Box<dyn EncoderToImpl + 'a>,
 }
 
-impl Default for Encoder {
+impl<'a> Default for Encoder<'_> {
     fn default() -> Self {
         Self::new(DummyEncoder{})
     }
 }
 
-impl Encoder {
+impl<'a> Encoder<'a> {
     pub fn new<T>(encoder: T) -> Self
-    where T: EncoderToImpl + 'static {
+    where T: EncoderToImpl + 'a {
         Self {
             encoder: Box::new(encoder),
         }
@@ -588,9 +588,9 @@ impl<'a> EncoderToImpl for PcmEncoder<'_> {
 }
 
 #[derive(Debug)]
-pub struct AdpcmEncoderWrap<E>
+pub struct AdpcmEncoderWrap<'a, E>
 where E: adpcm::AdpcmEncoder {
-    writer: &'static mut dyn Writer,
+    writer: &'a mut dyn Writer,
     channels: u16,
     sample_rate: u32,
     bytes_written: u64,
@@ -600,9 +600,9 @@ where E: adpcm::AdpcmEncoder {
 
 const MAX_BUFFER_USAGE: usize = 1024;
 
-impl<E> AdpcmEncoderWrap<E>
+impl<'a, E> AdpcmEncoderWrap<'a, E>
 where E: adpcm::AdpcmEncoder {
-    pub fn new(writer: &'static mut dyn Writer, channels: u16, sample_rate: u32) -> Result<Self, AudioWriteError> {
+    pub fn new(writer: &'a mut dyn Writer, channels: u16, sample_rate: u32) -> Result<Self, AudioWriteError> {
         Ok(Self {
             writer,
             channels,
@@ -643,7 +643,7 @@ where E: adpcm::AdpcmEncoder {
     }
 }
 
-impl<E> EncoderToImpl for AdpcmEncoderWrap<E>
+impl<'a, E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
 where E: adpcm::AdpcmEncoder {
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         if let Some(channel_mask) = channel_mask {
@@ -700,14 +700,14 @@ where E: adpcm::AdpcmEncoder {
 }
 
 #[derive(Debug)]
-pub struct PcmXLawEncoderWrap {
-    writer: &'static mut dyn Writer,
+pub struct PcmXLawEncoderWrap<'a> {
+    writer: &'a mut dyn Writer,
     enc: PcmXLawEncoder,
     sample_rate: u32,
 }
 
-impl PcmXLawEncoderWrap {
-    pub fn new(writer: &'static mut dyn Writer, sample_rate: u32, which_law: XLaw) -> Self {
+impl<'a> PcmXLawEncoderWrap<'a> {
+    pub fn new(writer: &'a mut dyn Writer, sample_rate: u32, which_law: XLaw) -> Self {
         Self {
             writer,
             enc: PcmXLawEncoder::new(which_law),
@@ -721,7 +721,7 @@ impl PcmXLawEncoderWrap {
     }
 }
 
-impl EncoderToImpl for PcmXLawEncoderWrap {
+impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
         if let Some(channel_mask) = channel_mask {
             const MONO_MASK: u32 = SpeakerPosition::FrontCenter as u32;
@@ -1025,19 +1025,18 @@ pub mod mp3 {
         }
 
         #[derive(Debug)]
-        pub struct Mp3Encoder<S>
+        pub struct Mp3Encoder<'a, S>
         where S: SampleType {
-            writer: &'static mut dyn Writer,
             channels: u16,
             bitrate: u32,
             encoder: SharedMp3Encoder,
             encoder_options: Mp3EncoderOptions,
-            buffers: ChannelBuffers<S>,
+            buffers: ChannelBuffers<'a, S>,
         }
 
-        impl<S> Mp3Encoder<S>
+        impl<'a, S> Mp3Encoder<'a, S>
         where S: SampleType {
-            pub fn new(mut writer: &'static mut dyn Writer, sample_rate: u32, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
+            pub fn new(mut writer: &'a mut dyn Writer, sample_rate: u32, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
                 let mp3_builder = Builder::new();
                 let mut mp3_builder = match mp3_builder {
                     Some(mp3_builder) => mp3_builder,
@@ -1073,16 +1072,13 @@ pub mod mp3 {
                 let encoder = SharedMp3Encoder::new(mp3_builder.build()?);
 
                 let channels = mp3_options.get_channels();
-                let w1 = hacks::force_borrow!(writer, dyn Writer);
-                let w2 = hacks::force_borrow!(writer, dyn Writer);
                 Ok(Self {
-                    writer: w1,
                     channels,
                     bitrate: mp3_options.get_bitrate(),
                     encoder: encoder.clone(),
                     encoder_options: *mp3_options,
                     buffers: match channels {
-                        1 | 2 => ChannelBuffers::<S>::new(w2, encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
+                        1 | 2 => ChannelBuffers::<'a, S>::new(hacks::force_borrow!(writer, dyn Writer), encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
                         o => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {o}"))),
                     },
                 })
@@ -1136,9 +1132,9 @@ pub mod mp3 {
             Stereo((Vec<S>, Vec<S>)),
         }
 
-        struct ChannelBuffers<S>
+        struct ChannelBuffers<'a, S>
         where S: SampleType {
-            writer: &'static mut dyn Writer,
+            writer: &'a mut dyn Writer,
             encoder: SharedMp3Encoder,
             channels: Channels<S>,
             max_frames: usize,
@@ -1231,9 +1227,9 @@ pub mod mp3 {
             }
         }
 
-        impl<S> ChannelBuffers<S>
+        impl<'a, S> ChannelBuffers<'a, S>
         where S: SampleType{
-            pub fn new(writer: &'static mut dyn Writer, encoder: SharedMp3Encoder, max_frames: usize, channels: u16) -> Result<Self, AudioWriteError> {
+            pub fn new(writer: &'a mut dyn Writer, encoder: SharedMp3Encoder, max_frames: usize, channels: u16) -> Result<Self, AudioWriteError> {
                 Ok(Self {
                     writer,
                     encoder,
@@ -1338,7 +1334,7 @@ pub mod mp3 {
             }
         }
 
-        impl<S> EncoderToImpl for Mp3Encoder<S>
+        impl<'a, S> EncoderToImpl for Mp3Encoder<'_, S>
         where S: SampleType {
             fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, _bits_per_sample: u16, channel_mask: Option<u32>) -> Result<FmtChunk, AudioWriteError> {
                 if let Some(channel_mask) = channel_mask {
@@ -1420,7 +1416,7 @@ pub mod mp3 {
             }
         }
 
-        impl<S> Debug for ChannelBuffers<S>
+        impl<'a, S> Debug for ChannelBuffers<'_, S>
         where S: SampleType {
             fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
                 fmt.debug_struct(&format!("ChannelBuffers<{}>", type_name::<S>()))
@@ -1544,8 +1540,8 @@ pub mod opus {
             }
         }
 
-        pub struct OpusEncoder {
-            writer: &'static mut dyn Writer,
+        pub struct OpusEncoder<'a> {
+            writer: &'a mut dyn Writer,
             encoder: Encoder,
             channels: u16,
             sample_rate: u32,
@@ -1556,8 +1552,8 @@ pub mod opus {
             bytes_written: u64,
         }
 
-        impl OpusEncoder {
-            pub fn new(writer: &'static mut dyn Writer, channels: u16, sample_rate: u32, options: &OpusEncoderOptions) -> Result<Self, AudioWriteError> {
+        impl<'a> OpusEncoder<'a> {
+            pub fn new(writer: &'a mut dyn Writer, channels: u16, sample_rate: u32, options: &OpusEncoderOptions) -> Result<Self, AudioWriteError> {
                 let opus_channels = match channels {
                     1 => Channels::Mono,
                     2 => Channels::Stereo,
@@ -1618,7 +1614,7 @@ pub mod opus {
             }
         }
 
-        impl Debug for OpusEncoder {
+        impl<'a> Debug for OpusEncoder<'_> {
             fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
                 fmt.debug_struct("OpusEncoder")
                     .field("writer", &self.writer)
@@ -1634,7 +1630,7 @@ pub mod opus {
             }
         }
 
-        impl EncoderToImpl for OpusEncoder {
+        impl<'a> EncoderToImpl for OpusEncoder<'_> {
             fn get_bitrate(&self, channels: u16) -> u32 {
                 if self.samples_written > 0 {
                     (self.sample_rate as u64 * self.bytes_written / self.samples_written * channels as u64 * 8) as u32
