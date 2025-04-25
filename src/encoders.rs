@@ -1799,7 +1799,7 @@ pub mod flac {
     impl<'a> EncoderToImpl for FlacEncoderWrap<'_> {
         fn get_bitrate(&self) -> u32 {
             if self.frames_written != 0 {
-                (*self.bytes_written * self.get_sample_rate() as u64 * self.get_channels() as u64 * 8 / self.frames_written) as u32
+                (*self.bytes_written * self.get_sample_rate() as u64 * 8 / self.frames_written) as u32
             } else {
                 self.get_sample_rate() as u32 * self.get_channels() as u32 * 8 // Fake data
             }
