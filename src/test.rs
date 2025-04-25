@@ -299,7 +299,7 @@ fn test_flac() -> ExitCode {
 
     dbg!(&params);
 
-    let mut writer: Box<dyn WriteSeek> = Box::new(BufWriter::new(File::create(output_flac).unwrap()));
+    let mut writer: Box<dyn Writer> = Box::new(BufWriter::new(File::create(output_flac).unwrap()));
 
     let mut encoder = FlacEncoder::new(
         &mut writer,
@@ -343,6 +343,8 @@ fn test_flac() -> ExitCode {
         }
     }
 
+    encoder.initialize().unwrap();
+
     let process_size = 65536;
     match spec1.channels {
         1 => {
@@ -381,6 +383,7 @@ fn test_flac() -> ExitCode {
     }
 
     encoder.finalize();
+    drop(wavereader);
     println!("======== TEST 2 ========");
 
     const FFT_SIZE: usize = 65536;
@@ -394,7 +397,7 @@ fn test_flac() -> ExitCode {
         sample_format: SampleFormat::Int,
     };
 
-    let mut reader: Box<dyn ReadSeek> = Box::new(BufReader::new(File::open(input_flac).unwrap()));
+    let mut reader: Box<dyn Reader> = Box::new(BufReader::new(File::open(input_flac).unwrap()));
     let mut wavewriter = WaveWriter::create(output_wav, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     let length = {
