@@ -468,7 +468,7 @@ pub mod impl_flac {
 
     fn make_sz(s: &str) -> String {
         let mut s = s.to_owned();
-        s.push('\0');
+        if !s.ends_with('\0') {s.push('\0');}
         s
     }
 
