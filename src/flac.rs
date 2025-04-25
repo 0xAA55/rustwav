@@ -782,7 +782,7 @@ pub mod impl_flac {
 
         unsafe extern "C" fn write_callback(_encoder: *const FLAC__StreamEncoder, buffer: *const u8, bytes: usize, _samples: u32, _current_frame: u32, client_data: *mut c_void) -> u32 {
             #[cfg(debug_assertions)]
-            println!("write_callback()");
+            println!("write_callback([u8; {bytes}])");
             let this = &mut *(client_data as *mut Self);
             match (this.on_write)(this.writer, slice::from_raw_parts(buffer, bytes)) {
                 Ok(_) => FLAC__STREAM_ENCODER_WRITE_STATUS_OK,
@@ -795,7 +795,7 @@ pub mod impl_flac {
 
         unsafe extern "C" fn seek_callback(_encoder: *const FLAC__StreamEncoder, absolute_byte_offset: u64, client_data: *mut c_void) -> u32 {
             #[cfg(debug_assertions)]
-            println!("seek_callback()");
+            println!("seek_callback({absolute_byte_offset})");
             let this = &mut *(client_data as *mut Self);
             match (this.on_seek)(this.writer, absolute_byte_offset) {
                 Ok(_) => FLAC__STREAM_ENCODER_SEEK_STATUS_OK,
@@ -809,11 +809,11 @@ pub mod impl_flac {
         }
 
         unsafe extern "C" fn tell_callback(_encoder: *const FLAC__StreamEncoder, absolute_byte_offset: *mut u64, client_data: *mut c_void) -> u32 {
-            #[cfg(debug_assertions)]
-            println!("tell_callback()");
             let this = &mut *(client_data as *mut Self);
             match (this.on_tell)(this.writer) {
                 Ok(offset) => {
+                    #[cfg(debug_assertions)]
+                    println!("tell_callback() == {offset}");
                     *absolute_byte_offset = offset;
                     FLAC__STREAM_ENCODER_TELL_STATUS_OK
                 },
@@ -931,7 +931,10 @@ pub mod impl_flac {
             println!("finish()");
             unsafe {
                 if FLAC__stream_encoder_finish(self.encoder) != 0 {
-                    Ok(())
+                    match self.writer.seek(SeekFrom::End(0)) {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_IO_ERROR, "self.writer.seek(SeekFrom::End(0))")),
+                    }
                 } else {
                     self.get_status_as_error("FLAC__stream_encoder_finish")
                 }
