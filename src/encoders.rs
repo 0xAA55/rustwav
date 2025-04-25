@@ -1706,31 +1706,30 @@ pub mod flac {
 
     use super::EncoderToImpl;
 
-    use crate::Writer;
     use crate::{i24, u24};
     use crate::AudioWriteError;
     use crate::wavcore::FmtChunk;
     use crate::flac::*;
-    use crate::hacks;
     use crate::utils::{sample_conv, stereos_conv, sample_conv_batch};
 
     #[derive(Debug)]
     pub struct FlacEncoderWrap<'a> {
         encoder: FlacEncoder<'a>,
+        params: FlacEncoderParams,
         write_offset: Box<u64>,
         frames_written: u64,
         bytes_written: Box<u64>,
     }
     
     impl<'a> FlacEncoderWrap<'a> {
-        pub fn new(mut writer: &'a mut dyn Writer, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
+        pub fn new(writer: &'a mut dyn WriteSeek, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
             let mut write_offset = Box::new(writer.stream_position()?);
             let write_offset_ptr = (&mut *write_offset) as *mut u64;
             let mut bytes_written = Box::new(0u64);
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
             Ok(Self{
                 encoder: FlacEncoder::new(
-                    hacks::force_borrow!(writer, dyn WriteSeek),
+                    writer,
                     Box::new(move |writer: &mut dyn WriteSeek, data: &[u8]| -> Result<(), io::Error> {
                         unsafe{*bytes_written_ptr += data.len() as u64};
                         writer.write_all(data)

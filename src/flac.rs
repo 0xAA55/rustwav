@@ -3,13 +3,17 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::map_entry)]
 
-use std::{any::Any, io::{Read, Write, Seek}, fmt::Debug};
+use std::{any::Any, fmt::Debug};
 
-pub trait ReadSeek: Read + Seek + Debug {}
-pub trait WriteSeek: Write + Seek + Debug {}
+use std::io::SeekFrom;
 
-impl<T> ReadSeek for T where T: Read + Seek + Debug {}
-impl<T> WriteSeek for T where T: Write + Seek + Debug {}
+// pub trait ReadSeek: Read + Seek + Debug {}
+// pub trait WriteSeek: Write + Seek + Debug {}
+// 
+// impl<T> ReadSeek for T where T: Read + Seek + Debug {}
+// impl<T> WriteSeek for T where T: Write + Seek + Debug {}
+
+pub use crate::{Reader as ReadSeek, Writer as WriteSeek};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FlacCompression {
