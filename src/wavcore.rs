@@ -405,6 +405,9 @@ impl Spec {
     }
 
     pub fn is_channel_mask_valid(&self) -> bool {
+        if self.channels <= 2 && self.channel_mask == 0 {
+            return true;
+        }
         let mut counter: u16 = 0;
         for i in 0..32 {
             if ((1 << i) & self.channel_mask) != 0 {
