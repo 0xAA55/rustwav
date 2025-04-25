@@ -1752,6 +1752,24 @@ pub mod flac {
             })
         }
 
+        // The input samples fill all the domains of the i32, so we should shrink the bits to `self.params.bits_per_sample` to achieve good compression.
+        #[inline(always)]
+        fn fit_32bit_to_bps(&self, sample: i32) -> i32 {
+            sample >> (32 - self.params.bits_per_sample)
+        }
+
+        fn fit_samples_to_bps(&self, samples: &[i32]) -> Vec<i32> {
+            samples.iter().map(|sample|{self.fit_32bit_to_bps(*sample)}).collect()
+        }
+
+        fn fit_stereos_to_bps(&self, stereos: &[(i32, i32)]) -> Vec<(i32, i32)> {
+            stereos.iter().map(|(l,r)|{(self.fit_32bit_to_bps(*l), self.fit_32bit_to_bps(*r))}).collect()
+        }
+
+        fn fit_2d_to_bps(&self, two_d: &[Vec<i32>]) -> Vec<Vec<i32>> {
+            two_d.iter().map(|mono|{self.fit_samples_to_bps(mono)}).collect()
+        }
+
         pub fn get_channels(&self) -> u16 {
             self.params.channels
         }
@@ -1761,35 +1779,35 @@ pub mod flac {
         }
 
         pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {
-            match self.encoder.write_interleaved_samples(samples) {
+            match self.encoder.write_interleaved_samples(&self.fit_samples_to_bps(samples)) {
                 Ok(_) => Ok(self.frames_written += samples.len() as u64 / self.get_channels() as u64),
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {
-            match self.encoder.write_mono_channel(monos) {
+            match self.encoder.write_mono_channel(&self.fit_samples_to_bps(monos)) {
                 Ok(_) => Ok(self.frames_written += monos.len() as u64),
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {
-            match self.encoder.write_stereos(stereos) {
+            match self.encoder.write_stereos(&self.fit_stereos_to_bps(stereos)) {
                 Ok(_) => Ok(self.frames_written += stereos.len() as u64),
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), AudioWriteError> {
-            match self.encoder.write_monos(monos) {
+            match self.encoder.write_monos(&self.fit_2d_to_bps(monos)) {
                 Ok(_) => Ok(self.frames_written += monos[0].len() as u64),
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {
-            match self.encoder.write_frames(frames) {
+            match self.encoder.write_frames(&self.fit_2d_to_bps(frames)) {
                 Ok(_) => Ok(self.frames_written += frames.len() as u64),
                 Err(e) => Err(AudioWriteError::from(e)),
             }
