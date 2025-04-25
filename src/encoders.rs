@@ -19,6 +19,7 @@ pub trait EncoderToImpl: Debug {
     fn get_bitrate(&self) -> u32;
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
+    fn begin_encoding(&mut self) -> Result<(), AudioWriteError>;
     fn finish(&mut self) -> Result<(), AudioWriteError>;
 
     // Channel-agnostic low-level sample writers.
@@ -171,6 +172,10 @@ impl EncoderToImpl for DummyEncoder {
         panic!("Must implement `get_bitrate()` for your encoder.");
     }
 
+    fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+        panic!("Must implement `begin_encoding()` for your encoder.");
+    }
+
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         panic!("Must implement `new_fmt_chunk()` for your encoder.");
     }
@@ -217,6 +222,10 @@ impl<'a> Encoder<'a> {
         Self {
             encoder: Box::new(encoder),
         }
+    }
+
+    pub fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+        self.encoder.begin_encoding()
     }
 
     pub fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
@@ -529,6 +538,9 @@ impl<'a> PcmEncoder<'a> {
 }
 
 impl<'a> EncoderToImpl for PcmEncoder<'_> {
+    fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+        Ok(())
+    }
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         use WaveSampleType::{S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64, Unknown};
         let bytes_per_sample = self.spec.bits_per_sample / 8;
@@ -650,6 +662,10 @@ where E: adpcm::AdpcmEncoder {
 
 impl<'a, E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
 where E: adpcm::AdpcmEncoder {
+    fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+        Ok(())
+    }
+
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         Ok(self.encoder.new_fmt_chunk(self.channels, self.sample_rate, 4)?)
     }
@@ -720,6 +736,10 @@ impl<'a> PcmXLawEncoderWrap<'a> {
 }
 
 impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
+    fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+        Ok(())
+    }
+
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         let bits_per_sample = 8u16;
         let block_align = self.channels;
@@ -1328,6 +1348,10 @@ pub mod mp3 {
 
         impl<'a, S> EncoderToImpl for Mp3Encoder<'_, S>
         where S: SampleType {
+            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                Ok(())
+            }
+
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
                     format_tag: 0x0055,
@@ -1631,6 +1655,10 @@ pub mod opus {
                     self.sample_rate * self.channels as u32 * 8 // Fake data
                 }
             }
+            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                Ok(())
+            }
+
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
                     format_tag: 0x704F,
@@ -1777,8 +1805,12 @@ pub mod flac {
             }
         }
 
-        fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+        fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
             self.encoder.initialize()?;
+            Ok(())
+        }
+
+        fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
             Ok(FmtChunk{
                 format_tag: 0xF1AC,
                 channels: self.get_channels(),

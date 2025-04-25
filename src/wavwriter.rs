@@ -181,6 +181,8 @@ impl<'a> WaveWriter<'a> {
         self.data_chunk = Some(ChunkWriter::begin(hacks::force_borrow!(*self.writer, dyn Writer), b"data")?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
 
+        self.encoder.begin_encoding()?;
+
         Ok(())
     }
 
