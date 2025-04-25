@@ -19,6 +19,7 @@ pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSamp
 #[allow(unused_imports)]
 pub use crate::flac::{
     FlacEncoderParams,
+    FlacCompression,
 };
 
 // Did you assume WAV is solely for storing PCM data?
