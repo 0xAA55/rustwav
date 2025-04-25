@@ -831,6 +831,20 @@ pub mod impl_flac {
             (self.on_tell)(self.writer)
         }
 
+        pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), FlacEncoderError> {
+            if samples.is_empty() {return Ok(())}
+            if samples.len() % self.params.channels as usize != 0 {
+                Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_FRAMING_ERROR, "FlacEncoderUnmovable::write_interleaved_samples"))
+            } else {
+                unsafe {
+                    if FLAC__stream_encoder_process_interleaved(self.encoder, samples.as_ptr(), samples.len() as u32 / self.params.channels as u32) == 0 {
+                        return self.get_status_as_error("FLAC__stream_encoder_process_interleaved");
+                    }
+                }
+                Ok(())
+            }
+        }
+
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
             if monos.is_empty() {return Ok(())}
             match self.params.channels {
@@ -989,6 +1003,10 @@ pub mod impl_flac {
                 self.encoder.init()?
             }
             Ok(())
+        }
+
+        pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), FlacEncoderError> {
+            self.encoder.write_interleaved_samples(samples)
         }
 
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
