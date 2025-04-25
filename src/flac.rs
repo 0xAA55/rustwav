@@ -984,7 +984,7 @@ pub mod impl_flac {
             self.encoder.tell()
         }
 
-        fn ensure_initialized(&mut self) -> Result<(), FlacEncoderInitError> {
+        pub fn initialize(&mut self) -> Result<(), FlacEncoderInitError> {
             if !self.encoder.encoder_initialized {
                 self.encoder.init()?
             }
@@ -992,27 +992,22 @@ pub mod impl_flac {
         }
 
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
-            self.ensure_initialized()?;
             self.encoder.write_mono_channel(monos)
         }
 
         pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), FlacEncoderError> {
-            self.ensure_initialized()?;
             self.encoder.write_stereos(stereos)
         }
 
         pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
-            self.ensure_initialized()?;
             self.encoder.write_monos(monos)
         }
 
         pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
-            self.ensure_initialized()?;
             self.encoder.write_frames(frames)
         }
 
         pub fn finish(&mut self) -> Result<(), FlacEncoderError> {
-            self.ensure_initialized()?;
             self.encoder.finish()
         }
 
