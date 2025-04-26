@@ -183,11 +183,15 @@ where S: SampleType,
 }
 
 // 样本类型缩放转换批量版
-pub fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
+pub fn sample_conv_batch<'a, S, D>(frames: &[Vec<S>]) ->  Cow<'a, [Vec<D>]>
 where S: SampleType,
       D: SampleType {
 
-    frames.iter().map(|frame: &Vec<S>| -> Vec<D> {sample_conv(frame).to_vec()}).collect()
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        Cow::Borrowed(unsafe{slice::from_raw_parts(frames.as_ptr() as *const Vec<D>, frames.len())})
+    } else {
+        Cow::Owned(frames.iter().map(|frames: &Vec<S>| -> Vec<D> {sample_conv(frames).to_vec()}).collect())
+    }
 }
 
 pub fn do_resample_mono<S>(resampler: &Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
