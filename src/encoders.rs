@@ -1758,14 +1758,17 @@ pub mod flac {
             sample >> (32 - self.params.bits_per_sample)
         }
 
+        // Batch shrink
         fn fit_samples_to_bps(&self, samples: &[i32]) -> Vec<i32> {
             samples.iter().map(|sample|{self.fit_32bit_to_bps(*sample)}).collect()
         }
 
+        // Shrink tuples
         fn fit_stereos_to_bps(&self, stereos: &[(i32, i32)]) -> Vec<(i32, i32)> {
             stereos.iter().map(|(l,r)|{(self.fit_32bit_to_bps(*l), self.fit_32bit_to_bps(*r))}).collect()
         }
 
+        // Shrink frames or multiple mono channels
         fn fit_2d_to_bps(&self, two_d: &[Vec<i32>]) -> Vec<Vec<i32>> {
             two_d.iter().map(|mono|{self.fit_samples_to_bps(mono)}).collect()
         }
