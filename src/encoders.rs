@@ -1702,7 +1702,7 @@ pub mod opus {
 
 #[cfg(feature = "flac")]
 pub mod flac {
-    use std::{io::{self, SeekFrom}};
+    use std::{io::{self, SeekFrom}, borrow::Cow};
 
     use super::EncoderToImpl;
 
@@ -1728,6 +1728,7 @@ pub mod flac {
             let mut bytes_written = Box::new(0u64);
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
             Ok(Self{
+                // Let the closures capture the pointer of the boxed variables, then use these pointers to update the variables.
                 encoder: FlacEncoder::new(
                     writer,
                     Box::new(move |writer: &mut dyn WriteSeek, data: &[u8]| -> Result<(), io::Error> {
@@ -1759,18 +1760,30 @@ pub mod flac {
         }
 
         // Batch shrink
-        fn fit_samples_to_bps(&self, samples: &[i32]) -> Vec<i32> {
-            samples.iter().map(|sample|{self.fit_32bit_to_bps(*sample)}).collect()
+        fn fit_samples_to_bps<'b>(&self, samples: &'b [i32]) -> Cow<'b, [i32]> {
+            if self.params.bits_per_sample == 32 {
+                Cow::Borrowed(samples)
+            } else {
+                Cow::Owned(samples.iter().map(|sample|{self.fit_32bit_to_bps(*sample)}).collect())
+            }
         }
 
         // Shrink tuples
-        fn fit_stereos_to_bps(&self, stereos: &[(i32, i32)]) -> Vec<(i32, i32)> {
-            stereos.iter().map(|(l,r)|{(self.fit_32bit_to_bps(*l), self.fit_32bit_to_bps(*r))}).collect()
+        fn fit_stereos_to_bps<'b>(&self, stereos: &'b [(i32, i32)]) -> Cow<'b, [(i32, i32)]>  {
+            if self.params.bits_per_sample == 32 {
+                Cow::Borrowed(stereos)
+            } else {
+                Cow::Owned(stereos.iter().map(|(l,r)|{(self.fit_32bit_to_bps(*l), self.fit_32bit_to_bps(*r))}).collect::<Vec<(i32, i32)>>())
+            }
         }
 
         // Shrink frames or multiple mono channels
-        fn fit_2d_to_bps(&self, two_d: &[Vec<i32>]) -> Vec<Vec<i32>> {
-            two_d.iter().map(|mono|{self.fit_samples_to_bps(mono)}).collect()
+        fn fit_2d_to_bps<'b>(&self, two_d: &'b [Vec<i32>]) -> Cow<'b, [Vec<i32>]> {
+            if self.params.bits_per_sample == 32 {
+                Cow::Borrowed(two_d)
+            } else {
+                Cow::Owned(two_d.iter().map(|mono|{self.fit_samples_to_bps(mono).to_vec()}).collect())
+            }
         }
 
         fn check_channels(&self, channels: u16) -> Result<(), AudioWriteError> {
