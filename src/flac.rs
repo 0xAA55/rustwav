@@ -3,6 +3,8 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::map_entry)]
 
+const SHOW_CALLBACKS: bool = false;
+
 use std::{any::Any, fmt::Debug};
 
 use std::io::SeekFrom;
@@ -786,7 +788,7 @@ pub mod impl_flac {
 
         unsafe extern "C" fn write_callback(_encoder: *const FLAC__StreamEncoder, buffer: *const u8, bytes: usize, _samples: u32, _current_frame: u32, client_data: *mut c_void) -> u32 {
             #[cfg(debug_assertions)]
-            println!("write_callback([u8; {bytes}])");
+            if SHOW_CALLBACKS {println!("write_callback([u8; {bytes}])");}
             let this = &mut *(client_data as *mut Self);
             match (this.on_write)(this.writer, slice::from_raw_parts(buffer, bytes)) {
                 Ok(_) => FLAC__STREAM_ENCODER_WRITE_STATUS_OK,
@@ -799,7 +801,7 @@ pub mod impl_flac {
 
         unsafe extern "C" fn seek_callback(_encoder: *const FLAC__StreamEncoder, absolute_byte_offset: u64, client_data: *mut c_void) -> u32 {
             #[cfg(debug_assertions)]
-            println!("seek_callback({absolute_byte_offset})");
+            if SHOW_CALLBACKS {println!("seek_callback({absolute_byte_offset})");}
             let this = &mut *(client_data as *mut Self);
             match (this.on_seek)(this.writer, absolute_byte_offset) {
                 Ok(_) => FLAC__STREAM_ENCODER_SEEK_STATUS_OK,
@@ -817,7 +819,7 @@ pub mod impl_flac {
             match (this.on_tell)(this.writer) {
                 Ok(offset) => {
                     #[cfg(debug_assertions)]
-                    println!("tell_callback() == {offset}");
+                    if SHOW_CALLBACKS {println!("tell_callback() == {offset}");}
                     *absolute_byte_offset = offset;
                     FLAC__STREAM_ENCODER_TELL_STATUS_OK
                 },
@@ -834,7 +836,7 @@ pub mod impl_flac {
             let _this = &mut *(client_data as *mut Self);
             let _meta = *metadata;
             #[cfg(debug_assertions)]
-            println!("{:?}", WrappedStreamMetadata(_meta))
+            if SHOW_CALLBACKS {println!("{:?}", WrappedStreamMetadata(_meta))}
         }
 
         pub fn tell(&mut self) -> Result<u64, io::Error> {
@@ -843,7 +845,7 @@ pub mod impl_flac {
 
         pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("write_interleaved_samples([i32; {}])", samples.len());
+            if SHOW_CALLBACKS {println!("write_interleaved_samples([i32; {}])", samples.len());}
             if samples.is_empty() {return Ok(())}
             if samples.len() % self.params.channels as usize != 0 {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_FRAMING_ERROR, "FlacEncoderUnmovable::write_interleaved_samples"))
@@ -859,7 +861,7 @@ pub mod impl_flac {
 
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("write_mono_channel([i32; {}])", monos.len());
+            if SHOW_CALLBACKS {println!("write_mono_channel([i32; {}])", monos.len());}
             if monos.is_empty() {return Ok(())}
             match self.params.channels {
                 1 => unsafe {
@@ -875,7 +877,7 @@ pub mod impl_flac {
 
         pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("write_stereos([(i32, i32); {}])", stereos.len());
+            if SHOW_CALLBACKS {println!("write_stereos([(i32, i32); {}])", stereos.len());}
             if stereos.is_empty() {return Ok(())}
             match self.params.channels {
                 1 => self.write_mono_channel(&stereos.iter().map(|(l, r): &(i32, i32)| -> i32 {((*l as i64 + *r as i64) / 2) as i32}).collect::<Vec<i32>>()),
@@ -892,7 +894,7 @@ pub mod impl_flac {
 
         pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("write_monos([Vec<i32>; {}])", monos.len());
+            if SHOW_CALLBACKS {println!("write_monos([Vec<i32>; {}])", monos.len());}
             if monos.len() != self.params.channels as usize {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_FRAMING_ERROR, "FlacEncoderUnmovable::write_monos"))
             } else {
@@ -915,7 +917,7 @@ pub mod impl_flac {
 
         pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("write_frames([Vec<i32>; {}])", frames.len());
+            if SHOW_CALLBACKS {println!("write_frames([Vec<i32>; {}])", frames.len());}
             if frames.is_empty() {return Ok(())}
             let samples: Vec<i32> = frames.iter().flat_map(|frame: &Vec<i32>| -> Vec<i32> {
                 if frame.len() != self.params.channels as usize {
@@ -932,7 +934,7 @@ pub mod impl_flac {
 
         pub fn finish(&mut self) -> Result<(), FlacEncoderError> {
             #[cfg(debug_assertions)]
-            println!("finish()");
+            if SHOW_CALLBACKS {println!("finish()");}
             unsafe {
                 if FLAC__stream_encoder_finish(self.encoder) != 0 {
                     match self.writer.seek(SeekFrom::End(0)) {
@@ -1615,7 +1617,7 @@ pub mod impl_flac {
                 },
                 _ => {
                     #[cfg(debug_assertions)]
-                    println!("On `metadata_callback()`: {:?}", WrappedStreamMetadata(metadata));
+                    if SHOW_CALLBACKS {println!("On `metadata_callback()`: {:?}", WrappedStreamMetadata(metadata));}
                 },
             }
         }
