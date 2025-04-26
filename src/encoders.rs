@@ -1770,10 +1770,12 @@ pub mod flac {
             two_d.iter().map(|mono|{self.fit_samples_to_bps(mono)}).collect()
         }
 
+        #[inline(always)]
         pub fn get_channels(&self) -> u16 {
             self.params.channels
         }
 
+        #[inline(always)]
         pub fn get_sample_rate(&self) -> u32 {
             self.params.sample_rate
         }
