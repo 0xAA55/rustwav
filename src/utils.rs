@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::{any::TypeId, borrow::Cow, slice};
+
 use crate::AudioWriteError;
 use crate::SampleType;
 use crate::Resampler;
@@ -158,18 +160,26 @@ where S: SampleType,
     (D::from(l), D::from(r))
 }
 
-pub fn sample_conv<S, D>(frame: &[S]) -> Vec<D>
+pub fn sample_conv<'a, S, D>(frame: &'a [S]) -> Cow<'a, [D]>
 where S: SampleType,
       D: SampleType {
 
-    frame.iter().map(|sample: &S| -> D {D::from(*sample)}).collect()
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        Cow::Borrowed(unsafe{slice::from_raw_parts(frame.as_ptr() as *const D, frame.len())})
+    } else {
+        Cow::Owned(frame.iter().map(|sample: &S| -> D {D::from(*sample)}).collect())
+    }
 }
 
-pub fn stereos_conv<S, D>(frame: &[(S, S)]) -> Vec<(D, D)>
+pub fn stereos_conv<'a, S, D>(stereos: &'a [(S, S)]) -> Cow<'a, [(D, D)]>
 where S: SampleType,
       D: SampleType {
 
-    frame.iter().map(|stereo: &(S, S)| -> (D, D) {stereo_conv(*stereo)}).collect()
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        Cow::Borrowed(unsafe{slice::from_raw_parts(stereos.as_ptr() as *const (D, D), stereos.len())})
+    } else {
+        Cow::Owned(stereos.iter().map(|stereo: &(S, S)| -> (D, D) {stereo_conv(*stereo)}).collect())
+    }
 }
 
 // 样本类型缩放转换批量版
@@ -177,14 +187,14 @@ pub fn sample_conv_batch<S, D>(frames: &[Vec<S>]) -> Vec<Vec<D>>
 where S: SampleType,
       D: SampleType {
 
-    frames.iter().map(|frame: &Vec<S>| -> Vec<D> {sample_conv(frame)}).collect()
+    frames.iter().map(|frame: &Vec<S>| -> Vec<D> {sample_conv(frame).to_vec()}).collect()
 }
 
 pub fn do_resample_mono<S>(resampler: &Resampler, input: &[S], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<S>
 where S: SampleType {
     let input = sample_conv::<S, f32>(input);
     let result = resampler.resample(&input, src_sample_rate, dst_sample_rate).unwrap();
-    sample_conv::<f32, S>(&result)
+    sample_conv::<f32, S>(&result).to_vec()
 }
 
 pub fn do_resample_stereo<S>(resampler: &Resampler, input: &[(S, S)], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<(S, S)>
