@@ -125,6 +125,12 @@ impl<S> Decoder<S> for OpusDecoder
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
 }
 
+fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
+    let mut ret = 1usize;
+    while ret < (sample_rate as usize) {ret <<= 1;}
+    ret
+}
+
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
