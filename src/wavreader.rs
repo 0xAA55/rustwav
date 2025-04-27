@@ -26,6 +26,9 @@ use crate::decoders::mp3::Mp3Decoder;
 #[cfg(feature = "opus")]
 use crate::decoders::opus::OpusDecoder;
 
+#[cfg(feature = "flac")]
+use crate::decoders::flac::FlacDecoderWrap;
+
 #[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
@@ -448,7 +451,9 @@ where S: SampleType {
             {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))}
         },
         0xF1AC => { // FLAC
-            // #[cfg(not(feature = "flac"))]
+            #[cfg(feature = "flac")]
+            {Ok(Box::new(FlacDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            #[cfg(not(feature = "flac"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
         },
         other => Err(AudioReadError::Unimplemented(format!("Not implemented for format_tag 0x{:x}", other))),
