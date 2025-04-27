@@ -16,6 +16,9 @@ use mp3::Mp3Decoder;
 #[cfg(feature = "opus")]
 use opus::OpusDecoder;
 
+#[cfg(feature = "flac")]
+use flac::FlacDecoderWrap;
+
 // Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
     where S: SampleType {
@@ -119,6 +122,17 @@ impl<S> Decoder<S> for OpusDecoder
     where S: SampleType {
     fn get_channels(&self) -> u16 { OpusDecoder::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(OpusDecoder::get_cur_frame_index(self)) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+}
+
+#[cfg(feature = "flac")]
+impl<'a, S> Decoder<S> for FlacDecoderWrap<'a>
+    where S: SampleType {
+    fn get_channels(&self) -> u16 { FlacDecoderWrap::get_channels(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(FlacDecoderWrap::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -1130,5 +1144,230 @@ pub mod opus {
 
 #[cfg(feature = "flac")]
 pub mod flac {
-    
+    use std::{io::{self, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr};
+
+    use crate::Reader;
+    use crate::SampleType;
+    use crate::AudioReadError;
+    use crate::wavcore::FmtChunk;
+    use crate::flac::*;
+    use crate::resampler::Resampler;
+    use crate::utils::{sample_conv, sample_conv_batch, do_resample_frames};
+    use super::get_rounded_up_fft_size;
+
+    pub struct FlacDecoderWrap<'a> {
+        reader: Box<dyn Reader>,
+        decoder: Box<FlacDecoderUnmovable<'a>>,
+        resampler: Resampler,
+        channels: u16,
+        sample_rate: u32,
+        data_offset: u64,
+        data_length: u64,
+        decoded_frames: Vec<Vec<i32>>,
+        decoded_frames_index: usize,
+        frame_index: u64,
+        total_frames: u64,
+        self_ptr: Box<*mut FlacDecoderWrap<'a>>
+    }
+
+    impl<'a> FlacDecoderWrap<'a> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+            // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
+            let mut self_ptr: Box<*mut FlacDecoderWrap> = Box::new(ptr::null_mut());
+            let self_ptr_ptr = (/* Mutable */&mut /* Unbox */*self_ptr) as /* To the pointer of */*mut /* the pointer inside the box pointing the `self`*/*mut Self;
+            let reader_ptr = Box::into_raw(reader); // On the fly reader
+            let decoder = Box::new(FlacDecoderUnmovable::new(
+                unsafe {&mut *reader_ptr},
+                // on_read
+                Box::new(move |reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
+                    let to_read = buffer.len();
+                    match reader.read(buffer) {
+                        Ok(size) => {
+                            match size.cmp(&to_read) {
+                                Ordering::Equal => (size, FlacReadStatus::GoOn),
+                                Ordering::Less => (size, FlacReadStatus::Eof),
+                                Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("on_read(): {:?}", e);
+                            (0, FlacReadStatus::Abort)
+                        }
+                    }
+                }),
+                // on_seek
+                Box::new(move |reader: &mut dyn ReadSeek, position: u64|-> Result<(), io::Error> {
+                    reader.seek(SeekFrom::Start(data_offset + position))?;
+                    Ok(())
+                }),
+                // on_tell
+                Box::new(move |reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                    Ok(reader.stream_position()? - data_offset)
+                }),
+                // on_length
+                Box::new(move |_reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                    Ok(data_length)
+                }),
+                // on_eof
+                Box::new(move |reader: &mut dyn ReadSeek| -> bool {
+                    reader.stream_position().unwrap() >= data_offset + data_length
+                }),
+                // on_write
+                Box::new(move |frames: &[Vec<i32>], sample_info: &SamplesInfo| -> Result<(), io::Error> {
+                    // Before `on_write()` was called, make sure `self_ptr` was updated to the `self` pointer of `FlacDecoderWrap`
+                    let this = unsafe{&mut (**self_ptr_ptr) as &mut Self};
+                    this.decoded_frames_index = 0;
+                    if sample_info.sample_rate != this.sample_rate {
+                        this.decoded_frames.clear();
+                        let process_size = this.resampler.get_process_size(this.resampler.get_fft_size(), sample_info.sample_rate, this.sample_rate);
+                        let mut iter = frames.iter();
+                        loop {
+                            let block: Vec<Vec<i32>> = iter.by_ref().take(process_size).cloned().collect();
+                            if block.is_empty() {
+                                break;
+                            }
+                            this.decoded_frames.extend(sample_conv_batch(&do_resample_frames(&this.resampler, &block, sample_info.sample_rate, this.sample_rate)).to_vec());
+                        }
+                        this.decoded_frames.shrink_to_fit();
+                    } else {
+                        this.decoded_frames = frames.to_vec();
+                    }
+
+                    Ok(())
+                }),
+                // on_error
+                Box::new(move |error: FlacInternalDecoderError| {
+                    eprintln!("on_error({error})");
+                }),
+                true, // md5_checking
+                true, // scale_to_i32_range
+                FlacAudioForm::FrameArray,
+            )?);
+            let mut ret = Self{
+                reader: unsafe {Box::from_raw(reader_ptr)},
+                decoder,
+                resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
+                channels: fmt.channels,
+                sample_rate: fmt.sample_rate,
+                data_offset,
+                data_length,
+                decoded_frames: Vec::<Vec<i32>>::new(),
+                decoded_frames_index: 0,
+                frame_index: 0,
+                total_frames: total_samples / fmt.channels as u64,
+                self_ptr,
+            };
+            *ret.self_ptr = &mut ret as *mut Self;
+            ret.decoder.initialize()?;
+            Ok(ret)
+        }
+
+        fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
+            Ok(self.decoder.eof())
+        }
+
+        fn clear_decoded_frames(&mut self) {
+            self.decoded_frames.clear();
+            self.decoded_frames_index = 0;
+        }
+
+        fn decode_block(&mut self) -> Result<(), AudioReadError> {
+            if self.is_end_of_data()? {
+                self.clear_decoded_frames();
+                Ok(())
+            } else {
+                // When to decode, the FLAC decoder will call our callback functions, then our closures will be called.
+                // These closures captured the address of the boxed `self_ptr`, and will use the pointer to find `self`
+                *self.self_ptr = self as *mut Self;
+                self.decoder.decode()?;
+                Ok(())
+            }
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            self.channels
+        }
+
+        pub fn get_sample_rate(&self) -> u32 {
+            self.sample_rate
+        }
+
+        pub fn get_cur_frame_index(&self) -> u64 {
+            self.frame_index
+        }
+
+        pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
+            let frame_index = match seek_from{
+                SeekFrom::Start(fi) => fi,
+                SeekFrom::Current(cur) => {
+                    (self.frame_index as i64 + cur) as u64
+                },
+                SeekFrom::End(end) => {
+                    (self.total_frames as i64 + end) as u64
+                }
+            };
+            self.clear_decoded_frames();
+            self.frame_index = frame_index;
+            self.decoder.seek(frame_index)?;
+
+            Ok(())
+        }
+
+        pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+        where S: SampleType {
+            if self.is_end_of_data()? {
+                Ok(None)
+            } else if self.decoded_frames_index < self.decoded_frames.len() {
+                let ret = sample_conv(&self.decoded_frames[self.decoded_frames_index]);
+                self.decoded_frames_index += 1;
+                self.frame_index += 1;
+                Ok(Some(ret.to_vec()))
+            } else {
+                self.decode_block()?;
+                self.decoded_frames_index = 0;
+                self.decode_frame::<S>()
+            }
+        }
+
+        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+        where S: SampleType {
+            if let Some(frame) = self.decode_frame::<S>()? {
+                match frame.len() {
+                    1 => Ok(Some((frame[0], frame[0]))),
+                    2 => Ok(Some((frame[0], frame[1]))),
+                    o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
+                }
+            } else {
+                Ok(None)
+            }
+        }
+
+        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where S: SampleType {
+            if let Some(frame) = self.decode_frame::<S>()? {
+                Ok(Some(S::average_arr(&frame)))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    impl Debug for FlacDecoderWrap<'_> {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            f.debug_struct("FlacDecoderWrap")
+                .field("reader", &self.reader)
+                .field("decoder", &self.decoder)
+                .field("resampler", &self.resampler)
+                .field("channels", &self.channels)
+                .field("sample_rate", &self.sample_rate)
+                .field("data_offset", &self.data_offset)
+                .field("data_length", &self.data_length)
+                .field("decoded_frames", &format_args!("[i32; {}]", self.decoded_frames.len()))
+                .field("decoded_frames_index", &self.decoded_frames_index)
+                .field("frame_index", &self.frame_index)
+                .field("total_frames", &self.total_frames)
+                .field("self_ptr", &self.self_ptr)
+                .finish()
+        }
+    }
 }
