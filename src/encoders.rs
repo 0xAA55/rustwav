@@ -1090,7 +1090,7 @@ pub mod mp3 {
                     encoder: encoder.clone(),
                     encoder_options: *mp3_options,
                     buffers: match channels {
-                        1 | 2 => ChannelBuffers::<'a, S>::new(hacks::force_borrow!(writer, dyn Writer), encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
+                        1 | 2 => ChannelBuffers::<'a, S>::new(hacks::force_borrow_mut!(writer, dyn Writer), encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
                         o => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {o}"))),
                     },
                 })
