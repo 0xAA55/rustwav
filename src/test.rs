@@ -252,292 +252,297 @@ fn test_normal() -> ExitCode {
     }
 }
 
-use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap};
-use crate::wavcore::{ListChunk, ListInfo};
-use crate::flac::{FlacEncoder, FlacDecoder};
-use crate::flac::{ReadSeek, WriteSeek};
+#[cfg(feature = "flac")]
+pub mod flac {
+    #![allow(unused_imports)]
+    use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap};
+    use crate::wavcore::{ListChunk, ListInfo};
 
-#[allow(unused_imports)]
-use crate::flac::FlacError;
+    use crate::flac::{FlacEncoder, FlacDecoder};
+    use crate::flac::{ReadSeek, WriteSeek};
+    use crate::flac::FlacError;
+
+    #[allow(dead_code)]
+    fn test_flac() -> ExitCode {
+        const ALLOW_SEEK: bool = true;
+
+        let listinfo_flacmeta: BTreeMap<&'static str, &'static str> = [
+            ("ITRK", "TRACKNUMBER"),
+            ("INAM", "TITLE"),
+            ("IART", "ARTIST"),
+            ("IPRD", "ALBUM"),
+            ("ICMT", "COMMENT"),
+            ("ICOP", "COPYRIGHT"),
+            ("ICRD", "DATE"),
+            ("IGNR", "GENRE"),
+            ("ISRC", "ISRC"),
+            ("ICMS", "PRODUCER"),
+        ].iter().copied().collect();
+
+        let flacmeta_listinfo: BTreeMap<&'static str, &'static str> = listinfo_flacmeta.iter().map(|(k, v)|{(*v, *k)}).collect();
+
+        let args: Vec<String> = args().collect();
+        if args.len() < 5 {return ExitCode::from(1);}
+        let input_wav = &args[1];
+        let output_flac = &args[2];
+        let input_flac = &args[3];
+        let output_wav = &args[4];
+
+        println!("======== TEST 1 ========");
+        let mut wavereader = WaveReader::open(input_wav).unwrap();
+        let spec1 = wavereader.spec();
+
+        let mut params = FlacEncoderParams::new();
+        params.verify_decoded = false;
+        params.compression = FlacCompression::Level8;
+        params.channels = spec1.channels;
+        params.sample_rate = spec1.sample_rate;
+        params.total_samples_estimate = wavereader.get_fact_data();
+
+        dbg!(&params);
+
+        let mut writer: Box<dyn Writer> = Box::new(BufWriter::new(File::create(output_flac).unwrap()));
+
+        let mut encoder = FlacEncoder::new(
+            &mut writer,
+            Box::new(|writer: &mut dyn WriteSeek, encoded: &[u8]| -> Result<(), io::Error> {
+                writer.write_all(encoded)
+            }),
+            Box::new(|writer: &mut dyn WriteSeek, position: u64| -> Result<(), io::Error> {
+                if ALLOW_SEEK {
+                    writer.seek(SeekFrom::Start(position))?;
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
+                }
+            }),
+            Box::new(|writer: &mut dyn WriteSeek| -> Result<u64, io::Error> {
+                if ALLOW_SEEK {
+                    writer.stream_position()
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
+                }
+            }),
+            &params,
+        ).unwrap();
+
+        #[cfg(feature = "id3")]
+        if let Some(id3_tag) = wavereader.get_id3__chunk() {
+            encoder.inherit_metadata_from_id3(id3_tag).unwrap();
+        }
+        if let Some(list) = wavereader.get_list_chunk() {
+            match list {
+                ListChunk::Info(_) => {
+                    for (list_key, flac_key) in listinfo_flacmeta.iter() {
+                        if let Some(data) = list.get(list_key.to_owned()) {
+                            encoder.insert_comments(flac_key, data).unwrap();
+                        }
+                    }
+                },
+                ListChunk::Adtl(_) => {
+                    eprintln!("Don't have `INFO` data in the WAV file, try to print some `adtl` data:\n{:?}", wavereader.create_full_info_cue_data());
+                },
+            }
+        }
+
+        encoder.initialize().unwrap();
+
+        let process_size = 65536;
+        match spec1.channels {
+            1 => {
+                let mut iter = wavereader.mono_iter::<i16>().unwrap();
+                loop {
+                    let block: Vec<i16> = iter.by_ref().take(process_size).collect();
+                    if block.is_empty() {
+                        break;
+                    }
+                    let block: Vec<i32> = block.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect();
+                    encoder.write_mono_channel(&block).unwrap();
+                }
+            },
+            2 => {
+                let mut iter = wavereader.stereo_iter::<i16>().unwrap();
+                loop {
+                    let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
+                    if block.is_empty() {
+                        break;
+                    }
+                    let block: Vec<(i32, i32)> = block.into_iter().map(|(l, r): (i16, i16)| -> (i32, i32) {(l as i32, r as i32)}).collect();
+                    encoder.write_stereos(&block).unwrap();
+                }
+            },
+            _ => {
+                let mut iter = wavereader.frame_iter::<i16>().unwrap();
+                loop {
+                    let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
+                    if block.is_empty() {
+                        break;
+                    }
+                    let block: Vec<Vec<i32>> = block.into_iter().map(|frame: Vec<i16>| -> Vec<i32> {frame.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect()}).collect();
+                    encoder.write_frames(&block).unwrap();
+                }
+            },
+        }
+
+        encoder.finalize();
+        drop(wavereader);
+        println!("======== TEST 2 ========");
+
+        const FFT_SIZE: usize = 65536;
+        let resampler = Resampler::new(FFT_SIZE);
+
+        let spec2 = Spec {
+            channels: spec1.channels,
+            channel_mask: 0,
+            sample_rate: spec1.sample_rate,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+
+        let mut reader: Box<dyn Reader> = Box::new(BufReader::new(File::open(input_flac).unwrap()));
+        let mut wavewriter = WaveWriter::create(output_wav, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+
+        let length = {
+            let cur = reader.stream_position().unwrap();
+            reader.seek(SeekFrom::End(0)).unwrap();
+            let ret = reader.stream_position().unwrap();
+            reader.seek(SeekFrom::Start(cur)).unwrap();
+            ret
+        };
+
+        let mut frames_buffer = Vec::<Vec<i32>>::new();
+        let mut cur_sample_rate = 0;
+
+        let mut decoder = FlacDecoder::new(
+            &mut reader,
+            Box::new(|reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, flac::FlacReadStatus) {
+                let to_read = buffer.len();
+                match reader.read(buffer) {
+                    Ok(size) => {
+                        match size.cmp(&to_read) {
+                            Ordering::Equal => (size, flac::FlacReadStatus::GoOn),
+                            Ordering::Less => (size, flac::FlacReadStatus::Eof),
+                            Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("on_read(): {:?}", e);
+                        (0, flac::FlacReadStatus::Abort)
+                    }
+                }
+            }),
+            Box::new(|reader: &mut dyn ReadSeek, position: u64|-> Result<(), io::Error> {
+                if ALLOW_SEEK {
+                    reader.seek(SeekFrom::Start(position))?;
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
+                }
+            }),
+            Box::new(|reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                if ALLOW_SEEK {
+                    reader.stream_position()
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
+                }
+            }),
+            Box::new(|_reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                if ALLOW_SEEK {
+                    Ok(length)
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
+                }
+            }),
+            Box::new(|reader: &mut dyn ReadSeek| -> bool {
+                reader.stream_position().unwrap() >= length
+            }),
+            Box::new(|frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
+                let sample_rate = sample_info.sample_rate;
+                if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
+                let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
+                frames_buffer.extend(frames.to_vec());
+                let mut iter = frames_buffer.iter();
+                loop {
+                    // Sample rate transition handling:
+                    // ------------------------------------------
+                    // - If sample rate remains unchanged (cur_sample_rate == sample_rate):
+                    //   - Maintain input sample continuity without truncation (direct stream passthrough).
+                    //
+                    // - If sample rate changes (cur_sample_rate ≠ sample_rate):
+                    //   - Process all buffered samples to completion under the current rate.
+                    //   - Begin processing new samples at the new sample rate.
+                    let block: Vec<Vec<i32>> = iter.by_ref().take(process_size).cloned().collect();
+                    if cur_sample_rate == sample_rate {
+                        if block.len() < process_size {
+                            frames_buffer = block;
+                            break;
+                        }
+                    } else if block.is_empty() {
+                        break;
+                    }
+                    let block = utils::do_resample_frames(&resampler, &block, cur_sample_rate, spec2.sample_rate);
+                    wavewriter.write_frames(&block)?;
+                }
+                cur_sample_rate = sample_rate;
+                Ok(())
+            }),
+            Box::new(|error: flac::FlacInternalDecoderError| {
+                eprintln!("on_error({error})");
+            }),
+            true,
+            true,
+            flac::FlacAudioForm::FrameArray,
+        ).unwrap();
+
+        const BY_BLOCKS: bool = false;
+        if BY_BLOCKS {
+            while !decoder.eof() {
+                match decoder.decode() {
+                    Ok(go_on) => {
+                        if !go_on {
+                            break;
+                        }
+                    },
+                    Err(e) => {
+                        if e.get_code() == 4 {
+                            break;
+                        } else {
+                            panic!("{:?}", e);
+                        }
+                    }
+                }
+            }
+        } else {
+            decoder.decode_all().unwrap();
+        }
+
+        let comments = decoder.get_comments();
+        let mut listinfo = ListChunk::Info(BTreeMap::<String, String>::new());
+
+        for (flac_key, list_key) in flacmeta_listinfo.iter() {
+            if let Some(data) = comments.get(flac_key.to_owned()) {
+                listinfo.set(list_key, data).unwrap();
+            }
+        }
+        decoder.finalize();
+
+        if !frames_buffer.is_empty() {
+            let block = utils::do_resample_frames(&resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
+            wavewriter.write_frames(&block).unwrap();
+            frames_buffer.clear();
+        }
+
+        wavewriter.list_chunk = Some(listinfo);
+        wavewriter.finalize();
+
+        println!("======== TEST FINISHED ========");
+
+        ExitCode::from(0)
+    }
+}
 
 #[cfg(feature = "flac")]
-#[allow(dead_code)]
-fn test_flac() -> ExitCode {
-    const ALLOW_SEEK: bool = true;
-
-    let listinfo_flacmeta: BTreeMap<&'static str, &'static str> = [
-        ("ITRK", "TRACKNUMBER"),
-        ("INAM", "TITLE"),
-        ("IART", "ARTIST"),
-        ("IPRD", "ALBUM"),
-        ("ICMT", "COMMENT"),
-        ("ICOP", "COPYRIGHT"),
-        ("ICRD", "DATE"),
-        ("IGNR", "GENRE"),
-        ("ISRC", "ISRC"),
-        ("ICMS", "PRODUCER"),
-    ].iter().copied().collect();
-
-    let flacmeta_listinfo: BTreeMap<&'static str, &'static str> = listinfo_flacmeta.iter().map(|(k, v)|{(*v, *k)}).collect();
-
-    let args: Vec<String> = args().collect();
-    if args.len() < 5 {return ExitCode::from(1);}
-    let input_wav = &args[1];
-    let output_flac = &args[2];
-    let input_flac = &args[3];
-    let output_wav = &args[4];
-
-    println!("======== TEST 1 ========");
-    let mut wavereader = WaveReader::open(input_wav).unwrap();
-    let spec1 = wavereader.spec();
-
-    let mut params = FlacEncoderParams::new();
-    params.verify_decoded = false;
-    params.compression = FlacCompression::Level8;
-    params.channels = spec1.channels;
-    params.sample_rate = spec1.sample_rate;
-    params.total_samples_estimate = wavereader.get_fact_data();
-
-    dbg!(&params);
-
-    let mut writer: Box<dyn Writer> = Box::new(BufWriter::new(File::create(output_flac).unwrap()));
-
-    let mut encoder = FlacEncoder::new(
-        &mut writer,
-        Box::new(|writer: &mut dyn WriteSeek, encoded: &[u8]| -> Result<(), io::Error> {
-            writer.write_all(encoded)
-        }),
-        Box::new(|writer: &mut dyn WriteSeek, position: u64| -> Result<(), io::Error> {
-            if ALLOW_SEEK {
-                writer.seek(SeekFrom::Start(position))?;
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
-            }
-        }),
-        Box::new(|writer: &mut dyn WriteSeek| -> Result<u64, io::Error> {
-            if ALLOW_SEEK {
-                writer.stream_position()
-            } else {
-                Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
-            }
-        }),
-        &params,
-    ).unwrap();
-
-    #[cfg(feature = "id3")]
-    if let Some(id3_tag) = wavereader.get_id3__chunk() {
-        encoder.inherit_metadata_from_id3(id3_tag).unwrap();
-    }
-    if let Some(list) = wavereader.get_list_chunk() {
-        match list {
-            ListChunk::Info(_) => {
-                for (list_key, flac_key) in listinfo_flacmeta.iter() {
-                    if let Some(data) = list.get(list_key.to_owned()) {
-                        encoder.insert_comments(flac_key, data).unwrap();
-                    }
-                }
-            },
-            ListChunk::Adtl(_) => {
-                eprintln!("Don't have `INFO` data in the WAV file, try to print some `adtl` data:\n{:?}", wavereader.create_full_info_cue_data());
-            },
-        }
-    }
-
-    encoder.initialize().unwrap();
-
-    let process_size = 65536;
-    match spec1.channels {
-        1 => {
-            let mut iter = wavereader.mono_iter::<i16>().unwrap();
-            loop {
-                let block: Vec<i16> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block: Vec<i32> = block.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect();
-                encoder.write_mono_channel(&block).unwrap();
-            }
-        },
-        2 => {
-            let mut iter = wavereader.stereo_iter::<i16>().unwrap();
-            loop {
-                let block: Vec<(i16, i16)> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block: Vec<(i32, i32)> = block.into_iter().map(|(l, r): (i16, i16)| -> (i32, i32) {(l as i32, r as i32)}).collect();
-                encoder.write_stereos(&block).unwrap();
-            }
-        },
-        _ => {
-            let mut iter = wavereader.frame_iter::<i16>().unwrap();
-            loop {
-                let block: Vec<Vec<i16>> = iter.by_ref().take(process_size).collect();
-                if block.is_empty() {
-                    break;
-                }
-                let block: Vec<Vec<i32>> = block.into_iter().map(|frame: Vec<i16>| -> Vec<i32> {frame.into_iter().map(|sample: i16| -> i32 {sample as i32}).collect()}).collect();
-                encoder.write_frames(&block).unwrap();
-            }
-        },
-    }
-
-    encoder.finalize();
-    drop(wavereader);
-    println!("======== TEST 2 ========");
-
-    const FFT_SIZE: usize = 65536;
-    let resampler = Resampler::new(FFT_SIZE);
-
-    let spec2 = Spec {
-        channels: spec1.channels,
-        channel_mask: 0,
-        sample_rate: spec1.sample_rate,
-        bits_per_sample: 16,
-        sample_format: SampleFormat::Int,
-    };
-
-    let mut reader: Box<dyn Reader> = Box::new(BufReader::new(File::open(input_flac).unwrap()));
-    let mut wavewriter = WaveWriter::create(output_wav, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
-
-    let length = {
-        let cur = reader.stream_position().unwrap();
-        reader.seek(SeekFrom::End(0)).unwrap();
-        let ret = reader.stream_position().unwrap();
-        reader.seek(SeekFrom::Start(cur)).unwrap();
-        ret
-    };
-
-    let mut frames_buffer = Vec::<Vec<i32>>::new();
-    let mut cur_sample_rate = 0;
-
-    let mut decoder = FlacDecoder::new(
-        &mut reader,
-        Box::new(|reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, flac::FlacReadStatus) {
-            let to_read = buffer.len();
-            match reader.read(buffer) {
-                Ok(size) => {
-                    match size.cmp(&to_read) {
-                        Ordering::Equal => (size, flac::FlacReadStatus::GoOn),
-                        Ordering::Less => (size, flac::FlacReadStatus::Eof),
-                        Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
-                    }
-                },
-                Err(e) => {
-                    eprintln!("on_read(): {:?}", e);
-                    (0, flac::FlacReadStatus::Abort)
-                }
-            }
-        }),
-        Box::new(|reader: &mut dyn ReadSeek, position: u64|-> Result<(), io::Error> {
-            if ALLOW_SEEK {
-                reader.seek(SeekFrom::Start(position))?;
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
-            }
-        }),
-        Box::new(|reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
-            if ALLOW_SEEK {
-                reader.stream_position()
-            } else {
-                Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
-            }
-        }),
-        Box::new(|_reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
-            if ALLOW_SEEK {
-                Ok(length)
-            } else {
-                Err(io::Error::new(io::ErrorKind::NotSeekable, "Not seekable.".to_string()))
-            }
-        }),
-        Box::new(|reader: &mut dyn ReadSeek| -> bool {
-            reader.stream_position().unwrap() >= length
-        }),
-        Box::new(|frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
-            let sample_rate = sample_info.sample_rate;
-            if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
-            let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
-            frames_buffer.extend(frames.to_vec());
-            let mut iter = frames_buffer.iter();
-            loop {
-                // Sample rate transition handling:
-                // ------------------------------------------
-                // - If sample rate remains unchanged (cur_sample_rate == sample_rate):
-                //   - Maintain input sample continuity without truncation (direct stream passthrough).
-                //
-                // - If sample rate changes (cur_sample_rate ≠ sample_rate):
-                //   - Process all buffered samples to completion under the current rate.
-                //   - Begin processing new samples at the new sample rate.
-                let block: Vec<Vec<i32>> = iter.by_ref().take(process_size).cloned().collect();
-                if cur_sample_rate == sample_rate {
-                    if block.len() < process_size {
-                        frames_buffer = block;
-                        break;
-                    }
-                } else if block.is_empty() {
-                    break;
-                }
-                let block = utils::do_resample_frames(&resampler, &block, cur_sample_rate, spec2.sample_rate);
-                wavewriter.write_frames(&block)?;
-            }
-            cur_sample_rate = sample_rate;
-            Ok(())
-        }),
-        Box::new(|error: flac::FlacInternalDecoderError| {
-            eprintln!("on_error({error})");
-        }),
-        true,
-        true,
-        flac::FlacAudioForm::FrameArray,
-    ).unwrap();
-
-    const BY_BLOCKS: bool = false;
-    if BY_BLOCKS {
-        while !decoder.eof() {
-            match decoder.decode() {
-                Ok(go_on) => {
-                    if !go_on {
-                        break;
-                    }
-                },
-                Err(e) => {
-                    if e.get_code() == 4 {
-                        break;
-                    } else {
-                        panic!("{:?}", e);
-                    }
-                }
-            }
-        }
-    } else {
-        decoder.decode_all().unwrap();
-    }
-
-    let comments = decoder.get_comments();
-    let mut listinfo = ListChunk::Info(BTreeMap::<String, String>::new());
-
-    for (flac_key, list_key) in flacmeta_listinfo.iter() {
-        if let Some(data) = comments.get(flac_key.to_owned()) {
-            listinfo.set(list_key, data).unwrap();
-        }
-    }
-    decoder.finalize();
-
-    if !frames_buffer.is_empty() {
-        let block = utils::do_resample_frames(&resampler, &frames_buffer, cur_sample_rate, spec2.sample_rate);
-        wavewriter.write_frames(&block).unwrap();
-        frames_buffer.clear();
-    }
-
-    wavewriter.list_chunk = Some(listinfo);
-    wavewriter.finalize();
-
-    println!("======== TEST FINISHED ========");
-
-    ExitCode::from(0)
-}
+use flac::*;
 
 fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
