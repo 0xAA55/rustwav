@@ -915,7 +915,7 @@ pub mod mp3 {
 
 #[cfg(feature = "opus")]
 pub mod opus {
-    use std::{io::SeekFrom, cmp::Ordering};
+    use std::{io::SeekFrom, fmt::{self, Debug, Formatter}};
 
     use crate::Reader;
     use crate::AudioReadError;
@@ -937,7 +937,6 @@ pub mod opus {
         decoded_samples: Vec<f32>,
         decoded_samples_index: usize,
         frame_index: u64,
-        block_frame_counts: Vec<u16>,
     }
 
     impl OpusDecoder {
@@ -963,7 +962,6 @@ pub mod opus {
                 decoded_samples: Vec::<f32>::new(),
                 decoded_samples_index: 0,
                 frame_index: 0,
-                block_frame_counts: Vec::<u16>::new(),
             })
         }
 
@@ -980,37 +978,47 @@ pub mod opus {
         }
 
         fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
-            let end_of_data = self.data_offset + self.data_length;
-            if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+            if self.reader.stream_position()? >= self.data_offset + self.data_length { Ok(true) } else { Ok(false) }
         }
 
         fn get_num_samples_in_ms(&self, ms_val: f32) -> usize {
             (self.sample_rate as f32 * ms_val / 1000.0) as usize * self.channels as usize
         }
 
+        fn clear_decoded_samples_buffer(&mut self) {
+            self.decoded_samples.clear();
+            self.decoded_samples_index = 0;
+        }
+
+        fn get_samples_per_block(&self) -> usize {
+            self.block_align as usize
+        }
+
         fn decode_block(&mut self) -> Result<(), AudioReadError> {
             if self.is_end_of_data()? {
-                self.decoded_samples = vec![0.0; 0];
-                self.decoded_samples_index = 0;
+                self.clear_decoded_samples_buffer();
                 return Ok(());
             }
-            let block_index = ((self.reader.stream_position()? - self.data_offset) / self.block_align as u64) as usize;
+
+            // Prepare the buffers
             let mut buf = vec![0u8; self.block_align];
+            let samples_to_get = self.get_samples_per_block();
             self.reader.read_exact(&mut buf)?;
-            self.decoded_samples = vec![0.0; self.get_num_samples_in_ms(60.0) * self.channels as usize];
-            let samples = self.decoder.decode_float(&buf, &mut self.decoded_samples, false)? * self.channels as usize;
-            self.decoded_samples.truncate(samples);
+            self.decoded_samples = vec![0.0; samples_to_get];
+
+            // Reset the sample index
             self.decoded_samples_index = 0;
-            let cur_frames = samples as u16 / self.channels;
-            match block_index.cmp(&self.block_frame_counts.len()) {
-                Ordering::Equal => self.block_frame_counts.push(cur_frames),
-                Ordering::Less => self.block_frame_counts[block_index] = cur_frames,
-                Ordering::Greater => {
-                    self.block_frame_counts.resize(block_index + 1, 0);
-                    self.block_frame_counts[block_index] = cur_frames;
-                },
+
+            // Perform the decode call
+            let frames = self.decoder.decode_float(&buf, &mut self.decoded_samples, /*fec*/ false)?;
+
+            // Check out the result
+            let samples = frames * self.channels as usize;
+            if samples != samples_to_get {
+                Err(AudioReadError::IncompleteData(format!("Expected {samples_to_get} samples will be decoded, got {samples} samples.")))
+            } else {
+                Ok(())
             }
-            Ok(())
         }
 
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
@@ -1023,37 +1031,24 @@ pub mod opus {
                     (self.total_frames as i64 + end) as u64
                 }
             };
-            let mut block_frames = 0u64;
-            let mut bi = 0usize;
-            loop {
-                self.reader.seek(SeekFrom::Start(self.data_offset + (bi * self.block_align) as u64))?;
-                if self.is_end_of_data()? {
-                    self.frame_index = frame_index;
-                    self.decoded_samples.clear();
-                    self.decoded_samples_index = 0;
-                    break;
-                }
-                if bi >= self.block_frame_counts.len() {
-                    self.decode_block()?;
-                }
-                let cur_block_samples = self.block_frame_counts[bi] as u64;
-                bi += 1;
-                if block_frames <= frame_index && block_frames + cur_block_samples > frame_index {
-                    self.frame_index = frame_index;
-                    self.decoded_samples_index = (frame_index - block_frames) as usize * self.channels as usize;
-                    break;
-                }
-                block_frames += cur_block_samples;
+            self.frame_index = frame_index;
+            let block_align = self.block_align as u64;
+            let block_index = frame_index / block_align;
+            let seek_to = self.data_offset + block_index * block_align;
+            if seek_to < self.data_offset + self.data_length {
+                self.reader.seek(SeekFrom::Start(seek_to))?;
+                self.decode_block()?;
+                self.decoded_samples_index = ((frame_index * self.channels as u64) - block_index * self.get_samples_per_block() as u64) as usize;
             }
             Ok(())
         }
 
         fn decode_sample(&mut self) -> Result<Option<f32>, AudioReadError> {
-            if self.decoded_samples_index >= self.decoded_samples.len() {
-                self.decode_block()?;
-            }
             if self.decoded_samples.is_empty() {
                 Ok(None)
+            } else if self.decoded_samples_index >= self.decoded_samples.len() {
+                self.decode_block()?;
+                self.decode_sample()
             } else {
                 let ret = self.decoded_samples[self.decoded_samples_index];
                 self.decoded_samples_index += 1;
