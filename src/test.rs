@@ -231,27 +231,6 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     Ok(())
 }
 
-#[test]
-fn testrun() {
-    for format in FORMATS {
-        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
-    }
-}
-
-#[allow(dead_code)]
-fn test_normal() -> ExitCode {
-    let args: Vec<String> = args().collect();
-    if args.len() < 5 {return ExitCode::from(1);}
-
-    match test(&args[1], &args[2], &args[3], &args[4]) {
-        Ok(_) => ExitCode::from(0),
-        Err(e) => {
-            println!("Error: {}", e);
-            ExitCode::from(2)
-        },
-    }
-}
-
 #[cfg(feature = "flac")]
 mod flac_test {
     #![allow(unused_imports)]
@@ -564,6 +543,27 @@ fn test_wav() -> ExitCode {
         Ok(_) => ExitCode::from(0),
         Err(e) => {
             eprintln!("{:?}", e);
+            ExitCode::from(2)
+        },
+    }
+}
+
+#[test]
+fn testrun() {
+    for format in FORMATS {
+        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
+    }
+}
+
+#[allow(dead_code)]
+fn test_normal() -> ExitCode {
+    let args: Vec<String> = args().collect();
+    if args.len() < 5 {return ExitCode::from(1);}
+
+    match test(&args[1], &args[2], &args[3], &args[4]) {
+        Ok(_) => ExitCode::from(0),
+        Err(e) => {
+            println!("Error: {}", e);
             ExitCode::from(2)
         },
     }
