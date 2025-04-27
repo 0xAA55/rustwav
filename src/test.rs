@@ -253,14 +253,22 @@ fn test_normal() -> ExitCode {
 }
 
 #[cfg(feature = "flac")]
-pub mod flac {
+mod flac_test {
     #![allow(unused_imports)]
-    use std::{fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap};
-    use crate::wavcore::{ListChunk, ListInfo};
+    use std::{env::args, fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap, process::ExitCode};
+    #[allow(unused_imports)]
+    use crate::FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
-    use crate::flac::{FlacEncoder, FlacDecoder};
-    use crate::flac::{ReadSeek, WriteSeek};
-    use crate::flac::FlacError;
+    use crate::{Reader, Writer};
+    use crate::{DataFormat};
+    use crate::{WaveReader, WaveWriter};
+    use crate::wavcore::{Spec, SampleFormat};
+    use crate::wavcore::{FlacEncoderParams, FlacCompression};
+    use crate::wavcore::{ListChunk, ListInfo};
+    use crate::resampler::Resampler;
+    use crate::utils;
+
+    use crate::flac::*;
 
     #[allow(dead_code)]
     fn test_flac() -> ExitCode {
@@ -415,19 +423,19 @@ pub mod flac {
 
         let mut decoder = FlacDecoder::new(
             &mut reader,
-            Box::new(|reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, flac::FlacReadStatus) {
+            Box::new(|reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
                 let to_read = buffer.len();
                 match reader.read(buffer) {
                     Ok(size) => {
                         match size.cmp(&to_read) {
-                            Ordering::Equal => (size, flac::FlacReadStatus::GoOn),
-                            Ordering::Less => (size, flac::FlacReadStatus::Eof),
+                            Ordering::Equal => (size, FlacReadStatus::GoOn),
+                            Ordering::Less => (size, FlacReadStatus::Eof),
                             Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
                         }
                     },
                     Err(e) => {
                         eprintln!("on_read(): {:?}", e);
-                        (0, flac::FlacReadStatus::Abort)
+                        (0, FlacReadStatus::Abort)
                     }
                 }
             }),
@@ -456,7 +464,7 @@ pub mod flac {
             Box::new(|reader: &mut dyn ReadSeek| -> bool {
                 reader.stream_position().unwrap() >= length
             }),
-            Box::new(|frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
+            Box::new(|frames: &[Vec<i32>], sample_info: &SamplesInfo| -> Result<(), io::Error> {
                 let sample_rate = sample_info.sample_rate;
                 if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
                 let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
@@ -486,12 +494,12 @@ pub mod flac {
                 cur_sample_rate = sample_rate;
                 Ok(())
             }),
-            Box::new(|error: flac::FlacInternalDecoderError| {
+            Box::new(|error: FlacInternalDecoderError| {
                 eprintln!("on_error({error})");
             }),
             true,
             true,
-            flac::FlacAudioForm::FrameArray,
+            FlacAudioForm::FrameArray,
         ).unwrap();
 
         const BY_BLOCKS: bool = false;
@@ -542,7 +550,8 @@ pub mod flac {
 }
 
 #[cfg(feature = "flac")]
-use flac::*;
+#[allow(unused_imports)]
+use flac_test::*;
 
 fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
