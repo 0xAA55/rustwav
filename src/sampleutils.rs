@@ -404,6 +404,7 @@ Debug + Sized + Clone + Copy + 'static {
     fn new() -> Self;
     fn from(v: impl SampleType) -> Self;
     fn average(s1: Self, s2: Self) -> Self;
+    fn average_arr(arr: &[Self]) -> Self;
     fn to_i8 (&self) -> i8;
     fn to_i16(&self) -> i16;
     fn to_i32(&self) -> i32;
@@ -466,6 +467,11 @@ impl SampleType for i8{
     #[inline(always)]
     fn average(s1: i8, s2: i8) -> i8 {
         ((s1 as i16 + s2 as i16) / 2) as i8
+    }
+    #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: i16 = arr.iter().map(|s|{*s as i16}).sum();
+        (sum / arr.len() as i16) as Self
     }
     #[inline(always)]
     fn to_i8(&self) -> i8{
@@ -601,6 +607,11 @@ impl SampleType for i16{
         ((s1 as i32 + s2 as i32) / 2) as i16
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: i32 = arr.iter().map(|s|{*s as i32}).sum();
+        (sum / arr.len() as i32) as Self
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8{
         (*self >> 8) as i8
     } 
@@ -730,6 +741,12 @@ impl SampleType for i24 {
     #[inline(always)]
     fn average(s1: i24, s2: i24) -> i24 {
         ((s1.as_i32() + s2.as_i32()) / 2).as_i24()
+    }
+    #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: i32 = arr.iter().map(|s|{s.as_i32()}).sum();
+        let bytes = (sum / arr.len() as i32).to_le_bytes();
+        Self(bytes[0], bytes[1], bytes[2])
     }
     #[inline(always)]
     fn to_i8(&self) -> i8 {
@@ -869,6 +886,11 @@ impl SampleType for i32{
         ((s1 as i64 + s2 as i64) / 2) as i32
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: i64 = arr.iter().map(|s|{*s as i64}).sum();
+        (sum / arr.len() as i64) as Self
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8{
         (*self >> 24) as i8
     } 
@@ -1001,6 +1023,11 @@ impl SampleType for i64{
         ((s1 as i128 + s2 as i128) / 2) as i64
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: i128 = arr.iter().map(|s|{*s as i128}).sum();
+        (sum / arr.len() as i128) as Self
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8{
         (*self >> 56) as i8
     } 
@@ -1131,6 +1158,11 @@ impl SampleType for u8{
     #[inline(always)]
     fn average(s1: u8, s2: u8) -> u8 {
         ((s1 as u16 + s2 as u16) / 2) as u8
+    }
+    #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: u16 = arr.iter().map(|s|{*s as u16}).sum();
+        (sum / arr.len() as u16) as Self
     }
     #[inline(always)]
     fn to_i8(&self) -> i8{
@@ -1266,6 +1298,11 @@ impl SampleType for u16{
         ((s1 as u32 + s2 as u32) / 2) as u16
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: u32 = arr.iter().map(|s|{*s as u32}).sum();
+        (sum / arr.len() as u32) as Self
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8{
         self.to_i16().to_i8()
     } 
@@ -1398,6 +1435,12 @@ impl SampleType for u24 {
         ((s1.as_u32() + s2.as_u32()) / 2).as_u24()
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: u32 = arr.iter().map(|s|{s.as_u32()}).sum();
+        let bytes = (sum / arr.len() as u32).to_le_bytes();
+        Self(bytes[0], bytes[1], bytes[2])
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8 {
         self.0.to_i8()
     }
@@ -1527,6 +1570,11 @@ impl SampleType for u32{
     #[inline(always)]
     fn average(s1: u32, s2: u32) -> u32 {
         ((s1 as u64 + s2 as u64) / 2) as u32
+    }
+    #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: u64 = arr.iter().map(|s|{*s as u64}).sum();
+        (sum / arr.len() as u64) as Self
     }
     #[inline(always)]
     fn to_i8(&self) -> i8{
@@ -1661,6 +1709,11 @@ impl SampleType for u64{
         ((s1 as u128 + s2 as u128) / 2) as u64
     }
     #[inline(always)]
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: u128 = arr.iter().map(|s|{*s as u128}).sum();
+        (sum / arr.len() as u128) as Self
+    }
+    #[inline(always)]
     fn to_i8(&self) -> i8{
         self.to_i64().to_i8()
     } 
@@ -1791,6 +1844,10 @@ impl SampleType for f32{
     fn average(s1: f32, s2: f32) -> f32 {
         (s1 + s2) * 0.5
     }
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: f32 = arr.iter().map(|s|{*s as f32}).sum();
+        sum / arr.len() as f32
+    }
     #[inline(always)]
     fn to_i8(&self) -> i8{
         (self.clamp(-1.0, 1.0) * (i8::MAX as f32)) as i8
@@ -1917,6 +1974,10 @@ impl SampleType for f64{
     #[inline(always)]
     fn average(s1: f64, s2: f64) -> f64 {
         (s1 + s2) * 0.5
+    }
+    fn average_arr(arr: &[Self]) -> Self {
+        let sum: f64 = arr.iter().map(|s|{*s as f64}).sum();
+        sum / arr.len() as f64
     }
     #[inline(always)]
     fn to_i8(&self) -> i8{
