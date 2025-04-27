@@ -151,6 +151,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     }
 
     println!("======== TEST 1 ========");
+    println!("{:?}", data_format);
 
     // This is the decoder
     let mut wavereader = WaveReader::open(arg2).unwrap();
