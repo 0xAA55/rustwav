@@ -1716,15 +1716,14 @@ pub mod flac {
     pub struct FlacEncoderWrap<'a> {
         encoder: FlacEncoder<'a>,
         params: FlacEncoderParams,
-        write_offset: Box<u64>,
+        write_offset: u64,
         frames_written: u64,
         bytes_written: Box<u64>,
     }
     
     impl<'a> FlacEncoderWrap<'a> {
         pub fn new(writer: &'a mut dyn WriteSeek, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
-            let mut write_offset = Box::new(writer.stream_position()?);
-            let write_offset_ptr = (&mut *write_offset) as *mut u64;
+            let write_offset = writer.stream_position()?;
             let mut bytes_written = Box::new(0u64);
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
             Ok(Self{
@@ -1736,12 +1735,10 @@ pub mod flac {
                         writer.write_all(data)
                     }),
                     Box::new(move |writer: &mut dyn WriteSeek, position: u64| -> Result<(), io::Error> {
-                        let write_offset = unsafe{*write_offset_ptr};
                         writer.seek(SeekFrom::Start(write_offset + position))?;
                         Ok(())
                     }),
                     Box::new(move |writer: &mut dyn WriteSeek| -> Result<u64, io::Error> {
-                        let write_offset = unsafe{*write_offset_ptr};
                         Ok(write_offset + writer.stream_position()?)
                     }),
                     params
