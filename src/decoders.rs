@@ -924,7 +924,6 @@ pub mod opus {
 
     use opus::{Decoder, Channels};
 
-    #[derive(Debug)]
     pub struct OpusDecoder {
         reader: Box<dyn Reader>,
         decoder: Decoder,
@@ -1107,6 +1106,24 @@ pub mod opus {
                     }
                 },
             }
+        }
+    }
+
+    impl Debug for OpusDecoder {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            f.debug_struct("OpusDecoder")
+                .field("reader", &self.reader)
+                .field("decoder", &self.decoder)
+                .field("channels", &self.channels)
+                .field("sample_rate", &self.sample_rate)
+                .field("data_offset", &self.data_offset)
+                .field("data_length", &self.data_length)
+                .field("total_frames", &self.total_frames)
+                .field("block_align", &self.block_align)
+                .field("decoded_samples", &format_args!("[f32; {}]", self.decoded_samples.len()))
+                .field("decoded_samples_index", &self.decoded_samples_index)
+                .field("frame_index", &self.frame_index)
+                .finish()
         }
     }
 }
