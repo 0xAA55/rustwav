@@ -599,6 +599,7 @@ pub mod impl_flac {
         comments: BTreeMap<&'static str, String>,
         cue_sheet: BTreeMap<u8, CueTrack>,
         pictures: Vec<PictureData>,
+        finished: bool,
     }
 
     impl<'a> FlacEncoderUnmovable<'a> {
@@ -621,6 +622,7 @@ pub mod impl_flac {
                 comments: BTreeMap::new(),
                 cue_sheet: BTreeMap::new(),
                 pictures: Vec::<PictureData>::new(),
+                finished: false,
             };
             if ret.encoder.is_null() {
                 Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_MEMORY_ALLOCATION_ERROR, "FLAC__stream_encoder_new"))
@@ -934,12 +936,15 @@ pub mod impl_flac {
         }
 
         pub fn finish(&mut self) -> Result<(), FlacEncoderError> {
+            if self.finished {
+                return Ok(())
+            }
             #[cfg(debug_assertions)]
             if SHOW_CALLBACKS {println!("finish()");}
             unsafe {
                 if FLAC__stream_encoder_finish(self.encoder) != 0 {
                     match self.writer.seek(SeekFrom::End(0)) {
-                        Ok(_) => Ok(()),
+                        Ok(_) => {self.finished = true; Ok(())},
                         Err(_) => Err(FlacEncoderError::new(FLAC__STREAM_ENCODER_IO_ERROR, "self.writer.seek(SeekFrom::End(0))")),
                     }
                 } else {
@@ -1308,6 +1313,7 @@ pub mod impl_flac {
         on_write: Box<dyn FnMut(&mut dyn WriteSeek, &[Vec<i32>], &SamplesInfo) -> Result<(), io::Error> + 'a>,
         on_error: Box<dyn FnMut(FlacInternalDecoderError) + 'a>,
         md5_checking: bool,
+        finished: bool,
         pub scale_to_i32_range: bool,
         pub desired_audio_form: FlacAudioForm,
         pub vendor_string: Option<String>,
@@ -1342,6 +1348,7 @@ pub mod impl_flac {
                 on_write,
                 on_error,
                 md5_checking,
+                finished: false,
                 scale_to_i32_range,
                 desired_audio_form,
                 vendor_string: None,
@@ -1670,13 +1677,17 @@ pub mod impl_flac {
         }
 
         pub fn finish(&mut self) -> Result<(), FlacDecoderError> {
-            if unsafe {FLAC__stream_decoder_finish(self.decoder) != 0} {
-                Ok(())
+            if !self.finished {
+                if unsafe {FLAC__stream_decoder_finish(self.decoder) != 0} {
+                    self.finished = true;
+                    Ok(())
+                } else {
+                    self.get_status_as_result("FLAC__stream_decoder_finish")
+                }
             } else {
-                self.get_status_as_result("FLAC__stream_decoder_finish")
+                Ok(())
             }
         }
-
 
         fn on_drop(&mut self) {
             unsafe {
