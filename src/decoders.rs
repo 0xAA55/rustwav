@@ -614,10 +614,10 @@ impl PcmXLawDecoderWrap {
 
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
-    const FFT_SIZE: usize = 65536;
     use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}, mem};
 
-    use crate::{AudioReadError};
+    use super::get_rounded_up_fft_size;
+    use crate::AudioReadError;
     use crate::Reader;
     use crate::SampleType;
     use crate::Resampler;
@@ -689,7 +689,7 @@ pub mod mp3 {
                 cur_frame: None,
                 sample_pos: 0,
                 total_frames: total_samples,
-                resampler: Resampler::new(FFT_SIZE),
+                resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
             };
             ret.cur_frame = ret.get_next_frame();
             if let Some(ref mp3frame) = ret.cur_frame {
@@ -705,7 +705,7 @@ pub mod mp3 {
         }
 
         fn do_resample(&self, samples: &[i16], channels: u16, src_sample_rate: u32) -> Vec<i16> {
-            let process_size = self.resampler.get_process_size(FFT_SIZE, src_sample_rate, self.target_sample_rate);
+            let process_size = self.resampler.get_process_size(self.resampler.get_fft_size(), src_sample_rate, self.target_sample_rate);
             let mut monos = utils::interleaved_samples_to_monos(samples, channels).unwrap();
             for mono in monos.iter_mut() {
                 let mut iter = mem::take(mono).into_iter();
