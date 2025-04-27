@@ -629,7 +629,7 @@ pub mod impl_flac {
             }
         }
 
-        fn get_status_as_result(&self, function: &'static str) -> Result<(), FlacEncoderError> {
+        pub fn get_status_as_result(&self, function: &'static str) -> Result<(), FlacEncoderError> {
             let code = unsafe {FLAC__stream_encoder_get_state(self.encoder)};
             if code == 0 {
                 Ok(())
@@ -638,20 +638,20 @@ pub mod impl_flac {
             }
         }
 
-        fn get_status_as_error(&self, function: &'static str) -> Result<(), FlacEncoderError> {
+        pub fn get_status_as_error(&self, function: &'static str) -> Result<(), FlacEncoderError> {
             let code = unsafe {FLAC__stream_encoder_get_state(self.encoder)};
             Err(FlacEncoderError::new(code, function))
         }
 
-        fn as_ptr(&self) -> *const Self {
+        pub fn as_ptr(&self) -> *const Self {
             self as *const Self
         }
 
-        fn as_mut_ptr(&mut self) -> *mut Self {
+        pub fn as_mut_ptr(&mut self) -> *mut Self {
             self as *mut Self
         }
 
-        fn insert_comments(&mut self, key: &'static str, value: &str) -> Result<(), FlacEncoderInitError> {
+        pub fn insert_comments(&mut self, key: &'static str, value: &str) -> Result<(), FlacEncoderInitError> {
             if self.encoder_initialized {
                 Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::insert_comments"))
             } else {
@@ -662,7 +662,7 @@ pub mod impl_flac {
             }
         }
 
-        fn insert_cue_track(&mut self, track_no: u8, cue_track: &CueTrack) -> Result<(), FlacEncoderInitError> {
+        pub fn insert_cue_track(&mut self, track_no: u8, cue_track: &CueTrack) -> Result<(), FlacEncoderInitError> {
             if self.encoder_initialized {
                 Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::insert_cue_track"))
             } else {
@@ -673,7 +673,7 @@ pub mod impl_flac {
             }
         }
 
-        fn add_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str, width: u32, height: u32, depth: u32, colors: u32) -> Result<(), FlacEncoderInitError> {
+        pub fn add_picture(&mut self, picture_binary: &[u8], description: &str, mime_type: &str, width: u32, height: u32, depth: u32, colors: u32) -> Result<(), FlacEncoderInitError> {
             if self.encoder_initialized {
                 Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::set_picture"))
             } else {
@@ -691,7 +691,7 @@ pub mod impl_flac {
         }
 
         #[cfg(feature = "id3")]
-        fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
+        pub fn inherit_metadata_from_id3(&mut self, tag: &id3::Tag) -> Result<(), FlacEncoderInitError> {
             if let Some(artist) = tag.artist() {self.insert_comments("ARTIST", artist)?;}
             if let Some(album) = tag.album() {self.insert_comments("ALBUM", album)?;}
             if let Some(title) = tag.title() {self.insert_comments("TITLE", title)?;}
@@ -709,7 +709,7 @@ pub mod impl_flac {
             Ok(())
         }
 
-        fn init(&mut self) -> Result<(), FlacEncoderError> {
+        pub fn initialize(&mut self) -> Result<(), FlacEncoderError> {
             if self.encoder_initialized {
                 return Err(FlacEncoderInitError::new(FLAC__STREAM_ENCODER_INIT_STATUS_ALREADY_INITIALIZED, "FlacEncoderUnmovable::init").into())
             }
@@ -779,10 +779,11 @@ pub mod impl_flac {
                     self.encoder_initialized = true;
                 }
             }
+            self.finished = false;
             self.get_status_as_result("FlacEncoderUnmovable::Init()")
         }
 
-        fn get_params(&self) -> FlacEncoderParams {
+        pub fn get_params(&self) -> FlacEncoderParams {
             self.params
         }
 
