@@ -9,7 +9,7 @@ use crate::{AudioWriteError, AudioError};
 use crate::SampleType;
 use crate::wavcore;
 use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
-use crate::wavcore::{ChunkWriter};
+use crate::wavcore::ChunkWriter;
 use crate::wavcore::FmtChunk;
 use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::wavcore::FullInfoCuePoint;
