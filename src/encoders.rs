@@ -923,7 +923,7 @@ pub mod mp3 {
         use crate::{SampleType, i24, u24};
         use crate::wavcore::{Spec, FmtChunk, FmtExtension, Mp3Data};
         use crate::utils::{self, sample_conv, stereos_conv};
-        use crate::hacks;
+
         use mp3lame_encoder::{Builder, Encoder, MonoPcm, DualPcm, FlushNoGap};
         use mp3lame_encoder::{Mode, Quality, Bitrate, VbrMode, Id3Tag};
 
@@ -1043,7 +1043,7 @@ pub mod mp3 {
 
         impl<'a, S> Mp3Encoder<'a, S>
         where S: SampleType {
-            pub fn new(mut writer: &'a mut dyn Writer, spec: Spec, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
+            pub fn new(writer: &'a mut dyn Writer, spec: Spec, mp3_options: &Mp3EncoderOptions) -> Result<Self, AudioWriteError> {
                 if spec.channels != mp3_options.get_channels() {
                     return Err(AudioWriteError::InvalidArguments(format!("The number of channels from `spec` is {}, but from `mp3_options` is {}", spec.channels, mp3_options.get_channels())));
                 }
@@ -1090,7 +1090,7 @@ pub mod mp3 {
                     encoder: encoder.clone(),
                     encoder_options: *mp3_options,
                     buffers: match channels {
-                        1 | 2 => ChannelBuffers::<'a, S>::new(hacks::force_borrow_mut!(writer, dyn Writer), encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
+                        1 | 2 => ChannelBuffers::<'a, S>::new(writer, encoder.clone(), MAX_SAMPLES_TO_ENCODE, channels)?,
                         o => return Err(AudioWriteError::Unsupported(format!("Bad channel number: {o}"))),
                     },
                 })
