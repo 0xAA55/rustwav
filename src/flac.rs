@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::map_entry)]

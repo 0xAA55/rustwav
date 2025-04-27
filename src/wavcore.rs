@@ -15,7 +15,6 @@ pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bi
 #[allow(unused_imports)]
 pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
-#[cfg(feature = "flac")]
 #[allow(unused_imports)]
 pub use crate::flac::{
     FlacEncoderParams,
