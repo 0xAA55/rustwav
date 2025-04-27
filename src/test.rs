@@ -236,7 +236,7 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
 mod flac_test {
     #![allow(unused_imports)]
     use std::{env::args, fs::File, io::{self, SeekFrom, BufReader, BufWriter}, cmp::Ordering, collections::BTreeMap, process::ExitCode};
-    #[allow(unused_imports)]
+
     use crate::FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     use crate::{Reader, Writer};
@@ -533,6 +533,7 @@ mod flac_test {
 #[allow(unused_imports)]
 use flac_test::*;
 
+#[allow(dead_code)]
 fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
     if args.len() < 5 {return ExitCode::from(1);}
@@ -571,7 +572,13 @@ fn test_normal() -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    // for format in FORMATS {
+    //     test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
+    // }
+    // ExitCode::from(0)
+
     test_wav()
+
     // #[cfg(feature = "flac")]
     // test_flac()
 }
