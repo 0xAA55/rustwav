@@ -1784,6 +1784,10 @@ pub mod impl_flac {
             Ok(ret)
         }
 
+        pub fn seek(&mut self, frame_index: u64) -> Result<(), FlacDecoderError> {
+            self.decoder.seek(frame_index)
+        }
+
         pub fn tell(&mut self) -> Result<u64, io::Error> {
             self.decoder.tell()
         }
