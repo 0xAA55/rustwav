@@ -1033,7 +1033,7 @@ pub mod impl_flac {
 
         pub fn initialize(&mut self) -> Result<(), FlacEncoderInitError> {
             if !self.encoder.encoder_initialized {
-                self.encoder.init()?
+                self.encoder.initialize()?
             }
             Ok(())
         }
@@ -1381,37 +1381,6 @@ pub mod impl_flac {
             self as *mut Self
         }
 
-        fn init(&mut self) -> Result<(), FlacDecoderError> {
-            unsafe {
-                if FLAC__stream_decoder_set_md5_checking(self.decoder, self.md5_checking as i32) == 0 {
-                    return self.get_status_as_error("FLAC__stream_decoder_set_md5_checking");
-                }
-                if FLAC__stream_decoder_set_metadata_respond_all(self.decoder) == 0 {
-                    return self.get_status_as_error("FLAC__stream_decoder_set_metadata_respond_all");
-                }
-                let ret = FLAC__stream_decoder_init_stream(
-                    self.decoder,
-                    Some(Self::read_callback),
-                    Some(Self::seek_callback),
-                    Some(Self::tell_callback),
-                    Some(Self::length_callback),
-                    Some(Self::eof_callback),
-                    Some(Self::write_callback),
-                    Some(Self::metadata_callback),
-                    Some(Self::error_callback),
-                    self.as_mut_ptr() as *mut c_void,
-                );
-                if ret != 0 {
-                    return Err(FlacDecoderError {
-                        code: ret,
-                        message: FlacDecoderInitError::get_message_from_code(ret),
-                        function: "FLAC__stream_decoder_init_stream",
-                    });
-                }
-            }
-            self.get_status_as_result("FlacDecoderUnmovable::Init()")
-        }
-
         unsafe extern "C" fn read_callback(_decoder: *const FLAC__StreamDecoder, buffer: *mut u8, bytes: *mut usize, client_data: *mut c_void) -> u32 {
             let this = &mut *(client_data as *mut Self);
             if *bytes == 0 {
@@ -1639,6 +1608,61 @@ pub mod impl_flac {
             });
         }
 
+        pub fn initialize(&mut self) -> Result<(), FlacDecoderError> {
+            unsafe {
+                if FLAC__stream_decoder_set_md5_checking(self.decoder, self.md5_checking as i32) == 0 {
+                    return self.get_status_as_error("FLAC__stream_decoder_set_md5_checking");
+                }
+                if FLAC__stream_decoder_set_metadata_respond_all(self.decoder) == 0 {
+                    return self.get_status_as_error("FLAC__stream_decoder_set_metadata_respond_all");
+                }
+                let ret = FLAC__stream_decoder_init_stream(
+                    self.decoder,
+                    Some(Self::read_callback),
+                    Some(Self::seek_callback),
+                    Some(Self::tell_callback),
+                    Some(Self::length_callback),
+                    Some(Self::eof_callback),
+                    Some(Self::write_callback),
+                    Some(Self::metadata_callback),
+                    Some(Self::error_callback),
+                    self.as_mut_ptr() as *mut c_void,
+                );
+                if ret != 0 {
+                    return Err(FlacDecoderError {
+                        code: ret,
+                        message: FlacDecoderInitError::get_message_from_code(ret),
+                        function: "FLAC__stream_decoder_init_stream",
+                    });
+                }
+            }
+            self.finished = false;
+            self.get_status_as_result("FlacDecoderUnmovable::Init()")
+        }
+
+        pub fn seek(&mut self, frame_index: u64) -> Result<(), FlacDecoderError> {
+            for _retry in 0..3 {
+                unsafe {
+                    if FLAC__stream_decoder_seek_absolute(self.decoder, frame_index) == 0 {
+                        match FLAC__stream_decoder_get_state(self.decoder) {
+                            FLAC__STREAM_DECODER_SEEK_STATUS_OK => panic!("`FLAC__stream_decoder_seek_absolute()` returned false, but the status of the decoder is `OK`"),
+                            FLAC__STREAM_DECODER_SEEK_ERROR => {
+                                if FLAC__stream_decoder_reset(self.decoder) == 0 {
+                                    return self.get_status_as_error("FLAC__stream_decoder_reset");
+                                } else {
+                                    continue;
+                                }
+                            },
+                            o => return Err(FlacDecoderError::new(o, "FLAC__stream_decoder_seek_absolute")),
+                        }
+                    } else {
+                        return Ok(())
+                    }
+                }
+            }
+            Err(FlacDecoderError::new(FLAC__STREAM_DECODER_SEEK_ERROR, "FLAC__stream_decoder_seek_absolute"))
+        }
+
         pub fn tell(&mut self) -> Result<u64, io::Error> {
             (self.on_tell)(self.reader)
         }
@@ -1756,7 +1780,7 @@ pub mod impl_flac {
                     desired_audio_form,
                 )?),
             };
-            ret.decoder.init()?;
+            ret.decoder.initialize()?;
             Ok(ret)
         }
 
