@@ -212,6 +212,6 @@ where S: SampleType {
 pub fn do_resample_frames<S>(resampler: &Resampler, input: &[Vec<S>], src_sample_rate: u32, dst_sample_rate: u32) -> Vec<Vec<S>>
 where S: SampleType {
     let monos = frames_to_monos(input, None).unwrap();
-    let monos = monos.into_iter().map(|mono|{do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate)}).collect::<Vec<Vec<S>>>();
+    let monos: Vec<Vec<S>> = monos.into_iter().map(|mono|{do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate)}).collect();
     monos_to_frames(&monos).unwrap()
 }
