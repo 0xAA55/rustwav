@@ -414,7 +414,6 @@ fn test_flac() -> ExitCode {
 
     let mut decoder = FlacDecoder::new(
         &mut reader,
-        &mut writer,
         Box::new(|reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, flac::FlacReadStatus) {
             let to_read = buffer.len();
             match reader.read(buffer) {
@@ -456,7 +455,7 @@ fn test_flac() -> ExitCode {
         Box::new(|reader: &mut dyn ReadSeek| -> bool {
             reader.stream_position().unwrap() >= length
         }),
-        Box::new(|_writer: &mut dyn WriteSeek, frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
+        Box::new(|frames: &[Vec<i32>], sample_info: &flac::SamplesInfo| -> Result<(), io::Error> {
             let sample_rate = sample_info.sample_rate;
             if cur_sample_rate == 0 {cur_sample_rate = sample_rate;}
             let process_size = resampler.get_process_size(FFT_SIZE, cur_sample_rate, spec2.sample_rate);
