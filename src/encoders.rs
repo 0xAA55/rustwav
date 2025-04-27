@@ -1714,7 +1714,7 @@ pub mod flac {
 
     #[derive(Debug)]
     pub struct FlacEncoderWrap<'a> {
-        encoder: FlacEncoder<'a>,
+        encoder: Box<FlacEncoderUnmovable<'a>>,
         params: FlacEncoderParams,
         write_offset: u64,
         frames_written: u64,
@@ -1728,7 +1728,7 @@ pub mod flac {
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
             Ok(Self{
                 // Let the closures capture the pointer of the boxed variables, then use these pointers to update the variables.
-                encoder: FlacEncoder::new(
+                encoder: Box::new(FlacEncoderUnmovable::new(
                     writer,
                     Box::new(move |writer: &mut dyn WriteSeek, data: &[u8]| -> Result<(), io::Error> {
                         unsafe{*bytes_written_ptr += data.len() as u64};
@@ -1742,7 +1742,7 @@ pub mod flac {
                         Ok(write_offset + writer.stream_position()?)
                     }),
                     params
-                )?,
+                )?),
                 params: *params,
                 write_offset,
                 frames_written: 0,
