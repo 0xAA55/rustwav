@@ -9,7 +9,6 @@ mod xlaw;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
-mod resampler;
 mod hacks;
 
 pub mod utils;
