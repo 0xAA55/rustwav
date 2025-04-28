@@ -62,25 +62,48 @@
 ```rust
 use sampleutils::{SampleType, SampleFrom, i24, u24};
 use readwrite::{Reader, Writer};
-use wavcore::{Spec, SampleFormat, DataFormat, AdpcmSubFormat};
-use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter};
+use wavcore::{Spec, SampleFormat, DataFormat};
+use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter, FrameIntoIter, StereoIntoIter, MonoIntoIter};
 use wavwriter::{FileSizeOption, WaveWriter};
 use resampler::Resampler;
 use errors::{AudioReadError, AudioError, AudioWriteError};
+use wavcore::{AdpcmSubFormat};
+use wavcore::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
+use wavcore::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+use wavcore::{FlacEncoderParams, FlacCompression};
+use utils;
 
 use std::env::args;
 use std::error::Error;
 use std::process::ExitCode;
 
-const FORMATS: [(&str, DataFormat); 8] = [
+const FORMATS: [(&str, DataFormat); 9] = [
         ("pcm", DataFormat::Pcm),
         ("pcm-alaw", DataFormat::PcmALaw),
         ("pcm-ulaw", DataFormat::PcmMuLaw),
         ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
         ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
         ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
-        ("mp3", DataFormat::Mp3),
-        ("opus", DataFormat::Opus),
+        ("mp3", DataFormat::Mp3(Mp3EncoderOptions{
+            channels: Mp3Channels::NotSet,
+            quality: Mp3Quality::Best,
+            bitrate: Mp3Bitrate::Kbps320,
+            vbr_mode: Mp3VbrMode::Off,
+            id3tag: None,
+        })),
+        ("opus", DataFormat::Opus(OpusEncoderOptions{
+            bitrate: OpusBitrate::Max,
+            encode_vbr: false,
+            samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
+        })),
+        ("flac", DataFormat::Flac(FlacEncoderParams{
+            verify_decoded: false,
+            compression: FlacCompression::Level8,
+            channels: 2,
+            sample_rate: 44100,
+            bits_per_sample: 32,
+            total_samples_estimate: 0,
+        })),
 ];
 
 #[allow(unused_imports)]
@@ -94,23 +117,28 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
 
     // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
     // Otherwise, it's not needed there.
-    let mut resampler = Resampler::new(FFT_SIZE);
+    let resampler = Resampler::new(FFT_SIZE);
 
     // The decoding audio spec
-    let decode_spec = *decoder.spec();
+    let decode_spec = decoder.spec();
 
     // The encoding audio spec
-    let encode_spec = *encoder.spec();
+    let encode_spec = encoder.spec();
+
+    let decode_channels = decode_spec.channels;
+    let encode_channels = encode_spec.channels;
+    let decode_sample_rate = decode_spec.sample_rate;
+    let encode_sample_rate = encode_spec.sample_rate;
 
     // The number of channels must match
-    assert_eq!(encode_spec.channels, decode_spec.channels);
+    assert_eq!(encode_channels, decode_channels);
 
     // Process size is for the resampler to process the waveform, it is the length of the source waveform slice.
-    let process_size = resampler.get_process_size(FFT_SIZE, decode_spec.sample_rate, encode_spec.sample_rate);
+    let process_size = resampler.get_process_size(FFT_SIZE, decode_sample_rate, encode_sample_rate);
 
     // There are three types of iterators for three types of audio channels: mono, stereo, and more than 2 channels of audio.
     // Usually, the third iterator can handle all numbers of channels, but it's the slowest iterator.
-    match encode_spec.channels {
+    match encode_channels {
         1 => {
             let mut iter = decoder.mono_iter::<f32>().unwrap();
             loop {
@@ -118,8 +146,8 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
-                encoder.write_monos(&block).unwrap();
+                let block = utils::do_resample_mono(&resampler, &block, decode_sample_rate, encode_sample_rate);
+                encoder.write_mono_channel(&block).unwrap();
             }
         },
         2 => {
@@ -129,7 +157,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                let block = utils::do_resample_stereo(&resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_stereos(&block).unwrap();
             }
         },
@@ -140,7 +168,7 @@ fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mu
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(&mut resampler, &block, decode_spec.sample_rate, encode_spec.sample_rate);
+                let block = utils::do_resample_frames(&resampler, &block, decode_sample_rate, encode_sample_rate);
                 encoder.write_frames(&block).unwrap();
             }
         }
@@ -167,20 +195,40 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     }
 
     println!("======== TEST 1 ========");
+    println!("{:?}", data_format);
 
     // This is the decoder
     let mut wavereader = WaveReader::open(arg2).unwrap();
 
-    let orig_spec = *wavereader.spec();
+    let orig_spec = wavereader.spec();
 
     // The spec for the encoder
-    let spec = Spec {
+    let mut spec = Spec {
         channels: orig_spec.channels,
         channel_mask: 0,
-        sample_rate: 48000, // Specify a sample rate to test the resampler
+        sample_rate: orig_spec.sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
+
+    match data_format {
+        DataFormat::Mp3(ref mut options) => {
+            match spec.channels {
+                1 => options.channels = Mp3Channels::Mono,
+                2 => options.channels = Mp3Channels::JointStereo,
+                o => panic!("MP3 format can't encode {o} channels audio."),
+            }
+        },
+        DataFormat::Opus(ref options) => {
+            spec.sample_rate = options.get_rounded_up_sample_rate(spec.sample_rate);
+        },
+        DataFormat::Flac(ref mut options) => {
+            options.channels = spec.channels;
+            options.sample_rate = spec.sample_rate;
+            options.bits_per_sample = spec.bits_per_sample as u32;
+        },
+        _ => (),
+    }
 
     // This is the encoder
     let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
@@ -189,21 +237,21 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
 
     // Get the metadata from the decoder
-    wavewriter.inherit_metadata_from_reader(&wavereader);
-
-    // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
-    wavewriter.finalize();
+    wavewriter.inherit_metadata_from_reader(&wavereader, true);
 
     // Show debug info
     dbg!(&wavereader);
     dbg!(&wavewriter);
+
+    drop(wavereader);
+    drop(wavewriter);
 
     println!("======== TEST 2 ========");
 
     let spec2 = Spec {
         channels: spec.channels,
         channel_mask: 0,
-        sample_rate: 44100, // Changed to another sample rate to test the resampler.
+        sample_rate: orig_spec.sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
@@ -215,16 +263,34 @@ fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Er
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
     // Get the metadata from the decoder
-    wavewriter_2.inherit_metadata_from_reader(&wavereader_2);
+    wavewriter_2.inherit_metadata_from_reader(&wavereader_2, true);
 
-    // It's not needed to call `finalize()` after use, but calling it will free the memory and resources immediately.
-    wavewriter_2.finalize();
 
     // Show debug info
     dbg!(&wavereader_2);
     dbg!(&wavewriter_2);
 
+    drop(wavereader_2);
+    drop(wavewriter_2);
+
     Ok(())
+}
+
+#[allow(dead_code)]
+fn test_wav() -> ExitCode {
+    let args: Vec<String> = args().collect();
+    if args.len() < 5 {return ExitCode::from(1);}
+    let input_wav = &args[1];
+    let output_wav = &args[2];
+    let reinput_wav = &args[3];
+    let reoutput_wav = &args[4];
+    match test(input_wav, output_wav, reinput_wav, reoutput_wav) {
+        Ok(_) => ExitCode::from(0),
+        Err(e) => {
+            eprintln!("{:?}", e);
+            ExitCode::from(2)
+        },
+    }
 }
 
 #[test]
@@ -235,15 +301,6 @@ fn testrun() {
 }
 
 fn main() -> ExitCode {
-    let args: Vec<String> = args().collect();
-    if args.len() < 5 {return ExitCode::from(1);}
-
-    match test(&args[1], &args[2], &args[3], &args[4]) {
-        Ok(_) => ExitCode::from(0),
-        Err(e) => {
-            println!("Error: {}", e);
-            ExitCode::from(2)
-        },
-    }
+    test_wav()
 }
 ```
