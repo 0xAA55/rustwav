@@ -796,6 +796,15 @@ pub mod ms {
         buffer: EncoderBuffer,
     }
 
+    impl Encoder {
+        pub fn is_ready(&self) -> bool {
+            match self.channels {
+                Channels::Mono(enc) => enc.is_ready(),
+                Channels::Stereo(enc) => enc.is_ready(),
+            }
+        }
+    }
+
     #[derive(Debug, Clone, Copy)]
     pub enum Channels{
         Mono(EncoderCore),
@@ -827,14 +836,10 @@ pub mod ms {
 
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
-                let ready = match self.channels {
-                    Channels::Mono(enc) => enc.is_ready(),
-                    Channels::Stereo(enc) => enc.is_ready(),
-                };
                 self.buffer.push(sample);
-                if !ready {
+                if !self.is_ready() {
                     match self.channels {
-                        Channels::Mono(mut enc) => {
+                        Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
                                 let header = enc.get_ready(&[self.buffer[0], self.buffer[1]], &self.coeff_table);
                                 output(header.0);
@@ -845,7 +850,7 @@ pub mod ms {
                                 self.bytes_yield += 7;
                             }
                         },
-                        Channels::Stereo(mut enc) => {
+                        Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() >= 4 {
                                 let header = enc.get_ready(&[self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]], &self.coeff_table);
                                 output(header.0);
@@ -863,7 +868,7 @@ pub mod ms {
                     }
                 } else {
                     match self.channels {
-                        Channels::Mono(mut enc) => {
+                        Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
                                 let h = enc.compress_sample(self.buffer[0]);
                                 let l = enc.compress_sample(self.buffer[1]);
@@ -876,7 +881,7 @@ pub mod ms {
                                 self.bytes_yield = 0;
                             }
                         },
-                        Channels::Stereo(mut enc) => {
+                        Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() == 4 {
                                 let h1 = enc.compress_sample(self.buffer[0]);
                                 let l1 = enc.compress_sample(self.buffer[1]);
@@ -937,7 +942,7 @@ pub mod ms {
             }
         }
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
-            while self.bytes_yield > 0 {
+            while self.bytes_yield != 0 {
                 let mut iter = [0i16].into_iter();
                 self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?;
             }
