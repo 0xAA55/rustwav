@@ -1676,6 +1676,10 @@ pub mod impl_flac {
             (self.on_eof)(self.reader)
         }
 
+        pub fn get_comments(&self) -> &BTreeMap<String, String> {
+            &self.meta_comments
+        }
+
         pub fn decode(&mut self) -> Result<bool, FlacDecoderError> {
             if unsafe {FLAC__stream_decoder_process_single(self.decoder) != 0} {
                 Ok(true)
