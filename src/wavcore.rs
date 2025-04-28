@@ -1998,3 +1998,21 @@ pub mod Id3{
         }
     }
 }
+
+#[cfg(feature = "flac")]
+pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> {
+    use std::sync::OnceLock;
+    static LISTINFO_FLACMETA: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
+    LISTINFO_FLACMETA.get_or_init(|| {[
+        ("ITRK", "TRACKNUMBER"),
+        ("INAM", "TITLE"),
+        ("IART", "ARTIST"),
+        ("IPRD", "ALBUM"),
+        ("ICMT", "COMMENT"),
+        ("ICOP", "COPYRIGHT"),
+        ("ICRD", "DATE"),
+        ("IGNR", "GENRE"),
+        ("ISRC", "ISRC"),
+        ("ICMS", "PRODUCER"),
+    ].iter().copied().collect()})
+}

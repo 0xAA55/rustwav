@@ -1144,12 +1144,12 @@ pub mod opus {
 
 #[cfg(feature = "flac")]
 pub mod flac {
-    use std::{io::{self, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr};
+    use std::{io::{self, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr, collections::BTreeMap};
 
     use crate::Reader;
     use crate::SampleType;
     use crate::AudioReadError;
-    use crate::wavcore::FmtChunk;
+    use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
     use crate::flac::*;
     use crate::resampler::Resampler;
     use crate::utils::{sample_conv, sample_conv_batch, do_resample_frames};
@@ -1282,6 +1282,19 @@ pub mod flac {
                 self.decoder.decode()?;
                 Ok(())
             }
+        }
+
+        pub fn get_metadata_as_list(&self) -> Result<ListChunk, AudioReadError> {
+            let comments = self.decoder.get_comments();
+            let mut listinfo = ListChunk::Info(BTreeMap::<String, String>::new());
+
+            for (list_key, flac_key) in get_listinfo_flacmeta().iter() {
+                if let Some(data) = comments.get(flac_key.to_owned()) {
+                    listinfo.set(list_key, data)?;
+                }
+            }
+
+            Ok(listinfo)
         }
 
         pub fn get_channels(&self) -> u16 {

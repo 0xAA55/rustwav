@@ -1708,7 +1708,7 @@ pub mod flac {
 
     use crate::{i24, u24};
     use crate::AudioWriteError;
-    use crate::wavcore::FmtChunk;
+    use crate::wavcore::{FmtChunk, ListChunk, get_listinfo_flacmeta};
     use crate::flac::*;
     use crate::utils::{sample_conv, stereos_conv, sample_conv_batch};
 
@@ -1799,6 +1799,28 @@ pub mod flac {
         #[inline(always)]
         pub fn get_sample_rate(&self) -> u32 {
             self.params.sample_rate
+        }
+
+        #[cfg(feature = "id3")]
+        pub fn inherit_metadata_from_id3(&mut self, id3_tag: &id3::Tag) -> Result<(), AudioWriteError> {
+            Ok(self.encoder.inherit_metadata_from_id3(id3_tag)?)
+        }
+
+        pub fn inherit_metadata_from_list(&mut self, list_chunk: &ListChunk) -> Result<(), AudioWriteError> {
+            match list_chunk {
+                ListChunk::Info(list) => {
+                    for (list_key, flac_key) in get_listinfo_flacmeta().iter() {
+                        if let Some(data) = list.get(list_key.to_owned()) {
+                            self.encoder.insert_comments(flac_key, data).unwrap();
+                        }
+                    }
+                },
+                ListChunk::Adtl(_) => {
+                    eprintln!("Don't have `INFO` data in the WAV file `LIST` chunk.");
+                },
+            }
+
+            Ok(())
         }
 
         pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {
