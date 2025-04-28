@@ -255,5 +255,12 @@ fn testrun() {
 }
 
 fn main() -> ExitCode {
-    test_wav()
+    // test_wav()
+
+    for format in FORMATS {
+        dbg!(&format);
+        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
+    }
+
+    ExitCode::from(0)
 }
