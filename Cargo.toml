@@ -1,6 +1,6 @@
 [package]
 name = "rustwav"
-version = "0.1.0"
+version = "0.0.12"
 edition = "2021"
 authors = ["0xAA55 <838816058@qq.com>"]
 
