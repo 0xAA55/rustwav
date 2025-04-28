@@ -306,15 +306,15 @@ pub mod ima {
 
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Encoder::Mono(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
-                Encoder::Stereo(ref mut enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
+                Encoder::Mono(enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
+                Encoder::Stereo(enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
             }
         }
 
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Encoder::Mono(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
-                Encoder::Stereo(ref mut enc) => enc.flush(|nibble:u8|{output(nibble)}),
+                Encoder::Mono(enc) => enc.flush(|nibble:u8|{output(nibble)}),
+                Encoder::Stereo(enc) => enc.flush(|nibble:u8|{output(nibble)}),
             }
         }
 
@@ -338,8 +338,8 @@ pub mod ima {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
-            if let Some(ref mut extension) = fmt_chunk.extension {
-                if let ExtensionData::AdpcmIma(ref mut adpcm_ima) = extension.data {
+            if let Some(extension) = fmt_chunk.extension {
+                if let ExtensionData::AdpcmIma(mut adpcm_ima) = extension.data {
                     adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4) * fmt_chunk.channels * 2;
                     Ok(())
                 } else {
@@ -569,20 +569,20 @@ pub mod ima {
         }
         fn reset_states(&mut self) {
             match self {
-                Decoder::Mono(ref mut dec) => dec.unready(),
-                Decoder::Stereo(ref mut dec) => dec.unready(),
+                Decoder::Mono(dec) => dec.unready(),
+                Decoder::Stereo(dec) => dec.unready(),
             }
         }
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error>{
             match self {
-                Decoder::Mono(ref mut dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
-                Decoder::Stereo(ref mut dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
+                Decoder::Mono(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
+                Decoder::Stereo(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
             }
         }
         fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             match self {
-                Decoder::Mono(ref mut dec) => dec.flush(|sample:i16|{output(sample)}),
-                Decoder::Stereo(ref mut dec) => dec.flush(|sample:i16|{output(sample)}),
+                Decoder::Mono(dec) => dec.flush(|sample:i16|{output(sample)}),
+                Decoder::Stereo(dec) => dec.flush(|sample:i16|{output(sample)}),
             }
         }
     }
@@ -828,13 +828,13 @@ pub mod ms {
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 let ready = match self.channels {
-                    Channels::Mono(ref mut enc) => enc.is_ready(),
-                    Channels::Stereo(ref mut enc) => enc.is_ready(),
+                    Channels::Mono(enc) => enc.is_ready(),
+                    Channels::Stereo(enc) => enc.is_ready(),
                 };
                 self.buffer.push(sample);
                 if !ready {
                     match self.channels {
-                        Channels::Mono(ref mut enc) => {
+                        Channels::Mono(mut enc) => {
                             if self.buffer.len() == 2 {
                                 let header = enc.get_ready(&[self.buffer[0], self.buffer[1]], &self.coeff_table);
                                 output(header.0);
@@ -845,7 +845,7 @@ pub mod ms {
                                 self.bytes_yield += 7;
                             }
                         },
-                        Channels::Stereo(ref mut enc) => {
+                        Channels::Stereo(mut enc) => {
                             if self.buffer.len() >= 4 {
                                 let header = enc.get_ready(&[self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]], &self.coeff_table);
                                 output(header.0);
@@ -863,7 +863,7 @@ pub mod ms {
                     }
                 } else {
                     match self.channels {
-                        Channels::Mono(ref mut enc) => {
+                        Channels::Mono(mut enc) => {
                             if self.buffer.len() == 2 {
                                 let h = enc.compress_sample(self.buffer[0]);
                                 let l = enc.compress_sample(self.buffer[1]);
@@ -876,7 +876,7 @@ pub mod ms {
                                 self.bytes_yield = 0;
                             }
                         },
-                        Channels::Stereo(ref mut enc) => {
+                        Channels::Stereo(mut enc) => {
                             if self.buffer.len() == 4 {
                                 let h1 = enc.compress_sample(self.buffer[0]);
                                 let l1 = enc.compress_sample(self.buffer[1]);
@@ -923,8 +923,8 @@ pub mod ms {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32 / 8;
-            if let Some(ref mut extension) = fmt_chunk.extension {
-                if let ExtensionData::AdpcmMs(ref mut adpcm_ms) = extension.data {
+            if let Some(extension) = fmt_chunk.extension {
+                if let ExtensionData::AdpcmMs(mut adpcm_ms) = extension.data {
                     adpcm_ms.samples_per_block = (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * fmt_chunk.channels;
                     adpcm_ms.num_coeff = self.coeff_table.len() as u16;
                     adpcm_ms.coeffs = self.coeff_table;
@@ -1143,8 +1143,8 @@ pub mod ms {
 
         pub fn unready(&mut self) {
             match self {
-                Self::Mono(ref mut mono) => mono.unready(),
-                Self::Stereo(ref mut stereo) => stereo.unready(),
+                Self::Mono(mono) => mono.unready(),
+                Self::Stereo(stereo) => stereo.unready(),
             }
         }
 
@@ -1195,7 +1195,7 @@ pub mod ms {
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 match self {
-                    Self::Mono(ref mut mono) => {
+                    Self::Mono(mono) => {
                         if !mono.is_ready() {
                             mono.header_buffer.push(byte);
                             if mono.header_buffer.is_full() {
@@ -1211,7 +1211,7 @@ pub mod ms {
                             }
                         }
                     },
-                    Self::Stereo(ref mut stereo) => {
+                    Self::Stereo(stereo) => {
                         if !stereo.is_ready() {
                             if !stereo.core_l.header_buffer.is_full() {
                                 stereo.core_l.header_buffer.push(byte);
@@ -1239,13 +1239,13 @@ pub mod ms {
 
         fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(ref mut mono) => {
+                Self::Mono(mono) => {
                     if mono.bytes_eaten > 0 && mono.bytes_eaten < mono.max_bytes_can_eat {
                         let mut food = vec![0; mono.max_bytes_can_eat - mono.bytes_eaten].into_iter();
                         self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
                     }
                 },
-                Self::Stereo(ref mut stereo) => {
+                Self::Stereo(stereo) => {
                     if stereo.bytes_eaten > 0 && stereo.bytes_eaten < stereo.max_bytes_can_eat {
                         let mut food = vec![0; stereo.max_bytes_can_eat - stereo.bytes_eaten].into_iter();
                         self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
@@ -1428,8 +1428,8 @@ pub mod yamaha {
 
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(ref mut enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
-                Self::Stereo(ref mut enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
+                Self::Mono(enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
+                Self::Stereo(enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
             }
             Ok(())
         }
@@ -1457,8 +1457,8 @@ pub mod yamaha {
 
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(ref mut enc) => enc.flush(|nibble|{output(nibble)}),
-                Self::Stereo(ref mut enc) => enc.flush(|nibble|{output(nibble)}),
+                Self::Mono(enc) => enc.flush(|nibble|{output(nibble)}),
+                Self::Stereo(enc) => enc.flush(|nibble|{output(nibble)}),
             }
             Ok(())
         }
@@ -1558,15 +1558,15 @@ pub mod yamaha {
 
         fn reset_states(&mut self) {
             match self {
-                Self::Mono(ref mut dec) => *dec = DecoderMono::new(),
-                Self::Stereo(ref mut dec) => *dec = DecoderStereo::new(),
+                Self::Mono(dec) => *dec = DecoderMono::new(),
+                Self::Stereo(dec) => *dec = DecoderStereo::new(),
             }
         }
 
         fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(ref mut dec) => dec.decode(||{input()},|sample|{output(sample)}),
-                Self::Stereo(ref mut dec) => dec.decode(||{input()},|sample|{output(sample)}),
+                Self::Mono(dec) => dec.decode(||{input()},|sample|{output(sample)}),
+                Self::Stereo(dec) => dec.decode(||{input()},|sample|{output(sample)}),
             }
             Ok(())
         }

@@ -1626,7 +1626,7 @@ impl ListInfo for ListChunk {
     }
 
     fn set(&mut self, key: &str, value: &str) -> Result<Option<String>, AudioError> {
-        if let Self::Info(ref mut dict) = self {
+        if let Self::Info(dict) = self {
             Ok(dict.insert(key.to_owned(), value.to_string()))
         } else {
             Err(AudioError::InvalidArguments("The type of the `LIST` chunk is `adtl`, not `INFO`, so can not set the metadata values.".to_owned()))

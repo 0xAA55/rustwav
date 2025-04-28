@@ -1233,8 +1233,8 @@ pub mod mp3 {
             }
             pub fn clear(&mut self, max_frames: usize) {
                 match self {
-                    Self::Mono(ref mut m) => *m = Vec::<S>::with_capacity(max_frames),
-                    Self::Stereo(ref mut s) => *s = (Vec::<S>::with_capacity(max_frames), Vec::<S>::with_capacity(max_frames)),
+                    Self::Mono(m) => *m = Vec::<S>::with_capacity(max_frames),
+                    Self::Stereo(s) => *s = (Vec::<S>::with_capacity(max_frames), Vec::<S>::with_capacity(max_frames)),
                 }
             }
         }
