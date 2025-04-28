@@ -1701,20 +1701,22 @@ pub mod opus {
 }
 
 #[cfg(feature = "flac")]
-pub mod flac {
-    use std::{io::{self, SeekFrom}, borrow::Cow};
+pub mod flac_enc {
+    use std::{io::{self, Write, Seek, SeekFrom}, borrow::Cow};
 
     use super::EncoderToImpl;
 
+    use crate::Writer;
     use crate::{i24, u24};
     use crate::AudioWriteError;
     use crate::wavcore::{FmtChunk, ListChunk, get_listinfo_flacmeta};
-    use crate::flac::*;
     use crate::utils::{sample_conv, stereos_conv, sample_conv_batch};
+    use crate::readwrite::WriteBridge;
+    use flac::{FlacEncoderUnmovable, FlacEncoderParams};
 
     #[derive(Debug)]
     pub struct FlacEncoderWrap<'a> {
-        encoder: Box<FlacEncoderUnmovable<'a>>,
+        encoder: Box<FlacEncoderUnmovable<'a, WriteBridge<'a>>>,
         params: FlacEncoderParams,
         write_offset: u64,
         frames_written: u64,
@@ -1722,23 +1724,23 @@ pub mod flac {
     }
     
     impl<'a> FlacEncoderWrap<'a> {
-        pub fn new(writer: &'a mut dyn WriteSeek, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
+        pub fn new(writer: &'a mut dyn Writer, params: &FlacEncoderParams) -> Result<Self, AudioWriteError> {
             let write_offset = writer.stream_position()?;
             let mut bytes_written = Box::new(0u64);
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
+            // Let the closures capture the pointer of the boxed variables, then use these pointers to update the variables.
             Ok(Self{
-                // Let the closures capture the pointer of the boxed variables, then use these pointers to update the variables.
                 encoder: Box::new(FlacEncoderUnmovable::new(
-                    writer,
-                    Box::new(move |writer: &mut dyn WriteSeek, data: &[u8]| -> Result<(), io::Error> {
+                    WriteBridge::new(writer),
+                    Box::new(move |writer: &mut WriteBridge, data: &[u8]| -> Result<(), io::Error> {
                         unsafe{*bytes_written_ptr += data.len() as u64};
                         writer.write_all(data)
                     }),
-                    Box::new(move |writer: &mut dyn WriteSeek, position: u64| -> Result<(), io::Error> {
+                    Box::new(move |writer: &mut WriteBridge, position: u64| -> Result<(), io::Error> {
                         writer.seek(SeekFrom::Start(write_offset + position))?;
                         Ok(())
                     }),
-                    Box::new(move |writer: &mut dyn WriteSeek| -> Result<u64, io::Error> {
+                    Box::new(move |writer: &mut WriteBridge| -> Result<u64, io::Error> {
                         Ok(write_offset + writer.stream_position()?)
                     }),
                     params

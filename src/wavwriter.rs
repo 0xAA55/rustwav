@@ -27,7 +27,7 @@ use crate::encoders::mp3::Mp3Encoder;
 use crate::encoders::opus::OpusEncoder;
 
 #[cfg(feature = "flac")]
-use crate::encoders::flac::FlacEncoderWrap;
+use crate::encoders::flac_enc::FlacEncoderWrap;
 
 // 你以为 WAV 文件只能在 4GB 以内吗？
 #[derive(Debug)]

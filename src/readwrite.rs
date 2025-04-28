@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, Seek}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug};
+use std::{io::{self, Read, Write, Seek, SeekFrom}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug};
 
 pub trait Reader: Read + Seek + Debug {}
 impl<T> Reader for T where T: Read + Seek + Debug {}
@@ -8,22 +8,63 @@ impl<T> Reader for T where T: Read + Seek + Debug {}
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
-pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
-where R: Read, W: Write {
-    const BUFFER_SIZE: u64 = 1024;
-    let mut buf = vec![0u8; BUFFER_SIZE as usize];
-    let mut to_copy = bytes_to_copy;
-    while to_copy >= BUFFER_SIZE {
-        reader.read_exact(&mut buf)?;
-        writer.write_all(&buf)?;
-        to_copy -= BUFFER_SIZE;
+#[derive(Debug)]
+pub struct ReadBridge<'a> {
+    reader: &'a mut dyn Reader,
+}
+
+impl<'a> ReadBridge<'a> {
+    pub fn new(reader: &'a mut dyn Reader) -> Self {
+        Self{
+            reader,
+        }
     }
-    if to_copy > 0 {
-        buf.resize(to_copy as usize, 0);
-        reader.read_exact(&mut buf)?;
-        writer.write_all(&buf)?;
+}
+
+impl<'a> Read for ReadBridge<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.reader.read(buf)
     }
-    Ok(())
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+        self.reader.read_exact(buf)
+    }
+}
+
+impl<'a> Seek for ReadBridge<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.reader.seek(pos)
+    }
+}
+
+#[derive(Debug)]
+pub struct WriteBridge<'a> {
+    writer: &'a mut dyn Writer,
+}
+
+impl<'a> WriteBridge<'a> {
+    pub fn new(writer: &'a mut dyn Writer) -> Self {
+        Self{
+            writer,
+        }
+    }
+}
+
+impl<'a> Write for WriteBridge<'_> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.writer.write(buf)
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.writer.flush()
+    }
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        self.writer.write_all(buf)
+    }
+}
+
+impl<'a> Seek for WriteBridge<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.writer.seek(pos)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +113,24 @@ impl SharedWriter{
         let mut writer = guard.deref_mut();
         (action)(&mut writer)
     }
+}
+
+pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
+where R: Read, W: Write {
+    const BUFFER_SIZE: u64 = 1024;
+    let mut buf = vec![0u8; BUFFER_SIZE as usize];
+    let mut to_copy = bytes_to_copy;
+    while to_copy >= BUFFER_SIZE {
+        reader.read_exact(&mut buf)?;
+        writer.write_all(&buf)?;
+        to_copy -= BUFFER_SIZE;
+    }
+    if to_copy > 0 {
+        buf.resize(to_copy as usize, 0);
+        reader.read_exact(&mut buf)?;
+        writer.write_all(&buf)?;
+    }
+    Ok(())
 }
 
 pub mod string_io {

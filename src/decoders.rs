@@ -17,7 +17,7 @@ use mp3::Mp3Decoder;
 use opus::OpusDecoder;
 
 #[cfg(feature = "flac")]
-use flac::FlacDecoderWrap;
+use flac_dec::FlacDecoderWrap;
 
 // Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
@@ -1143,21 +1143,22 @@ pub mod opus {
 }
 
 #[cfg(feature = "flac")]
-pub mod flac {
-    use std::{io::{self, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr, collections::BTreeMap};
+pub mod flac_dec {
+    use std::{io::{self, Read, Seek, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr, collections::BTreeMap};
 
+    use super::get_rounded_up_fft_size;
     use crate::Reader;
     use crate::SampleType;
     use crate::AudioReadError;
     use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
-    use crate::flac::*;
-    use crate::resampler::Resampler;
     use crate::utils::{sample_conv, sample_conv_batch, do_resample_frames};
-    use super::get_rounded_up_fft_size;
+    use crate::readwrite::ReadBridge;
+    use flac::{FlacDecoderUnmovable, FlacReadStatus, SamplesInfo, FlacInternalDecoderError, FlacAudioForm};
+    use resampler::Resampler;
 
     pub struct FlacDecoderWrap<'a> {
         reader: Box<dyn Reader>,
-        decoder: Box<FlacDecoderUnmovable<'a>>,
+        decoder: Box<FlacDecoderUnmovable<'a, ReadBridge<'a>>>,
         resampler: Resampler,
         channels: u16,
         sample_rate: u32,
@@ -1173,13 +1174,13 @@ pub mod flac {
     impl<'a> FlacDecoderWrap<'a> {
         pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
-            let mut self_ptr: Box<*mut FlacDecoderWrap> = Box::new(ptr::null_mut());
-            let self_ptr_ptr = (/* Mutable */&mut /* Unbox */*self_ptr) as /* To the pointer of */*mut /* the pointer inside the box pointing the `self`*/*mut Self;
+            let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
+            let self_ptr_ptr = (&mut *self_ptr) as *mut *mut Self;
             let reader_ptr = Box::into_raw(reader); // On the fly reader
             let decoder = Box::new(FlacDecoderUnmovable::new(
-                unsafe {&mut *reader_ptr},
+                ReadBridge::new(unsafe {&mut *reader_ptr}),
                 // on_read
-                Box::new(move |reader: &mut dyn ReadSeek, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
+                Box::new(move |reader: &mut ReadBridge, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
                     let to_read = buffer.len();
                     match reader.read(buffer) {
                         Ok(size) => {
@@ -1196,26 +1197,26 @@ pub mod flac {
                     }
                 }),
                 // on_seek
-                Box::new(move |reader: &mut dyn ReadSeek, position: u64|-> Result<(), io::Error> {
+                Box::new(move |reader: &mut ReadBridge, position: u64|-> Result<(), io::Error> {
                     reader.seek(SeekFrom::Start(data_offset + position))?;
                     Ok(())
                 }),
                 // on_tell
-                Box::new(move |reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                Box::new(move |reader: &mut ReadBridge| -> Result<u64, io::Error> {
                     Ok(reader.stream_position()? - data_offset)
                 }),
                 // on_length
-                Box::new(move |_reader: &mut dyn ReadSeek| -> Result<u64, io::Error> {
+                Box::new(move |_reader: &mut ReadBridge| -> Result<u64, io::Error> {
                     Ok(data_length)
                 }),
                 // on_eof
-                Box::new(move |reader: &mut dyn ReadSeek| -> bool {
+                Box::new(move |reader: &mut ReadBridge| -> bool {
                     reader.stream_position().unwrap() >= data_offset + data_length
                 }),
                 // on_write
                 Box::new(move |frames: &[Vec<i32>], sample_info: &SamplesInfo| -> Result<(), io::Error> {
                     // Before `on_write()` was called, make sure `self_ptr` was updated to the `self` pointer of `FlacDecoderWrap`
-                    let this = unsafe{&mut (**self_ptr_ptr) as &mut Self};
+                    let this = unsafe{&mut *(*self_ptr_ptr).cast::<Self>()};
                     this.decoded_frames_index = 0;
                     if sample_info.sample_rate != this.sample_rate {
                         this.decoded_frames.clear();

@@ -263,9 +263,6 @@ impl From<opus::Error> for AudioWriteError {
 }
 
 #[cfg(feature = "flac")]
-use crate::flac;
-
-#[cfg(feature = "flac")]
 impl From<flac::FlacEncoderError> for AudioReadError {
     fn from(err: flac::FlacEncoderError) -> Self {
         let err_code = err.code;

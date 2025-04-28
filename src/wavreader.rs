@@ -27,7 +27,7 @@ use crate::decoders::mp3::Mp3Decoder;
 use crate::decoders::opus::OpusDecoder;
 
 #[cfg(feature = "flac")]
-use crate::decoders::flac::FlacDecoderWrap;
+use crate::decoders::flac_dec::FlacDecoderWrap;
 
 #[derive(Debug)]
 pub enum WaveDataSource {
