@@ -1913,7 +1913,71 @@ impl Debug for JunkChunk {
     }
 }
 
-// If the `id3` feature is enabled, use it to read ID3 data.
+
+#[cfg(feature = "flac")]
+pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> {
+    use std::sync::OnceLock;
+    static LISTINFO_FLACMETA: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
+    LISTINFO_FLACMETA.get_or_init(|| {[
+        ("ITRK", "TRACKNUMBER"),
+        ("INAM", "TITLE"),
+        ("IART", "ARTIST"),
+        ("IPRD", "ALBUM"),
+        ("ICMT", "COMMENT"),
+        ("ICOP", "COPYRIGHT"),
+        ("ICRD", "DATE"),
+        ("IGNR", "GENRE"),
+        ("ISRC", "ISRC"),
+        ("ICMS", "PRODUCER"),
+    ].iter().copied().collect()})
+}
+
+#[cfg(not(feature = "flac"))]
+pub mod flac{
+    /// ## The compression level of the FLAC file
+    /// A higher number means less file size. Default compression level is 5
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum FlacCompression {
+        /// Almost no compression
+        Level0 = 0,
+        Level1 = 1,
+        Level2 = 2,
+        Level3 = 3,
+        Level4 = 4,
+        Level5 = 5,
+        Level6 = 6,
+        Level7 = 7,
+
+        /// Maximum compression
+        Level8 = 8
+    }
+
+    /// ## Parameters for the encoder to encode the audio.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct FlacEncoderParams {
+        /// * If set to true, the FLAC encoder will send the encoded data to a decoder to verify if the encoding is successful, and the encoding process will be slower.
+        pub verify_decoded: bool,
+
+        /// * The compression level of the FLAC file, a higher number means less file size.
+        pub compression: FlacCompression,
+
+        /// * Num channels of the audio file, max channels is 8.
+        pub channels: u16,
+
+        /// * The sample rate of the audio file. Every FLAC frame contains this value.
+        pub sample_rate: u32,
+
+        /// * How many bits in an `i32` are valid for a sample, for example, if this value is 16, your `i32` sample should be between -32768 to +32767.
+        ///   Because the FLAC encoder **only eats `[i32]`** , and you can't just pass `[i16]` to it.
+        ///   It seems like 8, 12, 16, 20, 24, 32 are valid values for this field.
+        pub bits_per_sample: u32,
+
+        /// * How many samples you will put into the encoder, set to zero if you don't know.
+        pub total_samples_estimate: u64,
+    }
+}
+
+/// ## If the `id3` feature is enabled, use it to read ID3 data.
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
 pub mod Id3{
@@ -1997,22 +2061,4 @@ pub mod Id3{
                 .finish_non_exhaustive()
         }
     }
-}
-
-#[cfg(feature = "flac")]
-pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> {
-    use std::sync::OnceLock;
-    static LISTINFO_FLACMETA: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
-    LISTINFO_FLACMETA.get_or_init(|| {[
-        ("ITRK", "TRACKNUMBER"),
-        ("INAM", "TITLE"),
-        ("IART", "ARTIST"),
-        ("IPRD", "ALBUM"),
-        ("ICMT", "COMMENT"),
-        ("ICOP", "COPYRIGHT"),
-        ("ICRD", "DATE"),
-        ("IGNR", "GENRE"),
-        ("ISRC", "ISRC"),
-        ("ICMS", "PRODUCER"),
-    ].iter().copied().collect()})
 }
