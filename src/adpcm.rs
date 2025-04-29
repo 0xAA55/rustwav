@@ -1,17 +1,30 @@
-#![allow(dead_code)]
-
 use std::{io, fmt::Debug};
 use crate::wavcore::{FmtChunk};
 
+/// * This is used for the encoder to decide while the new sample arrives, which channel the sample should be put in
 #[derive(Debug, Clone, Copy)]
 pub enum CurrentChannel {
     Left,
-    Right
+    Right,
 }
 
+/// ## The `AdpcmEncoder` trait for all of the ADPCM encoders to implement
+/// * This thing is able to encode samples, write the `fmt ` chunk, update statistics, and finish encoding.
 pub trait AdpcmEncoder: Debug {
     fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
+
+    /// * The `encode()` function uses two closures to input samples and output the encoded data.
+    /// * If you have samples to encode, just feed it through the `input` closure. When it has encoded data to excrete, it will call the `output()` closure to give you back the encoded data.
+    /// * It will endlessly ask for new samples to encode through calling `input` closure, give it a `None` and let it return.
+    /// * You can continue encoding by calling `encode()` again and feeding the samples through the `input` closure.
+    /// * Typically usage is to use an iterator to feed data through the `input` closure, when no data to feed, the `iter.next()` returns `None` to break the loop.
+    /// * If you have the iterator, it is convenient to use `iter.as_ref().take()` to break the waveform into segments, and feeding each segment to the encoder works too.
+    ///   And you have the convenience to modify each segment of the audio data e.g. do some resampling (first call the taken data's `collect()` method to get a `Vec`, then do your process, and turn the `Vec` into another iterator to feed the encoder), etc.
     fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
+
+    /// * Call this method if you want to create a `fmt ` chunk for a WAV file.
+    /// * The `fmt ` chunk is new and it's without any statistics data inside it.
+    /// * Later after encoding, you should call `modify_fmt_chunk()` to update the `fmt ` chunk for the encoder to save some statistics data.
     fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
         let block_align = (bits_per_sample as u32 * channels as u32 / 8) as u16;
         Ok(FmtChunk {
@@ -24,25 +37,50 @@ pub trait AdpcmEncoder: Debug {
             extension: None,
         })
     }
+
+    /// * After encoding, call this function to update the `fmt ` chunk for the encoder to save some statistics data.
     fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
         Ok(())
     }
+
+    /// * Flush the encoder. The encoder may have some half-bytes (nibbles) in the cache, or the encoded data size is not a full block.
+    /// * Normally the `flush()` method will feed zero samples for the encoder to let it excrete.
     fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
         Ok(())
     }
 }
 
+/// ## The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
+/// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
     fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
+
+    /// * Get the block size for each block stored in the `data` chunk of the WAV file.
+    /// * When it's needed to seek for a sample, first seek to the block, then decode the block to get the sample.
     fn get_block_size(&self) -> usize;
+
+    /// * How many audio frames are encoded in a block of data. An audio frame is an array that contains one sample for every channel.
     fn frames_per_block(&self) -> usize;
-    fn reset_states(&mut self); // Resets decoder state (e.g., after seeking to a new position).
+
+    /// * This function is called before seeking, it resets the decoder to prevent it excretes unexpected samples.
+    fn reset_states(&mut self);
+
+    /// * The `decode()` function uses two closures to input data and output the decoded samples.
+    /// * When there's data to be decoded, feed it through the `input()` closure by wrapping it to `Some(data)`.
+    /// * When the decoder wants to excrete samples, it calls `output()` closure to give you the sample.
+    /// * The function will endlessly call `input()` to get the encoded data. Feed it a `None` will let the function return.
+    /// * To continue decoding, just call the function again and feed it `Some(data)` through the `input()` closure.
     fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
+
+    /// * The `flush()` function causes the decoder to excrete the last samples.
     fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
         Ok(())
     }
 }
 
+/// ### An example test function to test the `AdpcmEncoder` and the `AdpcmDecoder`.
+/// * Normally it won't be called by you, but if you want to test how lossy the ADPCM algorithm is, this can help.
+#[allow(dead_code)]
 pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
     encoder.encode(
         ||-> Option<i16> { input() },
@@ -120,6 +158,7 @@ pub mod ima {
     const INTERLEAVE_SAMPLES: usize = INTERLEAVE_BYTES * 2;
     const NIBBLE_BUFFER_SIZE: usize = HEADER_SIZE + INTERLEAVE_BYTES;
 
+    /// ## The core encoder of ADPCM-IMA for mono-channel
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
         prev_sample: i16,
@@ -131,6 +170,7 @@ pub mod ima {
     }
 
     impl EncoderCore{
+        /// Set all of the members to zero.
         pub fn new() -> Self {
             Self {
                 prev_sample: 0,
@@ -142,7 +182,7 @@ pub mod ima {
             }
         }
 
-        // Encode one sample, get 4 bits code
+        /// * Encode one sample, get a nibble
         pub fn encode_sample(&mut self, sample: i16) -> u8 {
             let mut prev = self.prev_sample as i32;
             let idx = self.stepsize_index;
@@ -168,9 +208,9 @@ pub mod ima {
             nibble
         }
 
-        // Encoder logic:
-        // 1. Initially outputs 4 bytes of the decoder's state machine register values.
-        // 2. Processes samples by converting two raw samples into one encoded unit.
+        /// ### Encoder logic:
+        /// 1. Initially outputs 4 bytes of the decoder's state machine register values.
+        /// 2. Processes samples by converting two raw samples into one encoded unit combined by two nibbles (a byte).
         pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 if !self.header_written {
@@ -202,6 +242,7 @@ pub mod ima {
             Ok(())
         }
 
+        /// * Continue feeding zeroes to the encoder until it finishes processing a whole block of data.
         pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             let aligned_size = ((self.num_outputs - 1) / INTERLEAVE_BYTES + 1) * INTERLEAVE_BYTES;
             let pad_size = aligned_size - self.num_outputs;
@@ -222,6 +263,7 @@ pub mod ima {
     type EncoderSampleBuffer = CopiableBuffer<i16, INTERLEAVE_SAMPLES>;
     type EncoderNibbleBuffer = CopiableBuffer<u8, NIBBLE_BUFFER_SIZE>;
 
+    /// ### A wrapper for the `EncoderCore` to encode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoEncoder {
         current_channel: CurrentChannel,
@@ -233,6 +275,7 @@ pub mod ima {
         nibble_r: EncoderNibbleBuffer,
     }
 
+    /// ## The ADPCM-IMA Encoder for you to use.
     #[derive(Debug, Clone)]
     pub enum Encoder {
         Mono(EncoderCore),
@@ -252,6 +295,8 @@ pub mod ima {
             }
         }
 
+        /// * This `encode()` function will cache a very small amount of samples and data.
+        /// * Call `flush()` to let it excrete all of the cached data.
         pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 match self.current_channel{
@@ -280,6 +325,7 @@ pub mod ima {
             Ok(())
         }
 
+        /// * Let the encoder excrete all of the data, finish encoding.
         pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while !self.sample_l.is_empty() || !self.sample_r.is_empty() {
                 let mut iter = [0i16].into_iter();
@@ -354,10 +400,10 @@ pub mod ima {
     type DecoderNibbleBuffer = CopiableBuffer<u8, INTERLEAVE_BYTES>;
     type DecoderSampleBuffer = CopiableBuffer<i16, INTERLEAVE_SAMPLES>;
 
-    // Decoder logic:
-    // - Data is stored as interleaved u32 values across channels.
-    // - For each channel, the first u32 initializes the decoder state.
-    // - Each subsequent u32 (4 bytes) decodes into 8 compressed nibbles (4-bit samples).
+    /// ### Decoder logic:
+    /// * Data is stored as interleaved u32 values across channels.
+    /// * For each channel, the first u32 initializes the decoder state.
+    /// * Each subsequent u32 (4 bytes) decodes into 8 compressed nibbles (4-bit samples).
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderCore {
         sample_val: i16,
@@ -380,7 +426,7 @@ pub mod ima {
             }
         }
 
-        // 解一个码
+        /// Decode one sample
         pub fn decode_sample(&mut self, nibble: u8) -> i16 {
             let mut predict = self.sample_val as i32;
             let idx = self.stepsize_index;
@@ -399,6 +445,7 @@ pub mod ima {
             self.sample_val
         }
 
+        /// * This `encode()` function needs 4 initial bytes to initialize, after being initialized, every 4 bytes decodes to 8 samples.
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 if !self.ready {
@@ -439,10 +486,13 @@ pub mod ima {
             Ok(())
         }
 
+        /// * Check if one block of data was fully decoded (at the beginning of a new block)
         pub fn on_new_block(&self) -> bool {
             (self.ready, self.input_count == 0) == (false, true)
         }
 
+        /// * Uninitialize the decoder. Every time it finishes decoding a block, it needs to be uninitialized.
+        /// * Another usage is for seeking. Before seeking, `unready()` should be called to uninitialize the decoder.
         pub fn unready(&mut self) {
             self.sample_val = 0;
             self.stepsize_index = 0;
@@ -451,6 +501,7 @@ pub mod ima {
             self.ready = false;
         }
 
+        /// * Continuous feeding the decoder zero data until it finished decoding a whole block.
         pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while !self.on_new_block() {
                 let mut iter = [0u8].into_iter();
@@ -460,6 +511,7 @@ pub mod ima {
         }
     }
 
+    /// ### A wrapper for the `DecoderCore` to decode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoDecoder {
         current_channel: CurrentChannel,
@@ -472,6 +524,7 @@ pub mod ima {
         block_size: usize,
     }
 
+    /// ## The ADPCM-IMA Decoder for you to use.
     #[derive(Debug, Clone, Copy)]
     pub enum Decoder {
         Mono(DecoderCore),
@@ -492,6 +545,8 @@ pub mod ima {
             }
         }
 
+        /// * Uninitialize the decoder. Every time it finishes decoding a block, it needs to be uninitialized.
+        /// * Another usage is for seeking. Before seeking, `unready()` should be called to uninitialize the decoder.
         pub fn unready(&mut self) {
             self.current_channel = CurrentChannel::Left;
             self.core_l.unready();
@@ -502,6 +557,8 @@ pub mod ima {
             self.sample_r.clear();
         }
 
+        /// * This `encode()` function needs 8 initial bytes to initialize 2 decoder cores, after being initialized, every 8 bytes decode to 16 samples.
+        /// * The output samples are interleaved by channels.
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while let Some(nibble) = input() {
                 match self.current_channel{
@@ -535,6 +592,8 @@ pub mod ima {
             Ok(())
         }
 
+        /// * Flush both decoder cores.
+        /// Continuous feeding the decoder zero data until it finished decoding a whole block.
         pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while !self.core_l.on_new_block() || !self.core_r.on_new_block() {
                 let mut iter = [0u8].into_iter();
@@ -543,7 +602,6 @@ pub mod ima {
             Ok(())
         }
     }
-
 
     impl AdpcmDecoder for Decoder {
         fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
@@ -559,12 +617,13 @@ pub mod ima {
                 Decoder::Stereo(dec) => dec.block_size,
             }
         }
+
+        /// Each byte stores two 4-bit samples (packed as high/low nibbles).
+        /// Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
+        /// Mono: Block size = BLOCK_SIZE.
+        /// Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
+        /// Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
         fn frames_per_block(&self) -> usize {
-            // Each byte stores two 4-bit samples (packed as high/low nibbles).
-            // Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
-            // Mono: Block size = BLOCK_SIZE.
-            // Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
-            // Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
             (self.get_block_size() - HEADER_SIZE) * 2
         }
         fn reset_states(&mut self) {
@@ -650,6 +709,7 @@ pub mod ms {
         (c.clamp(-8, 7) & 0x0F) as u8
     }
 
+    /// ## The core encoder of ADPCM-MS for mono-channel
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
         predictor: i32,
@@ -672,14 +732,18 @@ pub mod ms {
             }
         }
 
+        /// * If the encoder is ready, put samples to get the encoded data.
         pub fn is_ready(&self) -> bool {
             self.ready
         }
 
+        /// * Uninitialize the decoder. Every time it finishes decoding a block, it needs to be uninitialized.
+        /// * Another usage is for seeking. Before seeking, `unready()` should be called to uninitialize the decoder.
         pub fn unready(&mut self) {
             self.ready = false;
         }
 
+        /// * Encode one sample to a nibble
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             let predictor = (
                 self.sample1 as i32 * self.coeff.get(1) as i32 +
@@ -703,6 +767,8 @@ pub mod ms {
             nibble as u8
         }
 
+        /// * To be initialized, some data is needed for the encoder.
+        /// * The encoder excretes 4 fields of data as the header of a block of audio data.
         pub fn get_ready(&mut self, samples: &[i16; 2], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, i16, i16, i16) {
             let predictor = 0u8;
             self.coeff = coeff_table[predictor as usize];
@@ -725,6 +791,7 @@ pub mod ms {
         output(bytes[1]);
     }
 
+    /// ### A wrapper for the `EncoderCore` to encode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoEncoder {
         core_l: EncoderCore,
@@ -743,10 +810,13 @@ pub mod ms {
             }
         }
 
+        /// * If the encoder is ready, put samples to get the encoded data.
         pub fn is_ready(&self) -> bool {
             self.ready
         }
 
+        /// * Uninitialize the decoder. Every time it finishes decoding a block, it needs to be uninitialized.
+        /// * Another usage is for seeking. Before seeking, `unready()` should be called to uninitialize the decoder.
         pub fn unready(&mut self) {
             self.core_l.unready();
             self.core_r.unready();
@@ -754,6 +824,7 @@ pub mod ms {
             self.ready = false;
         }
 
+        /// * Encode one sample to a nibble, interleaved by channels
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             match self.current_channel {
                 CurrentChannel::Left => {
@@ -767,6 +838,9 @@ pub mod ms {
             }
         }
 
+        /// * To be initialized, some data is needed for the encoder.
+        /// * The encoder excretes 4 fields of data as the header of a block of audio data.
+        /// * There are two of the encoder cores to be initialized, so 8 fields of data are to be excreted.
         pub fn get_ready(&mut self, samples: &[i16; 4], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
             let ready1 = self.core_l.get_ready(&[samples[0], samples[2]], coeff_table);
             let ready2 = self.core_r.get_ready(&[samples[1], samples[3]], coeff_table);
@@ -788,6 +862,7 @@ pub mod ms {
 
     type EncoderBuffer = CopiableBuffer<i16, 4>;
 
+    /// ## The encoder is for your use
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder{
         channels: Channels,
@@ -834,6 +909,10 @@ pub mod ms {
             }
         }
 
+        /// * When uninitialized, it asks for data to initialize the encoder cores.
+        /// * On initialization, every encoder cores excrete its data for the header of the block.
+        /// * When ready to encode, for stereo, each byte contains 2 nibbles, one for the left channel, and another for the right channel.
+        /// * Same as other `encode()` functions, feed it `Some(sample)` keep it continuously asking for new samples, and feed it `None` to let it return.
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
@@ -903,6 +982,7 @@ pub mod ms {
             Ok(())
         }
 
+        /// * The ADPCM-MS has specific `fmt ` chunk extension data to store the coeff table.
         fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
             if bits_per_sample != 4 {
                 eprintln!("For ADPCM-MS, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored.");
@@ -924,6 +1004,7 @@ pub mod ms {
             })
         }
 
+        /// * When encoding is ended, call this to update statistics data for the `fmt ` chunk.
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
@@ -941,6 +1022,8 @@ pub mod ms {
                 Err(io::Error::new(io::ErrorKind::InvalidData, "For ADPCM-MS, must store the extension data in the `fmt ` chunk".to_owned()))
             }
         }
+
+        /// * Excrete the last data.
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while self.bytes_yield != 0 {
                 let mut iter = [0i16].into_iter();
@@ -950,7 +1033,7 @@ pub mod ms {
         }
     }
 
-
+    /// ## This is the decoder core for mono-channel decoding
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderCore {
         sample1: i16,
@@ -964,6 +1047,7 @@ pub mod ms {
         max_bytes_can_eat: usize,
     }
 
+    /// * The header data for the decoder to initialize.
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderBreakfast {
         predictor: u8,
@@ -973,6 +1057,7 @@ pub mod ms {
     }
 
     impl DecoderCore{
+        /// * If `fmt_chunk` doesn't have the extension data, use the default coeff table.
         pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample1: 0,
@@ -1005,6 +1090,7 @@ pub mod ms {
             }
         }
 
+        /// * Uncompress a nibble to a sample
         pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
             let predictor = (
                 self.sample1 as i32 * self.coeff.get(1) as i32 +
@@ -1019,24 +1105,29 @@ pub mod ms {
             self.sample1
         }
 
+        /// * Check if breakfast was eaten, and ready to decode.
         pub fn is_ready(&self) -> bool {
             self.ready
         }
 
+        /// * Puke the breakfast, and reset to the initial state.
         pub fn unready(&mut self) {
             self.header_buffer.clear();
             self.bytes_eaten = 0;
             self.ready = false;
         }
 
+        /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
         pub fn get_bytes_eaten(&self) -> usize {
             self.bytes_eaten
         }
 
+        /// * The block size in the `fmt ` chunk.
         pub fn get_max_bytes_can_eat(&self) -> usize {
             self.max_bytes_can_eat
         }
 
+        /// * Provide the header data of the ADPCM-MS for the decoder core as the breakfast.
         pub fn get_ready(&mut self, breakfast: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             if breakfast.predictor > 6 {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {} and it's greater than 6", breakfast.predictor)));
@@ -1071,6 +1162,7 @@ pub mod ms {
     }
 
 
+    /// ## The decoder with two cores to decode the stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoDecoder {
         core_l: DecoderCore,
@@ -1080,6 +1172,7 @@ pub mod ms {
         ready: bool,
     }
 
+    /// ## The decoder is for your use
     #[derive(Debug, Clone, Copy)]
     pub enum Decoder {
         Mono(DecoderCore),
@@ -1097,10 +1190,12 @@ pub mod ms {
             }
         }
 
+        /// * Check if breakfast was eaten, and ready to decode.
         pub fn is_ready(&self) -> bool {
             self.ready
         }
 
+        /// * Puke the breakfast, and reset to the initial state.
         pub fn unready(&mut self) {
             self.core_l.unready();
             self.core_r.unready();
@@ -1108,14 +1203,17 @@ pub mod ms {
             self.ready = false;
         }
 
+        /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
         pub fn get_bytes_eaten(&self) -> usize {
             self.bytes_eaten
         }
 
+        /// * The block size in the `fmt ` chunk.
         pub fn get_max_bytes_can_eat(&self) -> usize {
             self.max_bytes_can_eat
         }
 
+        /// * Provide the header data of the ADPCM-MS for the decoder cores as the breakfast.
         pub fn get_ready(&mut self, breakfast_l: &DecoderBreakfast, breakfast_r: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             let mut sample_buffer = CopiableBuffer::<i16, 4>::new();
             self.core_l.get_ready(breakfast_l, |sample:i16|{sample_buffer.push(sample);})?;
@@ -1139,6 +1237,7 @@ pub mod ms {
             }
         }
 
+        /// * Check if breakfast was eaten, and ready to decode.
         pub fn is_ready(&self) -> bool {
             match self {
                 Self::Mono(mono) => mono.is_ready(),
@@ -1146,6 +1245,7 @@ pub mod ms {
             }
         }
 
+        /// * Puke the breakfast, and reset to the initial state.
         pub fn unready(&mut self) {
             match self {
                 Self::Mono(mono) => mono.unready(),
@@ -1153,6 +1253,7 @@ pub mod ms {
             }
         }
 
+        /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
         pub fn get_bytes_eaten(&self) -> usize {
             match self {
                 Self::Mono(mono) => mono.get_bytes_eaten(),
@@ -1160,6 +1261,7 @@ pub mod ms {
             }
         }
 
+        /// * The block size in the `fmt ` chunk.
         pub fn get_max_bytes_can_eat(&self) -> usize {
             match self {
                 Self::Mono(mono) => mono.get_max_bytes_can_eat(),
@@ -1167,6 +1269,7 @@ pub mod ms {
             }
         }
 
+        /// * Get the number of the channels
         pub fn get_channels(&self) -> usize {
             match self {
                 Self::Mono(_) => 1,
@@ -1184,12 +1287,12 @@ pub mod ms {
             self.get_max_bytes_can_eat() / self.get_channels()
         }
 
+        /// Each byte stores two 4-bit samples (packed as high/low nibbles).
+        /// Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
+        /// Mono: Block size = BLOCK_SIZE.
+        /// Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
+        /// Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
         fn frames_per_block(&self) -> usize {
-            // Each byte stores two 4-bit samples (packed as high/low nibbles).
-            // Effective decodable bytes per block: BLOCK_SIZE - HEADER_SIZE.
-            // Mono: Block size = BLOCK_SIZE.
-            // Stereo: Block size doubles (2×BLOCK_SIZE), but two samples (L+R) form one audio frame.
-            // Thus, total samples = (BLOCK_SIZE - HEADER_SIZE) × 2 samples (1 frame per stereo pair).
             (self.get_block_size() - HEADER_SIZE) * 2
         }
 
@@ -1295,6 +1398,7 @@ pub mod yamaha {
             }
         }
 
+        /// * Compress one sample to a nibble
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             let delta = sample as i32 - self.predictor;
             let nibble = min(7, delta.abs() * 4 / self.step) + if delta < 0 {8} else {0};
@@ -1303,23 +1407,27 @@ pub mod yamaha {
             nibble as u8
         }
 
+        /// * Uncompress a nibble to a sample
         pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
             self.predictor += (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
             self.step = ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
             self.predictor as i16
         }
 
+        /// * Compress two samples, combine two encoded nibbles to a bytes
         pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
             let l = self.compress_sample(samples[0]);
             let h = self.compress_sample(samples[1]);
             l | (h << 4)
         }
 
+        /// * Decode a byte as two nibbles, and return two samples.
         pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
             [self.expand_nibble(nibble & 0x0F), self.expand_nibble(nibble >> 4)]
         }
     }
 
+    /// ## The mono-channel encoder
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderMono {
         core: YamahaCodecCore,
@@ -1334,10 +1442,14 @@ pub mod yamaha {
             }
         }
 
+        /// * Encode two samples, combine two encoded nibbles to a bytes
         pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
             self.core.encode_sample(samples)
         }
 
+        /// * The `encode()` function, uses two closures to eat/excrete data.
+        /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
+        /// * To continue encoding, call it again and feed it data.
         pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
@@ -1348,6 +1460,7 @@ pub mod yamaha {
             }
         }
 
+        /// * Excrete the last data
         pub fn flush(&mut self, mut output: impl FnMut(u8)) {
             if self.buffer.is_empty() {
                 return;
@@ -1366,6 +1479,7 @@ pub mod yamaha {
         }
     }
 
+    /// ## The stereo-channel encoder
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderStereo {
         core_l: YamahaCodecCore,
@@ -1382,12 +1496,16 @@ pub mod yamaha {
             }
         }
 
+        /// * The function distributes two samples to each encoder core and returns a byte containing two nibbles for each channel.
         pub fn encode_sample(&mut self, samples: &[i16; 2]) -> u8 {
             let l = self.core_l.compress_sample(samples[0]);
             let h = self.core_r.compress_sample(samples[1]);
             l | (h << 4)
         }
 
+        /// * The `encode()` function, uses two closures to eat/excrete data.
+        /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
+        /// * To continue encoding, call it again and feed it data.
         pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
@@ -1398,6 +1516,7 @@ pub mod yamaha {
             }
         }
 
+        /// * Excrete the last data
         pub fn flush(&mut self, mut output: impl FnMut(u8)) {
             if self.buffer.is_empty() {
                 return;
@@ -1431,6 +1550,9 @@ pub mod yamaha {
             }
         }
 
+        /// * The `encode()` function, uses two closures to eat/excrete data.
+        /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
+        /// * To continue encoding, call it again and feed it data.
         fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
                 Self::Mono(enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
@@ -1469,6 +1591,7 @@ pub mod yamaha {
         }
     }
 
+    /// ## The mono-channel decoder
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderMono {
         core: YamahaCodecCore,
@@ -1481,10 +1604,14 @@ pub mod yamaha {
             }
         }
 
+        /// * Each byte contains two nibbles to decode to 2 samples.
         pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
             self.core.decode_sample(nibble)
         }
 
+        /// * The `decode()` function, uses two closures to eat/excrete data.
+        /// * It will endlessly ask for new data, and feed it `None` to let the function return.
+        /// * To continue encoding, call it again and feed it data.
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
             while let Some(nibble) = input() {
                 self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
@@ -1498,6 +1625,7 @@ pub mod yamaha {
         }
     }
 
+    /// ## The stereo-channel decoder
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderStereo {
         core_l: YamahaCodecCore,
@@ -1512,10 +1640,14 @@ pub mod yamaha {
             }
         }
 
+        /// * Each byte contains two nibbles to decode to 2 samples for left and right channels.
         pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
             [self.core_l.expand_nibble(nibble & 0x0F), self.core_r.expand_nibble(nibble >> 4)]
         }
 
+        /// * The `decode()` function, uses two closures to eat/excrete data.
+        /// * It will endlessly ask for new data, and feed it `None` to let the function return.
+        /// * To continue encoding, call it again and feed it data.
         pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
             while let Some(nibble) = input() {
                 self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
