@@ -29,7 +29,7 @@ use crate::encoders::opus::OpusEncoder;
 #[cfg(feature = "flac")]
 use crate::encoders::flac_enc::FlacEncoderWrap;
 
-// 你以为 WAV 文件只能在 4GB 以内吗？
+/// ## These options are used to specify what type of WAV file you want to create.
 #[derive(Debug)]
 pub enum FileSizeOption{
     NeverLargerThan4GB,
@@ -37,6 +37,12 @@ pub enum FileSizeOption{
     ForceUse4GBFormat,
 }
 
+/// # The `WaveWriter` is dedicated to creating a WAV file.
+/// Usage:
+/// * Choose one of the internal formats by specifying `DataFormat` and use the `WaveWriter` to create the WAV file.
+/// * Use the methods, like `write_samples()`, `write_mono_channel()`, `write_monos()`, `write_stereos()`, etc, to write your PCM samples to the `WaveWriter`, it will encode.
+/// * Call `finalize()` or just let the `WaveWriter` get out of the scope.
+/// BAM. The WAV file was created successfully with the audio sound as you provided.
 #[derive(Debug)]
 pub struct WaveWriter<'a> {
     writer: Box<dyn Writer + 'a>,
@@ -144,7 +150,7 @@ impl<'a> WaveWriter<'a> {
 
         self.riff_chunk = Some(ChunkWriter::begin(hacks::force_borrow_mut!(*self.writer, dyn Writer), b"RIFF")?);
 
-        // // The first 4 bytes of the `RIFF` or `RF64` chunk must be `WAVE`. Then follows each chunk.
+        // The first 4 bytes of the `RIFF` or `RF64` chunk must be `WAVE`. Then follows each chunk.
         self.writer.write_all(b"WAVE")?;
 
         // If the WAV file may exceed 4GB in size, the RF64 format must be used. 
@@ -186,8 +192,8 @@ impl<'a> WaveWriter<'a> {
         Ok(())
     }
 
-    // Stores audio samples. The generic parameter `S` represents the user-provided input format.
-    // The encoder converts samples to the internal target format before encoding them into the WAV file.
+    /// Stores audio samples. The generic parameter `S` represents the user-provided input format.
+    /// The encoder converts samples to the internal target format before encoding them into the WAV file.
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -199,7 +205,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Saves a single mono sample. Avoid frequent calls due to inefficiency.
+    /// Saves a single mono sample. Avoid frequent calls due to inefficiency.
     pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -211,7 +217,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Batch-saves mono samples.
+    /// Batch-saves mono samples.
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -223,7 +229,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Batch-saves multiple mono channels.
+    /// Batch-saves multiple mono channels.
     pub fn write_monos<S>(&mut self, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -235,7 +241,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Saves a single stereo sample (left + right). Avoid frequent calls due to inefficiency.
+    /// Saves a single stereo sample (left + right). Avoid frequent calls due to inefficiency.
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -247,7 +253,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Batch-saves stereo samples.
+    /// Batch-saves stereo samples.
     pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -262,7 +268,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Saves two mono samples (as one stereo frame). Avoid frequent calls due to inefficiency.
+    /// Saves two mono samples (as one stereo frame). Avoid frequent calls due to inefficiency.
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -274,7 +280,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Batch-saves pairs of mono samples (as stereo audio).
+    /// Batch-saves pairs of mono samples (as stereo audio).
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -286,7 +292,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Saves one audio frame. Avoid frequent calls due to inefficiency. Supports multi-channel layouts.
+    /// Saves one audio frame. Avoid frequent calls due to inefficiency. Supports multi-channel layouts.
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -298,7 +304,7 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    // Batch-saves audio frames. Supports multi-channel layouts.
+    /// Batch-saves audio frames. Supports multi-channel layouts.
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         if self.data_chunk.is_some() {
@@ -310,8 +316,8 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
-    pub fn spec(&self) -> &Spec{
-        &self.spec
+    pub fn spec(&self) -> Spec{
+        self.spec
     }
     pub fn get_data_format(&self) -> DataFormat {
         self.data_format
@@ -353,7 +359,7 @@ impl<'a> WaveWriter<'a> {
         self.junk_chunks.push(chunk.clone());
     }
 
-    // Transfers audio metadata (e.g., track info) from the reader.
+    /// Transfers audio metadata (e.g., track info) from the reader.
     pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
         if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
         if reader.get_slnt_chunk().is_some() {self.slnt_chunk = *reader.get_slnt_chunk();}

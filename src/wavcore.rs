@@ -21,25 +21,55 @@ pub use flac::{
     FlacCompression,
 };
 
-// Did you assume WAV is solely for storing PCM data?
+/// ## Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum DataFormat{
+    /// * This is used for creating a new `DataFormat` to specify an `unknown` format.
     Unspecified,
+
+    /// * PCM format, supports `u8`, `i16`, `i24`, `i32`, `f32`, `f64` for WAV, supports channel number >= 2, no compresion, lossless.
     Pcm,
+
+    /// * ADPCM format, every sample stores as nibbles (One 4-bit nibble for a 16-bit sample), max channels is 2, lossy. Good for voice chatting, and very small memory usage.
     Adpcm(AdpcmSubFormat),
+
+    /// * PCM-aLaw, every sample stores as a byte (One byte for a 16-bit sample), max channels is 2, lossy. Encoding/decoding is by table lookup. These tables are not that small.
+    /// * Kind of useless. I prefer just to use the plain `u8` PCM format to replace it. My supreme audio card can handle my `u8` PCM and the playback is just as perfect as `i16` does.
     PcmALaw,
+
+    /// * PCM-MuLaw. Not much different than the PCM-aLaw. Uses a different algorithm to encode.
     PcmMuLaw,
+
+    /// * MP3. Just a pure MP3 file encapsulated in the `data` chunk. It needs some extra extension data in the `fmt ` chunk.
+    /// * With the help of the WAV `fmt ` chunk, you can get the spec of the audio file without decoding it first.
+    /// * The WAV file which encapsulates the MP3 file as its content, the size of the WAV file looks like an MP3 file size.
     Mp3(Mp3EncoderOptions),
+
+    /// * Naked opus stream, without the Ogg container. The encoded data is stored as blocks in the `data` chunk, the block size is stored in the `fmt ` chunk.
+    /// * Just take a look at the blocks, there are lots of zero bytes at the end, indicating that the Opus format is excellent at compressing the audio data.
+    /// * But WAV can't get rid of these zero bytes, resulting in the compression ratio just like encoding each sample into a byte.
+    /// * Opus was originally designed for low-lag digital audio transmission with good quality. Encapsulating this thing into a WAV file is very weird.
     Opus(OpusEncoderOptions),
+
+    /// * FLAC. Just a pure FLAC file encapsulated in the `data` chunk.
+    /// * With the help of the WAV `fmt ` chunk, you can get the spec of the audio file without decoding it first.
+    /// * The WAV file which encapsulates the FLAC file as its content, the size of the WAV file looks like an FLAC file size.
     Flac(FlacEncoderParams),
 }
 
+/// * When to encode audio to ADPCM format, choose one of the subformats.
+/// * The value of the subformat is the `format_tag` field of the `fmt ` chunk.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u16)]
 pub enum AdpcmSubFormat {
+    /// * This is for ADPCM-MS
     Ms = 0x0002,
+
+    /// * This is for ADPCM-IMA
     Ima = 0x0011,
+
+    /// * This is for ADPCM-YAMAHA. The Yamaha ADPCM algorithm is the easiest one to implement.
     Yamaha = 0x0020,
 }
 
@@ -74,11 +104,18 @@ impl Display for AdpcmSubFormat {
     }
 }
 
+/// ## The rough type of the sample format.
 #[derive(Debug, Clone, Copy)]
 pub enum SampleFormat {
     Unknown,
+
+    /// * IEEE 754 floaing number including `f32` and `f64`
     Float,
+
+    /// * Unsigned integer
     UInt,
+
+    /// * Signed integer
     Int,
 }
 
@@ -93,6 +130,7 @@ impl Display for SampleFormat {
     }
 }
 
+/// ## The concrete type of the sample format.
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
     Unknown,
@@ -153,6 +191,7 @@ impl WaveSampleType {
 }
 
 
+/// * Infer the concrete type of the sample format from some rough data
 #[allow(unused_imports)]
 pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
     use SampleFormat::{UInt, Int, Float};
@@ -165,7 +204,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
         (64, Int) => S64,
         (32, Float) => F32,
         (64, Float) => F64,
-        // PCM supports only the formats listed above.
+        // WAV PCM supports only the formats listed above.
         (_, _) => Unknown,
     }
 }
@@ -217,6 +256,8 @@ impl GUID {
 }
 
 
+/// * Speaker position bit mask data for multi-channel audio.
+/// * This also be used on single-channel audio or double-channel audio.
 #[derive(Clone, Copy, Debug)]
 #[repr(u32)]
 pub enum SpeakerPosition {
@@ -287,6 +328,8 @@ impl Display for SpeakerPosition {
 //
 // This achieves lossless channel layout conversion (e.g., 5.1 → stereo) with spatial accuracy.
 
+
+/// * Break down `channel_mask` into each speaker position enum values to an array.
 pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
     let enums = [
         SpeakerPosition::FrontLeft,
@@ -320,23 +363,19 @@ pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Re
     }
 }
 
+/// * Break down `channel_mask` into each speaker position description string.
 pub fn channel_mask_to_speaker_positions_desc(channels: u16, channel_mask: u32) -> Result<Vec<String>, AudioError> {
     match channel_mask_to_speaker_positions(channels, channel_mask) {
-        Ok(v) => {
-            let mut ret = Vec::with_capacity(v.len());
-            for e in v.iter() {
-                ret.push(format!("{:?}", e));
-            }
-            Ok(ret)
-        },
+        Ok(v) => Ok(v.iter().map(|e|{format!("{:?}", e)}).collect()),
         Err(e) => Err(e),
     }
 }
 
+/// * Guess the channel mask by the given channel number.
 pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
     match channels {
         0 => Err(AudioError::GuessChannelMaskFailed(channels)),
-        1 => Ok(SpeakerPosition::FrontCenter.into()),
+        1 => Ok(SpeakerPosition::FrontCenter as u32),
         2 => Ok(SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32),
         o => {
             let mut mask = 0;
@@ -352,12 +391,22 @@ pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
     }
 }
 
+/// ## The spec info for a generic audio file.
 #[derive(Debug, Clone, Copy)]
 pub struct Spec {
+    /// * Num channels
     pub channels: u16,
+
+    /// * The channel mask indicates the position of the speakers.
     pub channel_mask: u32,
+
+    /// * The sample rate. How many audio frames are to be played in a second.
     pub sample_rate: u32,
+
+    /// * For PCM, this indicates how many bits is for a sample.
     pub bits_per_sample: u16,
+
+    /// * The roughly described sample format
     pub sample_format: SampleFormat,
 }
 
@@ -378,22 +427,27 @@ impl Spec {
         }
     }
 
+    /// * Get the concrete sample type
     pub fn get_sample_type(&self) -> WaveSampleType {
         get_sample_type(self.bits_per_sample, self.sample_format)
     }
 
+    /// * Guess the channel mask
     pub fn guess_channel_mask(&self) -> Result<u32, AudioError> {
         guess_channel_mask(self.channels)
     }
 
+    /// * Break down a channel mask to the speaker positions.
     pub fn channel_mask_to_speaker_positions(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
         channel_mask_to_speaker_positions(self.channels, self.channel_mask)
     }
 
+    /// * Break down a channel mask to the speaker position description strings.
     pub fn channel_mask_to_speaker_positions_desc(&self) -> Result<Vec<String>, AudioError> {
         channel_mask_to_speaker_positions_desc(self.channels, self.channel_mask)
     }
 
+    /// * Check if this spec is good for encoding PCM format.
     pub fn verify_for_pcm(&self) -> Result<(), AudioError> {
         self.guess_channel_mask()?;
         if self.get_sample_type() == WaveSampleType::Unknown {
@@ -403,6 +457,7 @@ impl Spec {
         }
     }
 
+    /// * Check if the channel mask matches the channel number.
     pub fn is_channel_mask_valid(&self) -> bool {
         if self.channels <= 2 && self.channel_mask == 0 {
             return true;
@@ -417,6 +472,9 @@ impl Spec {
     }
 }
 
+/// ## The WAV chunk writer used by `WaveWriter`
+/// * It remembers the chunk header field positions.
+/// * When it gets out of the scope or to be dropped, it updates the field of the chunk header.
 pub struct ChunkWriter<'a> {
     pub writer: &'a mut dyn Writer,
     pub flag: [u8; 4],
@@ -432,6 +490,7 @@ impl Debug for ChunkWriter<'_> {
             .field("flag", &format_args!("{}", String::from_utf8_lossy(&self.flag)))
             .field("pos_of_chunk_len", &self.pos_of_chunk_len)
             .field("chunk_start", &self.chunk_start)
+            .field("ended", &self.ended)
             .finish()
     }
 }
@@ -453,7 +512,7 @@ impl<'a> ChunkWriter<'a> {
         })
     }
 
-    // At the end of the chunk, the chunk size will be updated since the ownership of `self` moved there, and `drop()` will be called.
+    /// * At the end of the chunk, the chunk size will be updated since the ownership of `self` moved there, and `drop()` will be called.
     pub fn end(self){}
 
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
@@ -495,17 +554,17 @@ impl<'a> ChunkWriter<'a> {
         self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
         chunk_size_to_write.write_le(self.writer)?;
         self.writer.seek(SeekFrom::Start(end_of_chunk))?;
-        if end_of_chunk & 1 > 0 {
-            0u8.write_le(self.writer)?;
-        }
+        if end_of_chunk & 1 > 0 {0u8.write_le(self.writer)?;} // Alignment
         self.ended = true;
         Ok(())
     }
 
+    /// * For you to write data from the start of the chunk, here's a method for you to get the offset.
     pub fn get_chunk_start_pos(&self) -> u64 {
         self.chunk_start
     }
 
+    /// * A method to calculate currently how big the chunk is.
     pub fn get_chunk_data_size(&mut self) -> Result<u64, AudioWriteError> {
         Ok(self.writer.stream_position()? - self.get_chunk_start_pos())
     }
@@ -517,11 +576,17 @@ impl Drop for ChunkWriter<'_> {
     }
 }
 
+/// ## This thing is for reading a chunk
 #[derive(Debug, Clone, Copy)]
 pub struct ChunkHeader {
-    pub flag: [u8; 4],        // The 4-byte identifier stored in the file (e.g., "RIFF", "fmt ")
-    pub size: u32,            // The chunk size stored in the file header (may be 0xFFFFFFFF if actual size is in ds64 chunk)
-    pub chunk_start_pos: u64, // File offset of the chunk's payload (excludes the 8-byte header)
+    /// * The 4-byte identifier stored in the file (e.g., "RIFF", "fmt ")
+    pub flag: [u8; 4],
+
+    /// * The chunk size stored in the file header (may be 0xFFFFFFFF if actual size is in ds64 chunk)
+    pub size: u32,
+
+    /// * File offset of the chunk's payload (excludes the 8-byte header)
+    pub chunk_start_pos: u64,
 }
 
 impl ChunkHeader {
@@ -543,14 +608,17 @@ impl ChunkHeader {
         })
     }
 
+    /// * Calculate alignment
     pub fn align(addr: u64) -> u64 {
         addr + (addr & 1)
     }
 
+    /// * Calculate the position of the next chunk
     pub fn next_chunk_pos(&self) -> u64 {
         Self::align(self.chunk_start_pos + self.size as u64)
     }
 
+    /// * Seek to the next chunk (with alignment)
     pub fn seek_to_next_chunk(&self, reader: &mut dyn Reader) -> Result<u64, AudioReadError> {
         Ok(reader.seek(SeekFrom::Start(self.next_chunk_pos()))?)
     }
@@ -562,32 +630,64 @@ impl Default for ChunkHeader {
     }
 }
 
+/// ## The `fmt ` chunk for the WAV file.
 #[derive(Debug, Clone, Copy)]
 pub struct FmtChunk {
-    pub format_tag: u16, // https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h
+    /// * See <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h>
+    pub format_tag: u16,
+
+    /// * Num channels
     pub channels: u16,
+
+    /// * Sample rate. It's actually `frame_rate` because it's the rate of how frequently the audio frames are played.
+    /// * Each audio frame contains samples for each channel. For example, your audio file has two samples, which means an audio frame is two samples for each channel.
+    /// * For another example, if the sample rate is 44100, but the channels are 2, it plays 88200 samples per second.
     pub sample_rate: u32,
+
+    /// * How many bytes are to be played in a second. This field is important because lots of audio players use this field to calculate the playback progress.
     pub byte_rate: u32,
+
+    /// * Block size. For PCM, it's sample size in bytes times to channel number. For non-PCM, it's the block size for the audio blocks.
+    /// * The block size field is for quickly `seek()` the audio file.
     pub block_align: u16,
+
+    /// * For PCM, this indicates how many bits are in a sample. For non-PCM, this field is either zero or some other meaningful value for the encoded format.
     pub bits_per_sample: u16,
+
+    /// * The extension block for the `fmt ` chunk, its type depends on the `format_tag` value.
     pub extension: Option<FmtExtension>,
 }
 
+/// ## The `fmt ` chunk extension block
 #[derive(Debug, Clone, Copy)]
 pub struct FmtExtension {
+    /// * Extension block size
     pub ext_len: u16,
+
+    /// * Extension block data
     pub data: ExtensionData,
 }
 
+/// ## Extension block data
 #[derive(Debug, Clone, Copy)]
 pub enum ExtensionData{
+    /// * If the extension block size is zero, here we have `Nodata` for it.
     Nodata,
+
+    /// * ADPCM-MS specified extension data. Anyway, the decoder can generate the data if the format is ADPCM-MS and there's no data for it.
     AdpcmMs(AdpcmMsData),
+
+    /// * ADPCM-IMA specified extension data. Kind of useless.
     AdpcmIma(AdpcmImaData),
+
+    /// * MP3 specified extension data.
     Mp3(Mp3Data),
+
+    /// * Extensible data, it has channel mask, GUID for formats, etc, dedicated for multi-channel PCM format.
     Extensible(ExtensibleData),
 }
 
+/// ## The extension data for ADPCM-MS
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmMsData{
     pub samples_per_block: u16,
@@ -595,11 +695,13 @@ pub struct AdpcmMsData{
     pub coeffs: [AdpcmCoeffSet; 7],
 }
 
+/// ## The extension data for ADPCM-IMA
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmImaData{
     pub samples_per_block: u16,
 }
 
+/// ## The extension data for MP3
 #[derive(Debug, Clone, Copy)]
 pub struct Mp3Data{
     pub id: u16,
@@ -609,10 +711,16 @@ pub struct Mp3Data{
     pub codec_delay: u16,
 }
 
+/// ## The extension data for extensible.
 #[derive(Debug, Clone, Copy)]
 pub struct ExtensibleData {
+    /// * Valid bits per sample
     pub valid_bits_per_sample: u16,
+
+    /// * This is for multi-channel speaker position masks, see `struct Spec`
     pub channel_mask: u32,
+
+    /// * This field indicates the exact format for the PCM samples.
     pub sub_format: GUID,
 }
 
@@ -1204,8 +1312,8 @@ impl Plst {
     }
 }
 
-// https://www.recordingblogs.com/wiki/cue-chunk-of-a-wave-file
-// https://wavref.til.cafe/chunk/cue/
+/// See <https://www.recordingblogs.com/wiki/cue-chunk-of-a-wave-file>
+/// See <https://wavref.til.cafe/chunk/cue/>
 #[derive(Debug, Clone)]
 pub struct CueChunk {
     pub num_cues: u32,
@@ -1278,8 +1386,9 @@ pub enum ListChunk {
     Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
+/// See <https://wavref.til.cafe/chunk/adtl/>
 #[derive(Debug, Clone)]
-pub enum AdtlChunk { // https://wavref.til.cafe/chunk/adtl/
+pub enum AdtlChunk {
     Labl(LablChunk),
     Note(NoteChunk),
     Ltxt(LtxtChunk),
@@ -1516,8 +1625,9 @@ impl ListChunk {
     }
 }
 
+/// See <https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file>
 pub fn get_list_info_map() -> BTreeMap<&'static str, &'static str> {
-    [ // https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
+    [
         ("IARL", "The location where the subject of the file is archived"),
         ("IART", "The artist of the original subject of the file"),
         ("ICMS", "The name of the person or organization that commissioned the original subject of the file"),
@@ -1634,9 +1744,10 @@ impl ListInfo for ListChunk {
     }
 }
 
+/// See <https://wavref.til.cafe/chunk/cset/>
 #[allow(clippy::zero_prefixed_literal)]
 pub fn get_country_code_map() -> HashMap<u16, &'static str> {
-    [ // https://wavref.til.cafe/chunk/cset/
+    [
         (000, "None (assume 001 = USA)"),
         (001, "USA"),
         (002, "Canada"),
@@ -1670,13 +1781,11 @@ pub fn get_country_code_map() -> HashMap<u16, &'static str> {
     ].iter().copied().collect()
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct LanguageDialect {
     lang: u16,
     dial: u16,
 }
-
-impl Eq for LanguageDialect{}
 
 #[derive(Debug, Clone, Copy)]
 pub struct LanguageSpecification {
@@ -1684,8 +1793,9 @@ pub struct LanguageSpecification {
     spec: &'static str,
 }
 
+/// See <https://wavref.til.cafe/chunk/cset/>
 pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpecification> {
-    [ // https://wavref.til.cafe/chunk/cset/
+    [
         (LanguageDialect{lang: 0 ,  dial: 0}, LanguageSpecification{lang: "None (assume 9,1 = US English)", spec: "RIFF1991"}),
         (LanguageDialect{lang: 1 ,  dial: 1}, LanguageSpecification{lang: "Arabic", spec: "RIFF1991"}),
         (LanguageDialect{lang: 2 ,  dial: 1}, LanguageSpecification{lang: "Bulgarian", spec: "RIFF1991"}),
@@ -1735,6 +1845,7 @@ pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpeci
     ].iter().copied().collect()
 }
 
+/// ## The fully assembled cue point data from various of chunks in the WAV file.
 #[derive(Debug, Clone)]
 pub struct FullInfoCuePoint {
     pub data_chunk_id: [u8; 4],
@@ -1749,6 +1860,8 @@ pub struct FullInfoCuePoint {
     pub file_data: Vec<u8>,
     pub start_sample: u32,
     pub num_samples: u32,
+
+    /// * repeats for playback
     pub repeats: u32,
 }
 
@@ -1816,6 +1929,7 @@ impl FullInfoCuePoint {
     }
 }
 
+/// ## Create a fully assembled cue point data from various of chunks in the WAV file.
 pub fn create_full_info_cue_data(cue_chunk: &CueChunk, adtl_chunks: &BTreeMap<u32, AdtlChunk>, plstchunk: &Option<PlstChunk>) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
     let country_code_map = get_country_code_map();
     let dialect_code_map = get_language_dialect_code_map();
@@ -2022,7 +2136,7 @@ pub mod Id3{
     }
 }
 
-// If the `id3` feature is disabled, read the raw bytes.
+/// ## If the `id3` feature is disabled, read the raw bytes.
 #[cfg(not(feature = "id3"))]
 #[allow(non_snake_case)]
 pub mod Id3{

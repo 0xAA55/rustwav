@@ -12,9 +12,9 @@ use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GU
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 use crate::xlaw::{XLaw, PcmXLawEncoder};
 
-// An encoder that accepts samples of type `S` and encodes them into the file's target format.
-// Due to trait bounds prohibiting generic parameters, each function must be explicitly 
-// implemented for every supported type.
+/// An encoder that accepts samples of type `S` and encodes them into the file's target format.
+/// Due to trait bounds prohibiting generic parameters, each function must be explicitly 
+/// implemented for every supported type.
 pub trait EncoderToImpl: Debug {
     fn get_bitrate(&self) -> u32;
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError>;
@@ -163,10 +163,11 @@ pub trait EncoderToImpl: Debug {
     fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_samples_f64(&utils::stereos_to_interleaved_samples(stereos))}
 }
 
+/// ## The `DummyEncoder` is not for you to use, it allows me to implement `Default` for `Encoder<'a>`
 #[derive(Debug, Clone, Copy)]
 pub struct DummyEncoder;
 
-// Default implementations: all input formats are normalized to `f32` for encoding.
+/// ## Default implementations: all functions are `panic!`
 impl EncoderToImpl for DummyEncoder {
     fn get_bitrate(&self) -> u32 {
         panic!("Must implement `get_bitrate()` for your encoder.");
@@ -205,6 +206,8 @@ impl EncoderToImpl for DummyEncoder {
     fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples_f32(&sample_conv(samples))}
 }
 
+/// ## The `Encoder` struct contains all of the encoder types and provides convenient functions that have generic type parameters.
+/// * It just translates the API to the inner encoder API.
 #[derive(Debug)]
 pub struct Encoder<'a> {
     encoder: Box<dyn EncoderToImpl + 'a>,
@@ -244,6 +247,7 @@ impl<'a> Encoder<'a> {
         self.encoder.finish()
     }
 
+    /// * Write samples regardless of channels
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -263,6 +267,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write an audio frame, each frame contains one sample for all channels
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -282,6 +287,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write audio frames, each frame contains one sample for all channels
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>], channels: u16) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() { // 希望编译器能做到优化，省区字符串比对的过程。
@@ -301,6 +307,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write only one sample regardless of channels
     pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -320,6 +327,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write a single channel of audio to the encoder
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -339,6 +347,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write double samples of audio to the encoder
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -358,6 +367,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write double channels of audio to the encoder
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -377,6 +387,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write multiple channels of audio to the encoder
     pub fn write_monos<S>(&mut self, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -396,6 +407,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write only one stereo sample to the encoder
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -415,6 +427,7 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    /// * Write stereo samples to the encoder
     pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
@@ -435,7 +448,8 @@ impl<'a> Encoder<'a> {
     }
 }
 
-// `PcmEncoderFrom<S>`: Transcodes samples from type `S` into the target format.
+/// ## `PcmEncoderFrom<S>`: Transcodes samples from type `S` into the target format.
+/// * This is a component for the `PcmEncoder`
 #[derive(Debug, Clone, Copy)]
 struct PcmEncoderFrom<S>
 where S: SampleType {
@@ -465,8 +479,8 @@ where S: SampleType {
         })
     }
 
-    // S: The input format provided to us (external source).
-    // T: The target format to be written into the WAV file.
+    /// S: The input format provided to us (external source).
+    /// T: The target format to be written into the WAV file.
     fn write_sample_to<T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), AudioWriteError>
     where T: SampleType {
         for sample in frame.iter() {
@@ -491,6 +505,7 @@ where S: SampleType {
     }
 }
 
+/// ## `PcmEncoder`: convert various formats of PCM samples to the WAV file specific sample type
 #[derive(Debug)]
 pub struct PcmEncoder<'a> {
     spec: Spec,
@@ -511,7 +526,7 @@ pub struct PcmEncoder<'a> {
 }
 
 impl<'a> PcmEncoder<'a> {
-    // target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
+    /// * target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
     pub fn new(writer: &'a mut dyn Writer, spec: Spec) -> Result<Self, AudioWriteError> {
         if spec.is_channel_mask_valid() == false {
             return Err(AudioWriteError::InvalidArguments(format!("Number of bits of channel mask 0x{:08x} does not match {} channels", spec.channel_mask, spec.channels)));
@@ -603,6 +618,7 @@ impl<'a> EncoderToImpl for PcmEncoder<'_> {
     fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_samples(self.writer, samples)}
 }
 
+/// ## `AdpcmEncoderWrap<E>`: encode `i16` audio samples to ADPCM nibbles
 #[derive(Debug)]
 pub struct AdpcmEncoderWrap<'a, E>
 where E: adpcm::AdpcmEncoder {
@@ -711,6 +727,7 @@ where E: adpcm::AdpcmEncoder {
     fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
 }
 
+/// ## `PcmXLawEncoderWrap`: encode `i16` audio samples to bytes
 #[derive(Debug)]
 pub struct PcmXLawEncoderWrap<'a> {
     writer: &'a mut dyn Writer,

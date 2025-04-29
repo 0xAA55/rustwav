@@ -36,6 +36,11 @@ pub enum WaveDataSource {
     Unknown,
 }
 
+/// # The `WaveReader` is dedicated to reading a WAV file and provides you with samples as you want.
+/// Usage:
+/// * Open a WAV file
+/// * Get the iterator
+/// * The iterator excretes the PCM samples with the format you specified.
 #[derive(Debug)]
 pub struct WaveReader {
     spec: Spec,
@@ -58,7 +63,7 @@ pub struct WaveReader {
     junk_chunks: Vec<JunkChunk>,
 }
 
-// Accepts a result, if it is `Ok`, return a `Some`; otherwise print the error message and return `None`
+/// Accepts a result, if it is `Ok`, return a `Some`; otherwise print the error message and return `None`
 pub fn optional<T, E>(result: Result<T, E>) -> Option<T>
 where E: std::error::Error{
     match result {
@@ -71,13 +76,13 @@ where E: std::error::Error{
 }
 
 impl WaveReader {
-    // Open the WAV file from a file path
+    /// * Open the WAV file from a file path
     pub fn open(file_source: &str) -> Result<Self, AudioReadError> {
         Self::new(WaveDataSource::Filename(file_source.to_string()))
         // Self::new(WaveDataSource::Reader(Box::new(BufReader::new(File::open(file_source)?)))) // Test for the temp file
     }
 
-    // Open the WAV file from a `WaveDataSource`
+    /// * Open the WAV file from a `WaveDataSource`
     pub fn new(file_source: WaveDataSource) -> Result<Self, AudioReadError> {
         let mut filesrc: Option<String> = None;
         let mut reader = match file_source {
@@ -321,7 +326,7 @@ impl WaveReader {
         })
     }
 
-    // Provice spec information
+    /// Provice spec information
     pub fn spec(&self) -> Spec{
         self.spec
     }
@@ -359,7 +364,7 @@ impl WaveReader {
         }
     }
 
-    // To verify if a chunk had not read. Some chunks should not be duplicated.
+    /// To verify if a chunk had not read. Some chunks should not be duplicated.
     fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
             Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
@@ -398,7 +403,7 @@ impl WaveReader {
     }
 }
 
-// The `IntoIterator` is only for stereo f32 samples.
+/// The `IntoIterator` is **only for** stereo `f32` samples.
 impl IntoIterator for WaveReader {
     type Item = (f32, f32);
     type IntoIter = StereoIntoIter<f32>;
@@ -421,7 +426,7 @@ fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError>
     }
 }
 
-// Create the decoder for each specific `format_tag` in the `fmt` chunk.
+/// ## Create the decoder for each specific `format_tag` in the `fmt` chunk.
 fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
     use wavcore::AdpcmSubFormat::{Ms, Ima, Yamaha};
@@ -460,9 +465,9 @@ where S: SampleType {
     }
 }
 
-// The `WaveDataReader` provides the way to access the audio data, by a `Reader` or a file.
-// This is for creating the iterators. Each iterator uses this to read bytes, seek an offset, and convert data into samples.
-// By using this, every individual iterator can have its iterating position.
+/// The `WaveDataReader` provides the way to access the audio data, by a `Reader` or a file.
+/// This is for creating the iterators. Each iterator uses this to read bytes, seek an offset, and convert data into samples.
+/// By using this, every individual iterator can have its iterating position.
 #[derive(Debug)]
 struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,

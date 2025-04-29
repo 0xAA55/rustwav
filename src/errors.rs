@@ -17,6 +17,7 @@ impl IOErrorInfo {
     }
 }
 
+/// The error info for reading an audio file
 #[derive(Debug, Clone)]
 pub enum AudioReadError {
     IncompleteFile(u64),
@@ -81,6 +82,7 @@ impl From<AudioReadError> for io::Error {
     }
 }
 
+/// The error info for writing an audio file
 #[derive(Debug, Clone)]
 pub enum AudioWriteError {
     InvalidArguments(String),
@@ -143,6 +145,7 @@ impl From<AudioWriteError> for io::Error {
     }
 }
 
+/// The error info for processing an audio file
 #[derive(Debug, Clone)]
 pub enum AudioError {
     GuessChannelMaskFailed(u16),

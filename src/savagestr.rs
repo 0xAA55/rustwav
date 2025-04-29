@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-// 取得操作系统代码页
+/// Get the system code page
 fn get_system_code_page() -> u32 {
     #[cfg(target_os = "windows")]
     unsafe{ windows::Win32::Globalization::GetACP() }
@@ -8,7 +8,6 @@ fn get_system_code_page() -> u32 {
     65001
 }
 
-// 莽夫式解码
 fn savage_decode(bytes: &[u8]) -> String {
     format!("{}", String::from_utf8_lossy(bytes))
 }
@@ -22,33 +21,27 @@ impl Default for StringCodecMaps {
 }
 
 pub trait SavageStringCodecs: Debug {
-    // 编码和解码
     fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String;
     fn decode_bytes_by_code_page(&self, bytes: &[u8], code_page: u32) -> String;
     fn encode_strings_by_format_name(&self, source: &str, _format_name: &str) -> Vec<u8>;
     fn encode_strings_by_code_page(&self, source: &str, _system_code_page: u32) -> Vec<u8>;
 
-    // 对 slice 进行解码
     fn decode_bytes(&self, bytes: &[u8]) -> String {
         self.decode_bytes_by_code_page(bytes, get_system_code_page())
     }
 
-    // 对 slice 进行解码
     fn decode(&self, bytes: &[u8]) -> String {
         self.decode_bytes(bytes)
     }
 
-    // 对定长 slice 进行解码
     fn decode_flags(&self, bytes: &[u8; 4]) -> String {
         self.decode_bytes(bytes)
     }
 
-    // 莽夫式解码
     fn savage_decode(&self, bytes: &[u8]) -> String {
         savage_decode(bytes)
     }
 
-    // 编码
     fn encode(&self, source: &str) -> Vec<u8> {
         self.encode_strings_by_code_page(source, get_system_code_page())
     }
@@ -215,7 +208,7 @@ pub mod text_encoding{
         ("big5", "big5-2003"),
     ];
 
-    // 莽夫式字符串解析器
+    /// Savage string parser
     #[derive(Clone)]
     pub struct StringCodecMaps {
         codepage_map: HashMap<u32, (String, String)>,
@@ -224,7 +217,7 @@ pub mod text_encoding{
     }
 
     impl Debug for StringCodecMaps {
-        // 调试信息霸屏，因此改成显示“...”
+        /// The debugging information dominates the screen, so it is changed to display "..."
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
             fmt.debug_struct("StringCodecMaps")
                 .field("codepage_map", &"...")
@@ -236,19 +229,19 @@ pub mod text_encoding{
 
     impl StringCodecMaps {
         pub fn new() -> Self {
-            // 代码页、编码名称、编码描述
+            // Code page, encoding name, encoding description
             let mut codepage_map = HashMap::<u32, (String, String)>::new();
             for cpd in CODE_PAGE_DATA {
                 let (cp, name, desc) = cpd;
                 let name = name.to_lowercase();
                 codepage_map.insert(cp, (name, desc.to_string()));
             }
-            // 编码名称替代用、别称
+            // Alternative code name, alias
             let mut codename_alt = HashMap::<String, String>::new();
             for (orig, alt) in CODE_PAGE_ALTNAME {
                 codename_alt.insert(orig.to_string(), alt.to_string());
             }
-            // 编码名称、编解码器
+            // Encoding name, codec
             let mut coder_map = HashMap::<String, EncodingRef>::new();
             for coder in encodings() {
                 coder_map.insert(coder.name().to_string(), *coder);
@@ -260,7 +253,7 @@ pub mod text_encoding{
             }
         }
 
-        // 寻找编解码器，如果找不到就根据别名来找。
+        // Look for a codec, or if not found look for it by its alias.
         fn find_coder(&self, format_name: &str) -> Option<&EncodingRef> {
             let mut format_name = format_name.to_owned();
             let mut is_alt_name = false;
@@ -287,12 +280,12 @@ pub mod text_encoding{
     }
 
     impl SavageStringCodecs for StringCodecMaps {
-        // 根据编码名称寻找编解码器然后进行编解码
+        // Find the codec according to the encoding name and then encode and decode
         fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String {
             match String::from_utf8(bytes.to_owned()) {
                 Ok(s) => s,
                 Err(_) => {
-                    // 根据编码名称去查找转码器
+                    // Find the transcoder by encoding name
                     match self.find_coder(format_name) {
                         Some(coder) => {
                             match coder.decode(bytes, DecoderTrap::Replace) {
@@ -314,19 +307,19 @@ pub mod text_encoding{
         }
 
         fn encode_strings_by_format_name(&self, source: &str, format_name: &str) -> Vec<u8> {
-            // 根据编码名称去查找转码器
+            // Find the transcoder by encoding name
             match self.coder_map.get(format_name) {
-                // 找到转码器，进行转码
+                // Find the transcoder and transcode
                 Some(coder) => {
                     match coder.encode(source, EncoderTrap::Replace) {
                         Ok(ret) => ret,
                         Err(_) => source.as_bytes().to_vec(),
                     }
                 },
-                // 没找到转码器，说明可能编码名称有别名，先查询别名再查询转码器
+                // If the transcoder is not found, it means that the encoding name may have an alias. First query the alias and then query the transcoder.
                 None => {
                     match self.codename_alt.get(format_name) {
-                        // 找到别名，再次转码
+                        // Find the alias and transcode again
                         Some(alt_name) => {
                             match self.coder_map.get(alt_name) {
                                 Some(coder) => {
@@ -345,10 +338,10 @@ pub mod text_encoding{
         }
 
         fn encode_strings_by_code_page(&self, source: &str, system_code_page: u32) -> Vec<u8> {
-            // 根据当前操作系统的代码页来找到对应的编码名称
+            // Find the corresponding encoding name according to the code page of the current operating system
             match self.codepage_map.get(&system_code_page) {
                 Some((name, _desc)) => self.encode_strings_by_format_name(source, name),
-                // 对应代码页找不到编码名称，只能莽夫式转码
+                // The corresponding code page cannot find the encoding name, so the only option is to convert it savagely
                 None => source.as_bytes().to_vec(),
             }
         }

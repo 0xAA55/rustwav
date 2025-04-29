@@ -19,7 +19,7 @@ use opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use flac_dec::FlacDecoderWrap;
 
-// Decodes audio into samples of the caller-provided format `S`.
+/// ## Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
     where S: SampleType {
 
@@ -145,6 +145,7 @@ fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
     ret
 }
 
+/// ## The `PcmDecoder<S>` to decode WAV PCM samples to your specific format
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where S: SampleType {
@@ -226,11 +227,11 @@ where S: SampleType {
         Ok(ret)
     }
 
-    // The decoder returned by this function has two exclusive responsibilities:
-    // 1. Read raw bytes from the input stream.
-    // 2. Convert them into samples of the target format `S`.
-    // It does NOT handle end-of-stream detection — the caller must implement 
-    // termination logic (e.g., check input.is_empty() or external duration tracking).
+    /// ## The decoder returned by this function has two exclusive responsibilities:
+    /// 1. Read raw bytes from the input stream.
+    /// 2. Convert them into samples of the target format `S`.
+    /// It does NOT handle end-of-stream detection — the caller must implement 
+    /// termination logic (e.g., check input.is_empty() or external duration tracking).
     #[allow(clippy::type_complexity)]
     fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
         use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
@@ -301,6 +302,7 @@ where S: SampleType {
     }
 }
 
+/// ## The `AdpcmDecoderWrap` to decode ADPCM blocks to your specific format samples
 #[derive(Debug)]
 pub struct AdpcmDecoderWrap<D>
 where D: adpcm::AdpcmDecoder {
@@ -506,6 +508,7 @@ where D: adpcm::AdpcmDecoder {
     }
 }
 
+/// ## The `PcmXLawDecoderWrap` to decode aLaw or MuLaw PCM data to your specific format samples
 #[derive(Debug)]
 pub struct PcmXLawDecoderWrap {
     reader: Box<dyn Reader>,
@@ -640,6 +643,7 @@ pub mod mp3 {
 
     use rmp3::{DecoderOwned, Frame};
 
+    /// ## The `Mp3Decoder`, decodes the MP3 file encapsulated in the WAV file.
     pub struct Mp3Decoder {
         target_sample_rate: u32,
         target_channels: u16,
@@ -664,6 +668,11 @@ pub mod mp3 {
         }
     }
 
+    /// ## The `Mp3AudioData` for a MP3 frame.
+    /// **NOTE:** Some people like to concat MP3 files savagely just like concat binary files, and the MP3 format actually supports this kind of operation.
+    /// If the concat MP3 files have different sample rates, this will cause the sample rate to change while you are just normally parsing and decoding the MP3 file.
+    /// This can be done by using a resampler here but I personally don't want to support this variable sample rate audio file.
+    /// The `resampler` crate is here, ready to use, if you want to support variable sample rate audio files, create a pull request from your repo.
     #[derive(Clone)]
     pub struct Mp3AudioData {
         pub bitrate: u32,

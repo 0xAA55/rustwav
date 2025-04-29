@@ -150,8 +150,6 @@ where S: SampleType {
     monos.iter().map(|s|{(*s, *s)}).collect()
 }
 
-// 样本类型缩放转换
-// 根据样本的存储值范围大小的不同，进行缩放使适应目标样本类型。
 #[inline(always)]
 pub fn stereo_conv<S, D>(frame: (S, S)) -> (D, D)
 where S: SampleType,
@@ -182,7 +180,6 @@ where S: SampleType,
     }
 }
 
-// 样本类型缩放转换批量版
 pub fn sample_conv_batch<'a, S, D>(frames: &[Vec<S>]) ->  Cow<'a, [Vec<D>]>
 where S: SampleType,
       D: SampleType {
