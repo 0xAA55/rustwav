@@ -1112,6 +1112,7 @@ pub mod ms {
         }
 
         /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
+        #[allow(dead_code)]
         pub fn get_bytes_eaten(&self) -> usize {
             self.bytes_eaten
         }
@@ -1198,6 +1199,7 @@ pub mod ms {
         }
 
         /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
+        #[allow(dead_code)]
         pub fn get_bytes_eaten(&self) -> usize {
             self.bytes_eaten
         }
@@ -1232,6 +1234,7 @@ pub mod ms {
         }
 
         /// * Check if breakfast was eaten, and ready to decode.
+        #[allow(dead_code)]
         pub fn is_ready(&self) -> bool {
             match self {
                 Self::Mono(mono) => mono.is_ready(),
@@ -1248,6 +1251,7 @@ pub mod ms {
         }
 
         /// * How many bytes were eaten, should not exceed the block size in the `fmt ` chunk.
+        #[allow(dead_code)]
         pub fn get_bytes_eaten(&self) -> usize {
             match self {
                 Self::Mono(mono) => mono.get_bytes_eaten(),
