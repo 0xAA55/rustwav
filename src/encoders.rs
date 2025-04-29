@@ -323,18 +323,18 @@ impl<'a> Encoder<'a> {
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
     where S: SampleType {
         match std::any::type_name::<S>() {
-            "i8"  => self.encoder.write_samples__i8(&sample_conv(monos)),
-            "i16" => self.encoder.write_samples_i16(&sample_conv(monos)),
-            "i24" => self.encoder.write_samples_i24(&sample_conv(monos)),
-            "i32" => self.encoder.write_samples_i32(&sample_conv(monos)),
-            "i64" => self.encoder.write_samples_i64(&sample_conv(monos)),
-            "u8"  => self.encoder.write_samples__u8(&sample_conv(monos)),
-            "u16" => self.encoder.write_samples_u16(&sample_conv(monos)),
-            "u24" => self.encoder.write_samples_u24(&sample_conv(monos)),
-            "u32" => self.encoder.write_samples_u32(&sample_conv(monos)),
-            "u64" => self.encoder.write_samples_u64(&sample_conv(monos)),
-            "f32" => self.encoder.write_samples_f32(&sample_conv(monos)),
-            "f64" => self.encoder.write_samples_f64(&sample_conv(monos)),
+            "i8"  => self.encoder.write_mono_channel__i8(&sample_conv(monos)),
+            "i16" => self.encoder.write_mono_channel_i16(&sample_conv(monos)),
+            "i24" => self.encoder.write_mono_channel_i24(&sample_conv(monos)),
+            "i32" => self.encoder.write_mono_channel_i32(&sample_conv(monos)),
+            "i64" => self.encoder.write_mono_channel_i64(&sample_conv(monos)),
+            "u8"  => self.encoder.write_mono_channel__u8(&sample_conv(monos)),
+            "u16" => self.encoder.write_mono_channel_u16(&sample_conv(monos)),
+            "u24" => self.encoder.write_mono_channel_u24(&sample_conv(monos)),
+            "u32" => self.encoder.write_mono_channel_u32(&sample_conv(monos)),
+            "u64" => self.encoder.write_mono_channel_u64(&sample_conv(monos)),
+            "f32" => self.encoder.write_mono_channel_f32(&sample_conv(monos)),
+            "f64" => self.encoder.write_mono_channel_f64(&sample_conv(monos)),
             other => Err(AudioWriteError::InvalidArguments(format!("Bad sample type: {}", other))),
         }
     }
