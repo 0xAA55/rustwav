@@ -1,7 +1,6 @@
 mod errors;
 mod savagestr;
 mod readwrite;
-mod sampleutils;
 mod copiablebuf;
 mod filehasher;
 mod adpcm;
@@ -15,7 +14,7 @@ pub mod utils;
 pub mod encoders;
 pub mod decoders;
 
-pub use sampleutils::{SampleType, SampleFrom, i24, u24};
+pub use sampletypes::{SampleType, SampleFrom, i24, u24};
 pub use readwrite::{Reader, Writer};
 pub use wavcore::{Spec, SampleFormat, DataFormat};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter, FrameIntoIter, StereoIntoIter, MonoIntoIter};
