@@ -705,14 +705,9 @@ pub mod ms {
         }
     }
 
-    pub fn trim_to_nibble(c: i8) -> u8 {
-        (c.clamp(-8, 7) & 0x0F) as u8
-    }
-
     /// ## The core encoder of ADPCM-MS for mono-channel
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
-        predictor: i32,
         sample1: i16,
         sample2: i16,
         coeff: AdpcmCoeffSet,
@@ -723,7 +718,6 @@ pub mod ms {
     impl EncoderCore {
         pub fn new() -> Self {
             Self {
-                predictor: 0,
                 sample1: 0,
                 sample2: 0,
                 coeff: AdpcmCoeffSet::new(),
