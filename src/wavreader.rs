@@ -29,6 +29,7 @@ use crate::decoders::opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use crate::decoders::flac_dec::FlacDecoderWrap;
 
+/// ## The data source for the `WaveReader`, currently we have a file reader or a file path.
 #[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),

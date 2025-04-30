@@ -10,8 +10,13 @@ mod wavreader;
 mod wavwriter;
 mod hacks;
 
+/// ## The utility for both you and me to convert waveform format.
 pub mod utils;
+
+/// ## The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
 pub mod encoders;
+
+/// ## The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
 pub mod decoders;
 
 pub use sampletypes::{SampleType, SampleFrom, i24, u24};
@@ -26,6 +31,7 @@ pub use wavcore::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3Vbr
 pub use wavcore::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 pub use wavcore::{FlacEncoderParams, FlacCompression};
 
+/// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 9] = [
         ("pcm", DataFormat::Pcm),
         ("pcm-alaw", DataFormat::PcmALaw),
@@ -229,6 +235,11 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     Ok(())
 }
 
+/// ## A function dedicated to testing WAV encoding and decoding. This function is actually a `main()` function for a command-line program that parses `args` and returns an `ExitCode`.
+/// The usage is `arg0 [format] [test.wav] [output.wav] [output2.wav]`
+/// It decodes the `test.wav` and encodes it to `output.wav` by `format`
+/// Then it re-decode `output.wav` to `output2.wav`
+/// This can test both encoders and decoders with the specified format to see if they behave as they should.
 #[allow(dead_code)]
 pub fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
@@ -246,6 +257,7 @@ pub fn test_wav() -> ExitCode {
     }
 }
 
+/// ## The `testrun()` tests all of the formats on the `test.wav`. BTW `test.wav` is my cat's voice.
 #[test]
 pub fn testrun() {
     for format in FORMATS {

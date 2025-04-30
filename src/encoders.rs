@@ -800,17 +800,29 @@ impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
     fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
 }
 
+/// ## The MP3 encoder for `WaveWriter`
 pub mod mp3 {
+    /// * MP3 supports two channels in multiple ways.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u8)]
     pub enum Mp3Channels {
+        /// * Mono audio
         Mono = 3,
+
+        /// * Stereo audio (not telling how it is)
         Stereo = 0,
+
+        /// * Joint stereo (most commonly used, for better compression)
         JointStereo = 1,
+
+        /// * Dual channel stereo (for better audio quality)
         DualChannel = 2,
+
+        /// * Not set
         NotSet = 4,
     }
 
+    /// * MP3 quality. Affects the speed of encoding.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u8)]
     pub enum Mp3Quality {
@@ -826,6 +838,8 @@ pub mod mp3 {
         Worst = 9,
     }
 
+    /// * The tier 1 factor for MP3 audio quality, bigger bitrate means better audio quality.
+    /// * Most of the music website provides 128 kbps music for free, and 320 kbps music for the purchased subscribed members.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u16)]
     pub enum Mp3Bitrate {
@@ -835,25 +849,38 @@ pub mod mp3 {
         Kbps32 = 32,
         Kbps40 = 40,
         Kbps48 = 48,
+
+        /// * The bitrate for audio chatting.
         Kbps64 = 64,
         Kbps80 = 80,
         Kbps96 = 96,
         Kbps112 = 112,
+
+        /// * The bitrate for free users.
         Kbps128 = 128,
         Kbps160 = 160,
         Kbps192 = 192,
         Kbps224 = 224,
+
+        /// * Laboratories uses this bitrate.
         Kbps256 = 256,
+
+        /// * The bitrate for VIP users who pay for it.
         Kbps320 = 320,
     }
 
+    /// * The VBR mode for MP3. If you turn VBR on, the audio quality for MP3 will be a little bit worse.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u8)]
     pub enum Mp3VbrMode {
+        /// * This option disables the VBR mode.
         Off = 0,
+
         Mt = 1,
         Rh = 2,
         Abr = 3,
+
+        /// * This option is used most commonly.
         Mtrh = 4,
     }
 
@@ -871,10 +898,19 @@ pub mod mp3 {
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct Mp3EncoderOptions {
+        /// * MP3 channels, not just mono and stereo. MP3 supports two channels in multiple ways.
         pub channels: Mp3Channels,
+
+        /// * MP3 quality. Affects the speed of encoding.
         pub quality: Mp3Quality,
+
+        /// * MP3 bitrate. Affects the audio quality and file size, bigger is better.
         pub bitrate: Mp3Bitrate,
+
+        /// * VBR mode for better compression, turn it off to get better audio quality.
         pub vbr_mode: Mp3VbrMode,
+
+        /// * ID3 tags, if you have, fill this field.
         pub id3tag: Option<Mp3Id3Tag>,
     }
 
@@ -1459,11 +1495,14 @@ pub mod mp3 {
     pub use impl_mp3::*;
 }
 
+/// ## The Opus encoder for `WaveWriter`
 pub mod opus {
     const OPUS_ALLOWED_SAMPLE_RATES: [u32; 5] = [8000, 12000, 16000, 24000, 48000];
     const OPUS_MIN_SAMPLE_RATE: u32 = 8000;
     const OPUS_MAX_SAMPLE_RATE: u32 = 48000;
 
+    /// * The opus encoder only eats these durations of the samples to encode.
+    /// * Longer duration means better quality and compression.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u32)]
     pub enum OpusEncoderSampleDuration {
@@ -1498,8 +1537,14 @@ pub mod opus {
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct OpusEncoderOptions {
+        /// * The tier 1 factor for Opus audio quality, bigger bitrate means better audio quality.
         pub bitrate: OpusBitrate,
+
+        /// * VBR mode for better compression, turn it off to get better audio quality.
         pub encode_vbr: bool,
+
+        /// * The opus encoder only eats these durations of the samples to encode.
+        /// * Longer duration means better quality and compression.
         pub samples_cache_duration: OpusEncoderSampleDuration,
     }
 
@@ -1717,6 +1762,7 @@ pub mod opus {
     pub use impl_opus::*;
 }
 
+/// ## The FLAC encoder for `WaveWriter`
 #[cfg(feature = "flac")]
 pub mod flac_enc {
     use std::{io::{self, Write, Seek, SeekFrom}, borrow::Cow};

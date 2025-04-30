@@ -32,8 +32,16 @@ use crate::encoders::flac_enc::FlacEncoderWrap;
 /// ## These options are used to specify what type of WAV file you want to create.
 #[derive(Debug)]
 pub enum FileSizeOption{
+    /// * You specify the WAV file will never be larger than 4 GB. If the WAV file is about to exceed 4 GB and you continue to write data into it, errors occur.
+    /// * This kind of WAV file is the most common one, most of the WAV parser supports this format.
     NeverLargerThan4GB,
+
+    /// * You specify the WAV file allowed to be larger than 4 GB. If the WAV file finally exceeds 4 GB, the `WaveWriter` will turn this file into an `RF64` file rather than the common `RIFF` file.
+    /// * When the WAV file does not exceed 4 GB, a `JUNK` chunk as a placeholder appears after the `WAVE` flag starting from the `RIFF` chunk, followed by the `fmt ` chunk.
     AllowLargerThan4GB,
+
+    /// * The WAV file is created as an `RF64` file. Some of the WAV parsers couldn't recognize the `RF64` chunk as they only know the `RIFF` chunk.
+    /// * A `ds64` chunk is followed by the `WAVE` flag, the `ds64` chunk uses a 64-bit field to describe the actual file size, thus the WAV file can exceed the 4 GB boundary.
     ForceUse4GBFormat,
 }
 

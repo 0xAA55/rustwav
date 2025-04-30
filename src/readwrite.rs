@@ -69,6 +69,7 @@ impl<'a> Seek for WriteBridge<'_> {
     }
 }
 
+/// ## Multi-thread safe shared reader (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
 pub struct SharedReader(Arc<Mutex<dyn Reader>>);
 
@@ -87,6 +88,7 @@ impl SharedReader{
     }
 }
 
+/// ## Multi-thread safe shared writer (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
 pub struct SharedWriter(Arc<Mutex<dyn Writer>>);
 
@@ -105,6 +107,7 @@ impl SharedWriter{
     }
 }
 
+/// * Copy data from a reader to a writer from the current position.
 pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
 where
     R: Read, W: Write {
@@ -128,24 +131,28 @@ pub mod string_io {
     use std::{io::{self, Read, Write}};
     use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
+    /// * Read some bytes, and return the bytes, without you to create a local `vec![0u8; size]` and scratch your head with the messy codes
     pub fn read_bytes<T: Read>(r: &mut T, size: usize) -> Result<Vec<u8>, io::Error> {
         let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
         Ok(buf)
     }
 
+    /// * Read a fixed-size string and decode it using the `StringCodecMaps`
     pub fn read_str<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
         let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
         Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
     }
 
+    /// * Read a fixed-size string and decode it using the `StringCodecMaps` while you can specify the code page.
     pub fn read_str_by_code_page<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
         let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
         Ok(text_encoding.decode_bytes_by_code_page(&buf, code_page).trim_matches(char::from(0)).to_string())
     }
 
+    /// * Read a NUL terminated string by raw, not decode it.
     pub fn read_sz_raw<T: Read>(r: &mut T) -> Result<Vec<u8>, io::Error> {
         let mut buf = Vec::<u8>::new();
         loop {
@@ -161,14 +168,17 @@ pub mod string_io {
         Ok(buf)
     }
 
+    /// * Read a NUL terminated string and decode it.
     pub fn read_sz<T: Read>(r: &mut T, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
         Ok(text_encoding.decode(&read_sz_raw(r)?).trim_matches(char::from(0)).to_string())
     }
 
+    /// * Read a NUL terminated string and decode it with the specified code page.
     pub fn read_sz_by_code_page<T: Read>(r: &mut T, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
         Ok(text_encoding.decode_bytes_by_code_page(&read_sz_raw(r)?, code_page).trim_matches(char::from(0)).to_string())
     }
 
+    /// * Write a fixed-size encoded string.
     pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &str, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
         let mut data = text_encoding.encode(data);
         data.resize(size, 0);
@@ -176,12 +186,14 @@ pub mod string_io {
         Ok(())
     }
 
+    /// * Write an encoded string.
     pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
         let data = text_encoding.encode(data);
         w.write_all(&data)?;
         Ok(())
     }
 
+    /// * Write an encoded string encoded with the specified code page.
     pub fn write_str_by_code_page<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps, code_page: u32) -> Result<(), io::Error> {
         let data = text_encoding.encode_strings_by_code_page(data, code_page);
         w.write_all(&data)?;

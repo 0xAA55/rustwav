@@ -629,6 +629,7 @@ impl PcmXLawDecoderWrap {
     }
 }
 
+/// ## The MP3 decoder for `WaveReader`
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
     use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}, mem};
@@ -936,6 +937,7 @@ pub mod mp3 {
     }
 }
 
+/// ## The Opus decoder for `WaveReader`
 #[cfg(feature = "opus")]
 pub mod opus {
     use std::{io::SeekFrom, fmt::{self, Debug, Formatter}};
@@ -1151,6 +1153,7 @@ pub mod opus {
     }
 }
 
+/// ## The FLAC decoder for `WaveReader`
 #[cfg(feature = "flac")]
 pub mod flac_dec {
     use std::{io::{self, Read, Seek, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr, collections::BTreeMap};
