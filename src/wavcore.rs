@@ -1038,9 +1038,10 @@ impl ExtensibleData {
     }
 }
 
-// https://www.recordingblogs.com/wiki/silent-chunk-of-a-wave-file
+/// See <https://www.recordingblogs.com/wiki/silent-chunk-of-a-wave-file>
 #[derive(Debug, Clone, Copy)]
 pub struct SlntChunk {
+    /// * The number of samples through which playback should be silent
     data: u32,
 }
 
@@ -1256,7 +1257,7 @@ impl InstChunk {
     }
 }
 
-// https://www.recordingblogs.com/wiki/playlist-chunk-of-a-wave-file
+/// * See <https://www.recordingblogs.com/wiki/playlist-chunk-of-a-wave-file>
 #[derive(Debug, Clone)]
 pub struct PlstChunk {
     pub playlist_len: u32,
