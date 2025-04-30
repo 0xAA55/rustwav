@@ -58,17 +58,17 @@ pub struct WaveWriter<'a> {
     riff_chunk: Option<ChunkWriter<'a>>,
     data_chunk: Option<ChunkWriter<'a>>,
     pub fmt__chunk: FmtChunk,
-    pub slnt_chunk: Option<SlntChunk>,
-    pub bext_chunk: Option<BextChunk>,
-    pub smpl_chunk: Option<SmplChunk>,
-    pub inst_chunk: Option<InstChunk>,
+    pub slnt_chunk: Vec<SlntChunk>,
+    pub bext_chunk: Vec<BextChunk>,
+    pub smpl_chunk: Vec<SmplChunk>,
+    pub inst_chunk: Vec<InstChunk>,
     pub plst_chunk: Option<PlstChunk>,
     pub cue__chunk: Option<CueChunk>,
-    pub axml_chunk: Option<String>,
-    pub ixml_chunk: Option<String>,
-    pub list_chunk: Option<ListChunk>,
-    pub acid_chunk: Option<AcidChunk>,
-    pub trkn_chunk: Option<String>,
+    pub axml_chunk: Vec<String>,
+    pub ixml_chunk: Vec<String>,
+    pub list_chunk: Vec<ListChunk>,
+    pub acid_chunk: Vec<AcidChunk>,
+    pub trkn_chunk: Vec<String>,
     pub id3__chunk: Option<Id3::Tag>,
     pub junk_chunks: Vec<JunkChunk>,
 }
@@ -95,17 +95,17 @@ impl<'a> WaveWriter<'a> {
             fmt__chunk: FmtChunk::new(),
             riff_chunk: None,
             data_chunk: None,
-            slnt_chunk: None,
-            bext_chunk: None,
-            smpl_chunk: None,
-            inst_chunk: None,
+            slnt_chunk: Vec::<SlntChunk>::new(),
+            bext_chunk: Vec::<BextChunk>::new(),
+            smpl_chunk: Vec::<SmplChunk>::new(),
+            inst_chunk: Vec::<InstChunk>::new(),
             plst_chunk: None,
             cue__chunk: None,
-            axml_chunk: None,
-            ixml_chunk: None,
-            list_chunk: None,
-            acid_chunk: None,
-            trkn_chunk: None,
+            axml_chunk: Vec::<String>::new(),
+            ixml_chunk: Vec::<String>::new(),
+            list_chunk: Vec::<ListChunk>::new(),
+            acid_chunk: Vec::<AcidChunk>::new(),
+            trkn_chunk: Vec::<String>::new(),
             id3__chunk: None,
             junk_chunks: Vec::<JunkChunk>::new(),
         };
@@ -325,73 +325,92 @@ impl<'a> WaveWriter<'a> {
     pub fn get_num_frames_written(&self) -> u64 {
         self.num_frames_written
     }
-    pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
-        self.bext_chunk = Some(chunk.clone());
+    /// * See `WaveReader`
+    pub fn add_slnt_chunk(&mut self, chunk: &SlntChunk) {
+        self.slnt_chunk.push(chunk.clone());
     }
-    pub fn set_smpl_chunk(&mut self, chunk: &SmplChunk) {
-        self.smpl_chunk = Some(chunk.clone());
+    /// * See `WaveReader`
+    pub fn add_bext_chunk(&mut self, chunk: &BextChunk) {
+        self.bext_chunk.push(chunk.clone());
     }
-    pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
-        self.inst_chunk = Some(*chunk);
+    /// * See `WaveReader`
+    pub fn add_smpl_chunk(&mut self, chunk: &SmplChunk) {
+        self.smpl_chunk.push(chunk.clone());
     }
+    /// * See `WaveReader`
+    pub fn add_inst_chunk(&mut self, chunk: &InstChunk) {
+        self.inst_chunk.push(*chunk);
+    }
+    /// * See `WaveReader`
     pub fn set_plst_chunk(&mut self, chunk: &PlstChunk) {
         self.plst_chunk = Some(chunk.clone());
     }
+    /// * See `WaveReader`
     pub fn set_cue__chunk(&mut self, chunk: &CueChunk) {
         self.cue__chunk = Some(chunk.clone());
     }
-    pub fn set_axml_chunk(&mut self, chunk: &String) {
-        self.axml_chunk = Some(chunk.to_owned());
+    /// * See `WaveReader`
+    pub fn add_axml_chunk(&mut self, chunk: &String) {
+        self.axml_chunk.push(chunk.to_owned());
     }
-    pub fn set_ixml_chunk(&mut self, chunk: &String) {
-        self.ixml_chunk = Some(chunk.to_owned());
+    /// * See `WaveReader`
+    pub fn add_ixml_chunk(&mut self, chunk: &String) {
+        self.ixml_chunk.push(chunk.to_owned());
     }
-    pub fn set_list_chunk(&mut self, chunk: &ListChunk) {
-        self.list_chunk = Some(chunk.clone());
+    /// * See `WaveReader`
+    pub fn add_list_chunk(&mut self, chunk: &ListChunk) {
+        self.list_chunk.push(chunk.clone());
     }
-    pub fn set_acid_chunk(&mut self, chunk: &AcidChunk) {
-        self.acid_chunk = Some(chunk.clone());
+    /// * See `WaveReader`
+    pub fn add_acid_chunk(&mut self, chunk: &AcidChunk) {
+        self.acid_chunk.push(chunk.clone());
     }
-    pub fn set_trkn_chunk(&mut self, chunk: &String) {
-        self.trkn_chunk = Some(chunk.to_owned());
+    /// * See `WaveReader`
+    pub fn add_trkn_chunk(&mut self, chunk: &String) {
+        self.trkn_chunk.push(chunk.to_owned());
     }
+    /// * See `WaveReader`
     pub fn add_junk_chunk(&mut self, chunk: &JunkChunk) {
         self.junk_chunks.push(chunk.clone());
     }
 
     /// Transfers audio metadata (e.g., track info) from the reader.
     pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
-        if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
-        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = *reader.get_slnt_chunk();}
-        if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
-        if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
+        if !reader.get_slnt_chunk().is_empty() {self.slnt_chunk.extend(reader.get_slnt_chunk().clone());}
+        if !reader.get_bext_chunk().is_empty() {self.bext_chunk.extend(reader.get_bext_chunk().clone());}
+        if !reader.get_smpl_chunk().is_empty() {self.smpl_chunk.extend(reader.get_smpl_chunk().clone());}
+        if !reader.get_inst_chunk().is_empty() {self.inst_chunk.extend(reader.get_inst_chunk().clone());}
         if reader.get_plst_chunk().is_some() {self.plst_chunk = reader.get_plst_chunk().clone();}
         if reader.get_cue__chunk().is_some() {self.cue__chunk = reader.get_cue__chunk().clone();}
-        if reader.get_axml_chunk().is_some() {self.axml_chunk = reader.get_axml_chunk().clone();}
-        if reader.get_ixml_chunk().is_some() {self.ixml_chunk = reader.get_ixml_chunk().clone();}
-        if reader.get_list_chunk().is_some() {self.list_chunk = reader.get_list_chunk().clone();}
-        if reader.get_acid_chunk().is_some() {self.acid_chunk = reader.get_acid_chunk().clone();}
-        if reader.get_trkn_chunk().is_some() {self.trkn_chunk = reader.get_trkn_chunk().clone();}
+        if !reader.get_axml_chunk().is_empty() {self.axml_chunk.extend(reader.get_axml_chunk().clone());}
+        if !reader.get_ixml_chunk().is_empty() {self.ixml_chunk.extend(reader.get_ixml_chunk().clone());}
+        if !reader.get_list_chunk().is_empty() {self.list_chunk.extend(reader.get_list_chunk().clone());}
+        if !reader.get_acid_chunk().is_empty() {self.acid_chunk.extend(reader.get_acid_chunk().clone());}
+        if !reader.get_trkn_chunk().is_empty() {self.trkn_chunk.extend(reader.get_trkn_chunk().clone());}
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
         if include_junk_chunks {
             self.junk_chunks.extend(reader.get_junk_chunks().clone());
         }
     }
 
+    /// * If your audio file has `plst`, `cue `, and `LIST adtl` chunks, then BAM you can call this function for full playlist info.
+    /// * Returns `Err` if some of these chunks are absent.
     pub fn create_full_info_cue_data(&self) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
-        if let Some(ref list_chunk) = self.list_chunk {
+        if self.list_chunk.is_empty() {
+            return Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()));
+        }
+        for list_chunk in self.list_chunk.iter() {
             if let ListChunk::Adtl(adtl) = list_chunk {
-                if let Some(ref cue__chunk) = self.cue__chunk {
+                return if let Some(ref cue__chunk) = self.cue__chunk {
                     wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
                     Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
-                }
+                };
             } else {
-                Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk)))
+                eprintln!("The data type of the `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk);
             }
-        } else {
-            Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()))
         }
+        Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", self.list_chunk)))
     }
 
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
@@ -426,12 +445,12 @@ impl<'a> WaveWriter<'a> {
 
         // Get back to the end of the data chunk, and then write all remaining chunks (metadata, auxiliary data) to the file.
         self.writer.seek(SeekFrom::Start(end_of_data))?;
-        if let Some(chunk) = &self.bext_chunk { chunk.write(&mut self.writer, &self.text_encoding)?; }
-        if let Some(chunk) = &self.smpl_chunk { chunk.write(&mut self.writer)?; }
-        if let Some(chunk) = &self.inst_chunk { chunk.write(&mut self.writer)?; }
-        if let Some(chunk) = &self.cue__chunk { chunk.write(&mut self.writer)?; }
-        if let Some(chunk) = &self.list_chunk { chunk.write(&mut self.writer, &self.text_encoding)?; }
-        if let Some(chunk) = &self.acid_chunk { chunk.write(&mut self.writer)?; }
+        self.bext_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer, &self.text_encoding).unwrap();});
+        self.smpl_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.inst_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.cue__chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.list_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer, &self.text_encoding).unwrap();});
+        self.acid_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
         if let Some(chunk) = &self.id3__chunk {
             let mut cw = ChunkWriter::begin(&mut self.writer, b"id3 ")?;
             Id3::id3_write(chunk, &mut cw.writer)?;
@@ -439,24 +458,16 @@ impl<'a> WaveWriter<'a> {
 
         // Writes all remaining string-based chunks to the file.
         let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
-        if let Some(chunk) = &self.axml_chunk {
-            string_chunks_to_write.push((*b"axml", chunk));
-        }
-        if let Some(chunk) = &self.ixml_chunk {
-            string_chunks_to_write.push((*b"ixml", chunk));
-        }
-        if let Some(chunk) = &self.trkn_chunk {
-            string_chunks_to_write.push((*b"Trkn", chunk));
-        }
+        self.axml_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"axml", chunk))});
+        self.ixml_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"ixml", chunk))});
+        self.trkn_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"Trkn", chunk))});
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(&mut self.writer, flag)?;
             write_str(&mut cw.writer, chunk, &self.text_encoding)?;
         }
 
         // Writes all JUNK chunks to the file.
-        for junk in self.junk_chunks.iter() {
-            junk.write(&mut self.writer)?;
-        }
+        self.junk_chunks.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
 
         self.riff_chunk = None;
 
