@@ -15,7 +15,7 @@ pub mod encoders;
 pub mod decoders;
 
 pub use sampletypes::{SampleType, SampleFrom, i24, u24};
-pub use readwrite::{Reader, Writer};
+pub use readwrite::{Reader, Writer, ReadBridge, WriteBridge, SharedReader, SharedWriter, string_io};
 pub use wavcore::{Spec, SampleFormat, DataFormat};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter, FrameIntoIter, StereoIntoIter, MonoIntoIter};
 pub use wavwriter::{FileSizeOption, WaveWriter};
