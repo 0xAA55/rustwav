@@ -118,7 +118,8 @@ impl SharedWriter{
 }
 
 pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
-where R: Read, W: Write {
+where
+    R: Read, W: Write {
     const BUFFER_SIZE: u64 = 1024;
     let mut buf = vec![0u8; BUFFER_SIZE as usize];
     let mut to_copy = bytes_to_copy;
