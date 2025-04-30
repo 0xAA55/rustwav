@@ -1,6 +1,6 @@
 [package]
 name = "rustwav"
-version = "0.0.15"
+version = "0.0.16"
 edition = "2024"
 authors = ["0xAA55 <838816058@qq.com>"]
 readme = "Readme.md"
@@ -17,7 +17,7 @@ mp3lame-encoder = { version = "0.2.1", optional = true }
 opus = { version = "0.3.0", optional = true}
 resampler-rs = "0.0.1"
 rmp3 = { version = "0.3.1", optional = true, features = ["mp1-mp2", "std"] }
-sampletypes = "0.0.5"
+sampletypes = "0.0.7"
 tempfile = "3.18.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
