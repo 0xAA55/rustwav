@@ -78,15 +78,9 @@ impl SharedReader{
         Self(Arc::new(Mutex::new(reader)))
     }
 
-    pub fn escorted_work<T, F, E>(&self, mut action: F) -> Result<T, E>
+    /// * Let the reader work in your closure with a mutex lock guard.
+    pub fn escorted_read<T, F, E>(&self, mut action: F) -> Result<T, E>
     where F: FnMut(&mut dyn Reader) -> Result<T, E> {
-        let mut guard = self.0.lock().unwrap();
-        let mut reader = guard.deref_mut();
-        (action)(&mut reader)
-    }
-
-    pub fn escorted_read<F, E>(&self, mut action: F) -> Result<(), E>
-    where F: FnMut(&mut dyn Reader) -> Result<(), E> {
         let mut guard = self.0.lock().unwrap();
         let mut reader = guard.deref_mut();
         (action)(&mut reader)
@@ -102,15 +96,9 @@ impl SharedWriter{
         Self(Arc::new(Mutex::new(writer)))
     }
 
-    pub fn escorted_work<T, F, E>(&self, mut action: F) -> Result<T, E>
+    /// * Let the writer work in your closure with a mutex lock guard.
+    pub fn escorted_write<T, F, E>(&self, mut action: F) -> Result<T, E>
     where F: FnMut(&mut dyn Writer) -> Result<T, E> {
-        let mut guard = self.0.lock().unwrap();
-        let mut writer = guard.deref_mut();
-        (action)(&mut writer)
-    }
-
-    pub fn escorted_write<F, E>(&self, mut action: F) -> Result<(), E>
-    where F: FnMut(&mut dyn Writer) -> Result<(), E> {
         let mut guard = self.0.lock().unwrap();
         let mut writer = guard.deref_mut();
         (action)(&mut writer)
