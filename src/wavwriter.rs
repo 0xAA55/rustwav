@@ -74,12 +74,14 @@ pub struct WaveWriter<'a> {
 }
 
 impl<'a> WaveWriter<'a> {
+    /// ## Create WAV file through a file path.
     pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let file_writer = BufWriter::new(File::create(filename)?);
         let wave_writer = WaveWriter::from(Box::new(file_writer), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
+    /// ## Write the WAV file to the writer.
     pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let mut ret = Self{
             writer,
@@ -314,12 +316,15 @@ impl<'a> WaveWriter<'a> {
         }
     }
 
+    /// * Get the spec for the `WaveWriter`
     pub fn spec(&self) -> Spec{
         self.spec
     }
+    /// * See `WaveReader`
     pub fn get_data_format(&self) -> DataFormat {
         self.data_format
     }
+    /// * Get how many audio frames were written
     pub fn get_num_frames_written(&self) -> u64 {
         self.num_frames_written
     }
@@ -411,8 +416,8 @@ impl<'a> WaveWriter<'a> {
         Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", self.list_chunk)))
     }
 
+    /// * Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
-        // Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
         self.encoder.finish()?;
 
         // Finalizes writing to the data chunk and records its size.
@@ -467,6 +472,7 @@ impl<'a> WaveWriter<'a> {
         // Writes all JUNK chunks to the file.
         self.junk_chunks.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
 
+        // Finished RIFF chunk writing.
         self.riff_chunk = None;
 
         // Critical large-file handling workflow:
@@ -524,6 +530,7 @@ impl<'a> WaveWriter<'a> {
         Ok(())
     }
 
+    /// * If you don't want your `WaveWriter` anymore, call this method.
     pub fn finalize(self) {}
 }
 

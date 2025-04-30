@@ -76,13 +76,13 @@ where E: std::error::Error{
 }
 
 impl WaveReader {
-    /// * Open the WAV file from a file path
+    /// * Open the WAV file from a file path. No temporary files will be created.
     pub fn open(file_source: &str) -> Result<Self, AudioReadError> {
         Self::new(WaveDataSource::Filename(file_source.to_string()))
         // Self::new(WaveDataSource::Reader(Box::new(BufReader::new(File::open(file_source)?)))) // Test for the temp file
     }
 
-    /// * Open the WAV file from a `WaveDataSource`
+    /// * Open the WAV file from a `WaveDataSource`, if the `WaveDataSource` is `Reader`, the `WaveReader` will create an auto-delete temporary file for the `data` chunk.
     pub fn new(file_source: WaveDataSource) -> Result<Self, AudioReadError> {
         let mut filesrc: Option<String> = None;
         let mut reader = match file_source {
@@ -389,7 +389,7 @@ impl WaveReader {
         Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", self.list_chunk)))
     }
 
-    /// To verify if a chunk had not read. Some chunks should not be duplicated.
+    /// * To verify if a chunk had not read. Some chunks should not be duplicated.
     fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
             Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
@@ -398,37 +398,60 @@ impl WaveReader {
         }
     }
 
-    // Create iterators.
-    // The iterators are for reading audio frames, each frame includes one sample for all channels.
+    /// ## Create an iterator for iterating through each audio frame, excretes multi-channel audio frames.
+    /// * Every audio frame is an array that includes one sample for every channel.
+    /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
+    /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
     where S: SampleType {
         FrameIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
+
+    /// ## Create an iterator for iterating through each audio frame, excretes mono-channel samples.
+    /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
     where S: SampleType {
         MonoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
+
+    /// ## Create an iterator for iterating through each audio frame, excretes two-channel stereo frames.
+    /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
     where S: SampleType {
         StereoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
 
-    // These are for `intoiter()`, but not by implementing `IntoIterator` for `WaveReader`
+    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes multi-channel audio frames.
+    /// * Every audio frame is an array that includes one sample for every channel.
+    /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
+    /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_intoiter<S>(mut self) -> Result<FrameIntoIter<S>, AudioReadError>
     where S: SampleType {
         FrameIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
+
+    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes mono-channel samples.
+    /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_intoiter<S>(mut self) -> Result<MonoIntoIter<S>, AudioReadError>
     where S: SampleType {
         MonoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
+
+    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes two-channel stereo frames.
+    /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
+    /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_intoiter<S>(mut self) -> Result<StereoIntoIter<S>, AudioReadError>
     where S: SampleType {
         StereoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
     }
 }
 
-/// The `IntoIterator` is **only for** stereo `f32` samples.
+/// * The `IntoIterator` is **only for** two-channel stereo `f32` samples.
 impl IntoIterator for WaveReader {
     type Item = (f32, f32);
     type IntoIter = StereoIntoIter<f32>;
@@ -490,9 +513,9 @@ where S: SampleType {
     }
 }
 
-/// The `WaveDataReader` provides the way to access the audio data, by a `Reader` or a file.
-/// This is for creating the iterators. Each iterator uses this to read bytes, seek an offset, and convert data into samples.
-/// By using this, every individual iterator can have its iterating position.
+/// * The `WaveDataReader` provides the way to access the audio data, by a `Reader` or a file.
+/// * This is for creating the iterators. Each iterator uses this to read bytes, seek an offset, and convert data into samples.
+/// * By using this, every individual iterator can have its iterating position.
 #[derive(Debug)]
 struct WaveDataReader {
     reader: Option<Box<dyn Reader>>,
@@ -575,7 +598,7 @@ impl WaveDataReader {
     }
 }
 
-// For `mem::take()`, used by the `IntoIter` iterators.
+/// For `mem::take()`, used by the `IntoIter` iterators.
 impl Default for WaveDataReader {
     fn default() -> Self {
         Self {
@@ -589,15 +612,31 @@ impl Default for WaveDataReader {
     }
 }
 
+/// ## The audio frame iterator was created from the `WaveReader` to decode the audio frames.
+/// * Every audio frame is an array that includes one sample for every channel.
+/// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
+/// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
 #[derive(Debug)]
 pub struct FrameIter<'a, S>
 where S: SampleType {
+    /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<'a, S> FrameIter<'a, S>
@@ -615,6 +654,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
         self.decoder.decode_frames(num_frames)
     }
@@ -624,25 +664,41 @@ impl<S> Iterator for FrameIter<'_, S>
 where S: SampleType {
     type Item = Vec<S>;
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_frame().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
     }
 }
 
+/// ## The audio frame iterator was created from the `WaveReader` to decode the mono audio.
+/// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
 pub struct MonoIter<'a, S>
 where S: SampleType {
+    /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<'a, S> MonoIter<'a, S>
@@ -660,6 +716,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
         self.decoder.decode_monos(num_monos)
     }
@@ -669,10 +726,12 @@ impl<S> Iterator for MonoIter<'_, S>
 where S: SampleType {
     type Item = S;
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_mono().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
@@ -680,15 +739,29 @@ where S: SampleType {
 }
 
 
+/// ## The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
+/// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
 pub struct StereoIter<'a, S>
 where S: SampleType {
+    /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<'a, S> StereoIter<'a, S>
@@ -706,6 +779,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
         self.decoder.decode_stereos(num_stereos)
     }
@@ -715,26 +789,44 @@ impl<S> Iterator for StereoIter<'_, S>
 where S: SampleType {
     type Item = (S, S);
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_stereo().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
     }
 }
 
-
+/// ## The audio frame iterator was created from the `WaveReader` to decode the audio frames.
+/// * Every audio frame is an array that includes one sample for every channel.
+/// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
+/// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
+/// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct FrameIntoIter<S>
 where S: SampleType {
+    /// * The owned data reader from the `WaveReader`
     data_reader: WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<S> FrameIntoIter<S>
@@ -752,6 +844,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
         self.decoder.decode_frames(num_frames)
     }
@@ -761,25 +854,42 @@ impl<S> Iterator for FrameIntoIter<S>
 where S: SampleType {
     type Item = Vec<S>;
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_frame().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
     }
 }
 
+/// ## The audio frame iterator was created from the `WaveReader` to decode the mono audio.
+/// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
+/// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct MonoIntoIter<S>
 where S: SampleType {
+    /// * The owned data reader from the `WaveReader`
     data_reader: WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<S> MonoIntoIter<S>
@@ -797,6 +907,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
         self.decoder.decode_monos(num_monos)
     }
@@ -806,26 +917,42 @@ impl<S> Iterator for MonoIntoIter<S>
 where S: SampleType {
     type Item = S;
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_mono().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
     }
 }
 
-
+/// ## The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
+/// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
+/// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
+/// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct StereoIntoIter<S>
 where S: SampleType {
+    /// * The owned data reader from the `WaveReader`
     data_reader: WaveDataReader,
+
+    /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
+
+    /// * The length of the audio data. After the audio data, it's often followed by the metadata of the audio file, so `EOF` doesn't indicate the end of the audio data.
     data_length: u64,
+
+    /// * The spec for the audio data
     spec: Spec,
-    fact_data: u64, // The total samples in the data chunk
-    decoder: Box<dyn Decoder<S>>, // The decoder
+
+    /// * The total samples in the `data` chunk. If the WAV file doesn't have a `fact` chunk, this field is zero.
+    fact_data: u64,
+
+    /// * The decoder dedicated for the format of the audio data, excretes the `<S>` format of the PCM samples for you.
+    decoder: Box<dyn Decoder<S>>,
 }
 
 impl<S> StereoIntoIter<S>
@@ -843,6 +970,7 @@ where S: SampleType {
         })
     }
 
+    /// * Batch decodes multiple frames. For some types of audio formats, this method is faster than decoding every frame one by one.
     pub fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
         self.decoder.decode_stereos(num_stereos)
     }
@@ -852,10 +980,12 @@ impl<S> Iterator for StereoIntoIter<S>
 where S: SampleType {
     type Item = (S, S);
 
+    /// * This method is for decoding each audio frame.
     fn next(&mut self) -> Option<Self::Item> {
         self.decoder.decode_stereo().unwrap()
     }
 
+    /// * This method is for seeking.
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
         self.decoder.seek(SeekFrom::Current(n as i64)).unwrap();
         self.next()
