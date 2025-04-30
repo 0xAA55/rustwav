@@ -115,30 +115,28 @@ impl<'a> WaveWriter<'a> {
     }
 
     fn create_encoder(&mut self) -> Result<(), AudioWriteError> {
-        use DataFormat::{Unspecified, Pcm, Adpcm, PcmALaw, PcmMuLaw, Mp3, Opus, Flac};
         let spec = self.spec;
         self.encoder = match self.data_format {
-            Pcm => {
+            DataFormat::Pcm => {
                 spec.verify_for_pcm()?;
                 Encoder::new(PcmEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?)
             },
-            Adpcm(sub_format) => {
-                use AdpcmSubFormat::{Ima, Ms, Yamaha};
+            DataFormat::Adpcm(sub_format) => {
                 match sub_format {
-                    Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
-                    Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
-                    Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
+                    AdpcmSubFormat::Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
+                    AdpcmSubFormat::Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
+                    AdpcmSubFormat::Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
                 }
             },
-            PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::ALaw)),
-            PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::MuLaw)),
+            DataFormat::PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::ALaw)),
+            DataFormat::PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::MuLaw)),
             #[cfg(feature = "mp3enc")]
-            Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, mp3_options)?),
+            DataFormat::Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, mp3_options)?),
             #[cfg(feature = "opus")]
-            Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, opus_options)?),
+            DataFormat::Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, opus_options)?),
             #[cfg(feature = "flac")]
-            Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), flac_options)?),
-            Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
+            DataFormat::Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), flac_options)?),
+            DataFormat::Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
             #[allow(unreachable_patterns)]
             other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
         };
