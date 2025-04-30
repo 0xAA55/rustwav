@@ -38,7 +38,3 @@ lto = "fat"
 [lib]
 name = "rustwav"
 path = "src/lib.rs"
-
-[[bin]]
-name = "rustwav_bin"
-path = "src/test.rs"
