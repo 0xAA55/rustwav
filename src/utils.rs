@@ -172,7 +172,7 @@ pub fn stereo_conv<S, D>(frame: (S, S)) -> (D, D)
 where S: SampleType,
       D: SampleType {
     let (l, r) = frame;
-    (D::from(l), D::from(r))
+    (D::scale_from(l), D::scale_from(r))
 }
 
 /// * Convert samples to another format by scaling. e.g. `u8` to `i16` conversion is to scale `[0, 255]` into `[-32768, +32767]`
@@ -185,7 +185,7 @@ where S: SampleType,
     if TypeId::of::<S>() == TypeId::of::<D>() {
         Cow::Borrowed(unsafe{slice::from_raw_parts(frame.as_ptr() as *const D, frame.len())})
     } else {
-        Cow::Owned(frame.iter().map(|sample: &S| -> D {D::from(*sample)}).collect())
+        Cow::Owned(frame.iter().map(|sample: &S| -> D {D::scale_from(*sample)}).collect())
     }
 }
 

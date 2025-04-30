@@ -484,7 +484,7 @@ where S: SampleType {
     fn write_sample_to<T>(writer: &mut dyn Writer, frame: &[S]) -> Result<(), AudioWriteError>
     where T: SampleType {
         for sample in frame.iter() {
-            T::from(*sample).write_le(writer)?;
+            T::scale_from(*sample).write_le(writer)?;
         }
         Ok(())
     }
@@ -1337,7 +1337,7 @@ pub mod mp3 {
 
             fn channel_to_type<T>(mono: &[S]) -> Vec<T>
             where T: SampleType {
-                mono.iter().map(|s|{T::from(*s)}).collect()
+                mono.iter().map(|s|{T::scale_from(*s)}).collect()
             }
 
             fn encode_to_vec(&self, encoder: &mut Encoder, out_buf :&mut Vec<u8>) -> Result<usize, AudioWriteError> {

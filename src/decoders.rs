@@ -209,13 +209,13 @@ where S: SampleType {
         if self.is_end_of_data()? {
             Ok(None)
         } else {
-            Ok(Some(S::from(T::read_le(&mut self.reader)?)))
+            Ok(Some(S::scale_from(T::read_le(&mut self.reader)?)))
         }
     }
 
     fn decode_sample_to<T>(r: &mut dyn Reader) -> Result<S, AudioReadError>
     where T: SampleType {
-        Ok(S::from(T::read_le(r)?))
+        Ok(S::scale_from(T::read_le(r)?))
     }
 
     fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
@@ -294,7 +294,7 @@ where S: SampleType {
                 2 => {
                     let sample_l = (self.sample_decoder)(&mut self.reader)?;
                     let sample_r = (self.sample_decoder)(&mut self.reader)?;
-                    Ok(Some(sample_l / S::from(2) + sample_r / S::from(2)))
+                    Ok(Some(sample_l / S::scale_from(2) + sample_r / S::scale_from(2)))
                 },
                 o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
             }
@@ -425,7 +425,7 @@ where D: adpcm::AdpcmDecoder {
                     } else if self.frame_index < self.frames_decoded {
                         let ret = self.samples[(self.frame_index - self.first_frame_of_samples) as usize];
                         self.frame_index += 1;
-                        Ok(Some(S::from(ret)))
+                        Ok(Some(S::scale_from(ret)))
                     } else {
                         // Need to decode the next block
                         self.first_frame_of_samples += self.samples.len() as u64;
@@ -475,7 +475,7 @@ where D: adpcm::AdpcmDecoder {
                         self.frame_index += 1;
                         let l = self.samples[index];
                         let r = self.samples[index + 1];
-                        Ok(Some((S::from(l), S::from(r))))
+                        Ok(Some((S::scale_from(l), S::scale_from(r))))
                     } else {
                         // Need to decode the next block
                         self.first_frame_of_samples += (self.samples.len() / 2) as u64;
@@ -572,13 +572,13 @@ impl PcmXLawDecoderWrap {
         } else {
             match self.channels {
                 1 => {
-                    let s = S::from(self.decode()?);
+                    let s = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some(s))
                 },
                 2 => {
-                    let l = S::from(self.decode()?);
-                    let r = S::from(self.decode()?);
+                    let l = S::scale_from(self.decode()?);
+                    let r = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some(S::average(l, r)))
                 },
@@ -594,13 +594,13 @@ impl PcmXLawDecoderWrap {
         } else {
             match self.channels {
                 1 => {
-                    let s = S::from(self.decode()?);
+                    let s = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some((s, s)))
                 },
                 2 => {
-                    let l = S::from(self.decode()?);
-                    let r = S::from(self.decode()?);
+                    let l = S::scale_from(self.decode()?);
+                    let r = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some((l, r)))
                 },
@@ -907,7 +907,7 @@ pub mod mp3 {
             match self.decode_mono_raw()? {
                 None => Ok(None),
                 Some(s) => {
-                    Ok(Some(S::from(s)))
+                    Ok(Some(S::scale_from(s)))
                 },
             }
         }
@@ -916,7 +916,7 @@ pub mod mp3 {
         where S: SampleType {
             match self.decode_stereo_raw()? {
                 None => Ok(None),
-                Some((l, r)) => Ok(Some((S::from(l), S::from(r)))),
+                Some((l, r)) => Ok(Some((S::scale_from(l), S::scale_from(r)))),
             }
         }
 
@@ -927,8 +927,8 @@ pub mod mp3 {
                 None => Ok(None),
                 Some((l, r)) => {
                     match self.target_channels {
-                        1 => Ok(Some(vec![S::from(l)])),
-                        2 => Ok(Some(vec![S::from(l), S::from(r)])),
+                        1 => Ok(Some(vec![S::scale_from(l)])),
+                        2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
                         o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
                     }
                 },
@@ -1085,13 +1085,13 @@ pub mod opus {
             match self.channels {
                 1 => {
                     let s = self.decode_sample()?;
-                    if let Some(s) = s {self.frame_index += 1; Ok(Some(S::from(s)))} else {Ok(None)}
+                    if let Some(s) = s {self.frame_index += 1; Ok(Some(S::scale_from(s)))} else {Ok(None)}
                 },
                 2 => {
                     let l = self.decode_sample()?;
                     let r = self.decode_sample()?;
-                    let l = if let Some(l) = l {S::from(l)} else {return Ok(None);};
-                    let r = if let Some(r) = r {S::from(r)} else {return Ok(None);};
+                    let l = if let Some(l) = l {S::scale_from(l)} else {return Ok(None);};
+                    let r = if let Some(r) = r {S::scale_from(r)} else {return Ok(None);};
                     self.frame_index += 1;
                     Ok(Some(S::average(l, r)))
                 },
@@ -1104,13 +1104,13 @@ pub mod opus {
             match self.channels {
                 1 => {
                     let s = self.decode_sample()?;
-                    if let Some(s) = s {self.frame_index += 1; let s = S::from(s); Ok(Some((s, s)))} else {Ok(None)}
+                    if let Some(s) = s {self.frame_index += 1; let s = S::scale_from(s); Ok(Some((s, s)))} else {Ok(None)}
                 }
                 2 => {
                     let l = self.decode_sample()?;
                     let r = self.decode_sample()?;
-                    let l = if let Some(l) = l {S::from(l)} else {return Ok(None);};
-                    let r = if let Some(r) = r {S::from(r)} else {return Ok(None);};
+                    let l = if let Some(l) = l {S::scale_from(l)} else {return Ok(None);};
+                    let r = if let Some(r) = r {S::scale_from(r)} else {return Ok(None);};
                     self.frame_index += 1;
                     Ok(Some((l, r)))
                 },
@@ -1125,8 +1125,8 @@ pub mod opus {
                 None => Ok(None),
                 Some((l, r)) => {
                     match self.channels {
-                        1 => Ok(Some(vec![S::from(l)])),
-                        2 => Ok(Some(vec![S::from(l), S::from(r)])),
+                        1 => Ok(Some(vec![S::scale_from(l)])),
+                        2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
                         o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
                     }
                 },
