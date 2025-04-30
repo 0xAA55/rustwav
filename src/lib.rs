@@ -236,10 +236,10 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
 }
 
 /// ## A function dedicated to testing WAV encoding and decoding. This function is actually a `main()` function for a command-line program that parses `args` and returns an `ExitCode`.
-/// The usage is `arg0 [format] [test.wav] [output.wav] [output2.wav]`
-/// It decodes the `test.wav` and encodes it to `output.wav` by `format`
-/// Then it re-decode `output.wav` to `output2.wav`
-/// This can test both encoders and decoders with the specified format to see if they behave as they should.
+/// * The usage is `arg0 [format] [test.wav] [output.wav] [output2.wav]`
+/// * It decodes the `test.wav` and encodes it to `output.wav` by `format`
+/// * Then it re-decode `output.wav` to `output2.wav`
+/// * This can test both encoders and decoders with the specified format to see if they behave as they should.
 #[allow(dead_code)]
 pub fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
