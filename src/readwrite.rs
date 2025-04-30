@@ -2,9 +2,11 @@
 
 use std::{io::{self, Read, Write, Seek, SeekFrom}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug};
 
+/// ## The `Reader` trait, `Read + Seek + Debug`
 pub trait Reader: Read + Seek + Debug {}
 impl<T> Reader for T where T: Read + Seek + Debug {}
 
+/// ## The `Writer` trait, `Write + Seek + Debug`
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
