@@ -1060,8 +1060,8 @@ pub mod opus {
             let block_align = self.block_align as u64;
             let block_index = frame_index / block_align;
             let seek_to = self.data_offset + block_index * block_align;
+            self.reader.seek(SeekFrom::Start(seek_to))?;
             if seek_to < self.data_offset + self.data_length {
-                self.reader.seek(SeekFrom::Start(seek_to))?;
                 self.decode_block()?;
                 self.decoded_samples_index = ((frame_index * self.channels as u64) - block_index * self.get_samples_per_block() as u64) as usize;
             }
