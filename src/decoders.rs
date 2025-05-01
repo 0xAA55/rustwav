@@ -1122,16 +1122,17 @@ pub mod opus {
 
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
         where S: SampleType {
-            let stereo = self.decode_stereo::<S>()?;
-            match stereo {
-                None => Ok(None),
-                Some((l, r)) => {
-                    match self.channels {
-                        1 => Ok(Some(vec![S::scale_from(l)])),
-                        2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
-                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
+            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels).map(|_|self.decode_sample::<S>()).collect();
+            match frame{
+                Ok(frame) => {
+                    let frame: Vec<S> = frame.into_iter().flatten().collect();
+                    if frame.is_empty() {
+                        Ok(None)
+                    } else {
+                        Ok(Some(frame))
                     }
                 },
+                Err(e) => Err(e),
             }
         }
     }
