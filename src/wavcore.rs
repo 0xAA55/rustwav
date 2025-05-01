@@ -1987,7 +1987,28 @@ impl AcidChunk {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Copy)]
+pub struct TrknChunk {
+    pub track_no: u16,
+    pub total_tracks: u16,
+}
+
+impl TrknChunk {
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        Ok(Self{
+            track_no: u16::read_le(reader)?,
+            total_tracks: u16::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        let cw = ChunkWriter::begin(writer, b"Trkn")?;
+        self.track_no.write_le(cw.writer)?;
+        self.total_tracks.write_le(cw.writer)?;
+        Ok(())
+    }
+}
+
 pub enum JunkChunk{
     FullZero(u64),
     SomeData(Vec<u8>),
