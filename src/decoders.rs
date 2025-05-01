@@ -1064,6 +1064,8 @@ pub mod opus {
             if seek_to < self.data_offset + self.data_length {
                 self.decode_block()?;
                 self.decoded_samples_index = ((frame_index * self.channels as u64) - block_index * self.get_samples_per_block() as u64) as usize;
+            } else {
+                self.clear_decoded_samples_buffer();
             }
             Ok(())
         }
