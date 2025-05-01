@@ -1039,7 +1039,7 @@ impl ExtensibleData {
 }
 
 /// See <https://www.recordingblogs.com/wiki/silent-chunk-of-a-wave-file>
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SlntChunk {
     /// * The number of samples through which playback should be silent
     data: u32,
@@ -1135,7 +1135,24 @@ impl Debug for BextChunk{
     }
 }
 
-#[derive(Debug, Clone)]
+impl Default for BextChunk {
+    fn default() -> Self {
+        Self {
+            description: String::new(),
+            originator: String::new(),
+            originator_ref: String::new(),
+            origination_date: String::new(),
+            origination_time: String::new(),
+            time_ref: 0,
+            version: 0,
+            umid: [0u8; 64],
+            reserved: [0u8; 190],
+            coding_history: [0u8; 1],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct SmplChunk {
     pub manufacturer: u32,
     pub product: u32,
@@ -1149,7 +1166,7 @@ pub struct SmplChunk {
     pub loops: Vec<SmplSampleLoop>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SmplSampleLoop {
     pub identifier: u32,
     pub type_: u32,
@@ -1220,7 +1237,7 @@ impl SmplSampleLoop {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct InstChunk {
     pub base_note: u8,
     pub detune: u8,
@@ -1258,13 +1275,13 @@ impl InstChunk {
 }
 
 /// * See <https://www.recordingblogs.com/wiki/playlist-chunk-of-a-wave-file>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PlstChunk {
     pub playlist_len: u32,
     pub data: Vec<Plst>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Plst {
     pub cue_point_id: u32,
     pub num_samples: u32,
@@ -1315,13 +1332,13 @@ impl Plst {
 
 /// See <https://www.recordingblogs.com/wiki/cue-chunk-of-a-wave-file>
 /// See <https://wavref.til.cafe/chunk/cue/>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CueChunk {
     pub num_cues: u32,
     pub cue_points: Vec<CuePoint>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct CuePoint {
     pub cue_point_id: u32,
     pub position: u32,
@@ -1387,6 +1404,12 @@ pub enum ListChunk {
     Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
+impl Default for ListChunk{
+    fn default() -> Self {
+        Self::Info(BTreeMap::<String, String>::new())
+    }
+}
+
 /// See <https://wavref.til.cafe/chunk/adtl/>
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum AdtlChunk {
@@ -1396,19 +1419,25 @@ pub enum AdtlChunk {
     File(FileChunk),
 }
 
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+impl Default for AdtlChunk{
+    fn default() -> Self {
+        Self::Labl(LablChunk::default())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
 pub struct LablChunk {
     pub cue_point_id: u32,
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
 pub struct NoteChunk {
     pub cue_point_id: u32,
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
 pub struct LtxtChunk {
     pub cue_point_id: u32,
     pub sample_length: u32,
@@ -1420,7 +1449,7 @@ pub struct LtxtChunk {
     pub data: String,
 }
 
-#[derive(Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FileChunk {
     pub cue_point_id: u32,
     pub media_type: u32,
@@ -1847,19 +1876,41 @@ pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpeci
 }
 
 /// ## The fully assembled cue point data from various of chunks in the WAV file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FullInfoCuePoint {
     pub data_chunk_id: [u8; 4],
+
+    /// * The label of the cue point
     pub label: String,
+
+    /// * The notes for the cue point
     pub note: String,
+
+    /// * How many samples in the cue point
     pub sample_length: u32,
+    
+    /// * What is the purpose of the cue point
     pub purpose_id: String,
+
+    /// * Country name
     pub country: String,
+
+    /// * Language name
     pub language: String,
+
+    /// * Some text data
     pub text_data: String,
+
+    /// * The media type
     pub media_type: u32,
+
+    /// * The file data
     pub file_data: Vec<u8>,
+
+    /// * Start sample
     pub start_sample: u32,
+
+    /// * Num samples
     pub num_samples: u32,
 
     /// * repeats for playback
@@ -1947,7 +1998,7 @@ pub fn create_full_info_cue_data(cue_chunk: &CueChunk, adtl_chunks: &BTreeMap<u3
     }).collect::<Result<BTreeMap<u32, FullInfoCuePoint>, AudioError>>()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AcidChunk {
     pub flags: u32,
     pub root_node: u16,
@@ -1987,7 +2038,7 @@ impl AcidChunk {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct TrknChunk {
     pub track_no: u16,
     pub total_tracks: u16,
@@ -2050,6 +2101,11 @@ impl Debug for JunkChunk {
     }
 }
 
+impl Default for JunkChunk {
+    fn default() -> Self {
+        Self::FullZero(0)
+    }
+}
 
 #[cfg(feature = "flac")]
 pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> {
