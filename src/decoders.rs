@@ -1086,20 +1086,17 @@ pub mod opus {
 
         pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
         where S: SampleType {
-            match self.channels {
-                1 => {
-                    let s = self.decode_sample()?;
-                    if let Some(s) = s {self.frame_index += 1; Ok(Some(S::scale_from(s)))} else {Ok(None)}
+            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels).map(|_|self.decode_sample::<S>()).collect();
+            match frame{
+                Ok(frame) => {
+                    let frame: Vec<S> = frame.into_iter().flatten().collect();
+                    if frame.is_empty() {
+                        Ok(None)
+                    } else {
+                        Ok(Some(S::average_arr(&frame)))
+                    }
                 },
-                2 => {
-                    let l = self.decode_sample()?;
-                    let r = self.decode_sample()?;
-                    let l = if let Some(l) = l {S::scale_from(l)} else {return Ok(None);};
-                    let r = if let Some(r) = r {S::scale_from(r)} else {return Ok(None);};
-                    self.frame_index += 1;
-                    Ok(Some(S::average(l, r)))
-                },
-                o => Err(AudioReadError::DataCorrupted(format!("Bad channels: {o} for the opus decoder."))),
+                Err(e) => Err(e),
             }
         }
 
