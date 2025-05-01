@@ -1381,14 +1381,14 @@ impl CuePoint {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum ListChunk {
     Info(BTreeMap<String, String>),
     Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
 /// See <https://wavref.til.cafe/chunk/adtl/>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum AdtlChunk {
     Labl(LablChunk),
     Note(NoteChunk),
@@ -1396,19 +1396,19 @@ pub enum AdtlChunk {
     File(FileChunk),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct LablChunk {
     pub cue_point_id: u32,
     pub data: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct NoteChunk {
     pub cue_point_id: u32,
     pub data: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct LtxtChunk {
     pub cue_point_id: u32,
     pub sample_length: u32,
@@ -1420,7 +1420,7 @@ pub struct LtxtChunk {
     pub data: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FileChunk {
     pub cue_point_id: u32,
     pub media_type: u32,
@@ -2009,6 +2009,7 @@ impl TrknChunk {
     }
 }
 
+#[derive(Clone, PartialOrd, PartialEq, Ord, Eq)]
 pub enum JunkChunk{
     FullZero(u64),
     SomeData(Vec<u8>),
