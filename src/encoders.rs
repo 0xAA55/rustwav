@@ -1496,6 +1496,8 @@ pub mod mp3 {
     pub use impl_mp3::*;
 }
 
+pub use mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
+
 /// ## The Opus encoder for `WaveWriter`
 pub mod opus {
     const OPUS_ALLOWED_SAMPLE_RATES: [u32; 5] = [8000, 12000, 16000, 24000, 48000];
@@ -2030,3 +2032,4 @@ pub mod flac_enc {
     }
 }
 
+pub use opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
