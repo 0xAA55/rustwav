@@ -896,6 +896,7 @@ pub mod mp3 {
         pub comment: [u8; ID3_FIELD_LENGTH],
     }
 
+    /// ## The encoder options for MP3
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct Mp3EncoderOptions {
         /// * MP3 channels, not just mono and stereo. MP3 supports two channels in multiple ways.
@@ -1503,6 +1504,7 @@ pub mod opus {
 
     /// * The opus encoder only eats these durations of the samples to encode.
     /// * Longer duration means better quality and compression.
+    /// * If longer than or equal to 10ms, the compression algorithm could be able to use some advanced technology.
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u32)]
     pub enum OpusEncoderSampleDuration {
@@ -1514,6 +1516,7 @@ pub mod opus {
         MilliSec60,
     }
 
+    /// ## The bitrate option for the Opus encoder, the higher the better for audio quality.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
     pub enum OpusBitrate {
         Bits(i32),
@@ -1535,6 +1538,7 @@ pub mod opus {
         }
     }
 
+    /// ## The encoder options for Opus
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct OpusEncoderOptions {
         /// * The tier 1 factor for Opus audio quality, bigger bitrate means better audio quality.

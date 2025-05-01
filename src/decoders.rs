@@ -23,13 +23,19 @@ use flac_dec::FlacDecoderWrap;
 pub trait Decoder<S>: Debug
     where S: SampleType {
 
-    // These interfaces must be implemented
+    /// Get num channels
     fn get_channels(&self) -> u16;
+
+    /// Decode one audio frame. An audio frame is each channel has one sample. This method supports > 2 channels.
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError>;
+
+    /// Seek to a specific audio frame. An audio frame is each channel has one sample.
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError>;
+
+    /// Get current frame index.
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError>;
 
-    // Optional interface
+    // Decode a mono sample, multiple channels will be mixed into one channel.
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
@@ -37,7 +43,7 @@ pub trait Decoder<S>: Debug
         }
     }
 
-    // Optional interface
+    // Decode a stereo sample with left and right samples, if the audio has > 2 channels, this method fails.
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
@@ -46,7 +52,7 @@ pub trait Decoder<S>: Debug
         }
     }
 
-    // Optional interface
+    // Decode multiple audio frames. This method supports > 2 channels.
     fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
         let mut frames = Vec::<Option<Vec<S>>>::with_capacity(num_frames);
         for _ in 0..num_frames {
@@ -55,7 +61,7 @@ pub trait Decoder<S>: Debug
         Ok(frames.into_iter().flatten().collect())
     }
 
-    // Optional interface
+    // Decode multiple mono samples, multiple channels will be mixed into one channel.
     fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
         let mut monos = Vec::<Option<S>>::with_capacity(num_monos);
         for _ in 0..num_monos {
@@ -64,7 +70,7 @@ pub trait Decoder<S>: Debug
         Ok(monos.into_iter().flatten().collect())
     }
 
-    // Optional interface
+    // Decode multiple stereo samples with left and right samples, if the audio has > 2 channels, this method fails.
     fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
         let mut stereos = Vec::<Option<(S, S)>>::with_capacity(num_stereos);
         for _ in 0..num_stereos {
