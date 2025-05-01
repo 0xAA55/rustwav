@@ -19,7 +19,10 @@ pub mod encoders;
 /// ## The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
 pub mod decoders;
 
-pub use sampletypes::{SampleType, SampleFrom, i24, u24};
+#[doc(hidden)]
+pub use sampletypes::{i24, u24};
+
+pub use sampletypes::{SampleType, SampleFrom};
 pub use readwrite::{Reader, Writer, ReadBridge, WriteBridge, SharedReader, SharedWriter, string_io};
 pub use wavcore::{Spec, SampleFormat, DataFormat};
 pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter, FrameIntoIter, StereoIntoIter, MonoIntoIter};
@@ -27,9 +30,13 @@ pub use wavwriter::{FileSizeOption, WaveWriter};
 pub use resampler::Resampler;
 pub use errors::{AudioReadError, AudioError, AudioWriteError};
 pub use wavcore::{AdpcmSubFormat};
-pub use wavcore::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
-pub use wavcore::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 pub use wavcore::{FlacEncoderParams, FlacCompression};
+
+#[doc(inline)]
+pub use encoders::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
+
+#[doc(inline)]
+pub use encoders::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 9] = [
