@@ -129,9 +129,6 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
     }
 }
 
-#[allow(unused_imports)]
-pub use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
-
 use std::{env::args, process::ExitCode, error::Error};
 
 /// ## The `test()` function
@@ -188,6 +185,10 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
         },
         _ => (),
     }
+
+    // Just to let you know, WAV file can be larger than 4 GB
+	#[allow(unused_imports)]
+	use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     // This is the encoder
     let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
