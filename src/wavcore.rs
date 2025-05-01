@@ -5,15 +5,10 @@ use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatt
 use crate::SampleType;
 use crate::{Reader, Writer};
 use crate::{AudioError, AudioReadError, AudioWriteError};
+use crate::{Mp3EncoderOptions, OpusEncoderOptions};
 use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::readwrite::string_io::*;
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
-
-#[allow(unused_imports)]
-pub use crate::encoders::mp3::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
-
-#[allow(unused_imports)]
-pub use crate::encoders::opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
 #[allow(unused_imports)]
 pub use flac::{
