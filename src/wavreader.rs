@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom, BufReader, BufWriter}, collections::BTreeMap};
+use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom, BufReader, BufWriter}, collections::{BTreeSet, BTreeMap}};
 
 use crate::Reader;
 use crate::SampleType;
@@ -11,7 +11,7 @@ use crate::wavcore;
 use crate::wavcore::Spec;
 use crate::wavcore::ChunkHeader;
 use crate::wavcore::{FmtChunk, ExtensionData};
-use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, TrknChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::wavcore::FullInfoCuePoint;
 use crate::decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
@@ -49,19 +49,19 @@ pub struct WaveReader {
     fact_data: u64, // Total samples in the data chunk
     data_chunk: WaveDataReader,
     text_encoding: StringCodecMaps,
-    slnt_chunk: Vec<SlntChunk>,
-    bext_chunk: Vec<BextChunk>,
-    smpl_chunk: Vec<SmplChunk>,
-    inst_chunk: Vec<InstChunk>,
+    slnt_chunk: Option<SlntChunk>,
+    bext_chunk: Option<BextChunk>,
+    smpl_chunk: Option<SmplChunk>,
+    inst_chunk: Option<InstChunk>,
     plst_chunk: Option<PlstChunk>,
+    trkn_chunk: Option<TrknChunk>,
     cue__chunk: Option<CueChunk>,
-    axml_chunk: Vec<String>,
-    ixml_chunk: Vec<String>,
-    list_chunk: Vec<ListChunk>,
-    acid_chunk: Vec<AcidChunk>,
-    trkn_chunk: Vec<String>,
+    axml_chunk: Option<String>,
+    ixml_chunk: Option<String>,
+    list_chunk: BTreeSet<ListChunk>,
+    acid_chunk: Option<AcidChunk>,
     id3__chunk: Option<Id3::Tag>,
-    junk_chunks: Vec<JunkChunk>,
+    junk_chunks: BTreeSet<JunkChunk>,
 }
 
 /// Accepts a result, if it is `Ok`, return a `Some`; otherwise print the error message and return `None`
@@ -128,19 +128,19 @@ impl WaveReader {
         let mut fmt__chunk: Option<FmtChunk> = None;
         let mut data_offset = 0u64;
         let mut fact_data = 0u64;
-        let mut slnt_chunk = Vec::<SlntChunk>::new();
-        let mut bext_chunk = Vec::<BextChunk>::new();
-        let mut smpl_chunk = Vec::<SmplChunk>::new();
-        let mut inst_chunk = Vec::<InstChunk>::new();
+        let mut slnt_chunk: Option<SlntChunk> = None;
+        let mut bext_chunk: Option<BextChunk> = None;
+        let mut smpl_chunk: Option<SmplChunk> = None;
+        let mut inst_chunk: Option<InstChunk> = None;
         let mut plst_chunk: Option<PlstChunk> = None;
+        let mut trkn_chunk: Option<TrknChunk> = None;
         let mut cue__chunk: Option<CueChunk> = None;
-        let mut axml_chunk = Vec::<String>::new();
-        let mut ixml_chunk = Vec::<String>::new();
-        let mut list_chunk = Vec::<ListChunk>::new();
-        let mut acid_chunk = Vec::<AcidChunk>::new();
-        let mut trkn_chunk = Vec::<String>::new();
+        let mut axml_chunk: Option<String> = None;
+        let mut ixml_chunk: Option<String> = None;
+        let mut list_chunk = BTreeSet::<ListChunk>::new();
+        let mut acid_chunk: Option<AcidChunk> = None;
         let mut id3__chunk: Option<Id3::Tag> = None;
-        let mut junk_chunks = Vec::<JunkChunk>::new();
+        let mut junk_chunks = BTreeSet::<JunkChunk>::new();
 
         // Read each chunks from the WAV file
         let mut last_flag: [u8; 4];
@@ -166,7 +166,7 @@ impl WaveReader {
                 b"JUNK" => {
                     let mut junk = vec![0u8; chunk.size as usize];
                     reader.read_exact(&mut junk)?;
-                    junk_chunks.push(JunkChunk::from(junk));
+                    junk_chunks.insert(JunkChunk::from(junk));
                 }
                 b"fmt " => {
                     Self::verify_none(&fmt__chunk, &chunk.flag)?;
@@ -185,6 +185,9 @@ impl WaveReader {
                     };
                 },
                 b"ds64" => {
+                    if ds64_read {
+                        return Err(AudioReadError::DataCorrupted(String::from("Duplicated \"ds64\" chunk appears")))
+                    }
                     if chunk.size < 28 {
                         return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")))
                     }
@@ -209,16 +212,20 @@ impl WaveReader {
                     continue;
                 },
                 b"slnt" => {
-                    slnt_chunk.extend(optional(SlntChunk::read(&mut reader)).into_iter());
+                    Self::verify_none(&slnt_chunk, &chunk.flag)?;
+                    slnt_chunk = optional(SlntChunk::read(&mut reader));
                 }
                 b"bext" => {
-                    bext_chunk.extend(optional(BextChunk::read(&mut reader, &text_encoding)).into_iter());
+                    Self::verify_none(&bext_chunk, &chunk.flag)?;
+                    bext_chunk = optional(BextChunk::read(&mut reader, &text_encoding));
                 },
                 b"smpl" => {
-                    smpl_chunk.extend(optional(SmplChunk::read(&mut reader)).into_iter());
+                    Self::verify_none(&smpl_chunk, &chunk.flag)?;
+                    smpl_chunk = optional(SmplChunk::read(&mut reader));
                 },
                 b"inst" | b"INST" => {
-                    inst_chunk.extend(optional(InstChunk::read(&mut reader)).into_iter());
+                    Self::verify_none(&inst_chunk, &chunk.flag)?;
+                    inst_chunk = optional(InstChunk::read(&mut reader));
                 },
                 b"plst" => {
                     Self::verify_none(&plst_chunk, &chunk.flag)?;
@@ -229,19 +236,23 @@ impl WaveReader {
                     cue__chunk = optional(CueChunk::read(&mut reader));
                 },
                 b"axml" => {
-                    axml_chunk.extend(optional(read_str(&mut reader, chunk.size as usize, &text_encoding)).into_iter());
+                    Self::verify_none(&axml_chunk, &chunk.flag)?;
+                    axml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
                 },
                 b"ixml" => {
-                    ixml_chunk.extend(optional(read_str(&mut reader, chunk.size as usize, &text_encoding)).into_iter());
+                    Self::verify_none(&ixml_chunk, &chunk.flag)?;
+                    ixml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
                 },
                 b"LIST" => {
-                    list_chunk.extend(optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding)).into_iter());
+                    list_chunk.append(&mut optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding)).into_iter().collect::<BTreeSet<ListChunk>>());
                 }
                 b"acid" => {
-                    acid_chunk.extend(optional(AcidChunk::read(&mut reader)).into_iter());
+                    Self::verify_none(&acid_chunk, &chunk.flag)?;
+                    acid_chunk = optional(AcidChunk::read(&mut reader));
                 },
                 b"Trkn" => {
-                    trkn_chunk.extend(optional(read_str(&mut reader, chunk.size as usize, &text_encoding)).into_iter());
+                    Self::verify_none(&trkn_chunk, &chunk.flag)?;
+                    trkn_chunk = optional(TrknChunk::read(&mut reader));
                 }
                 b"id3 " => {
                     Self::verify_none(&id3__chunk, &chunk.flag)?;
@@ -307,12 +318,12 @@ impl WaveReader {
             smpl_chunk,
             inst_chunk,
             plst_chunk,
+            trkn_chunk,
             cue__chunk,
             axml_chunk,
             ixml_chunk,
             list_chunk,
             acid_chunk,
-            trkn_chunk,
             id3__chunk,
             junk_chunks,
         })
@@ -330,45 +341,45 @@ impl WaveReader {
     pub fn get_fmt__chunk(&self) -> &FmtChunk { &self.fmt__chunk }
 
     /// * The `slnt` chunk indicates how long to stay silent.
-    pub fn get_slnt_chunk(&self) -> &Vec<SlntChunk> { &self.slnt_chunk }
+    pub fn get_slnt_chunk(&self) -> &Option<SlntChunk> { &self.slnt_chunk }
 
     /// * The `bext` chunk has some `description`, `version`, `time_ref` pieces of information, etc.
-    pub fn get_bext_chunk(&self) -> &Vec<BextChunk> { &self.bext_chunk }
+    pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
 
     /// * The `smpl` chunk has some pieces of information about MIDI notes, pitch, etc.
-    pub fn get_smpl_chunk(&self) -> &Vec<SmplChunk> { &self.smpl_chunk }
+    pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
 
     /// * The `inst` chunk has some `base_note`, `gain`, `velocity`, etc.
-    pub fn get_inst_chunk(&self) -> &Vec<InstChunk> { &self.inst_chunk }
+    pub fn get_inst_chunk(&self) -> &Option<InstChunk> { &self.inst_chunk }
 
     /// * The `plst` chunk is the playlist, it has a list that each element have `cue_point`, `num_samples`, `repeats`.
     pub fn get_plst_chunk(&self) -> &Option<PlstChunk> { &self.plst_chunk }
+
+    /// * The `trkn` chunk, by the name.
+    pub fn get_trkn_chunk(&self) -> &Option<TrknChunk> { &self.trkn_chunk }
 
     /// * The `cue ` chunk is with the `plst` chunk, it has a list that each element have `cue_point_id`, `position`, `chunk_start`, etc.
     pub fn get_cue__chunk(&self) -> &Option<CueChunk> { &self.cue__chunk }
 
     /// * The `axml` chunk. I personally don't know what it is, by the name it looks like some kind of `audio XML`. It's a pure string chunk.
-    pub fn get_axml_chunk(&self) -> &Vec<String> { &self.axml_chunk }
+    pub fn get_axml_chunk(&self) -> &Option<String> { &self.axml_chunk }
 
     /// * The `ixml` chunk. I personally don't know what it is, by the name it looks like some kind of `info XML`. It's a pure string chunk.
-    pub fn get_ixml_chunk(&self) -> &Vec<String> { &self.ixml_chunk }
+    pub fn get_ixml_chunk(&self) -> &Option<String> { &self.ixml_chunk }
 
     /// * The `list` chunk, it has 2 subtypes, one is `INFO`, and another is `adtl`.
     /// * The `INFO` subtype is the metadata that contains `artist`, `album`, `title`, etc. It lacks `albumartist` info.
     /// * The `adtl` subtype is with the `cue ` chunk, it's a list including the `label`, `note`, `text`, `file` for the playlist.
-    pub fn get_list_chunk(&self) -> &Vec<ListChunk> { &self.list_chunk }
+    pub fn get_list_chunk(&self) -> &BTreeSet<ListChunk> { &self.list_chunk }
 
     /// * The `acid` chunk, contains some pieces of information about the rhythm, e.g. `num_beats`, `tempo`, etc.
-    pub fn get_acid_chunk(&self) -> &Vec<AcidChunk> { &self.acid_chunk }
-
-    /// * The `trkn` chunk, by the name, looks like `track note`. It's a pure string chunk.
-    pub fn get_trkn_chunk(&self) -> &Vec<String> { &self.trkn_chunk }
+    pub fn get_acid_chunk(&self) -> &Option<AcidChunk> { &self.acid_chunk }
 
     /// * Another metadata chunk for the audio file. This covers more metadata than the `LIST INFO` chunk.
     pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> { &self.id3__chunk }
 
     /// * The `JUNK` chunk, sometimes it's used for placeholder, sometimes it contains some random data for some random music software to show off.
-    pub fn get_junk_chunks(&self) -> &Vec<JunkChunk> { &self.junk_chunks }
+    pub fn get_junk_chunks(&self) -> &BTreeSet<JunkChunk> { &self.junk_chunks }
 
     /// * If your audio file has `plst`, `cue `, and `LIST adtl` chunks, then BAM you can call this function for full playlist info.
     /// * Returns `Err` if some of these chunks are absent.

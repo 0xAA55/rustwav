@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, collections::BTreeMap};
+use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, collections::{BTreeSet, BTreeMap}};
 
 use crate::Writer;
 use crate::WaveReader;
@@ -11,7 +11,7 @@ use crate::wavcore;
 use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::wavcore::ChunkWriter;
 use crate::wavcore::FmtChunk;
-use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
+use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, TrknChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::wavcore::FullInfoCuePoint;
 use crate::encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
@@ -66,19 +66,19 @@ pub struct WaveWriter<'a> {
     riff_chunk: Option<ChunkWriter<'a>>,
     data_chunk: Option<ChunkWriter<'a>>,
     pub fmt__chunk: FmtChunk,
-    pub slnt_chunk: Vec<SlntChunk>,
-    pub bext_chunk: Vec<BextChunk>,
-    pub smpl_chunk: Vec<SmplChunk>,
-    pub inst_chunk: Vec<InstChunk>,
+    pub slnt_chunk: Option<SlntChunk>,
+    pub bext_chunk: Option<BextChunk>,
+    pub smpl_chunk: Option<SmplChunk>,
+    pub inst_chunk: Option<InstChunk>,
     pub plst_chunk: Option<PlstChunk>,
+    pub trkn_chunk: Option<TrknChunk>,
     pub cue__chunk: Option<CueChunk>,
-    pub axml_chunk: Vec<String>,
-    pub ixml_chunk: Vec<String>,
-    pub list_chunk: Vec<ListChunk>,
-    pub acid_chunk: Vec<AcidChunk>,
-    pub trkn_chunk: Vec<String>,
+    pub axml_chunk: Option<String>,
+    pub ixml_chunk: Option<String>,
+    pub list_chunk: BTreeSet<ListChunk>,
+    pub acid_chunk: Option<AcidChunk>,
     pub id3__chunk: Option<Id3::Tag>,
-    pub junk_chunks: Vec<JunkChunk>,
+    pub junk_chunks: BTreeSet<JunkChunk>,
 }
 
 impl<'a> WaveWriter<'a> {
@@ -105,19 +105,19 @@ impl<'a> WaveWriter<'a> {
             fmt__chunk: FmtChunk::new(),
             riff_chunk: None,
             data_chunk: None,
-            slnt_chunk: Vec::<SlntChunk>::new(),
-            bext_chunk: Vec::<BextChunk>::new(),
-            smpl_chunk: Vec::<SmplChunk>::new(),
-            inst_chunk: Vec::<InstChunk>::new(),
+            slnt_chunk: None,
+            bext_chunk: None,
+            smpl_chunk: None,
+            inst_chunk: None,
             plst_chunk: None,
+            trkn_chunk: None,
             cue__chunk: None,
-            axml_chunk: Vec::<String>::new(),
-            ixml_chunk: Vec::<String>::new(),
-            list_chunk: Vec::<ListChunk>::new(),
-            acid_chunk: Vec::<AcidChunk>::new(),
-            trkn_chunk: Vec::<String>::new(),
+            axml_chunk: None,
+            ixml_chunk: None,
+            list_chunk: BTreeSet::<ListChunk>::new(),
+            acid_chunk: None,
             id3__chunk: None,
-            junk_chunks: Vec::<JunkChunk>::new(),
+            junk_chunks: BTreeSet::<JunkChunk>::new(),
         };
         ret.create_encoder()?;
         ret.write_header()?;
@@ -337,68 +337,68 @@ impl<'a> WaveWriter<'a> {
         self.num_frames_written
     }
     /// * See `WaveReader`
-    pub fn add_slnt_chunk(&mut self, chunk: &SlntChunk) {
-        self.slnt_chunk.push(chunk.clone());
+    pub fn set_slnt_chunk(&mut self, chunk: &SlntChunk) {
+        self.slnt_chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
-    pub fn add_bext_chunk(&mut self, chunk: &BextChunk) {
-        self.bext_chunk.push(chunk.clone());
+    pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
+        self.bext_chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
-    pub fn add_smpl_chunk(&mut self, chunk: &SmplChunk) {
-        self.smpl_chunk.push(chunk.clone());
+    pub fn set_smpl_chunk(&mut self, chunk: &SmplChunk) {
+        self.smpl_chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
-    pub fn add_inst_chunk(&mut self, chunk: &InstChunk) {
-        self.inst_chunk.push(*chunk);
+    pub fn set_inst_chunk(&mut self, chunk: &InstChunk) {
+        self.inst_chunk = Some(*chunk);
     }
     /// * See `WaveReader`
     pub fn set_plst_chunk(&mut self, chunk: &PlstChunk) {
         self.plst_chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
+    pub fn set_trkn_chunk(&mut self, chunk: &TrknChunk) {
+        self.trkn_chunk = Some(*chunk);
+    }
+    /// * See `WaveReader`
     pub fn set_cue__chunk(&mut self, chunk: &CueChunk) {
         self.cue__chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
-    pub fn add_axml_chunk(&mut self, chunk: &String) {
-        self.axml_chunk.push(chunk.to_owned());
+    pub fn set_axml_chunk(&mut self, chunk: &String) {
+        self.axml_chunk = Some(chunk.to_owned());
     }
     /// * See `WaveReader`
-    pub fn add_ixml_chunk(&mut self, chunk: &String) {
-        self.ixml_chunk.push(chunk.to_owned());
+    pub fn set_ixml_chunk(&mut self, chunk: &String) {
+        self.ixml_chunk = Some(chunk.to_owned());
     }
     /// * See `WaveReader`
-    pub fn add_list_chunk(&mut self, chunk: &ListChunk) {
-        self.list_chunk.push(chunk.clone());
+    pub fn set_list_chunk(&mut self, chunk: ListChunk) {
+        self.list_chunk.insert(chunk);
     }
     /// * See `WaveReader`
-    pub fn add_acid_chunk(&mut self, chunk: &AcidChunk) {
-        self.acid_chunk.push(chunk.clone());
+    pub fn set_acid_chunk(&mut self, chunk: &AcidChunk) {
+        self.acid_chunk = Some(chunk.clone());
     }
     /// * See `WaveReader`
-    pub fn add_trkn_chunk(&mut self, chunk: &String) {
-        self.trkn_chunk.push(chunk.to_owned());
-    }
-    /// * See `WaveReader`
-    pub fn add_junk_chunk(&mut self, chunk: &JunkChunk) {
-        self.junk_chunks.push(chunk.clone());
+    pub fn add_junk_chunk(&mut self, chunk: JunkChunk) {
+        self.junk_chunks.insert(chunk);
     }
 
     /// Transfers audio metadata (e.g., track info) from the reader.
     pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
-        if !reader.get_slnt_chunk().is_empty() {self.slnt_chunk.extend(reader.get_slnt_chunk().clone());}
-        if !reader.get_bext_chunk().is_empty() {self.bext_chunk.extend(reader.get_bext_chunk().clone());}
-        if !reader.get_smpl_chunk().is_empty() {self.smpl_chunk.extend(reader.get_smpl_chunk().clone());}
-        if !reader.get_inst_chunk().is_empty() {self.inst_chunk.extend(reader.get_inst_chunk().clone());}
+        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = reader.get_slnt_chunk().clone();}
+        if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
+        if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
+        if reader.get_inst_chunk().is_some() {self.inst_chunk = reader.get_inst_chunk().clone();}
         if reader.get_plst_chunk().is_some() {self.plst_chunk = reader.get_plst_chunk().clone();}
+        if reader.get_trkn_chunk().is_some() {self.trkn_chunk = reader.get_trkn_chunk().clone();}
         if reader.get_cue__chunk().is_some() {self.cue__chunk = reader.get_cue__chunk().clone();}
-        if !reader.get_axml_chunk().is_empty() {self.axml_chunk.extend(reader.get_axml_chunk().clone());}
-        if !reader.get_ixml_chunk().is_empty() {self.ixml_chunk.extend(reader.get_ixml_chunk().clone());}
-        if !reader.get_list_chunk().is_empty() {self.list_chunk.extend(reader.get_list_chunk().clone());}
-        if !reader.get_acid_chunk().is_empty() {self.acid_chunk.extend(reader.get_acid_chunk().clone());}
-        if !reader.get_trkn_chunk().is_empty() {self.trkn_chunk.extend(reader.get_trkn_chunk().clone());}
+        if reader.get_axml_chunk().is_some() {self.axml_chunk = reader.get_axml_chunk().clone();}
+        if reader.get_ixml_chunk().is_some() {self.ixml_chunk = reader.get_ixml_chunk().clone();}
+        if reader.get_acid_chunk().is_some() {self.acid_chunk = reader.get_acid_chunk().clone();}
         if reader.get_id3__chunk().is_some() {self.id3__chunk = reader.get_id3__chunk().clone();}
+        if !reader.get_list_chunk().is_empty() {self.list_chunk = reader.get_list_chunk().clone();}
         if include_junk_chunks {
             self.junk_chunks.extend(reader.get_junk_chunks().clone());
         }
@@ -459,6 +459,8 @@ impl<'a> WaveWriter<'a> {
         self.bext_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer, &self.text_encoding).unwrap();});
         self.smpl_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
         self.inst_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.plst_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.trkn_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
         self.cue__chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
         self.list_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer, &self.text_encoding).unwrap();});
         self.acid_chunk.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
@@ -471,7 +473,6 @@ impl<'a> WaveWriter<'a> {
         let mut string_chunks_to_write = Vec::<([u8; 4], &String)>::new();
         self.axml_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"axml", chunk))});
         self.ixml_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"ixml", chunk))});
-        self.trkn_chunk.iter().for_each(|chunk|{string_chunks_to_write.push((*b"Trkn", chunk))});
         for (flag, chunk) in string_chunks_to_write.iter() {
             let mut cw = ChunkWriter::begin(&mut self.writer, flag)?;
             write_str(&mut cw.writer, chunk, &self.text_encoding)?;
