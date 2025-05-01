@@ -1010,10 +1010,6 @@ pub mod opus {
             if self.reader.stream_position()? >= self.data_offset + self.data_length { Ok(true) } else { Ok(false) }
         }
 
-        fn get_num_samples_in_ms(&self, ms_val: f32) -> usize {
-            (self.sample_rate as f32 * ms_val / 1000.0) as usize * self.channels as usize
-        }
-
         fn clear_decoded_samples_buffer(&mut self) {
             self.decoded_samples.clear();
             self.decoded_samples_index = 0;
