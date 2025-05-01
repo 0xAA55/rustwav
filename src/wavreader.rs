@@ -212,40 +212,40 @@ impl WaveReader {
                     continue;
                 },
                 b"slnt" => {
-                    Self::ignore_laters(&mut slnt_chunk, &chunk.flag, ||{optional(SlntChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut slnt_chunk, &chunk.flag, ||optional(SlntChunk::read(&mut reader)));
                 }
                 b"bext" => {
-                    Self::ignore_laters(&mut bext_chunk, &chunk.flag, ||{optional(BextChunk::read(&mut reader, &text_encoding))});
+                    Self::ignore_laters(&mut bext_chunk, &chunk.flag, ||optional(BextChunk::read(&mut reader, &text_encoding)));
                 },
                 b"smpl" => {
-                    Self::ignore_laters(&mut smpl_chunk, &chunk.flag, ||{optional(SmplChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut smpl_chunk, &chunk.flag, ||optional(SmplChunk::read(&mut reader)));
                 },
                 b"inst" | b"INST" => {
-                    Self::ignore_laters(&mut inst_chunk, &chunk.flag, ||{optional(InstChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut inst_chunk, &chunk.flag, ||optional(InstChunk::read(&mut reader)));
                 },
                 b"plst" => {
-                    Self::ignore_laters(&mut plst_chunk, &chunk.flag, ||{optional(PlstChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut plst_chunk, &chunk.flag, ||optional(PlstChunk::read(&mut reader)));
                 }
                 b"cue " => {
-                    Self::ignore_laters(&mut cue__chunk, &chunk.flag, ||{optional(CueChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut cue__chunk, &chunk.flag, ||optional(CueChunk::read(&mut reader)));
                 },
                 b"axml" => {
-                    Self::ignore_laters(&mut axml_chunk, &chunk.flag, ||{optional(read_str(&mut reader, chunk.size as usize, &text_encoding))});
+                    Self::ignore_laters(&mut axml_chunk, &chunk.flag, ||optional(read_str(&mut reader, chunk.size as usize, &text_encoding)));
                 },
                 b"ixml" => {
-                    Self::ignore_laters(&mut ixml_chunk, &chunk.flag, ||{optional(read_str(&mut reader, chunk.size as usize, &text_encoding))});
+                    Self::ignore_laters(&mut ixml_chunk, &chunk.flag, ||optional(read_str(&mut reader, chunk.size as usize, &text_encoding)));
                 },
                 b"LIST" => {
                     list_chunk.append(&mut optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding)).into_iter().collect::<BTreeSet<ListChunk>>());
                 }
                 b"acid" => {
-                    Self::ignore_laters(&mut acid_chunk, &chunk.flag, ||{optional(AcidChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut acid_chunk, &chunk.flag, ||optional(AcidChunk::read(&mut reader)));
                 },
                 b"Trkn" => {
-                    Self::ignore_laters(&mut trkn_chunk, &chunk.flag, ||{optional(TrknChunk::read(&mut reader))});
+                    Self::ignore_laters(&mut trkn_chunk, &chunk.flag, ||optional(TrknChunk::read(&mut reader)));
                 }
                 b"id3 " => {
-                    Self::ignore_laters(&mut id3__chunk, &chunk.flag, ||{optional(Id3::id3_read(&mut reader, chunk.size as usize))});
+                    Self::ignore_laters(&mut id3__chunk, &chunk.flag, ||optional(Id3::id3_read(&mut reader, chunk.size as usize)));
                 },
                 b"\0\0\0\0" => { // empty flag
                     return Err(AudioReadError::IncompleteFile(chunk_position));
