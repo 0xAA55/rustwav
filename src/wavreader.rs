@@ -212,51 +212,40 @@ impl WaveReader {
                     continue;
                 },
                 b"slnt" => {
-                    Self::verify_none(&slnt_chunk, &chunk.flag)?;
-                    slnt_chunk = optional(SlntChunk::read(&mut reader));
+                    Self::ignore_laters(&mut slnt_chunk, &chunk.flag, ||{optional(SlntChunk::read(&mut reader))});
                 }
                 b"bext" => {
-                    Self::verify_none(&bext_chunk, &chunk.flag)?;
-                    bext_chunk = optional(BextChunk::read(&mut reader, &text_encoding));
+                    Self::ignore_laters(&mut bext_chunk, &chunk.flag, ||{optional(BextChunk::read(&mut reader, &text_encoding))});
                 },
                 b"smpl" => {
-                    Self::verify_none(&smpl_chunk, &chunk.flag)?;
-                    smpl_chunk = optional(SmplChunk::read(&mut reader));
+                    Self::ignore_laters(&mut smpl_chunk, &chunk.flag, ||{optional(SmplChunk::read(&mut reader))});
                 },
                 b"inst" | b"INST" => {
-                    Self::verify_none(&inst_chunk, &chunk.flag)?;
-                    inst_chunk = optional(InstChunk::read(&mut reader));
+                    Self::ignore_laters(&mut inst_chunk, &chunk.flag, ||{optional(InstChunk::read(&mut reader))});
                 },
                 b"plst" => {
-                    Self::verify_none(&plst_chunk, &chunk.flag)?;
-                    plst_chunk = optional(PlstChunk::read(&mut reader));
+                    Self::ignore_laters(&mut plst_chunk, &chunk.flag, ||{optional(PlstChunk::read(&mut reader))});
                 }
                 b"cue " => {
-                    Self::verify_none(&cue__chunk, &chunk.flag)?;
-                    cue__chunk = optional(CueChunk::read(&mut reader));
+                    Self::ignore_laters(&mut cue__chunk, &chunk.flag, ||{optional(CueChunk::read(&mut reader))});
                 },
                 b"axml" => {
-                    Self::verify_none(&axml_chunk, &chunk.flag)?;
-                    axml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
+                    Self::ignore_laters(&mut axml_chunk, &chunk.flag, ||{optional(read_str(&mut reader, chunk.size as usize, &text_encoding))});
                 },
                 b"ixml" => {
-                    Self::verify_none(&ixml_chunk, &chunk.flag)?;
-                    ixml_chunk = optional(read_str(&mut reader, chunk.size as usize, &text_encoding));
+                    Self::ignore_laters(&mut ixml_chunk, &chunk.flag, ||{optional(read_str(&mut reader, chunk.size as usize, &text_encoding))});
                 },
                 b"LIST" => {
                     list_chunk.append(&mut optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding)).into_iter().collect::<BTreeSet<ListChunk>>());
                 }
                 b"acid" => {
-                    Self::verify_none(&acid_chunk, &chunk.flag)?;
-                    acid_chunk = optional(AcidChunk::read(&mut reader));
+                    Self::ignore_laters(&mut acid_chunk, &chunk.flag, ||{optional(AcidChunk::read(&mut reader))});
                 },
                 b"Trkn" => {
-                    Self::verify_none(&trkn_chunk, &chunk.flag)?;
-                    trkn_chunk = optional(TrknChunk::read(&mut reader));
+                    Self::ignore_laters(&mut trkn_chunk, &chunk.flag, ||{optional(TrknChunk::read(&mut reader))});
                 }
                 b"id3 " => {
-                    Self::verify_none(&id3__chunk, &chunk.flag)?;
-                    id3__chunk = optional(Id3::id3_read(&mut reader, chunk.size as usize));
+                    Self::ignore_laters(&mut id3__chunk, &chunk.flag, ||{optional(Id3::id3_read(&mut reader, chunk.size as usize))});
                 },
                 b"\0\0\0\0" => { // empty flag
                     return Err(AudioReadError::IncompleteFile(chunk_position));
@@ -407,6 +396,16 @@ impl WaveReader {
             Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
         } else {
             Ok(())
+        }
+    }
+
+    /// * Some chunks may appears more than once, only read the first one
+    fn ignore_laters<T>(o: &mut Option<T>, flag: &[u8; 4], mut on_read: impl FnMut() -> Option<T>)
+    where T: Default {
+        if o.is_some() {
+            eprintln!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag));
+        } else {
+            *o = on_read();
         }
     }
 
