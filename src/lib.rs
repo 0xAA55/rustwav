@@ -265,10 +265,22 @@ pub fn test_wav() -> ExitCode {
     }
 }
 
-/// ## The `testrun()` tests all of the formats on the `test.wav`. BTW `test.wav` is my cat's voice.
-#[test]
-pub fn testrun() {
-    for format in FORMATS {
-        test(format.0, "test.wav", "output.wav", "output2.wav").unwrap();
-    }
+macro_rules! test_fn {
+	($name:ident, $index:expr) => {
+		#[test]
+		pub fn $name() {
+		    let fmt = FORMATS[$index].0;
+		    test(fmt, "test.wav", &format!("{fmt}_test_encode.wav"), &format!("{fmt}_test_decode.wav")).unwrap();
+		}
+	}
 }
+
+test_fn!(test0, 0);
+test_fn!(test1, 1);
+test_fn!(test2, 2);
+test_fn!(test3, 3);
+test_fn!(test4, 4);
+test_fn!(test5, 5);
+test_fn!(test6, 6);
+test_fn!(test7, 7);
+test_fn!(test8, 8);
