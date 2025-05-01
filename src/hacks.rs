@@ -11,7 +11,6 @@ macro_rules! force_borrow {
 		}
 	}
 }
-pub use crate::force_borrow;
 
 /// ## Not for you to use. Force borrow a thing as mutable while cheating the compiler.
 #[macro_export]
@@ -23,4 +22,6 @@ macro_rules! force_borrow_mut {
 		}
 	}
 }
+
+pub use crate::force_borrow;
 pub use crate::force_borrow_mut;
