@@ -1070,14 +1070,15 @@ pub mod opus {
             Ok(())
         }
 
-        fn decode_sample(&mut self) -> Result<Option<f32>, AudioReadError> {
+        fn decode_sample<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where S: SampleType {
+            if self.decoded_samples_index >= self.decoded_samples.len() {
+                self.decode_block()?;
+            }
             if self.decoded_samples.is_empty() {
                 Ok(None)
-            } else if self.decoded_samples_index >= self.decoded_samples.len() {
-                self.decode_block()?;
-                self.decode_sample()
             } else {
-                let ret = self.decoded_samples[self.decoded_samples_index];
+                let ret = S::scale_from(self.decoded_samples[self.decoded_samples_index]);
                 self.decoded_samples_index += 1;
                 Ok(Some(ret))
             }
