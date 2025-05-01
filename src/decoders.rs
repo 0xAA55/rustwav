@@ -1104,18 +1104,19 @@ pub mod opus {
         where S: SampleType {
             match self.channels {
                 1 => {
-                    let s = self.decode_sample()?;
-                    if let Some(s) = s {self.frame_index += 1; let s = S::scale_from(s); Ok(Some((s, s)))} else {Ok(None)}
+                    if let Some(s) = self.decode_sample::<S>()? {self.frame_index += 1; Ok(Some((s, s)))} else {Ok(None)}
                 }
                 2 => {
-                    let l = self.decode_sample()?;
-                    let r = self.decode_sample()?;
-                    let l = if let Some(l) = l {S::scale_from(l)} else {return Ok(None);};
-                    let r = if let Some(r) = r {S::scale_from(r)} else {return Ok(None);};
-                    self.frame_index += 1;
-                    Ok(Some((l, r)))
+                    let l = self.decode_sample::<S>()?;
+                    let r = self.decode_sample::<S>()?;
+                    if l.is_some() || r.is_some() {
+                        self.frame_index += 1;
+                        Ok(Some((l.unwrap(), r.unwrap())))
+                    } else {
+                        Ok(None)
+                    }
                 },
-                o => Err(AudioReadError::DataCorrupted(format!("Bad channels: {o} for the opus decoder."))),
+                o => Err(AudioReadError::DataCorrupted(format!("Can't convert {o} channel audio to stereo channel audio"))),
             }
         }
 
