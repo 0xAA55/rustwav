@@ -129,6 +129,7 @@ where
     Ok(())
 }
 
+/// ## This is for read/write strings from/to file with specific encoding and size, or read/write as NUL-terminated strings.
 pub mod string_io {
     use std::{io::{self, Read, Write}};
     use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
