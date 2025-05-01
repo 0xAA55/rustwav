@@ -1506,12 +1506,12 @@ pub mod opus {
     #[derive(Debug, Clone, Copy, PartialEq)]
     #[repr(u32)]
     pub enum OpusEncoderSampleDuration {
-        MilliSec2_5 = 25,
-        MilliSec5 = 50,
-        MilliSec10 = 100,
-        MilliSec20 = 200,
-        MilliSec40 = 400,
-        MilliSec60 = 600,
+        MilliSec2_5,
+        MilliSec5,
+        MilliSec10,
+        MilliSec20,
+        MilliSec40,
+        MilliSec60,
     }
 
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
