@@ -169,7 +169,7 @@ impl WaveReader {
                     junk_chunks.insert(JunkChunk::from(junk));
                 }
                 b"fmt " => {
-                    Self::verify_none(&fmt__chunk, &chunk.flag)?;
+                    Self::no_duplication(&fmt__chunk, &chunk.flag)?;
                     fmt__chunk = Some(FmtChunk::read(&mut reader, chunk.size)?);
                 },
                 b"fact" => {
@@ -402,7 +402,7 @@ impl WaveReader {
     }
 
     /// * To verify if a chunk had not read. Some chunks should not be duplicated.
-    fn verify_none<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
+    fn no_duplication<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
             Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
         } else {
