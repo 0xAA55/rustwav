@@ -9,6 +9,7 @@ English | [简体中文](Readme-CN.md)
 ## Features
 
 ### Audio Reader:
+* Cross-platform. You may have noticed that this thing has some dependencies about Windows. No, this thing works on Linux or other systems.
 * Supports reading WAV audio files over 4GB in size.
 * Supports embedded formats including PCM, PCM-aLaw, PCM-muLaw, ADPCM-MS, ADPCM-IMA, ADPCM-YAMAHA, MP3, Opus, etc.
 * Resampler support assists in modifying sample rates.

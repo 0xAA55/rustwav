@@ -9,6 +9,7 @@
 ## 特点
 
 ### 音频读取器：
+* 跨平台。
 * 支持超过 4GB 的 WAV 音频文件的读取。
 * 支持 PCM、PCM-aLaw、PCM-muLaw、ADPCM-MS、ADPCM-IMA、ADPCM-YAMAHA、MP3、Opus 等内嵌格式。
 * 支持 Resampler 可协助用于修改采样率。
