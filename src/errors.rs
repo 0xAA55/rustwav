@@ -495,3 +495,86 @@ impl From<&dyn flac::FlacError> for AudioWriteError {
         }
     }
 }
+
+#[cfg(feature = "vorbis")]
+impl From<vorbis_rs::VorbisError> for AudioReadError {
+    fn from(err: vorbis_rs::VorbisError) -> Self {
+        use vorbis_rs::VorbisError::*;
+        match err {
+            LibraryError(liberr) => {
+                let lib = liberr.library();
+                let func = liberr.function();
+                let kind = liberr.kind();
+                let message = format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                use vorbis_rs::VorbisLibraryErrorKind::*;
+                match kind {
+                    False | InternalFault => Self::OtherReason(message),
+                    NotVorbis | BadHeader | BadPacket | BadLink => Self::DataCorrupted(message),
+                    BadVorbisVersion | NotAudio => Self::FormatError(message),
+                    Hole => Self::IOError(IOErrorInfo::new(ErrorKind::Interrupted, message)),
+                    Eof => Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message)),
+                    Io => Self::IOError(IOErrorInfo::new(ErrorKind::Other, message)),
+                    NotImplemented => Self::Unimplemented(message),
+                    InvalidValue => Self::InvalidArguments(message),
+                    NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
+                    Other{result_code: code} => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}")),
+                    o => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}")),
+                }
+            },
+            InvalidAudioBlockChannelCount{expected, actual} => {
+                Self::InvalidArguments(format!("Channel error: expected: {expected}, actual: {actual}"))
+            },
+            InvalidAudioBlockSampleCount{expected, actual} => {
+                Self::InvalidArguments(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
+            },
+            UnsupportedStreamChaining => Self::InvalidArguments("Unsupported stream chaining".to_string()),
+            InvalidCommentString(err_char) => Self::InvalidArguments(format!("Invalid comment string char {err_char}")),
+            RangeExceeded(try_error) => Self::InvalidArguments(format!("Invalid parameters range exceeded: {try_error}")),
+            Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
+            Rng(rngerr) => Self::OtherReason(format!("Random number generator error: {rngerr}")),
+            ConsumedEncoderBuilderSink => Self::InvalidArguments("The `writer` was already consumed".to_string()),
+            o => Self::OtherReason(format!("Unknown error: {o}")),
+        }
+    }
+}
+
+#[cfg(feature = "vorbis")]
+impl From<vorbis_rs::VorbisError> for AudioWriteError {
+    fn from(err: vorbis_rs::VorbisError) -> Self {
+        use vorbis_rs::VorbisError::*;
+        match err {
+            LibraryError(liberr) => {
+                let lib = liberr.library();
+                let func = liberr.function();
+                let kind = liberr.kind();
+                let message = format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                use vorbis_rs::VorbisLibraryErrorKind::*;
+                match kind {
+                    False | Hole | InternalFault | NotVorbis | BadHeader | BadVorbisVersion | NotAudio | BadPacket | BadLink => Self::OtherReason(message),
+                    Eof => Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message)),
+                    Io => Self::IOError(IOErrorInfo::new(ErrorKind::Other, message)),
+                    NotImplemented => Self::Unimplemented(message),
+                    InvalidValue => Self::InvalidInput(message),
+                    NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
+                    Other{result_code: code} => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, code: {code}")),
+                    o => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}")),
+                }
+            },
+            InvalidAudioBlockChannelCount{expected, actual} => {
+                Self::WrongChannels(format!("Channel error: expected: {expected}, actual: {actual}"))
+            },
+            InvalidAudioBlockSampleCount{expected, actual} => {
+                Self::InvalidInput(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
+            },
+            UnsupportedStreamChaining => Self::InvalidInput("Unsupported stream chaining".to_string()),
+            InvalidCommentString(err_char) => Self::InvalidInput(format!("Invalid comment string char {err_char}")),
+            RangeExceeded(try_error) => Self::InvalidInput(format!("Invalid parameters range exceeded: {try_error}")),
+            Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
+            Rng(rngerr) => Self::OtherReason(format!("Random number generator error: {rngerr}")),
+            ConsumedEncoderBuilderSink => Self::InvalidArguments("The `writer` was already consumed".to_string()),
+            o => Self::OtherReason(format!("Unknown error: {o}")),
+        }
+    }
+}
+
+

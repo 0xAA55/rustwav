@@ -1768,6 +1768,8 @@ pub mod opus {
     pub use impl_opus::*;
 }
 
+pub use opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+
 /// ## The FLAC encoder for `WaveWriter`
 #[cfg(feature = "flac")]
 pub mod flac_enc {
@@ -2032,4 +2034,282 @@ pub mod flac_enc {
     }
 }
 
-pub use opus::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+/// ## The Ogg Vorbis encoder for `format_tag = 0x674f`
+/// * Microsoft says this should be supported: see <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h#L2321>
+/// * FFmpeg does not support this format: see <https://git.ffmpeg.org/gitweb/ffmpeg.git/blob/refs/heads/release/7.1:/libavformat/riff.c>
+pub mod vorbis_enc {
+    /// ## Vorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
+    #[derive(Debug, Clone, Copy, Default, PartialEq)]
+    pub struct VorbisEncoderParams {
+        /// Num channels
+        pub channels: u16,
+
+        /// Sample rate
+        pub sample_rate: u32,
+
+        /// The serials for the generated Ogg Vorbis streams will be randomly generated, as dictated by the Ogg specification. If this behavior is not desirable, set this field to `Some(your_serial_number)`.
+        pub stream_serial: Option<i32>,
+
+        /// Vorbis bitrate strategy represents a bitrate management strategy that a Vorbis encoder can use.
+        pub bitrate: Option<VorbisBitrateStrategy>,
+
+        /// Specifies the minimum size of Vorbis stream data to put into each Ogg page, except for some header pages,
+        /// which have to be cut short to conform to the Ogg Vorbis specification.
+        /// This value controls the tradeoff between Ogg encapsulation overhead and ease of seeking and packet loss concealment.
+        /// By default, it is set to None, which lets the encoder decide.
+        pub minimum_page_data_size: Option<u16>,
+    }
+
+    /// ## Vorbis bitrate strategy represents a bitrate management strategy that a Vorbis encoder can use.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum VorbisBitrateStrategy {
+        /// Pure VBR quality mode, selected by a target bitrate (in bit/s).
+        /// The bitrate management engine is not enabled.
+        /// The average bitrate will usually be close to the target, but there are no guarantees.
+        /// Easier or harder than expected to encode audio may be encoded at a significantly different bitrate.
+        Vbr(u32),
+
+        /// Similar to `Vbr`, this encoding strategy fixes the output subjective quality level,
+        /// but lets Vorbis vary the target bitrate depending on the qualities of the input signal.
+        /// An upside of this approach is that Vorbis can automatically increase or decrease the target bitrate according to how difficult the signal is to encode,
+        /// which guarantees perceptually-consistent results while using an optimal bitrate.
+        /// Another upside is that there always is some mode to encode audio at a given quality level.
+        /// The downside is that the output bitrate is harder to predict across different types of audio signals.
+        QualityVbr(f32),
+
+        /// ABR mode, selected by an average bitrate (in bit/s).
+        /// The bitrate management engine is enabled to ensure that the instantaneous bitrate does not divert significantly from the specified average over time,
+        /// but no hard bitrate limits are imposed. Any bitrate fluctuations are guaranteed to be minor and short.
+        Abr(u32),
+
+        /// Constrained ABR mode, selected by a hard maximum bitrate (in bit/s).
+        /// The bitrate management engine is enabled to ensure that the instantaneous bitrate never exceeds the specified maximum bitrate,
+        /// which is a hard limit. Internally, the encoder will target an average bitrate that’s slightly lower than the specified maximum bitrate.
+        /// The stream is guaranteed to never go above the specified bitrate, at the cost of a lower bitrate,
+        /// and thus lower audio quality, on average.
+        ConstrainedAbr(u32),
+    }
+
+    #[cfg(feature = "vorbis")]
+    use super::EncoderToImpl;
+
+    #[cfg(feature = "vorbis")]
+    mod impl_vorbis {
+        use std::{io::Seek, num::NonZero, fmt::{self, Debug, Formatter}, collections::BTreeMap};
+
+        use super::*;
+        use vorbis_rs::*;
+
+        use crate::Writer;
+        use crate::AudioWriteError;
+        use crate::{i24, u24};
+        use crate::SharedWriter;
+        use crate::wavcore::FmtChunk;
+        use crate::utils::{self, sample_conv};
+        // use crate::hacks;
+
+        impl VorbisBitrateStrategy {
+            /// ## Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
+            fn to(self) -> VorbisBitrateManagementStrategy{
+                match self {
+                    Self::Vbr(bitrate) => VorbisBitrateManagementStrategy::Vbr{target_bitrate: NonZero::new(bitrate).unwrap()},
+                    Self::QualityVbr(quality) => VorbisBitrateManagementStrategy::QualityVbr{target_quality: quality},
+                    Self::Abr(bitrate) => VorbisBitrateManagementStrategy::Abr{average_bitrate: NonZero::new(bitrate).unwrap()},
+                    Self::ConstrainedAbr(bitrate) => VorbisBitrateManagementStrategy::ConstrainedAbr{maximum_bitrate: NonZero::new(bitrate).unwrap()},
+                }
+            }
+        }
+
+        impl Default for VorbisBitrateStrategy {
+            fn default() -> Self {
+                Self::Vbr(320_000) // I don't know which is best for `default()`.
+            }
+        }
+
+        /// ## The Vorbis encoder or builder enum, the builder one has metadata to put in the builder.
+        enum VorbisEncoderOrBuilder<'a> {
+            Builder{
+                builder: VorbisEncoderBuilder<SharedWriter<'a>>,
+                metadata: BTreeMap<String, String>,
+            },
+            Encoder(VorbisEncoder<SharedWriter<'a>>),
+            Finished,
+        }
+
+        impl<'a> Debug for VorbisEncoderOrBuilder<'_> {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                match self {
+                    Self::Builder{builder: _, metadata} => write!(f, "Builder(builder: VorbisEncoderBuilder<WriteBridge>, metadata: {:?})", metadata),
+                    Self::Encoder(_encoder) => write!(f, "Encoder(VorbisEncoder<WriteBridge>)"),
+                    Self::Finished => write!(f, "Finished"),
+                }
+            }
+        }
+
+        /// ## Vorbis encoder wrap for `WaveWriter`
+        #[derive(Debug)]
+        pub struct VorbisEncoderWrap<'a> {
+            writer: SharedWriter<'a>,
+            params: VorbisEncoderParams,
+            encoder: VorbisEncoderOrBuilder<'a>,
+            data_offset: u64,
+            bytes_written: u64,
+            frames_written: u64,
+        }
+
+        impl<'a> VorbisEncoderWrap<'a> {
+            pub fn new(writer: &'a mut dyn Writer, params: VorbisEncoderParams) -> Result<Self, AudioWriteError> {
+                let mut writer = SharedWriter::new(writer);
+                let data_offset = writer.stream_position()?;
+
+                let sample_rate = NonZero::new(params.sample_rate).unwrap();
+                let channels = NonZero::new(params.channels as u8).unwrap();
+
+                let mut builder = VorbisEncoderBuilder::new(sample_rate, channels, writer.clone())?;
+                if let Some(serial) = params.stream_serial {
+                    builder.stream_serial(serial);
+                }
+                if let Some(bitrate) = params.bitrate {
+                    builder.bitrate_management_strategy(bitrate.to());
+                }
+                builder.minimum_page_data_size(params.minimum_page_data_size);
+                Ok(Self {
+                    writer,
+                    params,
+                    encoder: VorbisEncoderOrBuilder::Builder{
+                        builder: builder,
+                        metadata: BTreeMap::new(),
+                    },
+                    data_offset,
+                    bytes_written: 0,
+                    frames_written: 0,
+                })
+            }
+
+            pub fn get_channels(&self) -> u16 {
+                self.params.channels
+            }
+
+            pub fn get_sample_rate(&self) -> u32 {
+                self.params.sample_rate
+            }
+
+            pub fn insert_comment(&mut self, key: String, value: String) -> Result<(), AudioWriteError> {
+                match self.encoder {
+                    VorbisEncoderOrBuilder::Builder{builder: _, ref mut metadata} => {
+                        metadata.insert(key, value);
+                        Ok(())
+                    },
+                    _ => Err(AudioWriteError::InvalidArguments("The encoder has already entered encoding mode, why are you just starting to add metadata to it?".to_string())),
+                }
+            }
+
+            pub fn begin_to_encode(&mut self) -> Result<(), AudioWriteError> {
+                match self.encoder {
+                    VorbisEncoderOrBuilder::Builder{ref mut builder, ref metadata} => {
+                        for (tag, value) in metadata.iter() {
+                            match builder.comment_tag(tag, value) {
+                                Ok(_) => (),
+                                Err(e) => eprintln!("Set comment tag failed: {tag}: {value}: {:?}", e),
+                            }
+                        }
+                        self.encoder = VorbisEncoderOrBuilder::Encoder(builder.build()?);
+                        Ok(())
+                    },
+                    VorbisEncoderOrBuilder::Encoder(_) => Ok(()),
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                }
+            }
+
+            pub fn write_samples(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {
+                let channels = self.get_channels();
+                match self.encoder {
+                    VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
+                    VorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
+                        let frames = utils::interleaved_samples_to_monos(samples, channels)?;
+                        encoder.encode_audio_block(&frames)?;
+                        self.bytes_written = self.writer.stream_position()? - self.data_offset;
+                        self.frames_written += frames[0].len() as u64;
+                        Ok(())
+                    },
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                }
+            }
+
+            pub fn write_monos(&mut self, monos: &[Vec<f32>]) -> Result<(), AudioWriteError> {
+                match self.encoder {
+                    VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
+                    VorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
+                        encoder.encode_audio_block(&monos)?;
+                        self.bytes_written = self.writer.stream_position()? - self.data_offset;
+                        self.frames_written += monos.len() as u64;
+                        Ok(())
+                    },
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                }
+            }
+
+            pub fn finish(&mut self) -> Result<(), AudioWriteError> {
+                match self.encoder {
+                    VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
+                    VorbisEncoderOrBuilder::Encoder(ref mut _encoder) => {
+                        self.encoder = VorbisEncoderOrBuilder::Finished;
+                        Ok(())
+                    },
+                    VorbisEncoderOrBuilder::Finished => Ok(()),
+                }
+            }
+        }
+
+        impl<'a> EncoderToImpl for VorbisEncoderWrap<'_> {
+            fn get_bitrate(&self) -> u32 {
+                if self.frames_written != 0 {
+                    (self.bytes_written * 8 * self.get_sample_rate() as u64 / self.frames_written) as u32
+                } else {
+                    320_000
+                }
+            }
+            fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+                Ok(FmtChunk{
+                    // 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771
+                    format_tag: 0x674f,
+                    channels: self.get_channels(),
+                    sample_rate: self.get_sample_rate(),
+                    byte_rate: self.get_bitrate() / 8,
+                    block_align: 1,
+                    bits_per_sample: 0,
+                    extension: None,
+                })
+            }
+            fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
+                fmt.byte_rate = self.get_bitrate() / 8;
+                Ok(())
+            }
+            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                self.begin_to_encode()
+            }
+            fn finish(&mut self) -> Result<(), AudioWriteError> {
+                self.finish()?;
+                Ok(())
+            }
+
+            fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_i16(&mut self, samples: &[i16]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_i24(&mut self, samples: &[i24]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_i32(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_i64(&mut self, samples: &[i64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples__u8(&mut self, samples: &[u8 ]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_u16(&mut self, samples: &[u16]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_u24(&mut self, samples: &[u24]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_u32(&mut self, samples: &[u32]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_u64(&mut self, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_f32(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+            fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+        }
+    }
+
+    #[cfg(feature = "vorbis")]
+    pub use impl_vorbis::*;
+}
+
+pub use vorbis_enc::{VorbisEncoderParams, VorbisBitrateStrategy};
