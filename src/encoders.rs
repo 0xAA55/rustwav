@@ -2105,7 +2105,7 @@ pub mod vorbis_enc {
         use crate::{i24, u24};
         use crate::SharedWriter;
         use crate::wavcore::FmtChunk;
-        use crate::utils::{self, sample_conv};
+        use crate::utils::{self, sample_conv, sample_conv_batch};
         // use crate::hacks;
 
         impl VorbisBitrateStrategy {
@@ -2271,7 +2271,6 @@ pub mod vorbis_enc {
             }
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
-                    // 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771
                     format_tag: 0x674f,
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
@@ -2305,6 +2304,19 @@ pub mod vorbis_enc {
             fn write_samples_u64(&mut self, samples: &[u64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
             fn write_samples_f32(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
             fn write_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_samples(&sample_conv(samples))}
+
+            fn write_monos__i8(&mut self, monos_array: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_i16(&mut self, monos_array: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_i24(&mut self, monos_array: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_i32(&mut self, monos_array: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_i64(&mut self, monos_array: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos__u8(&mut self, monos_array: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_u16(&mut self, monos_array: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_u24(&mut self, monos_array: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_u32(&mut self, monos_array: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_u64(&mut self, monos_array: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_f32(&mut self, monos_array: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
+            fn write_monos_f64(&mut self, monos_array: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_monos(&sample_conv_batch(monos_array))}
         }
     }
 
