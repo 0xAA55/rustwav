@@ -1,14 +1,15 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fmt::Debug, cmp::min, io::SeekFrom};
+use std::{fmt::Debug, cmp::min, io::SeekFrom, marker::PhantomData};
 
 use crate::Reader;
 use crate::{SampleType, i24, u24};
 use crate::{AudioError, AudioReadError};
 use crate::adpcm;
-use crate::wavcore::{Spec, WaveSampleType, FmtChunk};
+use crate::wavcore::{Spec, WaveSampleType, FmtChunk, ExtensionData, ExtensibleData};
 use crate::xlaw::{XLaw, PcmXLawDecoder};
+use crate::wavcore::format_tags::*;
 
 #[cfg(feature = "mp3dec")]
 use mp3::Mp3Decoder;
@@ -162,6 +163,54 @@ fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
     let mut ret = 1usize;
     while ret < (sample_rate as usize) {ret <<= 1;}
     ret
+}
+
+#[derive(Debug)]
+pub struct ExtensibleDecoder<S>
+where S: SampleType {
+    phantom: PhantomData<S>,
+}
+
+impl<S> ExtensibleDecoder<S>
+where S: SampleType {
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk) -> Result<Box<dyn Decoder<S>>, AudioError> {
+        if fmt.format_tag != FORMAT_TAG_EXTENSIBLE {
+            Err(AudioError::InvalidArguments(format!("The `format_tag` from `fmt ` chunk must be 0xFFFE for the extensible decoder.")))
+        } else {
+            match fmt.extension {
+                None => {
+                    eprintln!("No extension data was found in the `fmt ` chunk. The audio data is parsed as PCM.");
+                    Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
+                },
+                Some(extension) => {
+                    match extension.data {
+                        ExtensionData::Extensible(extensible) => {
+                            if (extension.ext_len as usize) < ExtensibleData::sizeof() {
+                                eprintln!("The size of the extension data found in the `fmt ` chunk is not big enough as the extensible data should be. The audio data is parsed as PCM.");
+                                Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
+                            } else {
+                                let spec = Spec {
+                                    channels: spec.channels,
+                                    channel_mask: extensible.channel_mask,
+                                    sample_rate: spec.sample_rate,
+                                    bits_per_sample: spec.bits_per_sample,
+                                    sample_format: spec.sample_format,
+                                };
+                                use crate::wavcore::guids::*;
+                                match extensible.sub_format {
+                                    GUID_PCM_FORMAT | GUID_IEEE_FLOAT_FORMAT => {
+                                        Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
+                                    },
+                                    o => Err(AudioError::Unimplemented(format!("Unknown format of GUID {o} in the extensible data")))
+                                }
+                            }
+                        },
+                        o => Err(AudioError::WrongExtensionData(format!("The extension data in the `fmt ` chunk must be `extensible`, got {:?}", o)))
+                    }
+                },
+            }
+        }
+    }
 }
 
 /// ## The `PcmDecoder<S>` to decode WAV PCM samples to your specific format
