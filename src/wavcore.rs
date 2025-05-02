@@ -219,15 +219,6 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
 #[allow(clippy::upper_case_acronyms)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
-pub mod guids {
-    pub use super::GUID;
-
-    pub const GUID_PCM_FORMAT: GUID =        GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
-    pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
-}
-
-pub use guids::*;
-
 impl Debug for GUID {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_tuple("GUID")
@@ -267,6 +258,14 @@ impl GUID {
     }
 }
 
+pub mod guids {
+    pub use super::GUID;
+
+    pub const GUID_PCM_FORMAT: GUID =        GUID(0x00000001, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
+    pub const GUID_IEEE_FLOAT_FORMAT: GUID = GUID(0x00000003, 0x0000, 0x0010, [0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
+}
+
+pub use guids::*;
 
 /// * Speaker position bit mask data for multi-channel audio.
 /// * This also be used on single-channel audio or double-channel audio.
