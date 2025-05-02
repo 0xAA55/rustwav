@@ -29,6 +29,9 @@ use crate::decoders::opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use crate::decoders::flac_dec::FlacDecoderWrap;
 
+#[cfg(feature = "vorbis")]
+use crate::decoders::vorbis_dec::VorbisDecoderWrap;
+
 /// ## The data source for the `WaveReader`, currently we have a file reader or a file path.
 #[derive(Debug)]
 pub enum WaveDataSource {
@@ -505,7 +508,11 @@ where S: SampleType {
             #[cfg(not(feature = "mp3dec"))]
             {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))}
         },
-        0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis 数据
+        // 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis
+        0x674f => { // Ogg Vorbis
+            #[cfg(feature = "vorbis")]
+            {Ok(Box::new(VorbisDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            #[cfg(not(feature = "vorbis"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
         0x704F => {
