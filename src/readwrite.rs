@@ -37,6 +37,12 @@ impl<'a> Seek for ReadBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.reader.seek(pos)
     }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.reader.rewind()
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.reader.stream_position()
+    }
 }
 
 /// ## The `WriteBridge` hides a `dyn Writer` and acts like a struct that implements `Write + Seek + Debug`.
@@ -68,6 +74,12 @@ impl<'a> Write for WriteBridge<'_> {
 impl<'a> Seek for WriteBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.writer.seek(pos)
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.writer.rewind()
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.writer.stream_position()
     }
 }
 
