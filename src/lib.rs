@@ -73,7 +73,7 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
         channels: 2,
         sample_rate: 44100,
         stream_serial: None,
-        bitrate: None,
+        bitrate: Some(VorbisBitrateStrategy::Vbr(320_000)),
         minimum_page_data_size: None,
     }))
 ];
