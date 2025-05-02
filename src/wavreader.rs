@@ -491,43 +491,39 @@ fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError>
 /// ## Create the decoder for each specific `format_tag` in the `fmt` chunk.
 fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
-    use wavcore::AdpcmSubFormat::{Ms, Ima, Yamaha};
-    const TAG_MS: u16 = Ms as u16;
-    const TAG_IMA: u16 = Ima as u16;
-    const TAG_YAMAHA: u16 = Yamaha as u16;
+    use wavcore::format_tags::*;
     match fmt.format_tag {
-        1 | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
-        6 => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::ALaw, data_offset, data_length, fmt, fact_data)?)),
-        7 => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::MuLaw, data_offset, data_length, fmt, fact_data)?)),
-        TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
-        TAG_IMA | 0x0069 => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
-        TAG_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
-        0x0055 => {
+        FORMAT_TAG_PCM | FORMAT_TAG_PCM_IEEE => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
+        FORMAT_TAG_ALAW => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::ALaw, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_MULAW => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::MuLaw, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_ADPCM_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_ADPCM_IMA | FORMAT_TAG_ADPCM_IMA_ => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_ADPCM_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_MP3 => {
             #[cfg(feature = "mp3dec")]
             {Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
             #[cfg(not(feature = "mp3dec"))]
             {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))}
         },
-        // 0x674f | 0x6750 | 0x6751 | 0x676f | 0x6770 | 0x6771 => { // Ogg Vorbis
-        0x674f => { // Ogg Vorbis
+        FORMAT_TAG_VORBIS => { // Ogg Vorbis
             #[cfg(feature = "vorbis")]
             {Ok(Box::new(VorbisDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
             #[cfg(not(feature = "vorbis"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
         },
-        0x704F => {
+        FORMAT_TAG_OPUS => {
             #[cfg(feature = "opus")]
             {Ok(Box::new(OpusDecoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
             #[cfg(not(feature = "opus"))]
             {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))}
         },
-        0xF1AC => { // FLAC
+        FORMAT_TAG_FLAC => { // FLAC
             #[cfg(feature = "flac")]
             {Ok(Box::new(FlacDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
             #[cfg(not(feature = "flac"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
         },
-        0xFFFE => Ok(ExtensibleDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
+        FORMAT_TAG_EXTENSIBLE => Ok(ExtensibleDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
         other => Err(AudioReadError::Unimplemented(format!("Not implemented for format_tag 0x{:x}", other))),
     }
 }
