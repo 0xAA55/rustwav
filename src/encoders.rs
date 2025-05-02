@@ -8,9 +8,11 @@ use crate::{SampleType, i24, u24};
 use crate::AudioWriteError;
 use crate::adpcm;
 use crate::wavcore::{Spec, WaveSampleType};
-use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData, GUID_PCM_FORMAT, GUID_IEEE_FLOAT_FORMAT};
+use crate::wavcore::{FmtChunk, FmtExtension, ExtensibleData};
 use crate::utils::{self, sample_conv, stereo_conv, stereos_conv, sample_conv_batch};
 use crate::xlaw::{XLaw, PcmXLawEncoder};
+use crate::wavcore::guids::*;
+use crate::wavcore::format_tags::*;
 
 /// An encoder that accepts samples of type `S` and encodes them into the file's target format.
 /// Due to trait bounds prohibiting generic parameters, each function must be explicitly 
@@ -574,12 +576,12 @@ impl<'a> EncoderToImpl for PcmEncoder<'_> {
         };
         Ok(FmtChunk {
             format_tag: if extensible.is_some() {
-                0xFFFE
+                FORMAT_TAG_EXTENSIBLE
             } else {
                 match self.sample_type {
                     S8 | U16 | U24 | U32 | U64 => return Err(AudioWriteError::Unsupported(format!("PCM format does not support {} samples.", self.sample_type))),
-                    U8 | S16 | S24 | S32 | S64 => 1,
-                    F32 | F64 => 3,
+                    U8 | S16 | S24 | S32 | S64 => FORMAT_TAG_PCM,
+                    F32 | F64 => FORMAT_TAG_PCM_IEEE,
                     Unknown => panic!("Can't encode \"Unknown\" format to PCM."),
                 }
             },
@@ -762,8 +764,8 @@ impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
         let block_align = self.channels;
         Ok(FmtChunk {
             format_tag: match self.enc.get_which_law() {
-                XLaw::ALaw => 0x0006,
-                XLaw::MuLaw => 0x0007,
+                XLaw::ALaw => FORMAT_TAG_ALAW,
+                XLaw::MuLaw => FORMAT_TAG_MULAW,
             },
             channels: self.channels,
             sample_rate: self.sample_rate,
@@ -977,6 +979,7 @@ pub mod mp3 {
         use crate::{SampleType, i24, u24};
         use crate::wavcore::{Spec, FmtChunk, FmtExtension, Mp3Data};
         use crate::utils::{self, sample_conv, stereos_conv};
+        use crate::wavcore::format_tags::*;
 
         use mp3lame_encoder::{Builder, Encoder, MonoPcm, DualPcm, FlushNoGap};
         use mp3lame_encoder::{Mode, Quality, Bitrate, VbrMode, Id3Tag};
@@ -1408,7 +1411,7 @@ pub mod mp3 {
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
-                    format_tag: 0x0055,
+                    format_tag: FORMAT_TAG_MP3,
                     channels: self.channels,
                     sample_rate: self.sample_rate,
                     byte_rate: self.bitrate / 8,
@@ -1602,6 +1605,7 @@ pub mod opus {
         use crate::AudioWriteError;
         use crate::{i24, u24};
         use crate::utils::sample_conv;
+        use crate::wavcore::format_tags::*;
 
         use opus::{Encoder, Application, Channels, Bitrate};
 
@@ -1729,7 +1733,7 @@ pub mod opus {
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
-                    format_tag: 0x704F,
+                    format_tag: FORMAT_TAG_OPUS,
                     channels: self.channels,
                     sample_rate: self.sample_rate,
                     byte_rate: self.get_bitrate() / 8,
@@ -1781,6 +1785,7 @@ pub mod flac_enc {
     use crate::{i24, u24};
     use crate::AudioWriteError;
     use crate::wavcore::{FmtChunk, ListChunk, get_listinfo_flacmeta};
+    use crate::wavcore::format_tags::*;
     use crate::utils::{sample_conv, stereos_conv, sample_conv_batch};
     use crate::readwrite::WriteBridge;
     use flac::{FlacEncoderUnmovable, FlacEncoderParams};
@@ -1948,7 +1953,7 @@ pub mod flac_enc {
 
         fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
             Ok(FmtChunk{
-                format_tag: 0xF1AC,
+                format_tag: FORMAT_TAG_FLAC,
                 channels: self.get_channels(),
                 sample_rate: self.get_sample_rate(),
                 byte_rate: self.get_bitrate() / 8,
@@ -2105,6 +2110,7 @@ pub mod vorbis_enc {
         use crate::{i24, u24};
         use crate::SharedWriter;
         use crate::wavcore::FmtChunk;
+        use crate::wavcore::format_tags::*;
         use crate::utils::{self, sample_conv, sample_conv_batch};
 
         impl VorbisBitrateStrategy {
@@ -2299,7 +2305,7 @@ pub mod vorbis_enc {
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
-                    format_tag: 0x674f,
+                    format_tag: FORMAT_TAG_VORBIS,
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
                     byte_rate: self.get_bitrate() / 8,
