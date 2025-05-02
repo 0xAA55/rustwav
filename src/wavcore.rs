@@ -215,7 +215,7 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::upper_case_acronyms)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
