@@ -29,6 +29,9 @@ use crate::encoders::opus::OpusEncoder;
 #[cfg(feature = "flac")]
 use crate::encoders::flac_enc::FlacEncoderWrap;
 
+#[cfg(feature = "vorbis")]
+use crate::encoders::vorbis_enc::VorbisEncoderWrap;
+
 /// ## These options are used to specify what type of WAV file you want to create.
 #[derive(Debug)]
 pub enum FileSizeOption{
@@ -146,6 +149,8 @@ impl<'a> WaveWriter<'a> {
             DataFormat::Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, opus_options)?),
             #[cfg(feature = "flac")]
             DataFormat::Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), flac_options)?),
+            #[cfg(feature = "vorbis")]
+            DataFormat::Vorbis(vorbis_options) => Encoder::new(VorbisEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), vorbis_options)?),
             DataFormat::Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
             #[allow(unreachable_patterns)]
             other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),

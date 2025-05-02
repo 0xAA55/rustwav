@@ -38,34 +38,44 @@ pub use encoders::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3Vb
 #[doc(inline)]
 pub use encoders::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 
+#[doc(inline)]
+pub use encoders::{VorbisEncoderParams, VorbisBitrateStrategy};
+
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
-pub const FORMATS: [(&str, DataFormat); 9] = [
-        ("pcm", DataFormat::Pcm),
-        ("pcm-alaw", DataFormat::PcmALaw),
-        ("pcm-ulaw", DataFormat::PcmMuLaw),
-        ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
-        ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
-        ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
-        ("mp3", DataFormat::Mp3(Mp3EncoderOptions{
-            channels: Mp3Channels::NotSet,
-            quality: Mp3Quality::Best,
-            bitrate: Mp3Bitrate::Kbps320,
-            vbr_mode: Mp3VbrMode::Off,
-            id3tag: None,
-        })),
-        ("opus", DataFormat::Opus(OpusEncoderOptions{
-            bitrate: OpusBitrate::Max,
-            encode_vbr: false,
-            samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
-        })),
-        ("flac", DataFormat::Flac(FlacEncoderParams{
-            verify_decoded: false,
-            compression: FlacCompression::Level8,
-            channels: 2,
-            sample_rate: 44100,
-            bits_per_sample: 32,
-            total_samples_estimate: 0,
-        })),
+pub const FORMATS: [(&str, DataFormat); 10] = [
+    ("pcm", DataFormat::Pcm),
+    ("pcm-alaw", DataFormat::PcmALaw),
+    ("pcm-ulaw", DataFormat::PcmMuLaw),
+    ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
+    ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
+    ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
+    ("mp3", DataFormat::Mp3(Mp3EncoderOptions{
+        channels: Mp3Channels::NotSet,
+        quality: Mp3Quality::Best,
+        bitrate: Mp3Bitrate::Kbps320,
+        vbr_mode: Mp3VbrMode::Off,
+        id3tag: None,
+    })),
+    ("opus", DataFormat::Opus(OpusEncoderOptions{
+        bitrate: OpusBitrate::Max,
+        encode_vbr: false,
+        samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
+    })),
+    ("flac", DataFormat::Flac(FlacEncoderParams{
+        verify_decoded: false,
+        compression: FlacCompression::Level8,
+        channels: 2,
+        sample_rate: 44100,
+        bits_per_sample: 32,
+        total_samples_estimate: 0,
+    })),
+    ("vorbis", DataFormat::Vorbis(VorbisEncoderParams{
+        channels: 2,
+        sample_rate: 44100,
+        stream_serial: None,
+        bitrate: None,
+        minimum_page_data_size: None,
+    }))
 ];
 
 /// ## Transfer audio from the decoder to the encoder with resampling.
@@ -284,3 +294,4 @@ test_fn!(test5, 5);
 test_fn!(test6, 6);
 test_fn!(test7, 7);
 test_fn!(test8, 8);
+test_fn!(test9, 9);

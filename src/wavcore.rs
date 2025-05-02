@@ -16,6 +16,12 @@ pub use flac::{
     FlacCompression,
 };
 
+#[allow(unused_imports)]
+pub use crate::{
+    VorbisEncoderParams,
+    VorbisBitrateStrategy
+};
+
 /// ## Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -51,6 +57,10 @@ pub enum DataFormat{
     /// * With the help of the WAV `fmt ` chunk, you can get the spec of the audio file without decoding it first.
     /// * The WAV file which encapsulates the FLAC file as its content, the size of the WAV file looks like an FLAC file size.
     Flac(FlacEncoderParams),
+
+    /// * Vorbis. Just a pure Vorbis file encapsulated in the `data` chunk.
+    /// * The WAV file which encapsulates the Vorbis file as its content, the size of the WAV file looks like an Vorbis file size.
+    Vorbis(VorbisEncoderParams),
 }
 
 /// * When to encode audio to ADPCM format, choose one of the subformats.
@@ -85,6 +95,7 @@ impl Display for DataFormat {
             Self::Mp3(options) => write!(f, "MP3({:?})", options),
             Self::Opus(options) => write!(f, "Opus({:?})", options),
             Self::Flac(options) => write!(f, "Flac({:?})", options),
+            Self::Vorbis(options) => write!(f, "Vorbis({:?})", options),
        }
     }
 }
