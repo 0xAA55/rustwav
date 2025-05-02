@@ -228,6 +228,12 @@ impl Debug for GUID {
     }
 }
 
+impl Display for GUID {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        <GUID as Debug>::fmt(self, f)
+    }
+}
+
 impl GUID {
     pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
     where T: Read {
