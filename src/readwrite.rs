@@ -85,11 +85,10 @@ impl<'a> Seek for WriteBridge<'_> {
 
 /// ## Multi-thread safe shared reader (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
-pub struct SharedReader(Arc<Mutex<dyn Reader>>);
+pub struct SharedReader<'a>(Arc<Mutex<&'a mut dyn Reader>>);
 
-impl SharedReader{
-    pub fn new<T>(reader: T) -> Self
-    where T: Reader + 'static {
+impl<'a> SharedReader<'a>{
+    pub fn new(reader: &'a mut dyn Reader) -> Self {
         Self(Arc::new(Mutex::new(reader)))
     }
 
@@ -104,11 +103,10 @@ impl SharedReader{
 
 /// ## Multi-thread safe shared writer (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
-pub struct SharedWriter(Arc<Mutex<dyn Writer>>);
+pub struct SharedWriter<'a>(Arc<Mutex<&'a mut dyn Writer>>);
 
-impl SharedWriter{
-    pub fn new<T>(writer: T) -> Self
-    where T: Writer + 'static {
+impl<'a> SharedWriter<'a>{
+    pub fn new(writer: &'a mut dyn Writer) -> Self {
         Self(Arc::new(Mutex::new(writer)))
     }
 
