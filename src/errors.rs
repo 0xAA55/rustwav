@@ -87,6 +87,7 @@ impl From<AudioReadError> for io::Error {
 pub enum AudioWriteError {
     InvalidArguments(String),
     InvalidInput(String),
+    InvalidData(String),
     IOError(IOErrorInfo),
     Unsupported(String),
     Unimplemented(String),
@@ -110,6 +111,7 @@ impl Display for AudioWriteError {
         match self {
             Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
             Self::InvalidInput(info) => write!(f, "Invalid input: {info}"),
+            Self::InvalidData(info) => write!(f, "Invalid data: {info}"),
             Self::IOError(errkind) => write!(f, "IO error: {:?}", errkind),
             Self::Unsupported(info) => write!(f, "Unsupported format: {info}"),
             Self::Unimplemented(info) => write!(f, "Unimplemented format: {info}"),
@@ -154,6 +156,7 @@ pub enum AudioError {
     NoSuchData(String),
     Unimplemented(String),
     InvalidArguments(String),
+    WrongExtensionData(String)
 }
 
 impl error::Error for AudioError {}
@@ -167,6 +170,7 @@ impl Display for AudioError {
            Self::NoSuchData(data) => write!(f, "Could not find data \"{data}\""),
            Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
+           Self::WrongExtensionData(info) => write!(f, "Wrong extension data: {info}"),
        }
     }
 }
@@ -180,6 +184,7 @@ impl From<AudioError> for AudioReadError {
             AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
+            AudioError::WrongExtensionData(info) => Self::DataCorrupted(info),
         }
     }
 }
@@ -193,6 +198,7 @@ impl From<AudioError> for AudioWriteError {
             AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
+            AudioError::WrongExtensionData(info) => Self::InvalidData(info),
         }
     }
 }
@@ -256,7 +262,7 @@ impl From<opus::Error> for AudioWriteError {
             opus::ErrorCode::BadArg => Self::InvalidArguments(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::BufferTooSmall => Self::BufferIsFull(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::InternalError => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
-            opus::ErrorCode::InvalidPacket => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidPacket => Self::InvalidData(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::Unimplemented => Self::Unimplemented(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::InvalidState => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::AllocFail => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
@@ -564,9 +570,9 @@ impl From<vorbis_rs::VorbisError> for AudioWriteError {
                 Self::WrongChannels(format!("Channel error: expected: {expected}, actual: {actual}"))
             },
             InvalidAudioBlockSampleCount{expected, actual} => {
-                Self::InvalidInput(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
+                Self::InvalidData(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
             },
-            UnsupportedStreamChaining => Self::InvalidInput("Unsupported stream chaining".to_string()),
+            UnsupportedStreamChaining => Self::Unsupported("Unsupported stream chaining".to_string()),
             InvalidCommentString(err_char) => Self::InvalidInput(format!("Invalid comment string char {err_char}")),
             RangeExceeded(try_error) => Self::InvalidInput(format!("Invalid parameters range exceeded: {try_error}")),
             Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
