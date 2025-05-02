@@ -1049,12 +1049,8 @@ pub mod opus {
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
             let frame_index = match seek_from{
                 SeekFrom::Start(fi) => fi,
-                SeekFrom::Current(cur) => {
-                    (self.frame_index as i64 + cur) as u64
-                },
-                SeekFrom::End(end) => {
-                    (self.total_frames as i64 + end) as u64
-                }
+                SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
+                SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
             };
             self.frame_index = frame_index;
             let block_align = self.block_align as u64;
@@ -1328,12 +1324,8 @@ pub mod flac_dec {
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
             let frame_index = match seek_from{
                 SeekFrom::Start(fi) => fi,
-                SeekFrom::Current(cur) => {
-                    (self.frame_index as i64 + cur) as u64
-                },
-                SeekFrom::End(end) => {
-                    (self.total_frames as i64 + end) as u64
-                }
+                SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
+                SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
             };
             self.clear_decoded_frames();
             self.frame_index = frame_index;
