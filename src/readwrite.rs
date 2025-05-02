@@ -101,6 +101,27 @@ impl<'a> SharedReader<'a>{
     }
 }
 
+impl<'a> Read for SharedReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.escorted_read(|reader|{reader.read(buf)})
+    }
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+        self.escorted_read(|reader|{reader.read_exact(buf)})
+    }
+}
+
+impl<'a> Seek for SharedReader<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.escorted_read(|reader|{reader.seek(pos)})
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.escorted_read(|reader|{reader.rewind()})
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.escorted_read(|reader|{reader.stream_position()})
+    }
+}
+
 /// ## Multi-thread safe shared writer (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
 pub struct SharedWriter<'a>(Arc<Mutex<&'a mut dyn Writer>>);
@@ -116,6 +137,30 @@ impl<'a> SharedWriter<'a>{
         let mut guard = self.0.lock().unwrap();
         let mut writer = guard.deref_mut();
         (action)(&mut writer)
+    }
+}
+
+impl<'a> Write for SharedWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.escorted_write(|writer|{writer.write(buf)})
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.escorted_write(|writer|{writer.flush()})
+    }
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        self.escorted_write(|writer|{writer.write_all(buf)})
+    }
+}
+
+impl<'a> Seek for SharedWriter<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.escorted_write(|writer|{writer.seek(pos)})
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.escorted_write(|writer|{writer.rewind()})
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.escorted_write(|writer|{writer.stream_position()})
     }
 }
 
