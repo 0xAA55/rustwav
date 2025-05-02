@@ -208,7 +208,7 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
 	use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
 
     // This is the encoder
-    let mut wavewriter = WaveWriter::create(arg3, &spec, data_format, NeverLargerThan4GB).unwrap();
+    let mut wavewriter = WaveWriter::create(arg3, spec, data_format, NeverLargerThan4GB).unwrap();
 
     // Transfer audio samples from the decoder to the encoder
     transfer_audio_from_decoder_to_encoder(&mut wavereader, &mut wavewriter);
@@ -234,7 +234,7 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     };
 
     let mut wavereader_2 = WaveReader::open(arg3).unwrap();
-    let mut wavewriter_2 = WaveWriter::create(arg4, &spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 = WaveWriter::create(arg4, spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     // Transfer audio samples from the decoder to the encoder
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);

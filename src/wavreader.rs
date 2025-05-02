@@ -419,7 +419,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
     where S: SampleType {
-        FrameIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        FrameIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 
     /// ## Create an iterator for iterating through each audio frame, excretes mono-channel samples.
@@ -427,7 +427,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
     where S: SampleType {
-        MonoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        MonoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 
     /// ## Create an iterator for iterating through each audio frame, excretes two-channel stereo frames.
@@ -435,7 +435,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
     where S: SampleType {
-        StereoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        StereoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes multi-channel audio frames.
@@ -445,7 +445,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_intoiter<S>(mut self) -> Result<FrameIntoIter<S>, AudioReadError>
     where S: SampleType {
-        FrameIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        FrameIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes mono-channel samples.
@@ -453,7 +453,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_intoiter<S>(mut self) -> Result<MonoIntoIter<S>, AudioReadError>
     where S: SampleType {
-        MonoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        MonoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes two-channel stereo frames.
@@ -461,7 +461,7 @@ impl WaveReader {
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_intoiter<S>(mut self) -> Result<StereoIntoIter<S>, AudioReadError>
     where S: SampleType {
-        StereoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, &self.spec, &self.fmt__chunk, self.fact_data)
+        StereoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
     }
 }
 
@@ -489,7 +489,7 @@ fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError>
 }
 
 /// ## Create the decoder for each specific `format_tag` in the `fmt` chunk.
-fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where S: SampleType {
     use wavcore::AdpcmSubFormat::{Ms, Ima, Yamaha};
     const TAG_MS: u16 = Ms as u16;
@@ -659,14 +659,14 @@ where S: SampleType {
 
 impl<'a, S> FrameIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -721,14 +721,14 @@ where S: SampleType {
 
 impl<'a, S> MonoIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -784,14 +784,14 @@ where S: SampleType {
 
 impl<'a, S> StereoIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -849,14 +849,14 @@ where S: SampleType {
 
 impl<S> FrameIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -912,14 +912,14 @@ where S: SampleType {
 
 impl<S> MonoIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })
@@ -975,14 +975,14 @@ where S: SampleType {
 
 impl<S> StereoIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
             data_reader,
             data_offset,
             data_length,
-            spec: *spec,
+            spec,
             fact_data,
             decoder: create_decoder::<S>(reader, data_offset, data_length, spec, fmt, fact_data)?,
         })

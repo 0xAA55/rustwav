@@ -53,7 +53,7 @@ pub trait AdpcmEncoder: Debug {
 /// ## The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
 /// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
-    fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized;
+    fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized;
 
     /// * Get the block size for each block stored in the `data` chunk of the WAV file.
     /// * When it's needed to seek for a sample, first seek to the block, then decode the block to get the sample.
@@ -415,7 +415,7 @@ pub mod ima {
     }
 
     impl DecoderCore {
-        pub fn new(fmt_chunk: &FmtChunk) -> Self {
+        pub fn new(fmt_chunk: FmtChunk) -> Self {
             Self {
                 sample_val: 0,
                 stepsize_index: 0,
@@ -532,7 +532,7 @@ pub mod ima {
     }
 
     impl StereoDecoder {
-        pub fn new(fmt_chunk: &FmtChunk) -> Self {
+        pub fn new(fmt_chunk: FmtChunk) -> Self {
             Self {
                 current_channel: CurrentChannel::Left,
                 core_l: DecoderCore::new(fmt_chunk),
@@ -604,7 +604,7 @@ pub mod ima {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
             match fmt_chunk.channels {
                 1 => Ok(Decoder::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Decoder::Stereo(StereoDecoder::new(fmt_chunk))),
@@ -1052,7 +1052,7 @@ pub mod ms {
 
     impl DecoderCore{
         /// * If `fmt_chunk` doesn't have the extension data, use the default coeff table.
-        pub fn new(fmt_chunk: &FmtChunk) -> Self {
+        pub fn new(fmt_chunk: FmtChunk) -> Self {
             Self {
                 sample1: 0,
                 sample2: 0,
@@ -1175,7 +1175,7 @@ pub mod ms {
     }
 
     impl StereoDecoder {
-        pub fn new(fmt_chunk: &FmtChunk) -> Self {
+        pub fn new(fmt_chunk: FmtChunk) -> Self {
             Self {
                 core_l: DecoderCore::new(fmt_chunk),
                 core_r: DecoderCore::new(fmt_chunk),
@@ -1225,7 +1225,7 @@ pub mod ms {
     }
 
     impl Decoder {
-        pub fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> {
+        pub fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Self::Stereo(StereoDecoder::new(fmt_chunk))),
@@ -1277,7 +1277,7 @@ pub mod ms {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
             Self::new(fmt_chunk)
         }
 
@@ -1675,7 +1675,7 @@ pub mod yamaha {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderMono::new())),
                 2 => Ok(Self::Stereo(DecoderStereo::new())),

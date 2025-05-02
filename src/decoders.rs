@@ -179,11 +179,7 @@ where S: SampleType {
 
 impl<S> PcmDecoder<S>
 where S: SampleType {
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: &Spec, fmt: &FmtChunk) -> Result<Self, AudioError> {
-        match fmt.format_tag {
-            1 | 0xFFFE | 3 => (),
-            o => return Err(AudioError::InvalidArguments(format!("`PcmDecoder` can't handle format_tag 0x{:x}", o))),
-        }
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk) -> Result<Self, AudioError> {
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
             reader,
@@ -191,7 +187,7 @@ where S: SampleType {
             data_length,
             block_align: fmt.block_align,
             total_frames: data_length / fmt.block_align as u64,
-            spec: *spec,
+            spec,
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
         })
     }
@@ -340,7 +336,7 @@ where D: adpcm::AdpcmDecoder {
 
 impl<D> AdpcmDecoderWrap<D>
 where D: adpcm::AdpcmDecoder {
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
         let decoder =  D::new(fmt)?;
         let total_frames = if total_samples == 0 {
             let frames_per_block = decoder.frames_per_block() as u64;
@@ -540,7 +536,7 @@ pub struct PcmXLawDecoderWrap {
 }
 
 impl PcmXLawDecoderWrap {
-    pub fn new(reader: Box<dyn Reader>, which_law: XLaw, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+    pub fn new(reader: Box<dyn Reader>, which_law: XLaw, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
         match fmt.channels {
             1 => (),
             2 => (),
@@ -719,7 +715,7 @@ pub mod mp3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader = reader;
             let mut mp3_raw_data = vec![0u8; data_length as usize];
             reader.seek(SeekFrom::Start(data_offset))?;
@@ -983,7 +979,7 @@ pub mod opus {
     }
 
     impl OpusDecoder {
-        pub fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             let channels = fmt.channels;
             let sample_rate = fmt.sample_rate;
             let opus_channels = match channels {
@@ -1197,7 +1193,7 @@ pub mod flac_dec {
     }
 
     impl<'a> FlacDecoderWrap<'a> {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
             let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
             let self_ptr_ptr = (&mut *self_ptr) as *mut *mut Self;
@@ -1456,7 +1452,7 @@ pub mod vorbis_dec {
     }
 
     impl<'a> VorbisDecoderWrap<'_> {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader_holder = reader;
             let reader = SharedReader::new(hacks::force_borrow_mut!(*reader_holder, dyn Reader));
             let decoder = VorbisDecoder::new(reader.clone())?;

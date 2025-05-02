@@ -86,17 +86,17 @@ pub struct WaveWriter<'a> {
 
 impl<'a> WaveWriter<'a> {
     /// ## Create WAV file through a file path.
-    pub fn create<P: AsRef<Path>>(filename: P, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
+    pub fn create<P: AsRef<Path>>(filename: P, spec: Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let file_writer = BufWriter::new(File::create(filename)?);
         let wave_writer = WaveWriter::from(Box::new(file_writer), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
     /// ## Write the WAV file to the writer.
-    pub fn from(writer: Box<dyn Writer + 'a>, spec: &Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
+    pub fn from(writer: Box<dyn Writer + 'a>, spec: Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
         let mut ret = Self{
             writer,
-            spec: *spec,
+            spec,
             data_format,
             file_size_option,
             fmt_chunk_offset: 0,
