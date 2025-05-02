@@ -13,7 +13,7 @@ use crate::wavcore::ChunkHeader;
 use crate::wavcore::{FmtChunk, ExtensionData};
 use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, TrknChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::wavcore::FullInfoCuePoint;
-use crate::decoders::{Decoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
+use crate::decoders::{Decoder, ExtensibleDecoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::filehasher::FileHasher;
@@ -496,7 +496,7 @@ where S: SampleType {
     const TAG_IMA: u16 = Ima as u16;
     const TAG_YAMAHA: u16 = Yamaha as u16;
     match fmt.format_tag {
-        1 | 0xFFFE | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
+        1 | 3 => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
         6 => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::ALaw, data_offset, data_length, fmt, fact_data)?)),
         7 => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::MuLaw, data_offset, data_length, fmt, fact_data)?)),
         TAG_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
@@ -527,6 +527,7 @@ where S: SampleType {
             #[cfg(not(feature = "flac"))]
             Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
         },
+        0xFFFE => Ok(ExtensibleDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
         other => Err(AudioReadError::Unimplemented(format!("Not implemented for format_tag 0x{:x}", other))),
     }
 }
