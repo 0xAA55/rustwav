@@ -100,6 +100,13 @@ pub fn frames_to_interleaved_samples<S>(frames: &[Vec<S>], channels: Option<u16>
 where S: SampleType {
     monos_to_interleaved_samples(&frames_to_monos(frames, channels)?)
 }
+
+/// * Convert the interleaved samples of audio interleaved by channels into audio frames.
+pub fn interleaved_samples_to_frames<S>(samples: &[S], channels: u16) -> Result<Vec<Vec<S>>, AudioWriteError>
+where S: SampleType {
+    monos_to_frames(&interleaved_samples_to_monos(samples, channels)?)
+}
+
 /// * Convert stereo audio into the interleaved samples of audio interleaved by channels. The WAV file stores PCM samples in this form.
 pub fn stereos_to_interleaved_samples<S>(stereos: &[(S, S)]) -> Vec<S>
 where S: SampleType {
