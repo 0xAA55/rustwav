@@ -220,8 +220,8 @@ pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> Wav
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
 
 impl Debug for GUID {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-        fmt.debug_tuple("GUID")
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_tuple("GUID")
             .field(&format_args!("{:08x}-{:04x}-{:04x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
                 self.0, self.1, self.2, self.3[0], self.3[1], self.3[2], self.3[3], self.3[4], self.3[5], self.3[6], self.3[7]))
             .finish()
