@@ -2106,7 +2106,6 @@ pub mod vorbis_enc {
         use crate::SharedWriter;
         use crate::wavcore::FmtChunk;
         use crate::utils::{self, sample_conv, sample_conv_batch};
-        // use crate::hacks;
 
         impl VorbisBitrateStrategy {
             /// ## Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
@@ -2128,11 +2127,19 @@ pub mod vorbis_enc {
 
         /// ## The Vorbis encoder or builder enum, the builder one has metadata to put in the builder.
         enum VorbisEncoderOrBuilder<'a> {
+            /// The Vorbis encoder builder
             Builder{
+                /// The builder that has our shared writer.
                 builder: VorbisEncoderBuilder<SharedWriter<'a>>,
+
+                /// The metadata to be added to the Vorbis file. Before the encoder was built, add all of the comments here.
                 metadata: BTreeMap<String, String>,
             },
+
+            /// The built encoder. It has our shared writer. Use this to encode PCM waveform to Ogg Vorbis format.
             Encoder(VorbisEncoder<SharedWriter<'a>>),
+
+            /// When the encoding has finished, set this enum to `Finished`
             Finished,
         }
 
@@ -2149,11 +2156,22 @@ pub mod vorbis_enc {
         /// ## Vorbis encoder wrap for `WaveWriter`
         #[derive(Debug)]
         pub struct VorbisEncoderWrap<'a> {
+            /// The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`
             writer: SharedWriter<'a>,
+
+            /// The parameters for the encoder
             params: VorbisEncoderParams,
+
+            /// The Vorbis encoder builder or the built encoder.
             encoder: VorbisEncoderOrBuilder<'a>,
+
+            /// The data offset. The Ogg Vorbis data should be written after here.
             data_offset: u64,
+
+            /// How many bytes were written. This field is for calculating the bitrate of the Ogg stream.
             bytes_written: u64,
+
+            /// How many audio frames were written. This field is for calculating the bitrate of the Ogg stream.
             frames_written: u64,
         }
 
@@ -2186,14 +2204,17 @@ pub mod vorbis_enc {
                 })
             }
 
+            /// Get num channels from the params
             pub fn get_channels(&self) -> u16 {
                 self.params.channels
             }
 
+            /// Get the sample rate from the params
             pub fn get_sample_rate(&self) -> u32 {
                 self.params.sample_rate
             }
 
+            /// Insert a comment to the metadata. NOTE: When the decoder was built, you can not add comments anymore.
             pub fn insert_comment(&mut self, key: String, value: String) -> Result<(), AudioWriteError> {
                 match self.encoder {
                     VorbisEncoderOrBuilder::Builder{builder: _, ref mut metadata} => {
@@ -2204,6 +2225,8 @@ pub mod vorbis_enc {
                 }
             }
 
+            /// When you call this method, the builder will build the encoder, and the enum `self.encoder` will be changed to the encoder.
+            /// After this point, you can not add metadata anymore, and then the encoding starts.
             pub fn begin_to_encode(&mut self) -> Result<(), AudioWriteError> {
                 match self.encoder {
                     VorbisEncoderOrBuilder::Builder{ref mut builder, ref metadata} => {
@@ -2221,6 +2244,8 @@ pub mod vorbis_enc {
                 }
             }
 
+            /// Write the interleaved samples to the encoder. The interleaved samples were interleaved by channels.
+            /// The encoder actually takes the waveform array. Conversion performed during this function.
             pub fn write_samples(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {
                 let channels = self.get_channels();
                 match self.encoder {
@@ -2236,6 +2261,7 @@ pub mod vorbis_enc {
                 }
             }
 
+            /// Write multiple mono waveforms to the encoder.
             pub fn write_monos(&mut self, monos: &[Vec<f32>]) -> Result<(), AudioWriteError> {
                 match self.encoder {
                     VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
@@ -2249,6 +2275,7 @@ pub mod vorbis_enc {
                 }
             }
 
+            /// Finish encoding audio.
             pub fn finish(&mut self) -> Result<(), AudioWriteError> {
                 match self.encoder {
                     VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
@@ -2269,6 +2296,7 @@ pub mod vorbis_enc {
                     320_000
                 }
             }
+
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk{
                     format_tag: 0x674f,
@@ -2280,13 +2308,16 @@ pub mod vorbis_enc {
                     extension: None,
                 })
             }
+
             fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
                 fmt.byte_rate = self.get_bitrate() / 8;
                 Ok(())
             }
+
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
                 self.begin_to_encode()
             }
+
             fn finish(&mut self) -> Result<(), AudioWriteError> {
                 self.finish()?;
                 Ok(())
