@@ -19,6 +19,9 @@ use opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use flac_dec::FlacDecoderWrap;
 
+#[cfg(feature = "vorbis")]
+use vorbis_dec::VorbisDecoderWrap;
+
 /// ## Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
     where S: SampleType {
@@ -138,6 +141,17 @@ impl<'a, S> Decoder<S> for FlacDecoderWrap<'a>
     where S: SampleType {
     fn get_channels(&self) -> u16 { FlacDecoderWrap::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(FlacDecoderWrap::get_cur_frame_index(self)) }
+    fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
+    fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
+    fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
+    fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+}
+
+#[cfg(feature = "vorbis")]
+impl<'a, S> Decoder<S> for VorbisDecoderWrap<'a>
+    where S: SampleType {
+    fn get_channels(&self) -> u16 { VorbisDecoderWrap::get_channels(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(VorbisDecoderWrap::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -1388,6 +1402,194 @@ pub mod flac_dec {
                 .field("frame_index", &self.frame_index)
                 .field("total_frames", &self.total_frames)
                 .field("self_ptr", &self.self_ptr)
+                .finish()
+        }
+    }
+}
+
+/// ## The Vorbis decoder for `WaveReader`
+#[cfg(feature = "vorbis")]
+pub mod vorbis_dec {
+    use std::{io::SeekFrom, fmt::{self, Debug, Formatter}};
+
+    use crate::SampleType;
+    use crate::{Reader, SharedReader};
+    use crate::AudioReadError;
+    use crate::wavcore::FmtChunk;
+    use crate::hacks;
+    use vorbis_rs::VorbisDecoder;
+
+    /// ## The Vorbis decoder for `WaveReader`
+    pub struct VorbisDecoderWrap<'a> {
+        /// The shared reader for the decoder to use
+        reader: SharedReader<'a>,
+
+        /// Because the reader of the shared reader was borrowed from somewhere, let the `reader_holder` lend the reader for it.
+        reader_holder: Box<dyn Reader>,
+
+        /// Let the decoder use the shared reader. Because the decoder did't need the reader to implement the `Seek` trait, we can control where to let it decode from.
+        decoder: VorbisDecoder<SharedReader<'a>>,
+
+        /// The data offset of the Ogg Vorbis data in the WAV file.
+        data_offset: u64,
+
+        /// The size of the data
+        data_length: u64,
+
+        /// How many audio frames in total
+        total_frames: u64,
+
+        /// Channels, it seems that Ogg Vorbis supports up to 8 channels
+        channels: u16,
+
+        /// Sample rate
+        sample_rate: u32,
+
+        /// The decoded samples as waveform arrays. If the decoder hits the end of the file, this field is set to `None`
+        decoded_samples: Option<Vec<Vec<f32>>>,
+
+        /// Current frame index
+        cur_frame_index: u64,
+
+        /// Current block frame index. The start index of the decoded samples.
+        cur_block_frame_index: u64,
+    }
+
+    impl<'a> VorbisDecoderWrap<'_> {
+        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: &FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+            let mut reader_holder = reader;
+            let reader = SharedReader::new(hacks::force_borrow_mut!(*reader_holder, dyn Reader));
+            let decoder = VorbisDecoder::new(reader.clone())?;
+            let channels = decoder.channels().get() as u16;
+            let sample_rate = decoder.sampling_frequency().get();
+            let mut ret = Self{
+                reader,
+                reader_holder,
+                decoder,
+                data_offset,
+                data_length,
+                total_frames: total_samples / fmt.channels as u64,
+                channels,
+                sample_rate,
+                decoded_samples: None,
+                cur_frame_index: 0,
+                cur_block_frame_index: 0,
+            };
+            assert_eq!(fmt.channels, ret.channels);
+            assert_eq!(fmt.sample_rate, ret.sample_rate);
+            ret.decode()?;
+            Ok(ret)
+        }
+
+        fn cur_block_frames(&self) -> usize {
+            match self.decoded_samples {
+                None => 0,
+                Some(ref samples) => samples[0].len()
+            }
+        }
+
+        fn decode(&mut self) -> Result<(), AudioReadError> {
+            self.cur_block_frame_index += self.cur_block_frames() as u64;
+            self.cur_frame_index = self.cur_block_frame_index;
+            self.decoded_samples = match self.decoder.decode_audio_block()? {
+                None => None,
+                Some(samples) => Some(samples.samples().into_iter().map(|frame|frame.to_vec()).collect()),
+            };
+            Ok(())
+        }
+
+        /// Get how many channels in the Ogg Vorbis audio data
+        pub fn get_channels(&self) -> u16 {
+            self.channels
+        }
+
+        /// Get the current decoding audio frame index. The audio frame is an array for all channels' one sample.
+        pub fn get_cur_frame_index(&self) -> u64 {
+            self.cur_frame_index
+        }
+
+        /// Seek to the block that contains the specific frame index of the audio frame.
+        pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
+            let frame_index = match seek_from{
+                SeekFrom::Start(fi) => fi,
+                SeekFrom::Current(ci) => (self.cur_frame_index as i64 + ci) as u64,
+                SeekFrom::End(ei) => (self.cur_frame_index as i64 + ei) as u64,
+            };
+            if frame_index < self.cur_block_frame_index {
+                self.reader_holder.seek(SeekFrom::Start(self.data_offset))?;
+                self.cur_block_frame_index = 0;
+            }
+            self.cur_frame_index = frame_index;
+            while self.cur_block_frame_index + (self.cur_block_frames() as u64) < self.cur_frame_index {
+                self.decode()?;
+                if self.decoded_samples.is_none() {
+                    return Ok(())
+                }
+            }
+            Ok(())
+        }
+
+        /// Decode as audio frames. The audio frame is an array for all channels' one sample.
+        pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
+        where S: SampleType {
+            match self.decoded_samples {
+                None => Ok(None),
+                Some(ref samples) => {
+                    let cache_frame_index = (self.cur_frame_index - self.cur_block_frame_index) as usize;
+                    if cache_frame_index < samples[0].len() {
+                        let ret: Vec<S> = (0..self.channels).map(|channel|S::scale_from(samples[channel as usize][cache_frame_index])).collect();
+                        self.cur_frame_index += 1;
+                        Ok(Some(ret))
+                    } else {
+                        self.decode()?;
+                        self.decode_frame()
+                    }
+                }
+            }
+        }
+
+        /// Decode as stereo audio
+        pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
+        where S: SampleType {
+            match self.decode_frame()? {
+                None => Ok(None),
+                Some(frame) => {
+                    match frame.len() {
+                        1 => Ok(Some((frame[0], frame[0]))),
+                        2 => Ok(Some((frame[0], frame[1]))),
+                        o => Err(AudioReadError::Unsupported(format!("Could not convert {o} channel audio to stereo audio."))),
+                    }
+                }
+            }
+        }
+
+        /// Decode as mono audio. All channel samples will be mixed into one.
+        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where S: SampleType {
+            match self.decode_frame()? {
+                None => Ok(None),
+                Some(frame) => Ok(Some(S::average_arr(&frame)))
+            }
+        }
+    }
+
+    impl Debug for VorbisDecoderWrap<'_> {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            f.debug_struct("VorbisDecoderWrap")
+                .field("reader", &self.reader)
+                .field("reader_holder", &self.reader_holder)
+                .field("decoder", &format_args!("VorbisDecoder<Reader>"))
+                .field("data_offset", &self.data_offset)
+                .field("data_length", &self.data_length)
+                .field("total_frames", &self.total_frames)
+                .field("channels", &self.channels)
+                .field("sample_rate", &self.sample_rate)
+                .field("decoded_samples", &match self.decoded_samples {
+                    None => format!("None"),
+                    Some(_) => format!("Some([f32; {}])", self.cur_block_frames()),
+                })
+                .field("cur_frame_index", &self.cur_frame_index)
+                .field("cur_block_frame_index", &self.cur_block_frame_index)
                 .finish()
         }
     }
