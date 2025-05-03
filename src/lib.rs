@@ -41,8 +41,6 @@ pub use encoders::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 #[doc(inline)]
 pub use encoders::{VorbisEncoderParams, VorbisBitrateStrategy};
 
-use std::cmp::max;
-
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 10] = [
     ("pcm", DataFormat::Pcm),
@@ -80,6 +78,9 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
     }))
 ];
 
+/// ## The fft size can be any number greater than the sample rate of the encoder or the decoder.
+/// * It is for the resampler. A greater number results in better resample quality, but the process could be slower.
+/// * In most cases, the audio sampling rate is about `11025` to `48000`, so `65536` is the best number for the resampler.
 pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
 	for i in 0..31 {
 		let fft_size = 1usize << i;
@@ -105,10 +106,8 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
     let decode_sample_rate = decode_spec.sample_rate;
     let encode_sample_rate = encode_spec.sample_rate;
 
-    // The fft size can be any number greater than the sample rate of the encoder or the decoder.
-    // It is for the resampler. A greater number results in better resample quality, but the process could be slower.
-    // In most cases, the audio sampling rate is about 11025 to 48000, so 65536 is the best number for the resampler.
-    let fft_size = get_rounded_up_fft_size(max(encode_sample_rate, decode_sample_rate));
+    // Get the best FFT size for the resampler.
+    let fft_size = get_rounded_up_fft_size(std::cmp::max(encode_sample_rate, decode_sample_rate));
 
     // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
     // Otherwise, it's not needed there.
