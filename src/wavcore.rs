@@ -9,6 +9,7 @@ use crate::{Mp3EncoderOptions, OpusEncoderOptions};
 use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::readwrite::{self, string_io::*};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+use crate::downmixer::SpeakerPosition;
 
 #[allow(unused_imports)]
 pub use flac::{
@@ -215,25 +216,6 @@ impl WaveSampleType {
     }
 }
 
-
-/// * Infer the concrete type of the sample format from some rough data
-#[allow(unused_imports)]
-pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
-    use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
-    match (bits_per_sample, sample_format) {
-        (8, UInt) => U8,
-        (16, Int) => S16,
-        (24, Int) => S24,
-        (32, Int) => S32,
-        (64, Int) => S64,
-        (32, Float) => F32,
-        (64, Float) => F64,
-        // WAV PCM supports only the formats listed above.
-        (_, _) => Unknown,
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::upper_case_acronyms)]
 pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
@@ -292,141 +274,6 @@ pub mod guids {
 
 pub use guids::*;
 
-/// * Speaker position bit mask data for multi-channel audio.
-/// * This also be used on single-channel audio or double-channel audio.
-#[derive(Clone, Copy, Debug)]
-#[repr(u32)]
-pub enum SpeakerPosition {
-    FrontLeft = 0x1,
-    FrontRight = 0x2,
-    FrontCenter = 0x4,
-    LowFreq = 0x8,
-    BackLeft = 0x10,
-    BackRight = 0x20,
-    FrontLeftOfCenter = 0x40,
-    FrontRightOfCenter = 0x80,
-    BackCenter = 0x100,
-    SideLeft = 0x200,
-    SideRight = 0x400,
-    TopCenter = 0x800,
-    TopFrontLeft = 0x1000,
-    TopFrontCenter = 0x2000,
-    TopFrontRight = 0x4000,
-    TopBackLeft = 0x8000,
-    TopBackCenter = 0x10000,
-    TopBackRight = 0x20000,
-}
-
-impl From<SpeakerPosition> for u32 {
-    fn from(val: SpeakerPosition) -> Self {
-        val as u32
-    }
-}
-
-impl Display for SpeakerPosition {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            SpeakerPosition::FrontLeft           => write!(f, "front_left"),
-            SpeakerPosition::FrontRight          => write!(f, "front_right"),
-            SpeakerPosition::FrontCenter         => write!(f, "front_center"),
-            SpeakerPosition::LowFreq             => write!(f, "low_freq"),
-            SpeakerPosition::BackLeft            => write!(f, "back_left"),
-            SpeakerPosition::BackRight           => write!(f, "back_right"),
-            SpeakerPosition::FrontLeftOfCenter   => write!(f, "front_left_of_center"),
-            SpeakerPosition::FrontRightOfCenter  => write!(f, "front_right_of_center"),
-            SpeakerPosition::BackCenter          => write!(f, "back_center"),
-            SpeakerPosition::SideLeft            => write!(f, "side_left"),
-            SpeakerPosition::SideRight           => write!(f, "side_right"),
-            SpeakerPosition::TopCenter           => write!(f, "top_center"),
-            SpeakerPosition::TopFrontLeft        => write!(f, "top_front_left"),
-            SpeakerPosition::TopFrontCenter      => write!(f, "top_front_center"),
-            SpeakerPosition::TopFrontRight       => write!(f, "top_front_right"),
-            SpeakerPosition::TopBackLeft         => write!(f, "top_back_left"),
-            SpeakerPosition::TopBackCenter       => write!(f, "top_back_center"),
-            SpeakerPosition::TopBackRight        => write!(f, "top_back_right"),
-        }
-    }
-}
-
-// TODO
-// Algorithm Design:
-// 1. Spatial Mapping: 
-//    - Assign a 3D direction vector to each audio source, representing its position relative to the listener's head.
-//    - Vectors are normalized (magnitude = 1.0) to abstract distance, focusing on angular positioning.
-//
-// 2. Directional Influence Calculation:
-//    - Compute dot products between each source vector and the listener's facing direction (head orientation vector).
-//    - Sources behind the listener (dot product < 0.0) are attenuated by a decay factor (e.g., 0.2x gain).
-//
-// 3. Energy-Preserving Mixdown:
-//    - Apply weighted summation: mixed_sample = Σ (source_sample * dot_product * decay_factor)
-//    - Normalize weights dynamically to ensure Σ (effective_gain) ≤ 1.0, preventing clipping.
-//
-// This achieves lossless channel layout conversion (e.g., 5.1 → stereo) with spatial accuracy.
-
-
-/// * Break down `channel_mask` into each speaker position enum values to an array.
-pub fn channel_mask_to_speaker_positions(channels: u16, channel_mask: u32) -> Result<Vec<SpeakerPosition>, AudioError> {
-    let enums = [
-        SpeakerPosition::FrontLeft,
-        SpeakerPosition::FrontRight,
-        SpeakerPosition::FrontCenter,
-        SpeakerPosition::LowFreq,
-        SpeakerPosition::BackLeft,
-        SpeakerPosition::BackRight,
-        SpeakerPosition::FrontLeftOfCenter,
-        SpeakerPosition::FrontRightOfCenter,
-        SpeakerPosition::BackCenter,
-        SpeakerPosition::SideLeft,
-        SpeakerPosition::SideRight,
-        SpeakerPosition::TopCenter,
-        SpeakerPosition::TopFrontLeft,
-        SpeakerPosition::TopFrontCenter,
-        SpeakerPosition::TopFrontRight,
-        SpeakerPosition::TopBackLeft,
-        SpeakerPosition::TopBackCenter,
-        SpeakerPosition::TopBackRight,
-    ];
-    let mut ret = Vec::<SpeakerPosition>::new();
-    for (i, m) in enums.iter().enumerate() {
-        let m = *m as u32;
-        if channel_mask & m == m {ret.push(enums[i]);}
-    }
-    if ret.len() == channels as usize {
-        Ok(ret)
-    } else {
-        Err(AudioError::ChannelNotMatchMask)
-    }
-}
-
-/// * Break down `channel_mask` into each speaker position description string.
-pub fn channel_mask_to_speaker_positions_desc(channels: u16, channel_mask: u32) -> Result<Vec<String>, AudioError> {
-    match channel_mask_to_speaker_positions(channels, channel_mask) {
-        Ok(v) => Ok(v.iter().map(|e|{format!("{:?}", e)}).collect()),
-        Err(e) => Err(e),
-    }
-}
-
-/// * Guess the channel mask by the given channel number.
-pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
-    match channels {
-        0 => Err(AudioError::GuessChannelMaskFailed(channels)),
-        1 => Ok(SpeakerPosition::FrontCenter as u32),
-        2 => Ok(SpeakerPosition::FrontLeft as u32 | SpeakerPosition::FrontRight as u32),
-        o => {
-            let mut mask = 0;
-            for i in 0..o {
-                let bit = 1 << i;
-                if bit > 0x20000 {
-                    return Err(AudioError::GuessChannelMaskFailed(channels));
-                }
-                mask |= bit;
-            }
-            Ok(mask)
-        }
-    }
-}
-
 /// ## The spec info for a generic audio file.
 #[derive(Debug, Clone, Copy)]
 pub struct Spec {
@@ -452,6 +299,24 @@ impl Default for Spec {
     }
 }
 
+/// * Infer the concrete type of the sample format from some rough data
+#[allow(unused_imports)]
+pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
+    use SampleFormat::{UInt, Int, Float};
+    use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+    match (bits_per_sample, sample_format) {
+        (8, UInt) => U8,
+        (16, Int) => S16,
+        (24, Int) => S24,
+        (32, Int) => S32,
+        (64, Int) => S64,
+        (32, Float) => F32,
+        (64, Float) => F64,
+        // WAV PCM supports only the formats listed above.
+        (_, _) => Unknown,
+    }
+}
+
 impl Spec {
     pub fn new() -> Self {
         Self {
@@ -470,17 +335,17 @@ impl Spec {
 
     /// * Guess the channel mask
     pub fn guess_channel_mask(&self) -> Result<u32, AudioError> {
-        guess_channel_mask(self.channels)
+        SpeakerPosition::guess_channel_mask(self.channels)
     }
 
     /// * Break down a channel mask to the speaker positions.
-    pub fn channel_mask_to_speaker_positions(&self) -> Result<Vec<SpeakerPosition>, AudioError> {
-        channel_mask_to_speaker_positions(self.channels, self.channel_mask)
+    pub fn channel_mask_to_speaker_positions(&self) -> Vec<u32> {
+        SpeakerPosition::channel_mask_to_speaker_positions(self.channel_mask)
     }
 
     /// * Break down a channel mask to the speaker position description strings.
-    pub fn channel_mask_to_speaker_positions_desc(&self) -> Result<Vec<String>, AudioError> {
-        channel_mask_to_speaker_positions_desc(self.channels, self.channel_mask)
+    pub fn channel_mask_to_speaker_positions_descs(&self) -> Vec<&'static str> {
+        SpeakerPosition::channel_mask_to_speaker_positions_descs(self.channel_mask)
     }
 
     /// * Check if this spec is good for encoding PCM format.
@@ -495,16 +360,7 @@ impl Spec {
 
     /// * Check if the channel mask matches the channel number.
     pub fn is_channel_mask_valid(&self) -> bool {
-        if self.channels <= 2 && self.channel_mask == 0 {
-            return true;
-        }
-        let mut counter: u16 = 0;
-        for i in 0..32 {
-            if ((1 << i) & self.channel_mask) != 0 {
-                counter += 1;
-            }
-        }
-        counter == self.channels
+        SpeakerPosition::is_channel_mask_valid(self.channels, self.channel_mask)
     }
 }
 
@@ -2161,14 +2017,17 @@ pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> 
     static LISTINFO_FLACMETA: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
     LISTINFO_FLACMETA.get_or_init(|| {[
         ("ITRK", "TRACKNUMBER"),
-        ("INAM", "TITLE"),
         ("IART", "ARTIST"),
+        ("INAM", "TITLE"),
         ("IPRD", "ALBUM"),
         ("ICMT", "COMMENT"),
         ("ICOP", "COPYRIGHT"),
         ("ICRD", "DATE"),
         ("IGNR", "GENRE"),
         ("ISRC", "ISRC"),
+        ("ISFT", "ENCODER"),
+        ("ISMP", "TIMECODE"),
+        ("ILNG", "LANGUAGE"),
         ("ICMS", "PRODUCER"),
     ].iter().copied().collect()})
 }

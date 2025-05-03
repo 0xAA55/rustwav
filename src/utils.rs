@@ -244,27 +244,3 @@ where S: SampleType {
     let monos: Vec<Vec<S>> = monos.into_iter().map(|mono|{do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate)}).collect();
     monos_to_frames(&monos).unwrap()
 }
-
-/// * Convert dB modification to gain
-#[inline(always)]
-pub fn db_to_gain(db: f64) -> f64 {
-    10.0_f64.powf(db / 20.0)
-}
-
-/// * Convert gain to dB modification
-#[inline(always)]
-pub fn gain_to_db(gain: f64) -> f64 {
-    gain.log10() * 20.0
-}
-
-/// * Modify the dB of the sample.
-pub fn modify_db<S>(samples: &[S], db: f64) -> Vec<S>
-where S: SampleType {
-    modify_gain(samples, db_to_gain(db))
-}
-
-/// * Modify the dB of the sample.
-pub fn modify_gain<S>(samples: &[S], gain: f64) -> Vec<S>
-where S: SampleType {
-    samples.iter().map(|s|S::cast_from(s.as_f64() * gain)).collect()
-}
