@@ -19,6 +19,7 @@ use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::filehasher::FileHasher;
 use crate::copiablebuf::CopiableBuffer;
 use crate::xlaw::XLaw;
+use crate::downmixer::SpeakerPosition;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
@@ -306,7 +307,7 @@ impl WaveReader {
         if let Some(extension) = fmt__chunk.extension {
             channel_mask = match extension.data {
                 ExtensionData::Extensible(extensible) => extensible.channel_mask,
-                _ => wavcore::guess_channel_mask(fmt__chunk.channels)?,
+                _ => SpeakerPosition::guess_channel_mask(fmt__chunk.channels)?,
             };
         }
 
