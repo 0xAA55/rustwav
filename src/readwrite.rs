@@ -162,6 +162,27 @@ impl Seek for SharedWriter<'_> {
     }
 }
 
+/// * Go to an offset without using seek. It's achieved by using dummy reads.
+pub fn goto_offset_without_seek<T>(mut reader: T, cur_pos: &mut u64, position: u64) -> Result<u64, io::Error>
+where T: Read {
+    const SKIP_SIZE: u64 = 1024;
+    let mut skip_buf = [0u8; SKIP_SIZE as usize];
+    while *cur_pos + SKIP_SIZE <= position {
+        reader.read_exact(&mut skip_buf)?;
+        *cur_pos += SKIP_SIZE;
+    }
+    if *cur_pos < position {
+        let mut skip_buf = vec![0u8; (position - *cur_pos) as usize];
+        reader.read_exact(&mut skip_buf)?;
+        *cur_pos = position;
+    }
+    if *cur_pos > position {
+        Err(io::Error::new(io::ErrorKind::NotSeekable, format!("The current position {cur_pos} has already exceeded the target position {position}")))
+    } else {
+        Ok(*cur_pos)
+    }
+}
+
 /// * Copy data from a reader to a writer from the current position.
 pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
 where
