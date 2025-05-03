@@ -1,32 +1,31 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, SeekFrom}, fmt::{self, Debug, Display, Formatter}, convert::From, collections::{HashMap, BTreeMap}};
+use std::{
+    collections::{BTreeMap, HashMap},
+    convert::From,
+    fmt::{self, Debug, Display, Formatter},
+    io::{self, Read, SeekFrom, Write},
+};
 
 use crate::SampleType;
-use crate::{Reader, Writer};
+use crate::adpcm::ms::AdpcmCoeffSet;
+use crate::downmixer::SpeakerPosition;
+use crate::readwrite::{self, string_io::*};
+use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
 use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Mp3EncoderOptions, OpusEncoderOptions};
-use crate::adpcm::ms::AdpcmCoeffSet;
-use crate::readwrite::{self, string_io::*};
-use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
-use crate::downmixer::SpeakerPosition;
+use crate::{Reader, Writer};
 
 #[allow(unused_imports)]
-pub use flac::{
-    FlacEncoderParams,
-    FlacCompression,
-};
+pub use flac::{FlacCompression, FlacEncoderParams};
 
 #[allow(unused_imports)]
-pub use crate::{
-    VorbisEncoderParams,
-    VorbisBitrateStrategy
-};
+pub use crate::{VorbisBitrateStrategy, VorbisEncoderParams};
 
 /// ## Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::large_enum_variant)]
-pub enum DataFormat{
+pub enum DataFormat {
     /// * This is used for creating a new `DataFormat` to specify an `unknown` format.
     Unspecified,
 
@@ -97,7 +96,7 @@ impl Display for DataFormat {
             Self::Opus(options) => write!(f, "Opus({:?})", options),
             Self::Flac(options) => write!(f, "Flac({:?})", options),
             Self::Vorbis(options) => write!(f, "Vorbis({:?})", options),
-       }
+        }
     }
 }
 
@@ -107,7 +106,7 @@ impl Display for AdpcmSubFormat {
             Self::Ms => write!(f, "ADPCM-MS"),
             Self::Ima => write!(f, "ADPCM-IMA"),
             Self::Yamaha => write!(f, "ADPCM-YAMAHA"),
-       }
+        }
     }
 }
 
@@ -152,7 +151,7 @@ impl Display for SampleFormat {
             SampleFormat::Float => write!(f, "Floating Point Number"),
             SampleFormat::UInt => write!(f, "Unsigned Integer"),
             SampleFormat::Int => write!(f, "Integer"),
-       }
+        }
     }
 }
 
@@ -176,7 +175,7 @@ pub enum WaveSampleType {
 
 impl Display for WaveSampleType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         match self {
             Unknown => write!(f, "Unknown"),
             S8  => write!(f, "i8"),
@@ -191,13 +190,13 @@ impl Display for WaveSampleType {
             U64 => write!(f, "u64"),
             F32 => write!(f, "f32"),
             F64 => write!(f, "f64"),
-       }
+        }
     }
 }
 
 impl WaveSampleType {
     pub fn sizeof(&self) -> u16 {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+        use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         match self {
             S8 =>  1,
             S16 => 2,
@@ -218,13 +217,25 @@ impl WaveSampleType {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::upper_case_acronyms)]
-pub struct GUID (pub u32, pub u16, pub u16, pub [u8; 8]);
+pub struct GUID(pub u32, pub u16, pub u16, pub [u8; 8]);
 
 impl Debug for GUID {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_tuple("GUID")
-            .field(&format_args!("{:08x}-{:04x}-{:04x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                self.0, self.1, self.2, self.3[0], self.3[1], self.3[2], self.3[3], self.3[4], self.3[5], self.3[6], self.3[7]))
+            .field(&format_args!(
+                "{:08x}-{:04x}-{:04x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                self.0,
+                self.1,
+                self.2,
+                self.3[0],
+                self.3[1],
+                self.3[2],
+                self.3[3],
+                self.3[4],
+                self.3[5],
+                self.3[6],
+                self.3[7]
+            ))
             .finish()
     }
 }
@@ -237,8 +248,10 @@ impl Display for GUID {
 
 impl GUID {
     pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
-    where T: Read {
-        Ok( Self (
+    where
+        T: Read,
+    {
+        Ok(Self(
             u32::read_le(r)?,
             u16::read_le(r)?,
             u16::read_le(r)?,
@@ -251,12 +264,14 @@ impl GUID {
                 u8::read_le(r)?,
                 u8::read_le(r)?,
                 u8::read_le(r)?,
-            ]
+            ],
         ))
     }
 
     pub fn write<T>(&self, w: &mut T) -> Result<(), io::Error>
-    where T: Write + ?Sized {
+    where
+        T: Write + ?Sized,
+    {
         self.0.write_le(w)?;
         self.1.write_le(w)?;
         self.2.write_le(w)?;
@@ -302,8 +317,8 @@ impl Default for Spec {
 /// * Infer the concrete type of the sample format from some rough data
 #[allow(unused_imports)]
 pub fn get_sample_type(bits_per_sample: u16, sample_format: SampleFormat) -> WaveSampleType {
-    use SampleFormat::{UInt, Int, Float};
-    use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+    use SampleFormat::{Float, Int, UInt};
+    use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
     match (bits_per_sample, sample_format) {
         (8, UInt) => U8,
         (16, Int) => S16,
@@ -352,7 +367,10 @@ impl Spec {
     pub fn verify_for_pcm(&self) -> Result<(), AudioError> {
         self.guess_channel_mask()?;
         if self.get_sample_type() == WaveSampleType::Unknown {
-            Err(AudioError::InvalidArguments(format!("PCM doesn't support {} bits per sample {:?}", self.bits_per_sample, self.sample_format)))
+            Err(AudioError::InvalidArguments(format!(
+                "PCM doesn't support {} bits per sample {:?}",
+                self.bits_per_sample, self.sample_format
+            )))
         } else {
             Ok(())
         }
@@ -371,7 +389,7 @@ pub struct ChunkWriter<'a> {
     pub writer: &'a mut dyn Writer,
     pub flag: [u8; 4],
     pub pos_of_chunk_len: u64, // Byte position where the chunk size field is written (to be backfilled later)
-    pub chunk_start: u64, // File offset marking the start of this chunk's payload data
+    pub chunk_start: u64,      // File offset marking the start of this chunk's payload data
     ended: bool,
 }
 
@@ -379,7 +397,10 @@ impl Debug for ChunkWriter<'_> {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("ChunkWriter")
             .field("writer", &self.writer)
-            .field("flag", &format_args!("{}", String::from_utf8_lossy(&self.flag)))
+            .field(
+                "flag",
+                &format_args!("{}", String::from_utf8_lossy(&self.flag)),
+            )
             .field("pos_of_chunk_len", &self.pos_of_chunk_len)
             .field("chunk_start", &self.chunk_start)
             .field("ended", &self.ended)
@@ -395,7 +416,7 @@ impl<'a> ChunkWriter<'a> {
         let pos_of_chunk_len = writer.stream_position()?;
         0u32.write_le(writer)?;
         let chunk_start = writer.stream_position()?;
-        Ok(Self{
+        Ok(Self {
             writer,
             flag: *flag,
             pos_of_chunk_len,
@@ -405,7 +426,7 @@ impl<'a> ChunkWriter<'a> {
     }
 
     /// * At the end of the chunk, the chunk size will be updated since the ownership of `self` moved there, and `drop()` will be called.
-    pub fn end(self){}
+    pub fn end(self) {}
 
     fn on_drop(&mut self) -> Result<(), AudioWriteError> {
         if self.ended {
@@ -414,7 +435,7 @@ impl<'a> ChunkWriter<'a> {
         // Chunk size handling constraints:
         // ---------------------------------------------------------------
         // 1. u32 Overflow Handling:
-        //    - RIFF/RF64/data chunks: If size exceeds u32::MAX (0xFFFFFFFF), 
+        //    - RIFF/RF64/data chunks: If size exceeds u32::MAX (0xFFFFFFFF),
         //      write 0xFFFFFFFF and store the actual u64 size in the ds64 chunk.
         //    - Other chunks: Size must not exceed u32::MAX. If violated, returns an error.
         //
@@ -431,11 +452,14 @@ impl<'a> ChunkWriter<'a> {
             match &self.flag {
                 b"RIFF" | b"data" => {
                     chunk_size = 0xFFFFFFFF;
-                },
+                }
                 other => {
                     let chunk_flag = String::from_utf8_lossy(other);
-                    return Err(AudioWriteError::ChunkSizeTooBig(format!("{} is 0x{:x} bytes long.", chunk_flag, chunk_size)));
-                },
+                    return Err(AudioWriteError::ChunkSizeTooBig(format!(
+                        "{} is 0x{:x} bytes long.",
+                        chunk_flag, chunk_size
+                    )));
+                }
             }
         }
         self.end_and_write_size(chunk_size as u32)
@@ -446,7 +470,9 @@ impl<'a> ChunkWriter<'a> {
         self.writer.seek(SeekFrom::Start(self.pos_of_chunk_len))?;
         chunk_size_to_write.write_le(self.writer)?;
         self.writer.seek(SeekFrom::Start(end_of_chunk))?;
-        if end_of_chunk & 1 > 0 {0u8.write_le(self.writer)?;} // Alignment
+        if end_of_chunk & 1 > 0 {
+            0u8.write_le(self.writer)?;
+        } // Alignment
         self.ended = true;
         Ok(())
     }
@@ -498,7 +524,10 @@ impl ChunkHeader {
         Ok(ret)
     }
 
-    pub fn read_unseekable(reader: &mut impl Reader, cur_pos: &mut u64) -> Result<Self, AudioReadError> {
+    pub fn read_unseekable(
+        reader: &mut impl Reader,
+        cur_pos: &mut u64,
+    ) -> Result<Self, AudioReadError> {
         let mut ret = Self::new();
         reader.read_exact(&mut ret.flag)?;
         ret.size = u32::read_le(reader)?;
@@ -523,8 +552,16 @@ impl ChunkHeader {
     }
 
     /// * If can't seek, do some dummy reads to the next chunk (with alignment)
-    pub fn goto_next_chunk_unseekable(&self, reader: &mut impl Reader, cur_pos: &mut u64) -> Result<u64, AudioReadError> {
-        Ok(readwrite::goto_offset_without_seek(reader, cur_pos, self.next_chunk_pos())?)
+    pub fn goto_next_chunk_unseekable(
+        &self,
+        reader: &mut impl Reader,
+        cur_pos: &mut u64,
+    ) -> Result<u64, AudioReadError> {
+        Ok(readwrite::goto_offset_without_seek(
+            reader,
+            cur_pos,
+            self.next_chunk_pos(),
+        )?)
     }
 }
 
@@ -574,7 +611,7 @@ pub struct FmtExtension {
 
 /// ## Extension block data
 #[derive(Debug, Clone, Copy)]
-pub enum ExtensionData{
+pub enum ExtensionData {
     /// * If the extension block size is zero, here we have `Nodata` for it.
     Nodata,
 
@@ -593,7 +630,7 @@ pub enum ExtensionData{
 
 /// ## The extension data for ADPCM-MS
 #[derive(Debug, Clone, Copy)]
-pub struct AdpcmMsData{
+pub struct AdpcmMsData {
     pub samples_per_block: u16,
     pub num_coeff: u16,
     pub coeffs: [AdpcmCoeffSet; 7],
@@ -601,13 +638,13 @@ pub struct AdpcmMsData{
 
 /// ## The extension data for ADPCM-IMA
 #[derive(Debug, Clone, Copy)]
-pub struct AdpcmImaData{
+pub struct AdpcmImaData {
     pub samples_per_block: u16,
 }
 
 /// ## The extension data for MP3
 #[derive(Debug, Clone, Copy)]
-pub struct Mp3Data{
+pub struct Mp3Data {
     pub id: u16,
     pub flags: u32,
     pub block_size: u16,
@@ -642,7 +679,7 @@ impl FmtChunk {
     }
 
     pub fn read(reader: &mut impl Reader, chunk_size: u32) -> Result<Self, AudioReadError> {
-        let mut ret = FmtChunk{
+        let mut ret = FmtChunk {
             format_tag: u16::read_le(reader)?,
             channels: u16::read_le(reader)?,
             sample_rate: u32::read_le(reader)?,
@@ -671,7 +708,7 @@ impl FmtChunk {
     }
 
     pub fn get_sample_format(&self) -> SampleFormat {
-        use SampleFormat::{Int, UInt, Float, Unknown};
+        use SampleFormat::{Float, Int, UInt, Unknown};
         match (self.format_tag, self.bits_per_sample) {
             (1, 8) => UInt,
             (1, 16) => Int,
@@ -683,20 +720,22 @@ impl FmtChunk {
             (0xFFFE, 24) => Int,
             (0xFFFE, 32) | (0xFFFE, 64) => {
                 if let Some(extension) = self.extension {
-                    match extension.data{
+                    match extension.data {
                         ExtensionData::Extensible(extensible) => {
                             match extensible.sub_format {
                                 GUID_PCM_FORMAT => Int,
                                 GUID_IEEE_FLOAT_FORMAT => Float,
                                 _ => Unknown, // Let the decoders to decide
                             }
-                        },
-                        other => panic!("Unexpected extension data in the `fmt ` chunk: {:?}", other),
+                        }
+                        other => {
+                            panic!("Unexpected extension data in the `fmt ` chunk: {:?}", other)
+                        }
                     }
                 } else {
                     Int // 我们还是宽松的，0xFFFE 也允许没有扩展数据。
                 }
-            },
+            }
             (3, 32) => Float,
             (3, 64) => Float,
             (_, _) => Unknown, // Let the decoders to decide
@@ -751,37 +790,49 @@ impl FmtExtension {
         const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
         let ext_len = u16::read_le(reader)?;
-        Ok(Self{
+        Ok(Self {
             ext_len,
             data: match format_tag {
                 TAG_ADPCM_MS => {
                     if ext_len as usize >= AdpcmMsData::sizeof() {
                         Ok(ExtensionData::AdpcmMs(AdpcmMsData::read(reader)?))
                     } else {
-                        Err(AudioReadError::IncompleteData(format!("The extension data for ADPCM-MS should be bigger than {}, got {ext_len}", AdpcmMsData::sizeof())))
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for ADPCM-MS should be bigger than {}, got {ext_len}",
+                            AdpcmMsData::sizeof()
+                        )))
                     }
-                },
+                }
                 TAG_ADPCM_IMA => {
                     if ext_len as usize >= AdpcmImaData::sizeof() {
                         Ok(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?))
                     } else {
-                        Err(AudioReadError::IncompleteData(format!("The extension data for ADPCM-IMA should be bigger than {}, got {ext_len}", AdpcmImaData::sizeof())))
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for ADPCM-IMA should be bigger than {}, got {ext_len}",
+                            AdpcmImaData::sizeof()
+                        )))
                     }
-                },
+                }
                 0x0055 => {
                     if ext_len as usize >= Mp3Data::sizeof() {
                         Ok(ExtensionData::Mp3(Mp3Data::read(reader)?))
                     } else {
-                        Err(AudioReadError::IncompleteData(format!("The extension data for Mpeg Layer III should be bigger than {}, got {ext_len}", Mp3Data::sizeof())))
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for Mpeg Layer III should be bigger than {}, got {ext_len}",
+                            Mp3Data::sizeof()
+                        )))
                     }
-                },
+                }
                 0xFFFE => {
                     if ext_len as usize >= ExtensibleData::sizeof() {
                         Ok(ExtensionData::Extensible(ExtensibleData::read(reader)?))
                     } else {
-                        Err(AudioReadError::IncompleteData(format!("The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}", ExtensibleData::sizeof())))
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}",
+                            ExtensibleData::sizeof()
+                        )))
                     }
-                },
+                }
                 _ => Ok(ExtensionData::Nodata),
             }?,
         })
@@ -791,9 +842,13 @@ impl FmtExtension {
         const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
         const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
         self.ext_len.write_le(writer)?;
-        if self.ext_len != 0 { // 这里我们也是宽松的，允许在这里存个表示长度为 0 的数值。
+        if self.ext_len != 0 {
+            // 这里我们也是宽松的，允许在这里存个表示长度为 0 的数值。
             match self.data {
-                ExtensionData::Nodata => Err(AudioWriteError::InvalidArguments(format!("There should be data in {} bytes to be written, but the data is `Nodata`.", self.ext_len))),
+                ExtensionData::Nodata => Err(AudioWriteError::InvalidArguments(format!(
+                    "There should be data in {} bytes to be written, but the data is `Nodata`.",
+                    self.ext_len
+                ))),
                 ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
                 ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
                 ExtensionData::Mp3(data) => Ok(data.write(writer)?),
@@ -827,7 +882,7 @@ impl AdpcmMsData {
     }
 
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             samples_per_block: u16::read_le(reader)?,
             num_coeff: u16::read_le(reader)?,
             coeffs: [
@@ -861,9 +916,7 @@ impl Default for AdpcmMsData {
 
 impl AdpcmImaData {
     pub fn new(samples_per_block: u16) -> Self {
-        Self {
-            samples_per_block,
-        }
+        Self { samples_per_block }
     }
 
     pub fn sizeof() -> usize {
@@ -871,7 +924,7 @@ impl AdpcmImaData {
     }
 
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             samples_per_block: u16::read_le(reader)?,
         })
     }
@@ -902,7 +955,7 @@ impl Mp3Data {
     }
 
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             id: u16::read_le(reader)?,
             flags: u32::read_le(reader)?,
             block_size: u16::read_le(reader)?,
@@ -923,7 +976,7 @@ impl Mp3Data {
 
 impl ExtensibleData {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             valid_bits_per_sample: u16::read_le(reader)?,
             channel_mask: u32::read_le(reader)?,
             sub_format: GUID::read(reader)?,
@@ -951,7 +1004,7 @@ pub struct SlntChunk {
 
 impl SlntChunk {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             data: u32::read_le(reader)?,
         })
     }
@@ -978,7 +1031,10 @@ pub struct BextChunk {
 }
 
 impl BextChunk {
-    pub fn read(reader: &mut impl Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
+    pub fn read(
+        reader: &mut impl Reader,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<Self, AudioReadError> {
         let description = read_str(reader, 256, text_encoding)?;
         let originator = read_str(reader, 32, text_encoding)?;
         let originator_ref = read_str(reader, 32, text_encoding)?;
@@ -1006,7 +1062,11 @@ impl BextChunk {
         })
     }
 
-    pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    pub fn write(
+        &self,
+        writer: &mut dyn Writer,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), AudioWriteError> {
         let cw = ChunkWriter::begin(writer, b"bext")?;
         write_str_sized(cw.writer, &self.description, 256, text_encoding)?;
         write_str_sized(cw.writer, &self.originator, 32, text_encoding)?;
@@ -1022,7 +1082,7 @@ impl BextChunk {
     }
 }
 
-impl Debug for BextChunk{
+impl Debug for BextChunk {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("BextChunk")
             .field("description", &self.description)
@@ -1032,7 +1092,17 @@ impl Debug for BextChunk{
             .field("origination_time", &self.origination_time)
             .field("time_ref", &self.time_ref)
             .field("version", &self.version)
-            .field("umid", &format_args!("[{}]", self.umid.iter().map(|byte|{format!("0x{:02x}", byte)}).collect::<Vec<String>>().join(",")))
+            .field(
+                "umid",
+                &format_args!(
+                    "[{}]",
+                    self.umid
+                        .iter()
+                        .map(|byte| { format!("0x{:02x}", byte) })
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
             .field("reserved", &format_args!("[u8; {}]", self.reserved.len()))
             .field("coding_history", &self.coding_history)
             .finish()
@@ -1082,7 +1152,7 @@ pub struct SmplSampleLoop {
 
 impl SmplChunk {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        let mut ret = Self{
+        let mut ret = Self {
             manufacturer: u32::read_le(reader)?,
             product: u32::read_le(reader)?,
             sample_period: u32::read_le(reader)?,
@@ -1120,7 +1190,7 @@ impl SmplChunk {
 
 impl SmplSampleLoop {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             identifier: u32::read_le(reader)?,
             type_: u32::read_le(reader)?,
             start: u32::read_le(reader)?,
@@ -1154,7 +1224,7 @@ pub struct InstChunk {
 
 impl InstChunk {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             base_note: u8::read_le(reader)?,
             detune: u8::read_le(reader)?,
             gain: u8::read_le(reader)?,
@@ -1197,9 +1267,9 @@ impl PlstChunk {
         let playlist_len = u32::read_le(reader)?;
         Ok(Self {
             playlist_len,
-            data: (0..playlist_len).map(|_| -> Result<Plst, AudioReadError> {
-                Plst::read(reader)
-            }).collect::<Result<Vec<Plst>, AudioReadError>>()?,
+            data: (0..playlist_len)
+                .map(|_| -> Result<Plst, AudioReadError> { Plst::read(reader) })
+                .collect::<Result<Vec<Plst>, AudioReadError>>()?,
         })
     }
 
@@ -1213,13 +1283,16 @@ impl PlstChunk {
     }
 
     pub fn build_map(&self) -> BTreeMap<u32, Plst> {
-        self.data.iter().map(|plst|{(plst.cue_point_id, *plst)}).collect()
+        self.data
+            .iter()
+            .map(|plst| (plst.cue_point_id, *plst))
+            .collect()
     }
 }
 
 impl Plst {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             cue_point_id: u32::read_le(reader)?,
             num_samples: u32::read_le(reader)?,
             repeats: u32::read_le(reader)?,
@@ -1257,9 +1330,9 @@ impl CueChunk {
         let num_cues = u32::read_le(reader)?;
         Ok(Self {
             num_cues,
-            cue_points: (0.. num_cues).map(|_| -> Result<CuePoint, AudioReadError> {
-                CuePoint::read(reader)
-            }).collect::<Result<Vec<CuePoint>, AudioReadError>>()?,
+            cue_points: (0..num_cues)
+                .map(|_| -> Result<CuePoint, AudioReadError> { CuePoint::read(reader) })
+                .collect::<Result<Vec<CuePoint>, AudioReadError>>()?,
         })
     }
 
@@ -1273,7 +1346,10 @@ impl CueChunk {
     }
 
     pub fn build_map(&self) -> BTreeMap<u32, &CuePoint> {
-        self.cue_points.iter().map(|cue|{(cue.cue_point_id, cue)}).collect()
+        self.cue_points
+            .iter()
+            .map(|cue| (cue.cue_point_id, cue))
+            .collect()
     }
 }
 
@@ -1281,7 +1357,7 @@ impl CuePoint {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
         let mut data_chunk_id = [0u8; 4];
         reader.read_exact(&mut data_chunk_id)?;
-        Ok(Self{
+        Ok(Self {
             cue_point_id: u32::read_le(reader)?,
             position: u32::read_le(reader)?,
             data_chunk_id,
@@ -1308,7 +1384,7 @@ pub enum ListChunk {
     Adtl(BTreeMap<u32, AdtlChunk>),
 }
 
-impl Default for ListChunk{
+impl Default for ListChunk {
     fn default() -> Self {
         Self::Info(BTreeMap::<String, String>::new())
     }
@@ -1323,7 +1399,7 @@ pub enum AdtlChunk {
     File(FileChunk),
 }
 
-impl Default for AdtlChunk{
+impl Default for AdtlChunk {
     fn default() -> Self {
         Self::Labl(LablChunk::default())
     }
@@ -1360,7 +1436,7 @@ pub struct FileChunk {
     pub file_data: Vec<u8>,
 }
 
-impl Debug for FileChunk{
+impl Debug for FileChunk {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("FileChunk")
             .field("cue_point_id", &self.cue_point_id)
@@ -1371,23 +1447,22 @@ impl Debug for FileChunk{
 }
 
 impl AdtlChunk {
-    pub fn read(reader: &mut impl Reader, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
+    pub fn read(
+        reader: &mut impl Reader,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<Self, AudioReadError> {
         let sub_chunk = ChunkHeader::read(reader)?;
         let ret = match &sub_chunk.flag {
-            b"labl" => {
-                Self::Labl(LablChunk{
-                    cue_point_id: u32::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
-                })
-            },
-            b"note" => {
-                Self::Note(NoteChunk{
-                    cue_point_id: u32::read_le(reader)?,
-                    data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
-                })
-            },
+            b"labl" => Self::Labl(LablChunk {
+                cue_point_id: u32::read_le(reader)?,
+                data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
+            }),
+            b"note" => Self::Note(NoteChunk {
+                cue_point_id: u32::read_le(reader)?,
+                data: read_str(reader, (sub_chunk.size - 4) as usize, text_encoding)?,
+            }),
             b"ltxt" => {
-                let mut ltxt = LtxtChunk{
+                let mut ltxt = LtxtChunk {
                     cue_point_id: u32::read_le(reader)?,
                     sample_length: u32::read_le(reader)?,
                     purpose_id: read_str(reader, 4, text_encoding)?,
@@ -1397,29 +1472,41 @@ impl AdtlChunk {
                     code_page: u16::read_le(reader)?,
                     data: String::new(),
                 };
-                ltxt.data = read_str_by_code_page(reader, (sub_chunk.size - 20) as usize, text_encoding, ltxt.code_page as u32)?;
+                ltxt.data = read_str_by_code_page(
+                    reader,
+                    (sub_chunk.size - 20) as usize,
+                    text_encoding,
+                    ltxt.code_page as u32,
+                )?;
                 Self::Ltxt(ltxt)
-            },
-            b"file" => {
-                Self::File(FileChunk{
-                    cue_point_id: u32::read_le(reader)?,
-                    media_type: u32::read_le(reader)?,
-                    file_data: read_bytes(reader, (sub_chunk.size - 8) as usize)?,
-                })
             }
+            b"file" => Self::File(FileChunk {
+                cue_point_id: u32::read_le(reader)?,
+                media_type: u32::read_le(reader)?,
+                file_data: read_bytes(reader, (sub_chunk.size - 8) as usize)?,
+            }),
             other => {
-                return Err(AudioReadError::UnexpectedFlag("labl/note/ltxt".to_owned(), String::from_utf8_lossy(other).to_string()));
-            },
+                return Err(AudioReadError::UnexpectedFlag(
+                    "labl/note/ltxt".to_owned(),
+                    String::from_utf8_lossy(other).to_string(),
+                ));
+            }
         };
         sub_chunk.seek_to_next_chunk(reader)?;
         Ok(ret)
     }
 
-    pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    pub fn write(
+        &self,
+        writer: &mut dyn Writer,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), AudioWriteError> {
         fn to_sz(s: &str) -> String {
             if !s.is_empty() {
                 let mut s = s.to_owned();
-                if !s.ends_with('\0') {s.push('\0');}
+                if !s.ends_with('\0') {
+                    s.push('\0');
+                }
                 s
             } else {
                 "\0".to_owned()
@@ -1430,12 +1517,12 @@ impl AdtlChunk {
                 let cw = ChunkWriter::begin(writer, b"labl")?;
                 labl.cue_point_id.write_le(cw.writer)?;
                 write_str(cw.writer, &to_sz(&labl.data), text_encoding)?;
-            },
+            }
             Self::Note(note) => {
                 let cw = ChunkWriter::begin(writer, b"note")?;
                 note.cue_point_id.write_le(cw.writer)?;
                 write_str(cw.writer, &to_sz(&note.data), text_encoding)?;
-            },
+            }
             Self::Ltxt(ltxt) => {
                 let cw = ChunkWriter::begin(writer, b"ltxt")?;
                 ltxt.cue_point_id.write_le(cw.writer)?;
@@ -1446,13 +1533,13 @@ impl AdtlChunk {
                 ltxt.dialect.write_le(cw.writer)?;
                 ltxt.code_page.write_le(cw.writer)?;
                 write_str(cw.writer, &to_sz(&ltxt.data), text_encoding)?;
-            },
+            }
             Self::File(file) => {
                 let cw = ChunkWriter::begin(writer, b"file")?;
                 file.cue_point_id.write_le(cw.writer)?;
                 file.media_type.write_le(cw.writer)?;
                 cw.writer.write_all(&file.file_data)?;
-            },
+            }
         }
         Ok(())
     }
@@ -1468,7 +1555,11 @@ impl AdtlChunk {
 }
 
 impl ListChunk {
-    pub fn read(reader: &mut impl Reader, chunk_size: u64, text_encoding: &StringCodecMaps) -> Result<Self, AudioReadError> {
+    pub fn read(
+        reader: &mut impl Reader,
+        chunk_size: u64,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<Self, AudioReadError> {
         let end_of_chunk = ChunkHeader::align(reader.stream_position()? + chunk_size);
         let mut flag = [0u8; 4];
         reader.read_exact(&mut flag)?;
@@ -1476,7 +1567,7 @@ impl ListChunk {
             b"info" | b"INFO" => {
                 let dict = Self::read_dict(reader, end_of_chunk, text_encoding)?;
                 Ok(Self::Info(dict))
-            },
+            }
             b"adtl" => {
                 let mut adtl_map = BTreeMap::<u32, AdtlChunk>::new();
                 while reader.stream_position()? < end_of_chunk {
@@ -1484,36 +1575,48 @@ impl ListChunk {
                     let cue_point_id = adtl.get_cue_point_id();
                     if let Some(dup) = adtl_map.insert(cue_point_id, adtl.clone()) {
                         // If the chunk point ID duplicates,  the new one will be used to overwrite the old one.
-                        eprintln!("Duplicated chunk point ID {cue_point_id} for the `Adtl` data: old is {:?}, and will be overwritten by the new one: {:?}", dup, adtl);
+                        eprintln!(
+                            "Duplicated chunk point ID {cue_point_id} for the `Adtl` data: old is {:?}, and will be overwritten by the new one: {:?}",
+                            dup, adtl
+                        );
                     }
                 }
                 Ok(Self::Adtl(adtl_map))
-            },
-            other => {
-                Err(AudioReadError::Unimplemented(format!("Unknown indentifier in LIST chunk: {}", text_encoding.decode_flags(other))))
-            },
+            }
+            other => Err(AudioReadError::Unimplemented(format!(
+                "Unknown indentifier in LIST chunk: {}",
+                text_encoding.decode_flags(other)
+            ))),
         }
     }
 
-    pub fn write(&self, writer: &mut dyn Writer, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    pub fn write(
+        &self,
+        writer: &mut dyn Writer,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), AudioWriteError> {
         let mut cw = ChunkWriter::begin(writer, b"LIST")?;
         match self {
             Self::Info(dict) => {
                 cw.writer.write_all(b"INFO")?;
                 Self::write_dict(&mut cw.writer, dict, text_encoding)?;
-            },
+            }
             Self::Adtl(adtls) => {
                 cw.writer.write_all(b"adtl")?;
                 for (_cue_point_id, adtl) in adtls.iter() {
                     adtl.write(&mut cw.writer, text_encoding)?;
                 }
-            },
+            }
         };
         Ok(())
     }
 
-    fn read_dict(reader: &mut impl Reader, end_of_chunk: u64, text_encoding: &StringCodecMaps) -> Result<BTreeMap<String, String>, AudioReadError> {
-        // The INFO chunk consists of multiple key-value pairs for song metadata. 
+    fn read_dict(
+        reader: &mut impl Reader,
+        end_of_chunk: u64,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<BTreeMap<String, String>, AudioReadError> {
+        // The INFO chunk consists of multiple key-value pairs for song metadata.
         // Within its byte size constraints, read all key-value entries.
         let mut dict = BTreeMap::<String, String>::new();
         while reader.stream_position()? < end_of_chunk {
@@ -1543,10 +1646,16 @@ impl ListChunk {
         Ok(dict)
     }
 
-    fn write_dict(writer: &mut dyn Writer, dict: &BTreeMap<String, String>, text_encoding: &StringCodecMaps) -> Result<(), AudioWriteError> {
+    fn write_dict(
+        writer: &mut dyn Writer,
+        dict: &BTreeMap<String, String>,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), AudioWriteError> {
         for (key, val) in dict.iter() {
             if key.len() != 4 {
-                return Err(AudioWriteError::InvalidArguments("flag must be 4 bytes".to_owned()));
+                return Err(AudioWriteError::InvalidArguments(
+                    "flag must be 4 bytes".to_owned(),
+                ));
             }
             let bytes = key.as_bytes();
             let flag = [bytes[0], bytes[1], bytes[2], bytes[3]];
@@ -1655,7 +1764,7 @@ pub trait ListInfo {
                 } else {
                     Ok(0)
                 }
-            },
+            }
         }
     }
 }
@@ -1666,7 +1775,11 @@ impl ListInfo for ListChunk {
     }
 
     fn get(&self, key: &str) -> Option<&String> {
-        if let Self::Info(dict) = self {dict.get(key)} else {None}
+        if let Self::Info(dict) = self {
+            dict.get(key)
+        } else {
+            None
+        }
     }
 
     fn set(&mut self, key: &str, value: &str) -> Result<Option<String>, AudioError> {
@@ -1712,7 +1825,10 @@ pub fn get_country_code_map() -> HashMap<u16, &'static str> {
         (352, "Luxembourg"),
         (354, "Iceland"),
         (358, "Finland"),
-    ].iter().copied().collect()
+    ]
+    .iter()
+    .copied()
+    .collect()
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -1792,7 +1908,7 @@ pub struct FullInfoCuePoint {
 
     /// * How many samples in the cue point
     pub sample_length: u32,
-    
+
     /// * What is the purpose of the cue point
     pub purpose_id: String,
 
@@ -1822,7 +1938,14 @@ pub struct FullInfoCuePoint {
 }
 
 impl FullInfoCuePoint {
-    pub fn new(cue_point_id: u32, cue_point: &CuePoint, adtl_chunks: &BTreeMap<u32, AdtlChunk>, plst: &Option<&Plst>, country_code_map: &HashMap<u16, &'static str>, dialect_code_map: &HashMap<LanguageDialect, LanguageSpecification>) -> Result<Self, AudioError> {
+    pub fn new(
+        cue_point_id: u32,
+        cue_point: &CuePoint,
+        adtl_chunks: &BTreeMap<u32, AdtlChunk>,
+        plst: &Option<&Plst>,
+        country_code_map: &HashMap<u16, &'static str>,
+        dialect_code_map: &HashMap<LanguageDialect, LanguageSpecification>,
+    ) -> Result<Self, AudioError> {
         let mut ret = Self {
             data_chunk_id: cue_point.data_chunk_id,
             label: String::new(),
@@ -1838,24 +1961,26 @@ impl FullInfoCuePoint {
             num_samples: 0,
             repeats: 0,
         };
-        if let Some(plst) = plst{
+        if let Some(plst) = plst {
             ret.num_samples = plst.num_samples;
             ret.repeats = plst.repeats;
         } else {
-            eprintln!("Lack of `plst` chunk, `num_samples` should be calculated by yourself, and `repeats` remains zero.");
+            eprintln!(
+                "Lack of `plst` chunk, `num_samples` should be calculated by yourself, and `repeats` remains zero."
+            );
         }
         if let Some(adtl) = adtl_chunks.get(&cue_point_id) {
             match adtl {
                 AdtlChunk::Labl(labl) => ret.label = labl.data.clone(),
                 AdtlChunk::Note(note) => ret.note = note.data.clone(),
                 AdtlChunk::Ltxt(ltxt) => {
-                    let lang_dial = LanguageDialect{
+                    let lang_dial = LanguageDialect {
                         lang: ltxt.language,
                         dial: ltxt.dialect,
                     };
-                    let unknown_lang_spec = LanguageSpecification{
+                    let unknown_lang_spec = LanguageSpecification {
                         lang: "Unknown",
-                        spec: "UKNW1994"
+                        spec: "UKNW1994",
                     };
                     let country = if let Some(country) = country_code_map.get(&ltxt.country) {
                         country.to_string()
@@ -1866,27 +1991,35 @@ impl FullInfoCuePoint {
                         *lang_dial
                     } else {
                         unknown_lang_spec
-                    }.lang.to_owned();
+                    }
+                    .lang
+                    .to_owned();
                     ret.sample_length = ltxt.sample_length;
                     ret.purpose_id = ltxt.purpose_id.clone();
                     ret.country = country;
                     ret.language = language;
                     ret.text_data = ltxt.data.clone();
-                },
+                }
                 AdtlChunk::File(file) => {
                     ret.media_type = file.media_type;
                     ret.file_data = file.file_data.clone();
-                },
+                }
             }
             Ok(ret)
         } else {
-            Err(AudioError::NoSuchData(format!("ADTL data for cue point ID: {cue_point_id}")))
+            Err(AudioError::NoSuchData(format!(
+                "ADTL data for cue point ID: {cue_point_id}"
+            )))
         }
     }
 }
 
 /// ## Create a fully assembled cue point data from various of chunks in the WAV file.
-pub fn create_full_info_cue_data(cue_chunk: &CueChunk, adtl_chunks: &BTreeMap<u32, AdtlChunk>, plstchunk: &Option<PlstChunk>) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
+pub fn create_full_info_cue_data(
+    cue_chunk: &CueChunk,
+    adtl_chunks: &BTreeMap<u32, AdtlChunk>,
+    plstchunk: &Option<PlstChunk>,
+) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
     let country_code_map = get_country_code_map();
     let dialect_code_map = get_language_dialect_code_map();
     let plstmap = if let Some(plstchunk) = plstchunk {
@@ -1894,12 +2027,23 @@ pub fn create_full_info_cue_data(cue_chunk: &CueChunk, adtl_chunks: &BTreeMap<u3
     } else {
         BTreeMap::<u32, Plst>::new()
     };
-    cue_chunk.cue_points.iter().map(|cue| -> Result<(u32, FullInfoCuePoint), AudioError> {
-        match FullInfoCuePoint::new(cue.cue_point_id, cue, adtl_chunks, &plstmap.get(&cue.cue_point_id), &country_code_map, &dialect_code_map) {
-            Ok(full_info_cue_data) => Ok((cue.cue_point_id, full_info_cue_data)),
-            Err(e) => Err(e),
-        }
-    }).collect::<Result<BTreeMap<u32, FullInfoCuePoint>, AudioError>>()
+    cue_chunk
+        .cue_points
+        .iter()
+        .map(|cue| -> Result<(u32, FullInfoCuePoint), AudioError> {
+            match FullInfoCuePoint::new(
+                cue.cue_point_id,
+                cue,
+                adtl_chunks,
+                &plstmap.get(&cue.cue_point_id),
+                &country_code_map,
+                &dialect_code_map,
+            ) {
+                Ok(full_info_cue_data) => Ok((cue.cue_point_id, full_info_cue_data)),
+                Err(e) => Err(e),
+            }
+        })
+        .collect::<Result<BTreeMap<u32, FullInfoCuePoint>, AudioError>>()
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1950,7 +2094,7 @@ pub struct TrknChunk {
 
 impl TrknChunk {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        Ok(Self{
+        Ok(Self {
             track_no: u16::read_le(reader)?,
             total_tracks: u16::read_le(reader)?,
         })
@@ -1965,7 +2109,7 @@ impl TrknChunk {
 }
 
 #[derive(Clone, PartialOrd, PartialEq, Ord, Eq)]
-pub enum JunkChunk{
+pub enum JunkChunk {
     FullZero(u64),
     SomeData(Vec<u8>),
 }
@@ -2000,7 +2144,14 @@ impl Debug for JunkChunk {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::FullZero(size) => write!(f, "[0u8; {size}]"),
-            Self::SomeData(data) => write!(f, "[{}]", data.iter().map(|byte|{format!("0x{:02}", byte)}).collect::<Vec<String>>().join(", ")),
+            Self::SomeData(data) => write!(
+                f,
+                "[{}]",
+                data.iter()
+                    .map(|byte| { format!("0x{:02}", byte) })
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -2015,25 +2166,30 @@ impl Default for JunkChunk {
 pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> {
     use std::sync::OnceLock;
     static LISTINFO_FLACMETA: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
-    LISTINFO_FLACMETA.get_or_init(|| {[
-        ("ITRK", "TRACKNUMBER"),
-        ("IART", "ARTIST"),
-        ("INAM", "TITLE"),
-        ("IPRD", "ALBUM"),
-        ("ICMT", "COMMENT"),
-        ("ICOP", "COPYRIGHT"),
-        ("ICRD", "DATE"),
-        ("IGNR", "GENRE"),
-        ("ISRC", "ISRC"),
-        ("ISFT", "ENCODER"),
-        ("ISMP", "TIMECODE"),
-        ("ILNG", "LANGUAGE"),
-        ("ICMS", "PRODUCER"),
-    ].iter().copied().collect()})
+    LISTINFO_FLACMETA.get_or_init(|| {
+        [
+            ("ITRK", "TRACKNUMBER"),
+            ("IART", "ARTIST"),
+            ("INAM", "TITLE"),
+            ("IPRD", "ALBUM"),
+            ("ICMT", "COMMENT"),
+            ("ICOP", "COPYRIGHT"),
+            ("ICRD", "DATE"),
+            ("IGNR", "GENRE"),
+            ("ISRC", "ISRC"),
+            ("ISFT", "ENCODER"),
+            ("ISMP", "TIMECODE"),
+            ("ILNG", "LANGUAGE"),
+            ("ICMS", "PRODUCER"),
+        ]
+        .iter()
+        .copied()
+        .collect()
+    })
 }
 
 #[cfg(not(feature = "flac"))]
-pub mod flac{
+pub mod flac {
     /// ## The compression level of the FLAC file
     /// A higher number means less file size. Default compression level is 5
     #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2049,7 +2205,7 @@ pub mod flac{
         Level7 = 7,
 
         /// Maximum compression
-        Level8 = 8
+        Level8 = 8,
     }
 
     /// ## Parameters for the encoder to encode the audio.
@@ -2080,25 +2236,32 @@ pub mod flac{
 /// ## If the `id3` feature is enabled, use it to read ID3 data.
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
-pub mod Id3{
-    use std::{io::{Read, Write, Seek}};
+pub mod Id3 {
     use crate::errors::{AudioReadError, AudioWriteError, IOErrorInfo};
+    use std::io::{Read, Seek, Write};
     pub type Tag = id3::Tag;
 
     pub fn id3_read<R>(reader: &mut R, _size: usize) -> Result<Tag, AudioReadError>
-    where R: Read + Seek + ?Sized {
+    where
+        R: Read + Seek + ?Sized,
+    {
         Ok(Tag::read_from2(reader)?)
     }
 
     pub fn id3_write<W>(tag: &Tag, writer: &mut W) -> Result<(), AudioWriteError>
-    where W: Write + ?Sized {
+    where
+        W: Write + ?Sized,
+    {
         Ok(tag.write_to(writer, tag.version())?)
     }
 
     impl From<id3::Error> for AudioReadError {
         fn from(err: id3::Error) -> Self {
             match err.kind {
-                id3::ErrorKind::Io(ioerr) => AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
+                id3::ErrorKind::Io(ioerr) => AudioReadError::IOError(IOErrorInfo {
+                    kind: ioerr.kind(),
+                    message: ioerr.to_string(),
+                }),
                 id3::ErrorKind::StringDecoding(bytes) => AudioReadError::StringDecodeError(bytes),
                 id3::ErrorKind::NoTag => AudioReadError::FormatError(err.description),
                 id3::ErrorKind::Parsing => AudioReadError::DataCorrupted(err.description),
@@ -2111,7 +2274,10 @@ pub mod Id3{
     impl From<id3::Error> for AudioWriteError {
         fn from(err: id3::Error) -> Self {
             match err.kind {
-                id3::ErrorKind::Io(ioerr) => AudioWriteError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()}),
+                id3::ErrorKind::Io(ioerr) => AudioWriteError::IOError(IOErrorInfo {
+                    kind: ioerr.kind(),
+                    message: ioerr.to_string(),
+                }),
                 id3::ErrorKind::StringDecoding(bytes) => AudioWriteError::StringDecodeError(bytes),
                 id3::ErrorKind::NoTag => AudioWriteError::OtherReason(err.description),
                 id3::ErrorKind::Parsing => AudioWriteError::OtherReason(err.description),
@@ -2125,40 +2291,45 @@ pub mod Id3{
 /// ## If the `id3` feature is disabled, read the raw bytes.
 #[cfg(not(feature = "id3"))]
 #[allow(non_snake_case)]
-pub mod Id3{
+pub mod Id3 {
+    use std::error::Error;
     use std::io::Read;
     use std::vec::Vec;
-    use std::error::Error;
     #[derive(Clone)]
     pub struct Tag {
         pub data: Vec<u8>,
     }
     impl Tag {
         fn new(data: Vec<u8>) -> Self {
-            Self {
-                data,
-            }
+            Self { data }
         }
     }
 
     pub fn id3_read<R>(reader: &mut R, size: usize) -> Result<Tag, AudioReadError>
-    where R: Read + Seek + ?Sized {
+    where
+        R: Read + Seek + ?Sized,
+    {
         #[cfg(debug_assertions)]
-        println!("Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\"");
+        println!(
+            "Feature \"id3\" was not enabled, consider compile with \"cargo build --features id3\""
+        );
         Ok(Tag::new(super::read_bytes(reader, size)?))
     }
 
     pub fn id3_write<W>(tag: &Tag, writer: &mut W) -> Result<(), AudioWriteError>
-    where W: Write + ?Sized {
+    where
+        W: Write + ?Sized,
+    {
         #[cfg(debug_assertions)]
-        println!("Feature \"id3\" was not enabled, the saved id3 binary bytes may not correct, consider compile with \"cargo build --features id3\"");
+        println!(
+            "Feature \"id3\" was not enabled, the saved id3 binary bytes may not correct, consider compile with \"cargo build --features id3\""
+        );
         Ok(writer.write_all(&tag.data))
     }
 
     impl std::fmt::Debug for Tag {
         fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-            fmt.debug_struct("Tag")
-                .finish_non_exhaustive()
+            fmt.debug_struct("Tag").finish_non_exhaustive()
         }
     }
 }

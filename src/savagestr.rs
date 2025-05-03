@@ -3,7 +3,9 @@ use std::fmt::Debug;
 /// Get the system code page
 fn get_system_code_page() -> u32 {
     #[cfg(target_os = "windows")]
-    unsafe{ windows::Win32::Globalization::GetACP() }
+    unsafe {
+        windows::Win32::Globalization::GetACP()
+    }
     #[cfg(not(target_os = "windows"))]
     65001
 }
@@ -48,12 +50,12 @@ pub trait SavageStringCodecs: Debug {
 }
 
 #[cfg(feature = "text_encoding")]
-pub mod text_encoding{
-    use std::cfg;
-    use std::fmt::Debug;
-    use std::collections::HashMap;
-    use encoding::{EncodingRef, EncoderTrap, DecoderTrap, all::*};
+pub mod text_encoding {
     use super::SavageStringCodecs;
+    use encoding::{DecoderTrap, EncoderTrap, EncodingRef, all::*};
+    use std::cfg;
+    use std::collections::HashMap;
+    use std::fmt::Debug;
 
     const CODE_PAGE_DATA: [(u32, &str, &str); 140] = [
         (37, "IBM037", "IBM EBCDIC US-Canada"),
@@ -267,7 +269,7 @@ pub mod text_encoding{
                                     format_name = alt_name.to_owned();
                                     is_alt_name = true;
                                     continue;
-                                },
+                                }
                                 None => return None,
                             }
                         } else {
@@ -287,15 +289,13 @@ pub mod text_encoding{
                 Err(_) => {
                     // Find the transcoder by encoding name
                     match self.find_coder(format_name) {
-                        Some(coder) => {
-                            match coder.decode(bytes, DecoderTrap::Replace) {
-                                Ok(ret) => ret,
-                                Err(_) => self.savage_decode(bytes),
-                            }
+                        Some(coder) => match coder.decode(bytes, DecoderTrap::Replace) {
+                            Ok(ret) => ret,
+                            Err(_) => self.savage_decode(bytes),
                         },
                         None => self.savage_decode(bytes),
                     }
-                },
+                }
             }
         }
 
@@ -310,30 +310,24 @@ pub mod text_encoding{
             // Find the transcoder by encoding name
             match self.coder_map.get(format_name) {
                 // Find the transcoder and transcode
-                Some(coder) => {
-                    match coder.encode(source, EncoderTrap::Replace) {
-                        Ok(ret) => ret,
-                        Err(_) => source.as_bytes().to_vec(),
-                    }
+                Some(coder) => match coder.encode(source, EncoderTrap::Replace) {
+                    Ok(ret) => ret,
+                    Err(_) => source.as_bytes().to_vec(),
                 },
                 // If the transcoder is not found, it means that the encoding name may have an alias. First query the alias and then query the transcoder.
                 None => {
                     match self.codename_alt.get(format_name) {
                         // Find the alias and transcode again
-                        Some(alt_name) => {
-                            match self.coder_map.get(alt_name) {
-                                Some(coder) => {
-                                    match coder.encode(source, EncoderTrap::Replace) {
-                                        Ok(ret) => ret,
-                                        Err(_) => source.as_bytes().to_vec(),
-                                    }
-                                },
-                                None => source.as_bytes().to_vec(),
-                            }
+                        Some(alt_name) => match self.coder_map.get(alt_name) {
+                            Some(coder) => match coder.encode(source, EncoderTrap::Replace) {
+                                Ok(ret) => ret,
+                                Err(_) => source.as_bytes().to_vec(),
+                            },
+                            None => source.as_bytes().to_vec(),
                         },
                         None => source.as_bytes().to_vec(),
                     }
-                },
+                }
             }
         }
 
@@ -349,7 +343,7 @@ pub mod text_encoding{
 }
 
 #[cfg(not(feature = "text_encoding"))]
-pub mod text_encoding{
+pub mod text_encoding {
     use super::SavageStringCodecs;
 
     #[derive(Debug, Clone)]
@@ -361,7 +355,7 @@ pub mod text_encoding{
         }
     }
 
-    impl SavageStringCodecs for StringCodecMaps{
+    impl SavageStringCodecs for StringCodecMaps {
         fn decode_bytes_by_format_name(&self, bytes: &[u8], format_name: &str) -> String {
             self.savage_decode(bytes)
         }
@@ -379,10 +373,7 @@ pub mod text_encoding{
         }
 
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("StringCodecMaps")
-                .finish_non_exhaustive()
+            fmt.debug_struct("StringCodecMaps").finish_non_exhaustive()
         }
     }
 }
-
-

@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, Seek, SeekFrom}, rc::Rc, cell::RefCell, fmt::Debug};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    io::{self, Read, Seek, SeekFrom, Write},
+    rc::Rc,
+};
 
 /// ## The `Reader` trait, `Read + Seek + Debug`
 pub trait Reader: Read + Seek + Debug {}
@@ -18,9 +23,7 @@ pub struct ReadBridge<'a> {
 
 impl<'a> ReadBridge<'a> {
     pub fn new(reader: &'a mut dyn Reader) -> Self {
-        Self{
-            reader,
-        }
+        Self { reader }
     }
 }
 
@@ -53,9 +56,7 @@ pub struct WriteBridge<'a> {
 
 impl<'a> WriteBridge<'a> {
     pub fn new(writer: &'a mut dyn Writer) -> Self {
-        Self{
-            writer,
-        }
+        Self { writer }
     }
 }
 
@@ -87,14 +88,16 @@ impl Seek for WriteBridge<'_> {
 #[derive(Debug, Clone)]
 pub struct SharedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
 
-impl<'a> SharedReader<'a>{
+impl<'a> SharedReader<'a> {
     pub fn new(reader: &'a mut dyn Reader) -> Self {
         Self(Rc::new(RefCell::new(reader)))
     }
 
     /// * Let the reader work in your closure with a mutex lock guard.
     pub fn escorted_read<T, F, E>(&self, mut action: F) -> Result<T, E>
-    where F: FnMut(&mut dyn Reader) -> Result<T, E> {
+    where
+        F: FnMut(&mut dyn Reader) -> Result<T, E>,
+    {
         let mut reader = &mut *self.0.borrow_mut();
         (action)(&mut reader)
     }
@@ -102,10 +105,10 @@ impl<'a> SharedReader<'a>{
 
 impl Read for SharedReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-        self.escorted_read(|reader|{reader.read(buf)})
+        self.escorted_read(|reader| reader.read(buf))
     }
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
-        self.escorted_read(|reader|{reader.read_exact(buf)})
+        self.escorted_read(|reader| reader.read_exact(buf))
     }
 }
 
@@ -125,14 +128,16 @@ impl Seek for SharedReader<'_> {
 #[derive(Debug, Clone)]
 pub struct SharedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
 
-impl<'a> SharedWriter<'a>{
+impl<'a> SharedWriter<'a> {
     pub fn new(writer: &'a mut dyn Writer) -> Self {
         Self(Rc::new(RefCell::new(writer)))
     }
 
     /// * Let the writer work in your closure with a mutex lock guard.
     pub fn escorted_write<T, F, E>(&self, mut action: F) -> Result<T, E>
-    where F: FnMut(&mut dyn Writer) -> Result<T, E> {
+    where
+        F: FnMut(&mut dyn Writer) -> Result<T, E>,
+    {
         let mut writer = &mut *self.0.borrow_mut();
         (action)(&mut writer)
     }
@@ -163,8 +168,14 @@ impl Seek for SharedWriter<'_> {
 }
 
 /// * Go to an offset without using seek. It's achieved by using dummy reads.
-pub fn goto_offset_without_seek<T>(mut reader: T, cur_pos: &mut u64, position: u64) -> Result<u64, io::Error>
-where T: Read {
+pub fn goto_offset_without_seek<T>(
+    mut reader: T,
+    cur_pos: &mut u64,
+    position: u64,
+) -> Result<u64, io::Error>
+where
+    T: Read,
+{
     const SKIP_SIZE: u64 = 1024;
     let mut skip_buf = [0u8; SKIP_SIZE as usize];
     while *cur_pos + SKIP_SIZE <= position {
@@ -177,7 +188,12 @@ where T: Read {
         *cur_pos = position;
     }
     if *cur_pos > position {
-        Err(io::Error::new(io::ErrorKind::NotSeekable, format!("The current position {cur_pos} has already exceeded the target position {position}")))
+        Err(io::Error::new(
+            io::ErrorKind::NotSeekable,
+            format!(
+                "The current position {cur_pos} has already exceeded the target position {position}"
+            ),
+        ))
     } else {
         Ok(*cur_pos)
     }
@@ -186,7 +202,9 @@ where T: Read {
 /// * Copy data from a reader to a writer from the current position.
 pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
 where
-    R: Read, W: Write {
+    R: Read,
+    W: Write,
+{
     const BUFFER_SIZE: u64 = 1024;
     let mut buf = vec![0u8; BUFFER_SIZE as usize];
     let mut to_copy = bytes_to_copy;
@@ -205,8 +223,8 @@ where
 
 /// ## This is for read/write strings from/to file with specific encoding and size, or read/write as NUL-terminated strings.
 pub mod string_io {
-    use std::{io::{self, Read, Write}};
-    use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
+    use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
+    use std::io::{self, Read, Write};
 
     /// * Read some bytes, and return the bytes, without you to create a local `vec![0u8; size]` and scratch your head with the messy codes
     pub fn read_bytes<T: Read>(r: &mut T, size: usize) -> Result<Vec<u8>, io::Error> {
@@ -216,17 +234,32 @@ pub mod string_io {
     }
 
     /// * Read a fixed-size string and decode it using the `StringCodecMaps`
-    pub fn read_str<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
+    pub fn read_str<T: Read>(
+        r: &mut T,
+        size: usize,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<String, io::Error> {
         let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
-        Ok(text_encoding.decode(&buf).trim_matches(char::from(0)).to_string())
+        Ok(text_encoding
+            .decode(&buf)
+            .trim_matches(char::from(0))
+            .to_string())
     }
 
     /// * Read a fixed-size string and decode it using the `StringCodecMaps` while you can specify the code page.
-    pub fn read_str_by_code_page<T: Read>(r: &mut T, size: usize, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
+    pub fn read_str_by_code_page<T: Read>(
+        r: &mut T,
+        size: usize,
+        text_encoding: &StringCodecMaps,
+        code_page: u32,
+    ) -> Result<String, io::Error> {
         let mut buf = vec![0u8; size];
         r.read_exact(&mut buf)?;
-        Ok(text_encoding.decode_bytes_by_code_page(&buf, code_page).trim_matches(char::from(0)).to_string())
+        Ok(text_encoding
+            .decode_bytes_by_code_page(&buf, code_page)
+            .trim_matches(char::from(0))
+            .to_string())
     }
 
     /// * Read a NUL terminated string by raw, not decode it.
@@ -246,17 +279,35 @@ pub mod string_io {
     }
 
     /// * Read a NUL terminated string and decode it.
-    pub fn read_sz<T: Read>(r: &mut T, text_encoding: &StringCodecMaps) -> Result<String, io::Error> {
-        Ok(text_encoding.decode(&read_sz_raw(r)?).trim_matches(char::from(0)).to_string())
+    pub fn read_sz<T: Read>(
+        r: &mut T,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<String, io::Error> {
+        Ok(text_encoding
+            .decode(&read_sz_raw(r)?)
+            .trim_matches(char::from(0))
+            .to_string())
     }
 
     /// * Read a NUL terminated string and decode it with the specified code page.
-    pub fn read_sz_by_code_page<T: Read>(r: &mut T, text_encoding: &StringCodecMaps, code_page: u32) -> Result<String, io::Error> {
-        Ok(text_encoding.decode_bytes_by_code_page(&read_sz_raw(r)?, code_page).trim_matches(char::from(0)).to_string())
+    pub fn read_sz_by_code_page<T: Read>(
+        r: &mut T,
+        text_encoding: &StringCodecMaps,
+        code_page: u32,
+    ) -> Result<String, io::Error> {
+        Ok(text_encoding
+            .decode_bytes_by_code_page(&read_sz_raw(r)?, code_page)
+            .trim_matches(char::from(0))
+            .to_string())
     }
 
     /// * Write a fixed-size encoded string.
-    pub fn write_str_sized<T: Write + ?Sized>(w: &mut T, data: &str, size: usize, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
+    pub fn write_str_sized<T: Write + ?Sized>(
+        w: &mut T,
+        data: &str,
+        size: usize,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), io::Error> {
         let mut data = text_encoding.encode(data);
         data.resize(size, 0);
         w.write_all(&data)?;
@@ -264,17 +315,25 @@ pub mod string_io {
     }
 
     /// * Write an encoded string.
-    pub fn write_str<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps) -> Result<(), io::Error> {
+    pub fn write_str<T: Write + ?Sized>(
+        w: &mut T,
+        data: &str,
+        text_encoding: &StringCodecMaps,
+    ) -> Result<(), io::Error> {
         let data = text_encoding.encode(data);
         w.write_all(&data)?;
         Ok(())
     }
 
     /// * Write an encoded string encoded with the specified code page.
-    pub fn write_str_by_code_page<T: Write + ?Sized>(w: &mut T, data: &str, text_encoding: &StringCodecMaps, code_page: u32) -> Result<(), io::Error> {
+    pub fn write_str_by_code_page<T: Write + ?Sized>(
+        w: &mut T,
+        data: &str,
+        text_encoding: &StringCodecMaps,
+        code_page: u32,
+    ) -> Result<(), io::Error> {
         let data = text_encoding.encode_strings_by_code_page(data, code_page);
         w.write_all(&data)?;
         Ok(())
     }
 }
-

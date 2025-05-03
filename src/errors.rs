@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
-use std::{io::{self, ErrorKind}, fmt::{Formatter, Display}, error};
+use std::{
+    error,
+    fmt::{Display, Formatter},
+    io::{self, ErrorKind},
+};
 
 #[derive(Debug, Clone)]
 pub struct IOErrorInfo {
@@ -10,10 +14,7 @@ pub struct IOErrorInfo {
 
 impl IOErrorInfo {
     pub fn new(kind: ErrorKind, message: String) -> Self {
-        Self {
-            kind,
-            message,
-        }
+        Self { kind, message }
     }
 }
 
@@ -40,7 +41,11 @@ impl error::Error for AudioReadError {}
 impl Display for AudioReadError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            Self::IncompleteFile(offset) => write!(f, "The file is incomplete, the content from 0x{:x} is empty", offset),
+            Self::IncompleteFile(offset) => write!(
+                f,
+                "The file is incomplete, the content from 0x{:x} is empty",
+                offset
+            ),
             Self::IncompleteData(info) => write!(f, "Incomplete data: {info}"),
             Self::BufferTooSmall(info) => write!(f, "The buffer is too small: {info}"),
             Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
@@ -59,13 +64,16 @@ impl Display for AudioReadError {
 
 impl From<io::Error> for AudioReadError {
     fn from(ioerr: io::Error) -> Self {
-        AudioReadError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
+        AudioReadError::IOError(IOErrorInfo {
+            kind: ioerr.kind(),
+            message: ioerr.to_string(),
+        })
     }
 }
 
 impl From<crate::adpcm::ima::ImaAdpcmError> for AudioReadError {
     fn from(imaerr: crate::adpcm::ima::ImaAdpcmError) -> Self {
-        match imaerr{
+        match imaerr {
             crate::adpcm::ima::ImaAdpcmError::InvalidArgument(info) => Self::InvalidArguments(info),
         }
     }
@@ -74,10 +82,11 @@ impl From<crate::adpcm::ima::ImaAdpcmError> for AudioReadError {
 impl From<AudioReadError> for io::Error {
     fn from(err: AudioReadError) -> Self {
         match err {
-            AudioReadError::IOError(ioerr) => {
-                io::Error::from(ioerr.kind)
-            },
-            other => panic!("When converting `AudioReadError` to `io::Error`, the given error is unrelated: {:?}", other),
+            AudioReadError::IOError(ioerr) => io::Error::from(ioerr.kind),
+            other => panic!(
+                "When converting `AudioReadError` to `io::Error`, the given error is unrelated: {:?}",
+                other
+            ),
         }
     }
 }
@@ -126,23 +135,27 @@ impl Display for AudioWriteError {
             Self::NotStereo => write!(f, "The samples are not stereo audio samples"),
             Self::MissingData(data) => write!(f, "Missing data: \"{data}\""),
             Self::OtherReason(info) => write!(f, "Unknown error: {info}"),
-       }
+        }
     }
 }
 
 impl From<io::Error> for AudioWriteError {
     fn from(ioerr: io::Error) -> Self {
-        AudioWriteError::IOError(IOErrorInfo{kind: ioerr.kind(), message: ioerr.to_string()})
+        AudioWriteError::IOError(IOErrorInfo {
+            kind: ioerr.kind(),
+            message: ioerr.to_string(),
+        })
     }
 }
 
 impl From<AudioWriteError> for io::Error {
     fn from(err: AudioWriteError) -> Self {
         match err {
-            AudioWriteError::IOError(ioerr) => {
-                io::Error::from(ioerr.kind)
-            },
-            other => panic!("When converting `AudioWriteError` to `io::Error`, the given error is unrelated: {:?}", other),
+            AudioWriteError::IOError(ioerr) => io::Error::from(ioerr.kind),
+            other => panic!(
+                "When converting `AudioWriteError` to `io::Error`, the given error is unrelated: {:?}",
+                other
+            ),
         }
     }
 }
@@ -156,7 +169,7 @@ pub enum AudioError {
     NoSuchData(String),
     Unimplemented(String),
     InvalidArguments(String),
-    WrongExtensionData(String)
+    WrongExtensionData(String),
 }
 
 impl error::Error for AudioError {}
@@ -221,7 +234,9 @@ impl From<mp3lame_encoder::BuildError> for AudioWriteError {
 impl From<mp3lame_encoder::Id3TagError> for AudioWriteError {
     fn from(err: mp3lame_encoder::Id3TagError) -> Self {
         match err {
-            mp3lame_encoder::Id3TagError::AlbumArtOverflow => Self::BufferIsFull("Specified Id3 tag buffer exceed limit of 128kb".to_owned()),
+            mp3lame_encoder::Id3TagError::AlbumArtOverflow => {
+                Self::BufferIsFull("Specified Id3 tag buffer exceed limit of 128kb".to_owned())
+            }
         }
     }
 }
@@ -336,12 +351,13 @@ impl From<flac::FlacDecoderError> for AudioReadError {
             StreamDecoderInitStatusUnsupportedContainer => Self::Unsupported(err_string),
             StreamDecoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
             StreamDecoderInitStatusMemoryAllocationError => Self::OtherReason(err_string),
-            StreamDecoderInitStatusErrorOpeningFile => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamDecoderInitStatusErrorOpeningFile => {
+                Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string))
+            }
             StreamDecoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
         }
     }
 }
-
 
 #[cfg(feature = "flac")]
 impl From<flac::FlacDecoderInitError> for AudioReadError {
@@ -375,14 +391,18 @@ impl From<&dyn flac::FlacError> for AudioReadError {
         let err_desc = err.get_message();
         if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
             AudioReadError::from(*encoder_err)
-        } else  if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>() {
+        } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>()
+        {
             AudioReadError::from(*encoder_err)
         } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
             AudioReadError::from(*decoder_err)
-        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>() {
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>()
+        {
             AudioReadError::from(*decoder_err)
         } else {
-            Self::OtherReason(format!("Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"))
+            Self::OtherReason(format!(
+                "Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"
+            ))
         }
     }
 }
@@ -476,7 +496,9 @@ impl From<flac::FlacDecoderInitError> for AudioWriteError {
             StreamDecoderInitStatusUnsupportedContainer => Self::Unsupported(err_string),
             StreamDecoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
             StreamDecoderInitStatusMemoryAllocationError => Self::OtherReason(err_string),
-            StreamDecoderInitStatusErrorOpeningFile => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+            StreamDecoderInitStatusErrorOpeningFile => {
+                Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string))
+            }
             StreamDecoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
         }
     }
@@ -490,14 +512,18 @@ impl From<&dyn flac::FlacError> for AudioWriteError {
         let err_desc = err.get_message();
         if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
             AudioWriteError::from(*encoder_err)
-        } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>() {
+        } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>()
+        {
             AudioWriteError::from(*encoder_err)
         } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
             AudioWriteError::from(*decoder_err)
-        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>() {
+        } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>()
+        {
             AudioWriteError::from(*decoder_err)
         } else {
-            Self::OtherReason(format!("Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"))
+            Self::OtherReason(format!(
+                "Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"
+            ))
         }
     }
 }
@@ -511,7 +537,8 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
                 let lib = liberr.library();
                 let func = liberr.function();
                 let kind = liberr.kind();
-                let message = format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                let message =
+                    format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
                 use vorbis_rs::VorbisLibraryErrorKind::*;
                 match kind {
                     False | InternalFault => Self::OtherReason(message),
@@ -523,22 +550,34 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
                     NotImplemented => Self::Unimplemented(message),
                     InvalidValue => Self::InvalidArguments(message),
                     NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
-                    Other{result_code: code} => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}")),
-                    o => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}")),
+                    Other { result_code: code } => Self::OtherReason(format!(
+                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}"
+                    )),
+                    o => Self::OtherReason(format!(
+                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
+                    )),
                 }
-            },
-            InvalidAudioBlockChannelCount{expected, actual} => {
-                Self::InvalidArguments(format!("Channel error: expected: {expected}, actual: {actual}"))
-            },
-            InvalidAudioBlockSampleCount{expected, actual} => {
-                Self::InvalidArguments(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
-            },
-            UnsupportedStreamChaining => Self::InvalidArguments("Unsupported stream chaining".to_string()),
-            InvalidCommentString(err_char) => Self::InvalidArguments(format!("Invalid comment string char {err_char}")),
-            RangeExceeded(try_error) => Self::InvalidArguments(format!("Invalid parameters range exceeded: {try_error}")),
+            }
+            InvalidAudioBlockChannelCount { expected, actual } => Self::InvalidArguments(format!(
+                "Channel error: expected: {expected}, actual: {actual}"
+            )),
+            InvalidAudioBlockSampleCount { expected, actual } => Self::InvalidArguments(format!(
+                "Invalid audio block sample count: expected: {expected}, actual: {actual}"
+            )),
+            UnsupportedStreamChaining => {
+                Self::InvalidArguments("Unsupported stream chaining".to_string())
+            }
+            InvalidCommentString(err_char) => {
+                Self::InvalidArguments(format!("Invalid comment string char {err_char}"))
+            }
+            RangeExceeded(try_error) => {
+                Self::InvalidArguments(format!("Invalid parameters range exceeded: {try_error}"))
+            }
             Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
             Rng(rngerr) => Self::OtherReason(format!("Random number generator error: {rngerr}")),
-            ConsumedEncoderBuilderSink => Self::InvalidArguments("The `writer` was already consumed".to_string()),
+            ConsumedEncoderBuilderSink => {
+                Self::InvalidArguments("The `writer` was already consumed".to_string())
+            }
             o => Self::OtherReason(format!("Unknown error: {o}")),
         }
     }
@@ -553,34 +592,46 @@ impl From<vorbis_rs::VorbisError> for AudioWriteError {
                 let lib = liberr.library();
                 let func = liberr.function();
                 let kind = liberr.kind();
-                let message = format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                let message =
+                    format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
                 use vorbis_rs::VorbisLibraryErrorKind::*;
                 match kind {
-                    False | Hole | InternalFault | NotVorbis | BadHeader | BadVorbisVersion | NotAudio | BadPacket | BadLink => Self::OtherReason(message),
+                    False | Hole | InternalFault | NotVorbis | BadHeader | BadVorbisVersion
+                    | NotAudio | BadPacket | BadLink => Self::OtherReason(message),
                     Eof => Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message)),
                     Io => Self::IOError(IOErrorInfo::new(ErrorKind::Other, message)),
                     NotImplemented => Self::Unimplemented(message),
                     InvalidValue => Self::InvalidInput(message),
                     NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
-                    Other{result_code: code} => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, code: {code}")),
-                    o => Self::OtherReason(format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}")),
+                    Other { result_code: code } => Self::OtherReason(format!(
+                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, code: {code}"
+                    )),
+                    o => Self::OtherReason(format!(
+                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
+                    )),
                 }
-            },
-            InvalidAudioBlockChannelCount{expected, actual} => {
-                Self::WrongChannels(format!("Channel error: expected: {expected}, actual: {actual}"))
-            },
-            InvalidAudioBlockSampleCount{expected, actual} => {
-                Self::InvalidData(format!("Invalid audio block sample count: expected: {expected}, actual: {actual}"))
-            },
-            UnsupportedStreamChaining => Self::Unsupported("Unsupported stream chaining".to_string()),
-            InvalidCommentString(err_char) => Self::InvalidInput(format!("Invalid comment string char {err_char}")),
-            RangeExceeded(try_error) => Self::InvalidInput(format!("Invalid parameters range exceeded: {try_error}")),
+            }
+            InvalidAudioBlockChannelCount { expected, actual } => Self::WrongChannels(format!(
+                "Channel error: expected: {expected}, actual: {actual}"
+            )),
+            InvalidAudioBlockSampleCount { expected, actual } => Self::InvalidData(format!(
+                "Invalid audio block sample count: expected: {expected}, actual: {actual}"
+            )),
+            UnsupportedStreamChaining => {
+                Self::Unsupported("Unsupported stream chaining".to_string())
+            }
+            InvalidCommentString(err_char) => {
+                Self::InvalidInput(format!("Invalid comment string char {err_char}"))
+            }
+            RangeExceeded(try_error) => {
+                Self::InvalidInput(format!("Invalid parameters range exceeded: {try_error}"))
+            }
             Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
             Rng(rngerr) => Self::OtherReason(format!("Random number generator error: {rngerr}")),
-            ConsumedEncoderBuilderSink => Self::InvalidArguments("The `writer` was already consumed".to_string()),
+            ConsumedEncoderBuilderSink => {
+                Self::InvalidArguments("The `writer` was already consumed".to_string())
+            }
             o => Self::OtherReason(format!("Unknown error: {o}")),
         }
     }
 }
-
-

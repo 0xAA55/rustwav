@@ -1,5 +1,5 @@
-use std::{io, fmt::Debug};
 use crate::wavcore::FmtChunk;
+use std::{fmt::Debug, io};
 
 /// * This is used for the encoder to decide while the new sample arrives, which channel the sample should be put in
 #[derive(Debug, Clone, Copy)]
@@ -11,7 +11,9 @@ pub enum CurrentChannel {
 /// ## The `AdpcmEncoder` trait for all of the ADPCM encoders to implement
 /// * This thing is able to encode samples, write the `fmt ` chunk, update statistics, and finish encoding.
 pub trait AdpcmEncoder: Debug {
-    fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized;
+    fn new(channels: u16) -> Result<Self, io::Error>
+    where
+        Self: Sized;
 
     /// * The `encode()` function uses two closures to input samples and output the encoded data.
     /// * If you have samples to encode, just feed it through the `input` closure. When it has encoded data to excrete, it will call the `output()` closure to give you back the encoded data.
@@ -20,12 +22,21 @@ pub trait AdpcmEncoder: Debug {
     /// * Typically usage is to use an iterator to feed data through the `input` closure, when no data to feed, the `iter.next()` returns `None` to break the loop.
     /// * If you have the iterator, it is convenient to use `iter.as_ref().take()` to break the waveform into segments, and feeding each segment to the encoder works too.
     ///   And you have the convenience to modify each segment of the audio data e.g. do some resampling (first call the taken data's `collect()` method to get a `Vec`, then do your process, and turn the `Vec` into another iterator to feed the encoder), etc.
-    fn encode(&mut self, input: impl FnMut() -> Option<i16>, output: impl FnMut(u8)) -> Result<(), io::Error>;
+    fn encode(
+        &mut self,
+        input: impl FnMut() -> Option<i16>,
+        output: impl FnMut(u8),
+    ) -> Result<(), io::Error>;
 
     /// * Call this method if you want to create a `fmt ` chunk for a WAV file.
     /// * The `fmt ` chunk is new and it's without any statistics data inside it.
     /// * Later after encoding, you should call `modify_fmt_chunk()` to update the `fmt ` chunk for the encoder to save some statistics data.
-    fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
+    fn new_fmt_chunk(
+        &mut self,
+        channels: u16,
+        sample_rate: u32,
+        bits_per_sample: u16,
+    ) -> Result<FmtChunk, io::Error> {
         let block_align = (bits_per_sample as u32 * channels as u32 / 8) as u16;
         Ok(FmtChunk {
             format_tag: 1,
@@ -53,7 +64,9 @@ pub trait AdpcmEncoder: Debug {
 /// ## The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
 /// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
-    fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized;
+    fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+    where
+        Self: Sized;
 
     /// * Get the block size for each block stored in the `data` chunk of the WAV file.
     /// * When it's needed to seek for a sample, first seek to the block, then decode the block to get the sample.
@@ -70,7 +83,11 @@ pub trait AdpcmDecoder: Debug {
     /// * When the decoder wants to excrete samples, it calls `output()` closure to give you the sample.
     /// * The function will endlessly call `input()` to get the encoded data. Feed it a `None` will let the function return.
     /// * To continue decoding, just call the function again and feed it `Some(data)` through the `input()` closure.
-    fn decode(&mut self, input: impl FnMut() -> Option<u8>, output: impl FnMut(i16)) -> Result<(), io::Error>;
+    fn decode(
+        &mut self,
+        input: impl FnMut() -> Option<u8>,
+        output: impl FnMut(i16),
+    ) -> Result<(), io::Error>;
 
     /// * The `flush()` function causes the decoder to excrete the last samples.
     fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
@@ -111,11 +128,11 @@ pub type DecMS      = AdpcmDecoderMS;
 pub type DecYAMAHA  = AdpcmDecoderYAMAHA;
 
 pub mod ima {
-    use std::{io, cmp::min, mem};
+    use std::{cmp::min, io, mem};
 
-    use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
+    use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
     use crate::copiablebuf::CopiableBuffer;
-    use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmImaData};
+    use crate::wavcore::{AdpcmImaData, ExtensionData, FmtChunk, FmtExtension};
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
@@ -169,7 +186,7 @@ pub mod ima {
         num_outputs: usize,
     }
 
-    impl EncoderCore{
+    impl EncoderCore {
         /// Set all of the members to zero.
         pub fn new() -> Self {
             Self {
@@ -211,7 +228,11 @@ pub mod ima {
         /// ### Encoder logic:
         /// 1. Initially outputs 4 bytes of the decoder's state machine register values.
         /// 2. Processes samples by converting two raw samples into one encoded unit combined by two nibbles (a byte).
-        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        pub fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 if !self.header_written {
                     // Write the four bytes header
@@ -297,17 +318,21 @@ pub mod ima {
 
         /// * This `encode()` function will cache a very small amount of samples and data.
         /// * Call `flush()` to let it excrete all of the cached data.
-        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        pub fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) -> Result<(), io::Error> {
             while let Some(sample) = input() {
-                match self.current_channel{
+                match self.current_channel {
                     CurrentChannel::Left => {
                         self.current_channel = CurrentChannel::Right;
                         self.sample_l.push(sample);
-                    },
+                    }
                     CurrentChannel::Right => {
                         self.current_channel = CurrentChannel::Left;
                         self.sample_r.push(sample);
-                    },
+                    }
                 }
                 if self.sample_l.is_full() && self.sample_r.is_full() {
                     let mut iter_l = mem::replace(&mut self.sample_l, EncoderSampleBuffer::new()).into_iter();
@@ -329,7 +354,10 @@ pub mod ima {
         pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             while !self.sample_l.is_empty() || !self.sample_r.is_empty() {
                 let mut iter = [0i16].into_iter();
-                self.encode(|| -> Option<i16> {iter.next()}, |nibble:u8|{output(nibble)})?;
+                self.encode(
+                    || -> Option<i16> { iter.next() },
+                    |nibble: u8| output(nibble),
+                )?;
             }
             Ok(())
         }
@@ -342,7 +370,10 @@ pub mod ima {
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
+        fn new(channels: u16) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             match channels {
                 1 => Ok(Encoder::Mono(EncoderCore::new())),
                 2 => Ok(Encoder::Stereo(StereoEncoder::new())),
@@ -359,12 +390,17 @@ pub mod ima {
 
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Encoder::Mono(enc) => enc.flush(|nibble:u8|{output(nibble)}),
-                Encoder::Stereo(enc) => enc.flush(|nibble:u8|{output(nibble)}),
+                Encoder::Mono(enc) => enc.flush(|nibble: u8| output(nibble)),
+                Encoder::Stereo(enc) => enc.flush(|nibble: u8| output(nibble)),
             }
         }
 
-        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
+        fn new_fmt_chunk(
+            &mut self,
+            channels: u16,
+            sample_rate: u32,
+            bits_per_sample: u16,
+        ) -> Result<FmtChunk, io::Error> {
             assert_eq!(bits_per_sample, 4);
             let block_align = BLOCK_SIZE as u16 * channels;
             Ok(FmtChunk {
@@ -374,7 +410,7 @@ pub mod ima {
                 byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
                 block_align,
                 bits_per_sample,
-                extension: Some(FmtExtension::new_adpcm_ima(AdpcmImaData{
+                extension: Some(FmtExtension::new_adpcm_ima(AdpcmImaData {
                     samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * channels * 2,
                 })),
             })
@@ -383,16 +419,26 @@ pub mod ima {
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
-            fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
+            fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8
+                / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
             if let Some(extension) = fmt_chunk.extension {
                 if let ExtensionData::AdpcmIma(mut adpcm_ima) = extension.data {
                     adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4) * fmt_chunk.channels * 2;
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA: {:?}", extension)))
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "Wrong extension data stored in the `fmt ` chunk for ADPCM-IMA: {:?}",
+                            extension
+                        ),
+                    ))
                 }
             } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "For ADPCM-IMA, the extension data in the `fmt ` chunk is needed".to_owned()))
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "For ADPCM-IMA, the extension data in the `fmt ` chunk is needed".to_owned(),
+                ))
             }
         }
     }
@@ -446,7 +492,11 @@ pub mod ima {
         }
 
         /// * This `encode()` function needs 4 initial bytes to initialize, after being initialized, every 4 bytes decodes to 8 samples.
-        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 if !self.ready {
                     // Consumes 4 bytes to initialize the decoder state and generates the first decoded sample.
@@ -456,7 +506,13 @@ pub mod ima {
                         self.sample_val = i16::from_le_bytes([self.nibble_buffer[0], self.nibble_buffer[1]]);
                         self.stepsize_index = self.nibble_buffer[2] as i8;
                         if self.nibble_buffer[3] != 0 {
-                            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Reserved byte for ADPCM-IMA must be zero, not 0x{:02x}", self.nibble_buffer[3])));
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                format!(
+                                    "Reserved byte for ADPCM-IMA must be zero, not 0x{:02x}",
+                                    self.nibble_buffer[3]
+                                ),
+                            ));
                         }
                         self.nibble_buffer.clear();
                         self.ready = true;
@@ -559,22 +615,26 @@ pub mod ima {
 
         /// * This `encode()` function needs 8 initial bytes to initialize 2 decoder cores, after being initialized, every 8 bytes decode to 16 samples.
         /// * The output samples are interleaved by channels.
-        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             while let Some(nibble) = input() {
-                match self.current_channel{
+                match self.current_channel {
                     CurrentChannel::Left => {
                         self.nibble_l.push(nibble);
                         if self.nibble_l.is_full() {
                             self.current_channel = CurrentChannel::Right;
                         }
-                    },
+                    }
                     CurrentChannel::Right => {
                         self.nibble_r.push(nibble);
                         if self.nibble_r.is_full() {
                             self.current_channel = CurrentChannel::Left;
                             // It's time to process
                         }
-                    },
+                    }
                 }
                 if self.nibble_l.is_full() && self.nibble_r.is_full() {
                     let mut iter_l = mem::take(&mut self.nibble_l).into_iter();
@@ -604,11 +664,17 @@ pub mod ima {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             match fmt_chunk.channels {
                 1 => Ok(Decoder::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Decoder::Stereo(StereoDecoder::new(fmt_chunk))),
-                other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-IMA decoder."))),
+                other => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Wrong channel number \"{other}\" for ADPCM-IMA decoder."),
+                )),
             }
         }
         fn get_block_size(&self) -> usize {
@@ -632,7 +698,11 @@ pub mod ima {
                 Decoder::Stereo(dec) => dec.unready(),
             }
         }
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error>{
+        fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             match self {
                 Decoder::Mono(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
                 Decoder::Stereo(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
@@ -640,13 +710,12 @@ pub mod ima {
         }
         fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             match self {
-                Decoder::Mono(dec) => dec.flush(|sample:i16|{output(sample)}),
-                Decoder::Stereo(dec) => dec.flush(|sample:i16|{output(sample)}),
+                Decoder::Mono(dec) => dec.flush(|sample: i16| output(sample)),
+                Decoder::Stereo(dec) => dec.flush(|sample: i16| output(sample)),
             }
         }
     }
 }
-
 
 pub mod ms {
     // MS-ADPCM
@@ -654,9 +723,9 @@ pub mod ms {
     // https://ffmpeg.org/doxygen/3.1/adpcm_8c_source.html
     use std::io;
 
-    use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
+    use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
     use crate::copiablebuf::CopiableBuffer;
-    use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
+    use crate::wavcore::{AdpcmMsData, ExtensionData, FmtChunk, FmtExtension};
 
     const ADAPTATIONTABLE: [i16; 16] = [
         230, 230, 230, 230, 307, 409, 512, 614,
@@ -682,7 +751,7 @@ pub mod ms {
     const BLOCK_SIZE: usize = 1024;
     const HEADER_SIZE: usize = 7;
 
-    impl AdpcmCoeffSet{
+    impl AdpcmCoeffSet {
         pub fn new() -> Self {
             Self {
                 coeff1: 0,
@@ -698,7 +767,7 @@ pub mod ms {
             }
         }
     }
-    
+
     impl Default for AdpcmCoeffSet {
         fn default() -> Self {
             Self::new()
@@ -750,7 +819,12 @@ pub mod ms {
             };
             let nibble = (nibble + bias) / self.delta;
             let nibble = nibble.clamp(-8, 7) & 0x0F;
-            let predictor = predictor + if nibble & 0x08 != 0 {nibble | 0xFFFFFFF0u32 as i32} else {nibble} * self.delta;
+            let predictor = predictor
+                + if nibble & 0x08 != 0 {
+                    nibble | 0xFFFFFFF0u32 as i32
+                } else {
+                    nibble
+                } * self.delta;
             self.sample2 = self.sample1;
             self.sample1 = predictor.clamp(-32768, 32767) as i16;
             self.delta = (ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8;
@@ -763,7 +837,11 @@ pub mod ms {
 
         /// * To be initialized, some data is needed for the encoder.
         /// * The encoder excretes 4 fields of data as the header of a block of audio data.
-        pub fn get_ready(&mut self, samples: &[i16; 2], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, i16, i16, i16) {
+        pub fn get_ready(
+            &mut self,
+            samples: &[i16; 2],
+            coeff_table: &[AdpcmCoeffSet; 7],
+        ) -> (u8, i16, i16, i16) {
             let predictor = 0u8;
             self.coeff = coeff_table[predictor as usize];
             self.sample2 = samples[0];
@@ -795,7 +873,7 @@ pub mod ms {
     }
 
     impl StereoEncoder {
-        pub fn new () -> Self{
+        pub fn new() -> Self {
             Self {
                 core_l: EncoderCore::new(),
                 core_r: EncoderCore::new(),
@@ -824,18 +902,22 @@ pub mod ms {
                 CurrentChannel::Left => {
                     self.current_channel = CurrentChannel::Right;
                     self.core_l.compress_sample(sample)
-                },
+                }
                 CurrentChannel::Right => {
                     self.current_channel = CurrentChannel::Left;
                     self.core_r.compress_sample(sample)
-                },
+                }
             }
         }
 
         /// * To be initialized, some data is needed for the encoder.
         /// * The encoder excretes 4 fields of data as the header of a block of audio data.
         /// * There are two of the encoder cores to be initialized, so 8 fields of data are to be excreted.
-        pub fn get_ready(&mut self, samples: &[i16; 4], coeff_table: &[AdpcmCoeffSet; 7]) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
+        pub fn get_ready(
+            &mut self,
+            samples: &[i16; 4],
+            coeff_table: &[AdpcmCoeffSet; 7],
+        ) -> (u8, u8, i16, i16, i16, i16, i16, i16) {
             let ready1 = self.core_l.get_ready(&[samples[0], samples[2]], coeff_table);
             let ready2 = self.core_r.get_ready(&[samples[1], samples[3]], coeff_table);
             self.ready = true;
@@ -858,7 +940,7 @@ pub mod ms {
 
     /// ## The encoder is for your use
     #[derive(Debug, Clone, Copy)]
-    pub struct Encoder{
+    pub struct Encoder {
         channels: Channels,
         coeff_table: [AdpcmCoeffSet; 7],
         bytes_yield: usize,
@@ -875,31 +957,33 @@ pub mod ms {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub enum Channels{
+    pub enum Channels {
         Mono(EncoderCore),
         Stereo(StereoEncoder),
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
+        fn new(channels: u16) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             match channels {
-                1 => {
-                    Ok(Self {
-                        channels: Channels::Mono(EncoderCore::new()),
-                        coeff_table: DEF_COEFF_TABLE,
-                        bytes_yield: 0,
-                        buffer: EncoderBuffer::new(),
-                    })
-                },
-                2 => {
-                    Ok(Self {
-                        channels: Channels::Stereo(StereoEncoder::new()),
-                        coeff_table: DEF_COEFF_TABLE,
-                        bytes_yield: 0,
-                        buffer: EncoderBuffer::new(),
-                    })
-                },
-                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
+                1 => Ok(Self {
+                    channels: Channels::Mono(EncoderCore::new()),
+                    coeff_table: DEF_COEFF_TABLE,
+                    bytes_yield: 0,
+                    buffer: EncoderBuffer::new(),
+                }),
+                2 => Ok(Self {
+                    channels: Channels::Stereo(StereoEncoder::new()),
+                    coeff_table: DEF_COEFF_TABLE,
+                    bytes_yield: 0,
+                    buffer: EncoderBuffer::new(),
+                }),
+                o => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Channels must be 1 or 2, not {o}"),
+                )),
             }
         }
 
@@ -907,37 +991,52 @@ pub mod ms {
         /// * On initialization, every encoder cores excrete its data for the header of the block.
         /// * When ready to encode, for stereo, each byte contains 2 nibbles, one for the left channel, and another for the right channel.
         /// * Same as other `encode()` functions, feed it `Some(sample)` keep it continuously asking for new samples, and feed it `None` to let it return.
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) -> Result<(), io::Error> {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if !self.is_ready() {
                     match self.channels {
                         Channels::Mono(ref mut enc) => {
                             if self.buffer.len() == 2 {
-                                let header = enc.get_ready(&[self.buffer[0], self.buffer[1]], &self.coeff_table);
+                                let header = enc.get_ready(
+                                    &[self.buffer[0], self.buffer[1]],
+                                    &self.coeff_table,
+                                );
                                 output(header.0);
-                                output_le_i16(header.1, |byte:u8|{output(byte)});
-                                output_le_i16(header.2, |byte:u8|{output(byte)});
-                                output_le_i16(header.3, |byte:u8|{output(byte)});
+                                output_le_i16(header.1, |byte: u8| output(byte));
+                                output_le_i16(header.2, |byte: u8| output(byte));
+                                output_le_i16(header.3, |byte: u8| output(byte));
                                 self.buffer.clear();
                                 self.bytes_yield += 7;
                             }
-                        },
+                        }
                         Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() >= 4 {
-                                let header = enc.get_ready(&[self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]], &self.coeff_table);
+                                let header = enc.get_ready(
+                                    &[
+                                        self.buffer[0],
+                                        self.buffer[1],
+                                        self.buffer[2],
+                                        self.buffer[3],
+                                    ],
+                                    &self.coeff_table,
+                                );
                                 output(header.0);
                                 output(header.1);
-                                output_le_i16(header.2, |byte:u8|{output(byte)});
-                                output_le_i16(header.3, |byte:u8|{output(byte)});
-                                output_le_i16(header.4, |byte:u8|{output(byte)});
-                                output_le_i16(header.5, |byte:u8|{output(byte)});
-                                output_le_i16(header.6, |byte:u8|{output(byte)});
-                                output_le_i16(header.7, |byte:u8|{output(byte)});
+                                output_le_i16(header.2, |byte: u8| output(byte));
+                                output_le_i16(header.3, |byte: u8| output(byte));
+                                output_le_i16(header.4, |byte: u8| output(byte));
+                                output_le_i16(header.5, |byte: u8| output(byte));
+                                output_le_i16(header.6, |byte: u8| output(byte));
+                                output_le_i16(header.7, |byte: u8| output(byte));
                                 self.buffer.clear();
                                 self.bytes_yield += 14;
                             }
-                        },
+                        }
                     }
                 } else {
                     match self.channels {
@@ -953,7 +1052,7 @@ pub mod ms {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
-                        },
+                        }
                         Channels::Stereo(ref mut enc) => {
                             if self.buffer.len() == 4 {
                                 let h1 = enc.compress_sample(self.buffer[0]);
@@ -969,7 +1068,7 @@ pub mod ms {
                                 enc.unready();
                                 self.bytes_yield = 0;
                             }
-                        },
+                        }
                     }
                 }
             }
@@ -977,9 +1076,16 @@ pub mod ms {
         }
 
         /// * The ADPCM-MS has specific `fmt ` chunk extension data to store the coeff table.
-        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
+        fn new_fmt_chunk(
+            &mut self,
+            channels: u16,
+            sample_rate: u32,
+            bits_per_sample: u16,
+        ) -> Result<FmtChunk, io::Error> {
             if bits_per_sample != 4 {
-                eprintln!("For ADPCM-MS, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored.");
+                eprintln!(
+                    "For ADPCM-MS, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored."
+                );
             }
             let bits_per_sample = 4u16;
             let block_align = BLOCK_SIZE as u16 * channels;
@@ -990,7 +1096,7 @@ pub mod ms {
                 byte_rate: sample_rate * bits_per_sample as u32 * channels as u32 / 8,
                 block_align,
                 bits_per_sample,
-                extension: Some(FmtExtension::new_adpcm_ms(AdpcmMsData{
+                extension: Some(FmtExtension::new_adpcm_ms(AdpcmMsData {
                     samples_per_block: (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * channels,
                     num_coeff: self.coeff_table.len() as u16,
                     coeffs: self.coeff_table,
@@ -1002,18 +1108,31 @@ pub mod ms {
         fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
-            fmt_chunk.byte_rate = fmt_chunk.sample_rate * fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32 / 8;
+            fmt_chunk.byte_rate = fmt_chunk.sample_rate
+                * fmt_chunk.channels as u32
+                * fmt_chunk.bits_per_sample as u32
+                / 8;
             if let Some(extension) = fmt_chunk.extension {
                 if let ExtensionData::AdpcmMs(mut adpcm_ms) = extension.data {
-                    adpcm_ms.samples_per_block = (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * fmt_chunk.channels;
+                    adpcm_ms.samples_per_block =
+                        (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * fmt_chunk.channels;
                     adpcm_ms.num_coeff = self.coeff_table.len() as u16;
                     adpcm_ms.coeffs = self.coeff_table;
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("Wrong extension data stored in the `fmt ` chunk for ADPCM-MS: {:?}", extension)))
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "Wrong extension data stored in the `fmt ` chunk for ADPCM-MS: {:?}",
+                            extension
+                        ),
+                    ))
                 }
             } else {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "For ADPCM-MS, must store the extension data in the `fmt ` chunk".to_owned()))
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "For ADPCM-MS, must store the extension data in the `fmt ` chunk".to_owned(),
+                ))
             }
         }
 
@@ -1050,7 +1169,7 @@ pub mod ms {
         sample2: i16,
     }
 
-    impl DecoderCore{
+    impl DecoderCore {
         /// * If `fmt_chunk` doesn't have the extension data, use the default coeff table.
         pub fn new(fmt_chunk: FmtChunk) -> Self {
             Self {
@@ -1072,11 +1191,11 @@ pub mod ms {
                                     } else {
                                         adpcm_ms.coeffs
                                     }
-                                },
+                                }
                                 _ => DEF_COEFF_TABLE,
                             }
                         }
-                    },
+                    }
                 },
                 header_buffer: CopiableBuffer::<u8, 7>::new(),
                 bytes_eaten: 0,
@@ -1090,11 +1209,17 @@ pub mod ms {
                 self.sample1 as i32 * self.coeff.get(1) as i32 +
                 self.sample2 as i32 * self.coeff.get(2) as i32) / 256;
             let nibble = nibble as i32;
-            let predictor = predictor + if (nibble & 0x08) != 0 {nibble.wrapping_sub(0x10)} else {nibble} * self.delta;
+            let predictor = predictor
+                + if (nibble & 0x08) != 0 {
+                    nibble.wrapping_sub(0x10)
+                } else {
+                    nibble
+                } * self.delta;
 
             self.sample2 = self.sample1;
             self.sample1 = predictor.clamp(-32768, 32767) as i16;
-            self.delta = ((ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8).clamp(16, i32::MAX / 768);
+            self.delta = ((ADAPTATIONTABLE[nibble as usize] as i32 * self.delta) >> 8)
+                .clamp(16, i32::MAX / 768);
 
             self.sample1
         }
@@ -1123,9 +1248,19 @@ pub mod ms {
         }
 
         /// * Provide the header data of the ADPCM-MS for the decoder core as the breakfast.
-        pub fn get_ready(&mut self, breakfast: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn get_ready(
+            &mut self,
+            breakfast: &DecoderBreakfast,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             if breakfast.predictor > 6 {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("When decoding ADPCM-MS: predictor is {} and it's greater than 6", breakfast.predictor)));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "When decoding ADPCM-MS: predictor is {} and it's greater than 6",
+                        breakfast.predictor
+                    ),
+                ));
             }
             self.coeff = self.coeff_table[breakfast.predictor as usize];
             self.delta = breakfast.delta as i32;
@@ -1155,7 +1290,6 @@ pub mod ms {
             (l, r)
         }
     }
-
 
     /// ## The decoder with two cores to decode the stereo audio.
     #[derive(Debug, Clone, Copy)]
@@ -1210,7 +1344,12 @@ pub mod ms {
         }
 
         /// * Provide the header data of the ADPCM-MS for the decoder cores as the breakfast.
-        pub fn get_ready(&mut self, breakfast_l: &DecoderBreakfast, breakfast_r: &DecoderBreakfast, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn get_ready(
+            &mut self,
+            breakfast_l: &DecoderBreakfast,
+            breakfast_r: &DecoderBreakfast,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             let mut sample_buffer = CopiableBuffer::<i16, 4>::new();
             self.core_l.get_ready(breakfast_l, |sample:i16|{sample_buffer.push(sample);})?;
             self.core_r.get_ready(breakfast_r, |sample:i16|{sample_buffer.push(sample);})?;
@@ -1229,7 +1368,10 @@ pub mod ms {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Self::Stereo(StereoDecoder::new(fmt_chunk))),
-                other => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Wrong channel number \"{other}\" for ADPCM-MS decoder."))),
+                other => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Wrong channel number \"{other}\" for ADPCM-MS decoder."),
+                )),
             }
         }
 
@@ -1277,7 +1419,10 @@ pub mod ms {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             Self::new(fmt_chunk)
         }
 
@@ -1298,15 +1443,21 @@ pub mod ms {
             self.unready()
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             while let Some(byte) = input() {
                 match self {
                     Self::Mono(mono) => {
                         if !mono.is_ready() {
                             mono.header_buffer.push(byte);
                             if mono.header_buffer.is_full() {
-                                let breakfast = DecoderBreakfast::from_bytes_mono(mono.header_buffer.get_array());
-                                mono.get_ready(&breakfast, |sample:i16|{output(sample)})?;
+                                let breakfast = DecoderBreakfast::from_bytes_mono(
+                                    mono.header_buffer.get_array(),
+                                );
+                                mono.get_ready(&breakfast, |sample: i16| output(sample))?;
                             }
                         } else {
                             output(mono.expand_nibble(byte >> 4));
@@ -1316,7 +1467,7 @@ pub mod ms {
                                 mono.unready();
                             }
                         }
-                    },
+                    }
                     Self::Stereo(stereo) => {
                         if !stereo.is_ready() {
                             if !stereo.core_l.header_buffer.is_full() {
@@ -1325,9 +1476,17 @@ pub mod ms {
                                 stereo.core_r.header_buffer.push(byte);
                             }
                             if stereo.core_r.header_buffer.is_full() {
-                                let bytes = stereo.core_l.header_buffer.into_iter().chain(stereo.core_r.header_buffer.into_iter()).collect::<CopiableBuffer<u8, 14>>();
-                                let (breakfast_l, breakfast_r) = DecoderBreakfast::from_bytes_stereo(&bytes.into_array());
-                                stereo.get_ready(&breakfast_l, &breakfast_r, |sample:i16|{output(sample)})?;
+                                let bytes = stereo
+                                    .core_l
+                                    .header_buffer
+                                    .into_iter()
+                                    .chain(stereo.core_r.header_buffer.into_iter())
+                                    .collect::<CopiableBuffer<u8, 14>>();
+                                let (breakfast_l, breakfast_r) =
+                                    DecoderBreakfast::from_bytes_stereo(&bytes.into_array());
+                                stereo.get_ready(&breakfast_l, &breakfast_r, |sample: i16| {
+                                    output(sample)
+                                })?;
                             }
                         } else {
                             output(stereo.core_l.expand_nibble(byte >> 4));
@@ -1337,7 +1496,7 @@ pub mod ms {
                                 stereo.unready();
                             }
                         }
-                    },
+                    }
                 }
             }
             Ok(())
@@ -1347,16 +1506,24 @@ pub mod ms {
             match self {
                 Self::Mono(mono) => {
                     if mono.bytes_eaten > 0 && mono.bytes_eaten < mono.max_bytes_can_eat {
-                        let mut food = vec![0; mono.max_bytes_can_eat - mono.bytes_eaten].into_iter();
-                        self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
+                        let mut food =
+                            vec![0; mono.max_bytes_can_eat - mono.bytes_eaten].into_iter();
+                        self.decode(
+                            || -> Option<u8> { food.next() },
+                            |sample: i16| output(sample),
+                        )?;
                     }
-                },
+                }
                 Self::Stereo(stereo) => {
                     if stereo.bytes_eaten > 0 && stereo.bytes_eaten < stereo.max_bytes_can_eat {
-                        let mut food = vec![0; stereo.max_bytes_can_eat - stereo.bytes_eaten].into_iter();
-                        self.decode(|| -> Option<u8> {food.next()}, |sample:i16|{output(sample)})?;
+                        let mut food =
+                            vec![0; stereo.max_bytes_can_eat - stereo.bytes_eaten].into_iter();
+                        self.decode(
+                            || -> Option<u8> { food.next() },
+                            |sample: i16| output(sample),
+                        )?;
                     }
-                },
+                }
             }
             Ok(())
         }
@@ -1364,9 +1531,9 @@ pub mod ms {
 }
 
 pub mod yamaha {
-    use std::{io, cmp::min};
+    use std::{cmp::min, io};
 
-    use super::{AdpcmEncoder, AdpcmDecoder};
+    use super::{AdpcmDecoder, AdpcmEncoder};
     use crate::copiablebuf::CopiableBuffer;
     use crate::wavcore::FmtChunk;
 
@@ -1399,16 +1566,20 @@ pub mod yamaha {
         /// * Compress one sample to a nibble
         pub fn compress_sample(&mut self, sample: i16) -> u8 {
             let delta = sample as i32 - self.predictor;
-            let nibble = min(7, delta.abs() * 4 / self.step) + if delta < 0 {8} else {0};
-            self.predictor += (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
-            self.step = ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
+            let nibble = min(7, delta.abs() * 4 / self.step) + if delta < 0 { 8 } else { 0 };
+            self.predictor +=
+                (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
+            self.step =
+                ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
             nibble as u8
         }
 
         /// * Uncompress a nibble to a sample
         pub fn expand_nibble(&mut self, nibble: u8) -> i16 {
-            self.predictor += (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
-            self.step = ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
+            self.predictor +=
+                (self.step * YAMAHA_DIFFLOOKUP[nibble as usize] as i32 / 8).clamp(-32768, 32767);
+            self.step =
+                ((self.step * YAMAHA_INDEXSCALE[nibble as usize] as i32) >> 8).clamp(127, 24576);
             self.predictor as i16
         }
 
@@ -1421,7 +1592,10 @@ pub mod yamaha {
 
         /// * Decode a byte as two nibbles, and return two samples.
         pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
-            [self.expand_nibble(nibble & 0x0F), self.expand_nibble(nibble >> 4)]
+            [
+                self.expand_nibble(nibble & 0x0F),
+                self.expand_nibble(nibble >> 4),
+            ]
         }
     }
 
@@ -1448,11 +1622,15 @@ pub mod yamaha {
         /// * The `encode()` function, uses two closures to eat/excrete data.
         /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
         /// * To continue encoding, call it again and feed it data.
-        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
+        pub fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if self.buffer.is_full() {
-                    output(self.encode_sample(&{*self.buffer.get_array()}));
+                    output(self.encode_sample(&{ *self.buffer.get_array() }));
                     self.buffer.clear();
                 }
             }
@@ -1466,7 +1644,7 @@ pub mod yamaha {
             while !self.buffer.is_full() {
                 self.buffer.push(0);
             }
-            output(self.core.encode_sample(&{*self.buffer.get_array()}));
+            output(self.core.encode_sample(&{ *self.buffer.get_array() }));
             self.buffer.clear();
         }
     }
@@ -1504,11 +1682,15 @@ pub mod yamaha {
         /// * The `encode()` function, uses two closures to eat/excrete data.
         /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
         /// * To continue encoding, call it again and feed it data.
-        pub fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) {
+        pub fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if self.buffer.is_full() {
-                    output(self.encode_sample(&{*self.buffer.get_array()}));
+                    output(self.encode_sample(&{ *self.buffer.get_array() }));
                     self.buffer.clear();
                 }
             }
@@ -1522,7 +1704,7 @@ pub mod yamaha {
             while !self.buffer.is_full() {
                 self.buffer.push(0);
             }
-            output(self.encode_sample(&{*self.buffer.get_array()}));
+            output(self.encode_sample(&{ *self.buffer.get_array() }));
             self.buffer.clear();
         }
     }
@@ -1540,28 +1722,45 @@ pub mod yamaha {
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error> where Self: Sized {
+        fn new(channels: u16) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             match channels {
                 1 => Ok(Self::Mono(EncoderMono::new())),
                 2 => Ok(Self::Stereo(EncoderStereo::new())),
-                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
+                o => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Channels must be 1 or 2, not {o}"),
+                )),
             }
         }
 
         /// * The `encode()` function, uses two closures to eat/excrete data.
         /// * It will endlessly ask for new samples, and feed it `None` to let the function return.
         /// * To continue encoding, call it again and feed it data.
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn encode(
+            &mut self,
+            mut input: impl FnMut() -> Option<i16>,
+            mut output: impl FnMut(u8),
+        ) -> Result<(), io::Error> {
             match self {
-                Self::Mono(enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
-                Self::Stereo(enc) => enc.encode(||{input()},|nibble|{output(nibble)}),
+                Self::Mono(enc) => enc.encode(|| input(), |nibble| output(nibble)),
+                Self::Stereo(enc) => enc.encode(|| input(), |nibble| output(nibble)),
             }
             Ok(())
         }
 
-        fn new_fmt_chunk(&mut self, channels: u16, sample_rate: u32, bits_per_sample: u16) -> Result<FmtChunk, io::Error> {
+        fn new_fmt_chunk(
+            &mut self,
+            channels: u16,
+            sample_rate: u32,
+            bits_per_sample: u16,
+        ) -> Result<FmtChunk, io::Error> {
             if bits_per_sample != 4 {
-                eprintln!("For ADPCM-YAMAHA, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored.");
+                eprintln!(
+                    "For ADPCM-YAMAHA, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored."
+                );
             }
             let bits_per_sample = 4u16;
             let block_align = BLOCK_SIZE as u16;
@@ -1582,8 +1781,8 @@ pub mod yamaha {
 
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(enc) => enc.flush(|nibble|{output(nibble)}),
-                Self::Stereo(enc) => enc.flush(|nibble|{output(nibble)}),
+                Self::Mono(enc) => enc.flush(|nibble| output(nibble)),
+                Self::Stereo(enc) => enc.flush(|nibble| output(nibble)),
             }
             Ok(())
         }
@@ -1610,9 +1809,15 @@ pub mod yamaha {
         /// * The `decode()` function, uses two closures to eat/excrete data.
         /// * It will endlessly ask for new data, and feed it `None` to let the function return.
         /// * To continue encoding, call it again and feed it data.
-        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
+        pub fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) {
             while let Some(nibble) = input() {
-                self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
+                self.decode_sample(nibble)
+                    .into_iter()
+                    .for_each(|sample| output(sample));
             }
         }
     }
@@ -1640,15 +1845,24 @@ pub mod yamaha {
 
         /// * Each byte contains two nibbles to decode to 2 samples for left and right channels.
         pub fn decode_sample(&mut self, nibble: u8) -> [i16; 2] {
-            [self.core_l.expand_nibble(nibble & 0x0F), self.core_r.expand_nibble(nibble >> 4)]
+            [
+                self.core_l.expand_nibble(nibble & 0x0F),
+                self.core_r.expand_nibble(nibble >> 4),
+            ]
         }
 
         /// * The `decode()` function, uses two closures to eat/excrete data.
         /// * It will endlessly ask for new data, and feed it `None` to let the function return.
         /// * To continue encoding, call it again and feed it data.
-        pub fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) {
+        pub fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) {
             while let Some(nibble) = input() {
-                self.decode_sample(nibble).into_iter().for_each(|sample|{output(sample)});
+                self.decode_sample(nibble)
+                    .into_iter()
+                    .for_each(|sample| output(sample));
             }
         }
     }
@@ -1675,11 +1889,17 @@ pub mod yamaha {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> where Self: Sized {
+        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        where
+            Self: Sized,
+        {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderMono::new())),
                 2 => Ok(Self::Stereo(DecoderStereo::new())),
-                o => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Channels must be 1 or 2, not {o}"))),
+                o => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Channels must be 1 or 2, not {o}"),
+                )),
             }
         }
 
@@ -1698,10 +1918,14 @@ pub mod yamaha {
             }
         }
 
-        fn decode(&mut self, mut input: impl FnMut() -> Option<u8>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn decode(
+            &mut self,
+            mut input: impl FnMut() -> Option<u8>,
+            mut output: impl FnMut(i16),
+        ) -> Result<(), io::Error> {
             match self {
-                Self::Mono(dec) => dec.decode(||{input()},|sample|{output(sample)}),
-                Self::Stereo(dec) => dec.decode(||{input()},|sample|{output(sample)}),
+                Self::Mono(dec) => dec.decode(|| input(), |sample| output(sample)),
+                Self::Stereo(dec) => dec.decode(|| input(), |sample| output(sample)),
             }
             Ok(())
         }

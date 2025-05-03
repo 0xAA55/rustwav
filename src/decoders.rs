@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-use std::{fmt::Debug, cmp::min, io::SeekFrom, marker::PhantomData};
+use std::{cmp::min, fmt::Debug, io::SeekFrom, marker::PhantomData};
 
 use crate::Reader;
-use crate::{SampleType, i24, u24};
-use crate::{AudioError, AudioReadError};
 use crate::adpcm;
-use crate::wavcore::{Spec, WaveSampleType, FmtChunk, ExtensionData, ExtensibleData};
-use crate::xlaw::{XLaw, PcmXLawDecoder};
-use crate::wavcore::format_tags::*;
 use crate::get_rounded_up_fft_size;
+use crate::wavcore::format_tags::*;
+use crate::wavcore::{ExtensibleData, ExtensionData, FmtChunk, Spec, WaveSampleType};
+use crate::xlaw::{PcmXLawDecoder, XLaw};
+use crate::{AudioError, AudioReadError};
+use crate::{SampleType, i24, u24};
 
 #[cfg(feature = "mp3dec")]
 use mp3::Mp3Decoder;
@@ -26,8 +26,9 @@ use vorbis_dec::VorbisDecoderWrap;
 
 /// ## Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
-    where S: SampleType {
-
+where
+    S: SampleType,
+{
     /// Get num channels
     fn get_channels(&self) -> u16;
 
@@ -53,7 +54,9 @@ pub trait Decoder<S>: Debug
         match self.get_channels() {
             1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
             2 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[1]))),
-            o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
+            o => Err(AudioReadError::Unsupported(format!(
+                "Unsupported to merge {o} channels to 2 channels."
+            ))),
         }
     }
 
@@ -162,47 +165,85 @@ impl<S> Decoder<S> for VorbisDecoderWrap<'_>
 
 #[derive(Debug)]
 pub struct ExtensibleDecoder<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     phantom: PhantomData<S>,
 }
 
 impl<S> ExtensibleDecoder<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk) -> Result<Box<dyn Decoder<S>>, AudioError> {
+    pub fn new(
+        reader: Box<dyn Reader>,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+    ) -> Result<Box<dyn Decoder<S>>, AudioError> {
         if fmt.format_tag != FORMAT_TAG_EXTENSIBLE {
-            Err(AudioError::InvalidArguments("The `format_tag` from `fmt ` chunk must be 0xFFFE for the extensible decoder.".to_string()))
+            Err(AudioError::InvalidArguments(
+                "The `format_tag` from `fmt ` chunk must be 0xFFFE for the extensible decoder."
+                    .to_string(),
+            ))
         } else {
             match fmt.extension {
                 None => {
-                    eprintln!("No extension data was found in the `fmt ` chunk. The audio data is parsed as PCM.");
-                    Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
-                },
-                Some(extension) => {
-                    match extension.data {
-                        ExtensionData::Extensible(extensible) => {
-                            if (extension.ext_len as usize) < ExtensibleData::sizeof() {
-                                eprintln!("The size of the extension data found in the `fmt ` chunk is not big enough as the extensible data should be. The audio data is parsed as PCM.");
-                                Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
-                            } else {
-                                let spec = Spec {
-                                    channels: spec.channels,
-                                    channel_mask: extensible.channel_mask,
-                                    sample_rate: spec.sample_rate,
-                                    bits_per_sample: spec.bits_per_sample,
-                                    sample_format: spec.sample_format,
-                                };
-                                use crate::wavcore::guids::*;
-                                match extensible.sub_format {
-                                    GUID_PCM_FORMAT | GUID_IEEE_FLOAT_FORMAT => {
-                                        Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?))
-                                    },
-                                    o => Err(AudioError::Unimplemented(format!("Unknown format of GUID {o} in the extensible data")))
+                    eprintln!(
+                        "No extension data was found in the `fmt ` chunk. The audio data is parsed as PCM."
+                    );
+                    Ok(Box::new(PcmDecoder::<S>::new(
+                        reader,
+                        data_offset,
+                        data_length,
+                        spec,
+                        fmt,
+                    )?))
+                }
+                Some(extension) => match extension.data {
+                    ExtensionData::Extensible(extensible) => {
+                        if (extension.ext_len as usize) < ExtensibleData::sizeof() {
+                            eprintln!(
+                                "The size of the extension data found in the `fmt ` chunk is not big enough as the extensible data should be. The audio data is parsed as PCM."
+                            );
+                            Ok(Box::new(PcmDecoder::<S>::new(
+                                reader,
+                                data_offset,
+                                data_length,
+                                spec,
+                                fmt,
+                            )?))
+                        } else {
+                            let spec = Spec {
+                                channels: spec.channels,
+                                channel_mask: extensible.channel_mask,
+                                sample_rate: spec.sample_rate,
+                                bits_per_sample: spec.bits_per_sample,
+                                sample_format: spec.sample_format,
+                            };
+                            use crate::wavcore::guids::*;
+                            match extensible.sub_format {
+                                GUID_PCM_FORMAT | GUID_IEEE_FLOAT_FORMAT => {
+                                    Ok(Box::new(PcmDecoder::<S>::new(
+                                        reader,
+                                        data_offset,
+                                        data_length,
+                                        spec,
+                                        fmt,
+                                    )?))
                                 }
+                                o => Err(AudioError::Unimplemented(format!(
+                                    "Unknown format of GUID {o} in the extensible data"
+                                ))),
                             }
-                        },
-                        o => Err(AudioError::WrongExtensionData(format!("The extension data in the `fmt ` chunk must be `extensible`, got {:?}", o)))
+                        }
                     }
+                    o => Err(AudioError::WrongExtensionData(format!(
+                        "The extension data in the `fmt ` chunk must be `extensible`, got {:?}",
+                        o
+                    ))),
                 },
             }
         }
@@ -212,7 +253,9 @@ where S: SampleType {
 /// ## The `PcmDecoder<S>` to decode WAV PCM samples to your specific format
 #[derive(Debug)]
 pub struct PcmDecoder<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     reader: Box<dyn Reader>,
     data_offset: u64,
     data_length: u64,
@@ -223,8 +266,16 @@ where S: SampleType {
 }
 
 impl<S> PcmDecoder<S>
-where S: SampleType {
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk) -> Result<Self, AudioError> {
+where
+    S: SampleType,
+{
+    pub fn new(
+        reader: Box<dyn Reader>,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+    ) -> Result<Self, AudioError> {
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
             reader,
@@ -246,26 +297,27 @@ where S: SampleType {
     } 
 
     pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-        let frame_index = match seek_from{
+        let frame_index = match seek_from {
             SeekFrom::Start(fi) => fi,
-            SeekFrom::Current(cur) => {
-                (self.get_cur_frame_index()? as i64 + cur) as u64
-            },
-            SeekFrom::End(end) => {
-                (self.total_frames as i64 + end) as u64
-            }
+            SeekFrom::Current(cur) => (self.get_cur_frame_index()? as i64 + cur) as u64,
+            SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
         };
         if frame_index > self.total_frames {
-            self.reader.seek(SeekFrom::Start(self.data_offset + self.data_length))?;
+            self.reader
+                .seek(SeekFrom::Start(self.data_offset + self.data_length))?;
             Ok(())
         } else {
-            self.reader.seek(SeekFrom::Start(self.data_offset + frame_index * self.block_align as u64))?;
+            self.reader.seek(SeekFrom::Start(
+                self.data_offset + frame_index * self.block_align as u64,
+            ))?;
             Ok(())
         }
     }
 
     fn decode_sample<T>(&mut self) -> Result<Option<S>, AudioReadError>
-    where T: SampleType {
+    where
+        T: SampleType,
+    {
         if self.is_end_of_data()? {
             Ok(None)
         } else {
@@ -274,12 +326,19 @@ where S: SampleType {
     }
 
     fn decode_sample_to<T>(r: &mut dyn Reader) -> Result<S, AudioReadError>
-    where T: SampleType {
+    where
+        T: SampleType,
+    {
         Ok(S::scale_from(T::read_le(r)?))
     }
 
-    fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
-    where T: SampleType {
+    fn decode_samples_to<T>(
+        r: &mut dyn Reader,
+        num_samples_to_read: usize,
+    ) -> Result<Vec<S>, AudioReadError>
+    where
+        T: SampleType,
+    {
         let mut ret = Vec::<S>::with_capacity(num_samples_to_read);
         for _ in 0..num_samples_to_read {
             ret.push(Self::decode_sample_to::<T>(r)?);
@@ -291,11 +350,13 @@ where S: SampleType {
     /// 1. Read raw bytes from the input stream.
     /// 2. Convert them into samples of the target format `S`.
     ///
-    /// It does NOT handle end-of-stream detection — the caller must implement 
+    /// It does NOT handle end-of-stream detection — the caller must implement
     /// termination logic (e.g., check input.is_empty() or external duration tracking).
     #[allow(clippy::type_complexity)]
-    fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
-        use WaveSampleType::{Unknown, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, F32, F64};
+    fn choose_sample_decoder(
+        wave_sample_type: WaveSampleType,
+    ) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
+        use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_sample_to::<i8 >),
             S16 => Ok(Self::decode_sample_to::<i16>),
@@ -309,7 +370,10 @@ where S: SampleType {
             U64 => Ok(Self::decode_sample_to::<u64>),
             F32 => Ok(Self::decode_sample_to::<f32>),
             F64 => Ok(Self::decode_sample_to::<f64>),
-            Unknown => Err(AudioError::InvalidArguments(format!("unknown sample type \"{:?}\"", wave_sample_type))),
+            Unknown => Err(AudioError::InvalidArguments(format!(
+                "unknown sample type \"{:?}\"",
+                wave_sample_type
+            ))),
         }
     }
 
@@ -333,13 +397,15 @@ where S: SampleType {
                 1 => {
                     let sample = (self.sample_decoder)(&mut self.reader)?;
                     Ok(Some((sample, sample)))
-                },
+                }
                 2 => {
                     let sample_l = (self.sample_decoder)(&mut self.reader)?;
                     let sample_r = (self.sample_decoder)(&mut self.reader)?;
                     Ok(Some((sample_l, sample_r)))
-                },
-                o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
+                }
+                o => Err(AudioReadError::Unsupported(format!(
+                    "Unsupported to merge {o} channels to 2 channels."
+                ))),
             }
         }
     }
@@ -349,15 +415,17 @@ where S: SampleType {
             Ok(None)
         } else {
             match self.get_channels() {
-                1 => {
-                    Ok(Some((self.sample_decoder)(&mut self.reader)?))
-                },
+                1 => Ok(Some((self.sample_decoder)(&mut self.reader)?)),
                 2 => {
                     let sample_l = (self.sample_decoder)(&mut self.reader)?;
                     let sample_r = (self.sample_decoder)(&mut self.reader)?;
-                    Ok(Some(sample_l / S::scale_from(2) + sample_r / S::scale_from(2)))
-                },
-                o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 1 channels."))),
+                    Ok(Some(
+                        sample_l / S::scale_from(2) + sample_r / S::scale_from(2),
+                    ))
+                }
+                o => Err(AudioReadError::Unsupported(format!(
+                    "Unsupported to merge {o} channels to 1 channels."
+                ))),
             }
         }
     }
@@ -366,7 +434,9 @@ where S: SampleType {
 /// ## The `AdpcmDecoderWrap` to decode ADPCM blocks to your specific format samples
 #[derive(Debug)]
 pub struct AdpcmDecoderWrap<D>
-where D: adpcm::AdpcmDecoder {
+where
+    D: adpcm::AdpcmDecoder,
+{
     channels: u16,
     reader: Box<dyn Reader>,
     data_offset: u64,
@@ -381,9 +451,17 @@ where D: adpcm::AdpcmDecoder {
 }
 
 impl<D> AdpcmDecoderWrap<D>
-where D: adpcm::AdpcmDecoder {
-    pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
-        let decoder =  D::new(fmt)?;
+where
+    D: adpcm::AdpcmDecoder,
+{
+    pub fn new(
+        reader: Box<dyn Reader>,
+        data_offset: u64,
+        data_length: u64,
+        fmt: FmtChunk,
+        total_samples: u64,
+    ) -> Result<Self, AudioReadError> {
+        let decoder = D::new(fmt)?;
         let total_frames = if total_samples == 0 {
             let frames_per_block = decoder.frames_per_block() as u64;
             let total_blocks = data_length / fmt.block_align as u64;
@@ -408,14 +486,18 @@ where D: adpcm::AdpcmDecoder {
 
     fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
         let end_of_data = self.data_offset + self.data_length;
-        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+        if self.reader.stream_position()? >= end_of_data {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     pub fn get_cur_frame_index(&self) -> u64 {
         self.frame_index
     }
 
-    pub fn feed_until_output(&mut self, wanted_length: usize) -> Result<(), AudioReadError>{
+    pub fn feed_until_output(&mut self, wanted_length: usize) -> Result<(), AudioReadError> {
         let end_of_data = self.data_offset + self.data_length;
         let mut sample_decoded = 0u64;
         while self.samples.len() < wanted_length {
@@ -426,9 +508,18 @@ where D: adpcm::AdpcmDecoder {
                 let mut buf = vec![0u8; to_read as usize];
                 self.reader.read_exact(&mut buf)?;
                 let mut iter = buf.into_iter();
-                self.decoder.decode(|| -> Option<u8> {iter.next()},|sample: i16| {sample_decoded += 1; self.samples.push(sample)})?;
+                self.decoder.decode(
+                    || -> Option<u8> { iter.next() },
+                    |sample: i16| {
+                        sample_decoded += 1;
+                        self.samples.push(sample)
+                    },
+                )?;
             } else {
-                self.decoder.flush(|sample: i16| {sample_decoded += 1; self.samples.push(sample)})?;
+                self.decoder.flush(|sample: i16| {
+                    sample_decoded += 1;
+                    self.samples.push(sample)
+                })?;
                 break;
             }
         }
@@ -438,14 +529,10 @@ where D: adpcm::AdpcmDecoder {
 
     pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
         let frames_per_block = self.decoder.frames_per_block() as u64;
-        let frame_index = match seek_from{
+        let frame_index = match seek_from {
             SeekFrom::Start(fi) => fi,
-            SeekFrom::Current(cur) => {
-                (self.frame_index as i64 + cur) as u64
-            },
-            SeekFrom::End(end) => {
-                (self.total_frames as i64 + end) as u64
-            }
+            SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
+            SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
         };
         let block_index = frame_index / frames_per_block;
         self.samples.clear();
@@ -468,7 +555,9 @@ where D: adpcm::AdpcmDecoder {
     }
 
     pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         match self.channels {
             1 => {
                 // Force-decodes at least 1 sample to ensure data availability
@@ -482,9 +571,13 @@ where D: adpcm::AdpcmDecoder {
                 } else {
                     // Internal status check
                     if self.frame_index < self.first_frame_of_samples {
-                        panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
+                        panic!(
+                            "Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}",
+                            self.frame_index, self.first_frame_of_samples
+                        );
                     } else if self.frame_index < self.frames_decoded {
-                        let ret = self.samples[(self.frame_index - self.first_frame_of_samples) as usize];
+                        let ret =
+                            self.samples[(self.frame_index - self.first_frame_of_samples) as usize];
                         self.frame_index += 1;
                         Ok(Some(S::scale_from(ret)))
                     } else {
@@ -494,30 +587,32 @@ where D: adpcm::AdpcmDecoder {
                         self.decode_mono::<S>()
                     }
                 }
-            },
+            }
             2 => {
                 let ret = self.decode_stereo::<S>()?;
                 match ret {
                     None => Ok(None),
-                    Some((l, r)) => {
-                        Ok(Some(S::average(l, r)))
-                    }
+                    Some((l, r)) => Ok(Some(S::average(l, r))),
                 }
-            },
-            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            }
+            o => Err(AudioReadError::Unsupported(format!(
+                "Unsupported channels {o}"
+            ))),
         }
     }
 
     pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         match self.channels {
             1 => {
                 let ret = self.decode_mono::<S>()?;
                 match ret {
                     None => Ok(None),
-                    Some(ret) => Ok(Some((ret, ret)))
+                    Some(ret) => Ok(Some((ret, ret))),
                 }
-            },
+            }
             2 => {
                 // Force-decodes at least 1 sample to ensure data availability
                 if self.samples.is_empty() {
@@ -530,7 +625,10 @@ where D: adpcm::AdpcmDecoder {
                 } else {
                     // Internal status check
                     if self.frame_index < self.first_frame_of_samples {
-                        panic!("Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}", self.frame_index, self.first_frame_of_samples);
+                        panic!(
+                            "Unknown error occured when decoding the ADPCM data: the sample cache was updated while the previous cache is needed: FI = {}, FF = {}",
+                            self.frame_index, self.first_frame_of_samples
+                        );
                     } else if self.frame_index < self.frames_decoded {
                         let index = ((self.frame_index - self.first_frame_of_samples) * 2) as usize;
                         self.frame_index += 1;
@@ -544,27 +642,29 @@ where D: adpcm::AdpcmDecoder {
                         self.decode_stereo::<S>()
                     }
                 }
-            },
-            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            }
+            o => Err(AudioReadError::Unsupported(format!(
+                "Unsupported channels {o}"
+            ))),
         }
     }
 
     pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         match self.channels {
-            1 => {
-                match self.decode_mono::<S>()? {
-                    Some(sample) => Ok(Some(vec![sample])),
-                    None => Ok(None),
-                }
+            1 => match self.decode_mono::<S>()? {
+                Some(sample) => Ok(Some(vec![sample])),
+                None => Ok(None),
             },
-            2 => {
-                match self.decode_stereo::<S>()? {
-                    Some((l, r)) => Ok(Some(vec![l, r])),
-                    None => Ok(None),
-                }
+            2 => match self.decode_stereo::<S>()? {
+                Some((l, r)) => Ok(Some(vec![l, r])),
+                None => Ok(None),
             },
-            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            o => Err(AudioReadError::Unsupported(format!(
+                "Unsupported channels {o}"
+            ))),
         }
     }
 }
@@ -582,11 +682,22 @@ pub struct PcmXLawDecoderWrap {
 }
 
 impl PcmXLawDecoderWrap {
-    pub fn new(reader: Box<dyn Reader>, which_law: XLaw, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+    pub fn new(
+        reader: Box<dyn Reader>,
+        which_law: XLaw,
+        data_offset: u64,
+        data_length: u64,
+        fmt: FmtChunk,
+        total_samples: u64,
+    ) -> Result<Self, AudioReadError> {
         match fmt.channels {
             1 => (),
             2 => (),
-            o => return Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            o => {
+                return Err(AudioReadError::Unsupported(format!(
+                    "Unsupported channels {o}"
+                )));
+            }
         }
         Ok(Self {
             reader,
@@ -617,17 +728,25 @@ impl PcmXLawDecoderWrap {
             frame_index = self.total_frames;
         }
         self.frame_index = frame_index;
-        self.reader.seek(SeekFrom::Start(self.data_offset + self.frame_index * self.channels as u64))?;
+        self.reader.seek(SeekFrom::Start(
+            self.data_offset + self.frame_index * self.channels as u64,
+        ))?;
         Ok(())
     }
 
     fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
         let end_of_data = self.data_offset + self.data_length;
-        if self.reader.stream_position()? >= end_of_data { Ok(true) } else { Ok(false) }
+        if self.reader.stream_position()? >= end_of_data {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.is_end_of_data()? {
             Ok(None)
         } else {
@@ -636,20 +755,24 @@ impl PcmXLawDecoderWrap {
                     let s = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some(s))
-                },
+                }
                 2 => {
                     let l = S::scale_from(self.decode()?);
                     let r = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some(S::average(l, r)))
-                },
-                o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+                }
+                o => Err(AudioReadError::Unsupported(format!(
+                    "Unsupported channels {o}"
+                ))),
             }
         }
     }
 
     pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.is_end_of_data()? {
             Ok(None)
         } else {
@@ -658,34 +781,36 @@ impl PcmXLawDecoderWrap {
                     let s = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some((s, s)))
-                },
+                }
                 2 => {
                     let l = S::scale_from(self.decode()?);
                     let r = S::scale_from(self.decode()?);
                     self.frame_index += 1;
                     Ok(Some((l, r)))
-                },
-                o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+                }
+                o => Err(AudioReadError::Unsupported(format!(
+                    "Unsupported channels {o}"
+                ))),
             }
         }
     }
 
     pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         match self.channels {
-            1 => {
-                match self.decode_mono::<S>()? {
-                    Some(sample) => Ok(Some(vec![sample])),
-                    None => Ok(None),
-                }
+            1 => match self.decode_mono::<S>()? {
+                Some(sample) => Ok(Some(vec![sample])),
+                None => Ok(None),
             },
-            2 => {
-                match self.decode_stereo::<S>()? {
-                    Some((l, r)) => Ok(Some(vec![l, r])),
-                    None => Ok(None),
-                }
+            2 => match self.decode_stereo::<S>()? {
+                Some((l, r)) => Ok(Some(vec![l, r])),
+                None => Ok(None),
             },
-            o => Err(AudioReadError::Unsupported(format!("Unsupported channels {o}"))),
+            o => Err(AudioReadError::Unsupported(format!(
+                "Unsupported channels {o}"
+            ))),
         }
     }
 }
@@ -693,15 +818,19 @@ impl PcmXLawDecoderWrap {
 /// ## The MP3 decoder for `WaveReader`
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
-    use std::{io::{Read, SeekFrom}, fmt::{self, Debug, Formatter}, mem};
+    use std::{
+        fmt::{self, Debug, Formatter},
+        io::{Read, SeekFrom},
+        mem,
+    };
 
     use super::get_rounded_up_fft_size;
     use crate::AudioReadError;
     use crate::Reader;
-    use crate::SampleType;
     use crate::Resampler;
-    use crate::wavcore::FmtChunk;
+    use crate::SampleType;
     use crate::utils;
+    use crate::wavcore::FmtChunk;
 
     use rmp3::{DecoderOwned, Frame};
 
@@ -716,7 +845,7 @@ pub mod mp3 {
         resampler: Resampler,
     }
 
-    impl Debug for Mp3Decoder{
+    impl Debug for Mp3Decoder {
         fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
             fmt.debug_struct("Mp3Decoder")
                 .field("target_sample_rate", &self.target_sample_rate)
@@ -746,7 +875,7 @@ pub mod mp3 {
         pub buffer_index: usize,
     }
 
-    impl Debug for Mp3AudioData{
+    impl Debug for Mp3AudioData {
         fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct("Mp3AudioData")
                 .field("bitrate", &self.bitrate)
@@ -761,7 +890,13 @@ pub mod mp3 {
     }
 
     impl Mp3Decoder {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(
+            reader: Box<dyn Reader>,
+            data_offset: u64,
+            data_length: u64,
+            fmt: FmtChunk,
+            total_samples: u64,
+        ) -> Result<Self, AudioReadError> {
             let mut reader = reader;
             let mut mp3_raw_data = vec![0u8; data_length as usize];
             reader.seek(SeekFrom::Start(data_offset))?;
@@ -790,7 +925,11 @@ pub mod mp3 {
         }
 
         fn do_resample(&self, samples: &[i16], channels: u16, src_sample_rate: u32) -> Vec<i16> {
-            let process_size = self.resampler.get_process_size(self.resampler.get_fft_size(), src_sample_rate, self.target_sample_rate);
+            let process_size = self.resampler.get_process_size(
+                self.resampler.get_fft_size(),
+                src_sample_rate,
+                self.target_sample_rate,
+            );
             let mut monos = utils::interleaved_samples_to_monos(samples, channels).unwrap();
             for mono in monos.iter_mut() {
                 let mut iter = mem::take(mono).into_iter();
@@ -799,7 +938,12 @@ pub mod mp3 {
                     if block.is_empty() {
                         break;
                     }
-                    mono.extend(&utils::do_resample_mono(&self.resampler, &block, src_sample_rate, self.target_sample_rate));
+                    mono.extend(&utils::do_resample_mono(
+                        &self.resampler,
+                        &block,
+                        src_sample_rate,
+                        self.target_sample_rate,
+                    ));
                 }
             }
             utils::monos_to_interleaved_samples(&monos).unwrap()
@@ -812,7 +956,7 @@ pub mod mp3 {
                         self.sample_pos += cur_frame.sample_count as u64;
                     }
 
-                    let mut ret = Mp3AudioData{
+                    let mut ret = Mp3AudioData {
                         bitrate: audio.bitrate(),
                         channels: audio.channels(),
                         mpeg_layer: audio.mpeg_layer(),
@@ -825,25 +969,30 @@ pub mod mp3 {
                     // First, convert the source channels to the target channels
                     match (ret.channels, self.target_channels) {
                         (1, t) => {
-                            ret.samples = mem::take(&mut ret.samples).into_iter().flat_map(|s| -> Vec<i16> {vec![s; t as usize]}).collect();
+                            ret.samples = mem::take(&mut ret.samples)
+                                .into_iter()
+                                .flat_map(|s| -> Vec<i16> { vec![s; t as usize] })
+                                .collect();
                             ret.channels = self.target_channels;
-                        },
+                        }
                         (t, 1) => {
                             let mut iter = mem::take(&mut ret.samples).into_iter();
                             loop {
-                                let frame: Vec<i32> = iter.by_ref().take(t as usize).map(|s|{s as i32}).collect();
+                                let frame: Vec<i32> =
+                                    iter.by_ref().take(t as usize).map(|s| s as i32).collect();
                                 if frame.is_empty() {
                                     break;
                                 }
-                                ret.samples.push((frame.iter().sum::<i32>() / frame.len() as i32) as i16);
+                                ret.samples
+                                    .push((frame.iter().sum::<i32>() / frame.len() as i32) as i16);
                             }
                             ret.channels = self.target_channels;
-                        },
+                        }
                         (s, t) => {
                             if s != t {
                                 eprintln!("Can't change {s} channels to {t} channels.");
                             }
-                        },
+                        }
                     }
 
                     // Second, change the sample rate to match the target sample rate
@@ -866,14 +1015,10 @@ pub mod mp3 {
         }
 
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-            let frame_index = match seek_from{
+            let frame_index = match seek_from {
                 SeekFrom::Start(fi) => fi,
-                SeekFrom::Current(cur) => {
-                    (self.get_cur_frame_index() as i64 + cur) as u64
-                },
-                SeekFrom::End(end) => {
-                    (self.total_frames as i64 + end) as u64
-                }
+                SeekFrom::Current(cur) => (self.get_cur_frame_index() as i64 + cur) as u64,
+                SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
             };
             if self.sample_pos > frame_index {
                 self.reset();
@@ -886,7 +1031,7 @@ pub mod mp3 {
                         self.cur_frame = self.get_next_frame();
                     }
                 } else {
-                    return Ok(())
+                    return Ok(());
                 }
             }
             for _ in 0..(frame_index - self.sample_pos) {
@@ -910,71 +1055,73 @@ pub mod mp3 {
         pub fn decode_mono_raw(&mut self) -> Result<Option<i16>, AudioReadError> {
             match self.cur_frame {
                 None => Ok(None),
-                Some(ref mut frame) => {
-                    match frame.channels {
-                        1 => {
-                            let sample = frame.samples[frame.buffer_index];
-                            frame.buffer_index += 1;
-                            if frame.buffer_index >= frame.sample_count {
-                                self.cur_frame = self.get_next_frame();
-                            }
-                            Ok(Some(sample))
-                        },
-                        2 => {
-                            let l = frame.samples[frame.buffer_index * 2];
-                            let r = frame.samples[frame.buffer_index * 2 + 1];
-                            frame.buffer_index += 1;
-                            if frame.buffer_index >= frame.sample_count {
-                                self.cur_frame = self.get_next_frame();
-                            }
-                            Ok(Some(((l as i32 +  r as i32) / 2i32) as i16))
-                        },
-                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
+                Some(ref mut frame) => match frame.channels {
+                    1 => {
+                        let sample = frame.samples[frame.buffer_index];
+                        frame.buffer_index += 1;
+                        if frame.buffer_index >= frame.sample_count {
+                            self.cur_frame = self.get_next_frame();
+                        }
+                        Ok(Some(sample))
                     }
-                }
+                    2 => {
+                        let l = frame.samples[frame.buffer_index * 2];
+                        let r = frame.samples[frame.buffer_index * 2 + 1];
+                        frame.buffer_index += 1;
+                        if frame.buffer_index >= frame.sample_count {
+                            self.cur_frame = self.get_next_frame();
+                        }
+                        Ok(Some(((l as i32 + r as i32) / 2i32) as i16))
+                    }
+                    o => Err(AudioReadError::DataCorrupted(format!(
+                        "Unknown channel count {o}."
+                    ))),
+                },
             }
         }
 
         pub fn decode_stereo_raw(&mut self) -> Result<Option<(i16, i16)>, AudioReadError> {
             match self.cur_frame {
                 None => Ok(None),
-                Some(ref mut frame) => {
-                    match frame.channels {
-                        1 => {
-                            let sample = frame.samples[frame.buffer_index];
-                            frame.buffer_index += 1;
-                            if frame.buffer_index >= frame.sample_count {
-                                self.cur_frame = self.get_next_frame();
-                            }
-                            Ok(Some((sample, sample)))
-                        },
-                        2 => {
-                            let l = frame.samples[frame.buffer_index * 2];
-                            let r = frame.samples[frame.buffer_index * 2 + 1];
-                            frame.buffer_index += 1;
-                            if frame.buffer_index >= frame.sample_count {
-                                self.cur_frame = self.get_next_frame();
-                            }
-                            Ok(Some((l, r)))
-                        },
-                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
+                Some(ref mut frame) => match frame.channels {
+                    1 => {
+                        let sample = frame.samples[frame.buffer_index];
+                        frame.buffer_index += 1;
+                        if frame.buffer_index >= frame.sample_count {
+                            self.cur_frame = self.get_next_frame();
+                        }
+                        Ok(Some((sample, sample)))
                     }
-                }
-            }
-        }
-
-        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-        where S: SampleType {
-            match self.decode_mono_raw()? {
-                None => Ok(None),
-                Some(s) => {
-                    Ok(Some(S::scale_from(s)))
+                    2 => {
+                        let l = frame.samples[frame.buffer_index * 2];
+                        let r = frame.samples[frame.buffer_index * 2 + 1];
+                        frame.buffer_index += 1;
+                        if frame.buffer_index >= frame.sample_count {
+                            self.cur_frame = self.get_next_frame();
+                        }
+                        Ok(Some((l, r)))
+                    }
+                    o => Err(AudioReadError::DataCorrupted(format!(
+                        "Unknown channel count {o}."
+                    ))),
                 },
             }
         }
 
+        pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
+        where
+            S: SampleType,
+        {
+            match self.decode_mono_raw()? {
+                None => Ok(None),
+                Some(s) => Ok(Some(S::scale_from(s))),
+            }
+        }
+
         pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             match self.decode_stereo_raw()? {
                 None => Ok(None),
                 Some((l, r)) => Ok(Some((S::scale_from(l), S::scale_from(r)))),
@@ -982,16 +1129,18 @@ pub mod mp3 {
         }
 
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             let stereo = self.decode_stereo::<S>()?;
             match stereo {
                 None => Ok(None),
-                Some((l, r)) => {
-                    match self.target_channels {
-                        1 => Ok(Some(vec![S::scale_from(l)])),
-                        2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
-                        o => Err(AudioReadError::DataCorrupted(format!("Unknown channel count {o}."))),
-                    }
+                Some((l, r)) => match self.target_channels {
+                    1 => Ok(Some(vec![S::scale_from(l)])),
+                    2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
+                    o => Err(AudioReadError::DataCorrupted(format!(
+                        "Unknown channel count {o}."
+                    ))),
                 },
             }
         }
@@ -1001,14 +1150,17 @@ pub mod mp3 {
 /// ## The Opus decoder for `WaveReader`
 #[cfg(feature = "opus")]
 pub mod opus {
-    use std::{io::SeekFrom, fmt::{self, Debug, Formatter}};
+    use std::{
+        fmt::{self, Debug, Formatter},
+        io::SeekFrom,
+    };
 
-    use crate::Reader;
     use crate::AudioReadError;
+    use crate::Reader;
     use crate::SampleType;
     use crate::wavcore::FmtChunk;
 
-    use opus::{Decoder, Channels};
+    use opus::{Channels, Decoder};
 
     pub struct OpusDecoder {
         reader: Box<dyn Reader>,
@@ -1025,17 +1177,27 @@ pub mod opus {
     }
 
     impl OpusDecoder {
-        pub fn new(mut reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(
+            mut reader: Box<dyn Reader>,
+            data_offset: u64,
+            data_length: u64,
+            fmt: FmtChunk,
+            total_samples: u64,
+        ) -> Result<Self, AudioReadError> {
             let channels = fmt.channels;
             let sample_rate = fmt.sample_rate;
             let opus_channels = match channels {
                 1 => Channels::Mono,
                 2 => Channels::Stereo,
-                o => return Err(AudioReadError::InvalidArguments(format!("Bad channels: {o} for the opus decoder."))),
+                o => {
+                    return Err(AudioReadError::InvalidArguments(format!(
+                        "Bad channels: {o} for the opus decoder."
+                    )));
+                }
             };
             let decoder = Decoder::new(sample_rate, opus_channels)?;
             reader.seek(SeekFrom::Start(data_offset))?;
-            Ok(Self{
+            Ok(Self {
                 reader,
                 decoder,
                 channels,
@@ -1063,7 +1225,11 @@ pub mod opus {
         }
 
         fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
-            if self.reader.stream_position()? >= self.data_offset + self.data_length { Ok(true) } else { Ok(false) }
+            if self.reader.stream_position()? >= self.data_offset + self.data_length {
+                Ok(true)
+            } else {
+                Ok(false)
+            }
         }
 
         fn clear_decoded_samples_buffer(&mut self) {
@@ -1091,19 +1257,23 @@ pub mod opus {
             self.decoded_samples_index = 0;
 
             // Perform the decode call
-            let frames = self.decoder.decode_float(&buf, &mut self.decoded_samples, /*fec*/ false)?;
+            let frames =
+                self.decoder
+                    .decode_float(&buf, &mut self.decoded_samples, /*fec*/ false)?;
 
             // Check out the result
             let samples = frames * self.channels as usize;
             if samples != samples_to_get {
-                Err(AudioReadError::IncompleteData(format!("Expected {samples_to_get} samples will be decoded, got {samples} samples.")))
+                Err(AudioReadError::IncompleteData(format!(
+                    "Expected {samples_to_get} samples will be decoded, got {samples} samples."
+                )))
             } else {
                 Ok(())
             }
         }
 
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-            let frame_index = match seek_from{
+            let frame_index = match seek_from {
                 SeekFrom::Start(fi) => fi,
                 SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
                 SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
@@ -1115,7 +1285,9 @@ pub mod opus {
             self.reader.seek(SeekFrom::Start(seek_to))?;
             if seek_to < self.data_offset + self.data_length {
                 self.decode_block()?;
-                self.decoded_samples_index = ((frame_index * self.channels as u64) - block_index * self.get_samples_per_block() as u64) as usize;
+                self.decoded_samples_index = ((frame_index * self.channels as u64)
+                    - block_index * self.get_samples_per_block() as u64)
+                    as usize;
             } else {
                 self.clear_decoded_samples_buffer();
             }
@@ -1123,7 +1295,9 @@ pub mod opus {
         }
 
         fn decode_sample<S>(&mut self) -> Result<Option<S>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             if self.decoded_samples_index >= self.decoded_samples.len() {
                 self.decode_block()?;
             }
@@ -1137,9 +1311,13 @@ pub mod opus {
         }
 
         pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-        where S: SampleType {
-            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels).map(|_|self.decode_sample::<S>()).collect();
-            match frame{
+        where
+            S: SampleType,
+        {
+            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels)
+                .map(|_| self.decode_sample::<S>())
+                .collect();
+            match frame {
                 Ok(frame) => {
                     let frame: Vec<S> = frame.into_iter().flatten().collect();
                     if frame.is_empty() {
@@ -1147,16 +1325,23 @@ pub mod opus {
                     } else {
                         Ok(Some(S::average_arr(&frame)))
                     }
-                },
+                }
                 Err(e) => Err(e),
             }
         }
 
         pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             match self.channels {
                 1 => {
-                    if let Some(s) = self.decode_sample::<S>()? {self.frame_index += 1; Ok(Some((s, s)))} else {Ok(None)}
+                    if let Some(s) = self.decode_sample::<S>()? {
+                        self.frame_index += 1;
+                        Ok(Some((s, s)))
+                    } else {
+                        Ok(None)
+                    }
                 }
                 2 => {
                     let l = self.decode_sample::<S>()?;
@@ -1167,15 +1352,21 @@ pub mod opus {
                     } else {
                         Ok(None)
                     }
-                },
-                o => Err(AudioReadError::DataCorrupted(format!("Can't convert {o} channel audio to stereo channel audio"))),
+                }
+                o => Err(AudioReadError::DataCorrupted(format!(
+                    "Can't convert {o} channel audio to stereo channel audio"
+                ))),
             }
         }
 
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-        where S: SampleType {
-            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels).map(|_|self.decode_sample::<S>()).collect();
-            match frame{
+        where
+            S: SampleType,
+        {
+            let frame: Result<Vec<Option<S>>, AudioReadError> = (0..self.channels)
+                .map(|_| self.decode_sample::<S>())
+                .collect();
+            match frame {
                 Ok(frame) => {
                     let frame: Vec<S> = frame.into_iter().flatten().collect();
                     if frame.is_empty() {
@@ -1183,7 +1374,7 @@ pub mod opus {
                     } else {
                         Ok(Some(frame))
                     }
-                },
+                }
                 Err(e) => Err(e),
             }
         }
@@ -1200,7 +1391,10 @@ pub mod opus {
                 .field("data_length", &self.data_length)
                 .field("total_frames", &self.total_frames)
                 .field("block_align", &self.block_align)
-                .field("decoded_samples", &format_args!("[f32; {}]", self.decoded_samples.len()))
+                .field(
+                    "decoded_samples",
+                    &format_args!("[f32; {}]", self.decoded_samples.len()),
+                )
                 .field("decoded_samples_index", &self.decoded_samples_index)
                 .field("frame_index", &self.frame_index)
                 .finish()
@@ -1211,16 +1405,24 @@ pub mod opus {
 /// ## The FLAC decoder for `WaveReader`
 #[cfg(feature = "flac")]
 pub mod flac_dec {
-    use std::{io::{self, Read, Seek, SeekFrom}, cmp::Ordering, fmt::{self, Debug, Formatter}, ptr, collections::BTreeMap};
+    use std::{
+        cmp::Ordering,
+        collections::BTreeMap,
+        fmt::{self, Debug, Formatter},
+        io::{self, Read, Seek, SeekFrom},
+        ptr,
+    };
 
     use super::get_rounded_up_fft_size;
+    use crate::AudioReadError;
     use crate::Reader;
     use crate::SampleType;
-    use crate::AudioReadError;
-    use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
-    use crate::utils::{sample_conv, sample_conv_batch, do_resample_frames};
     use crate::readwrite::ReadBridge;
-    use flac::{FlacDecoderUnmovable, FlacReadStatus, SamplesInfo, FlacInternalDecoderError, FlacAudioForm};
+    use crate::utils::{do_resample_frames, sample_conv, sample_conv_batch};
+    use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
+    use flac::{
+        FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo,
+    };
     use resampler::Resampler;
 
     pub struct FlacDecoderWrap<'a> {
@@ -1235,39 +1437,49 @@ pub mod flac_dec {
         decoded_frames_index: usize,
         frame_index: u64,
         total_frames: u64,
-        self_ptr: Box<*mut FlacDecoderWrap<'a>>
+        self_ptr: Box<*mut FlacDecoderWrap<'a>>,
     }
 
     impl FlacDecoderWrap<'_> {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(
+            reader: Box<dyn Reader>,
+            data_offset: u64,
+            data_length: u64,
+            fmt: FmtChunk,
+            total_samples: u64,
+        ) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
             let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
             let self_ptr_ptr = (&mut *self_ptr) as *mut *mut Self;
             let reader_ptr = Box::into_raw(reader); // On the fly reader
             let decoder = Box::new(FlacDecoderUnmovable::new(
-                ReadBridge::new(unsafe {&mut *reader_ptr}),
+                ReadBridge::new(unsafe { &mut *reader_ptr }),
                 // on_read
-                Box::new(move |reader: &mut ReadBridge, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
-                    let to_read = buffer.len();
-                    match reader.read(buffer) {
-                        Ok(size) => {
-                            match size.cmp(&to_read) {
+                Box::new(
+                    move |reader: &mut ReadBridge, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
+                        let to_read = buffer.len();
+                        match reader.read(buffer) {
+                            Ok(size) => match size.cmp(&to_read) {
                                 Ordering::Equal => (size, FlacReadStatus::GoOn),
                                 Ordering::Less => (size, FlacReadStatus::Eof),
-                                Ordering::Greater => panic!("`reader.read()` returns a size greater than the desired size."),
+                                Ordering::Greater => panic!(
+                                    "`reader.read()` returns a size greater than the desired size."
+                                ),
+                            },
+                            Err(e) => {
+                                eprintln!("on_read(): {:?}", e);
+                                (0, FlacReadStatus::Abort)
                             }
-                        },
-                        Err(e) => {
-                            eprintln!("on_read(): {:?}", e);
-                            (0, FlacReadStatus::Abort)
                         }
-                    }
-                }),
+                    },
+                ),
                 // on_seek
-                Box::new(move |reader: &mut ReadBridge, position: u64|-> Result<(), io::Error> {
-                    reader.seek(SeekFrom::Start(data_offset + position))?;
-                    Ok(())
-                }),
+                Box::new(
+                    move |reader: &mut ReadBridge, position: u64| -> Result<(), io::Error> {
+                        reader.seek(SeekFrom::Start(data_offset + position))?;
+                        Ok(())
+                    },
+                ),
                 // on_tell
                 Box::new(move |reader: &mut ReadBridge| -> Result<u64, io::Error> {
                     Ok(reader.stream_position()? - data_offset)
@@ -1281,28 +1493,45 @@ pub mod flac_dec {
                     reader.stream_position().unwrap() >= data_offset + data_length
                 }),
                 // on_write
-                Box::new(move |frames: &[Vec<i32>], sample_info: &SamplesInfo| -> Result<(), io::Error> {
-                    // Before `on_write()` was called, make sure `self_ptr` was updated to the `self` pointer of `FlacDecoderWrap`
-                    let this = unsafe{&mut *(*self_ptr_ptr).cast::<Self>()};
-                    this.decoded_frames_index = 0;
-                    if sample_info.sample_rate != this.sample_rate {
-                        this.decoded_frames.clear();
-                        let process_size = this.resampler.get_process_size(this.resampler.get_fft_size(), sample_info.sample_rate, this.sample_rate);
-                        let mut iter = frames.iter();
-                        loop {
-                            let block: Vec<Vec<i32>> = iter.by_ref().take(process_size).cloned().collect();
-                            if block.is_empty() {
-                                break;
+                Box::new(
+                    move |frames: &[Vec<i32>],
+                          sample_info: &SamplesInfo|
+                          -> Result<(), io::Error> {
+                        // Before `on_write()` was called, make sure `self_ptr` was updated to the `self` pointer of `FlacDecoderWrap`
+                        let this = unsafe { &mut *(*self_ptr_ptr).cast::<Self>() };
+                        this.decoded_frames_index = 0;
+                        if sample_info.sample_rate != this.sample_rate {
+                            this.decoded_frames.clear();
+                            let process_size = this.resampler.get_process_size(
+                                this.resampler.get_fft_size(),
+                                sample_info.sample_rate,
+                                this.sample_rate,
+                            );
+                            let mut iter = frames.iter();
+                            loop {
+                                let block: Vec<Vec<i32>> =
+                                    iter.by_ref().take(process_size).cloned().collect();
+                                if block.is_empty() {
+                                    break;
+                                }
+                                this.decoded_frames.extend(
+                                    sample_conv_batch(&do_resample_frames(
+                                        &this.resampler,
+                                        &block,
+                                        sample_info.sample_rate,
+                                        this.sample_rate,
+                                    ))
+                                    .to_vec(),
+                                );
                             }
-                            this.decoded_frames.extend(sample_conv_batch(&do_resample_frames(&this.resampler, &block, sample_info.sample_rate, this.sample_rate)).to_vec());
+                            this.decoded_frames.shrink_to_fit();
+                        } else {
+                            this.decoded_frames = frames.to_vec();
                         }
-                        this.decoded_frames.shrink_to_fit();
-                    } else {
-                        this.decoded_frames = frames.to_vec();
-                    }
 
-                    Ok(())
-                }),
+                        Ok(())
+                    },
+                ),
                 // on_error
                 Box::new(move |error: FlacInternalDecoderError| {
                     eprintln!("on_error({error})");
@@ -1311,8 +1540,8 @@ pub mod flac_dec {
                 true, // scale_to_i32_range
                 FlacAudioForm::FrameArray,
             )?);
-            let mut ret = Self{
-                reader: unsafe {Box::from_raw(reader_ptr)},
+            let mut ret = Self {
+                reader: unsafe { Box::from_raw(reader_ptr) },
                 decoder,
                 resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
                 channels: fmt.channels,
@@ -1378,7 +1607,7 @@ pub mod flac_dec {
         }
 
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-            let frame_index = match seek_from{
+            let frame_index = match seek_from {
                 SeekFrom::Start(fi) => fi,
                 SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
                 SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
@@ -1391,7 +1620,9 @@ pub mod flac_dec {
         }
 
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             if self.is_end_of_data()? {
                 Ok(None)
             } else if self.decoded_frames_index < self.decoded_frames.len() {
@@ -1407,12 +1638,16 @@ pub mod flac_dec {
         }
 
         pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             if let Some(frame) = self.decode_frame::<S>()? {
                 match frame.len() {
                     1 => Ok(Some((frame[0], frame[0]))),
                     2 => Ok(Some((frame[0], frame[1]))),
-                    o => Err(AudioReadError::Unsupported(format!("Unsupported to merge {o} channels to 2 channels."))),
+                    o => Err(AudioReadError::Unsupported(format!(
+                        "Unsupported to merge {o} channels to 2 channels."
+                    ))),
                 }
             } else {
                 Ok(None)
@@ -1420,7 +1655,9 @@ pub mod flac_dec {
         }
 
         pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             if let Some(frame) = self.decode_frame::<S>()? {
                 Ok(Some(S::average_arr(&frame)))
             } else {
@@ -1439,7 +1676,10 @@ pub mod flac_dec {
                 .field("sample_rate", &self.sample_rate)
                 .field("data_offset", &self.data_offset)
                 .field("data_length", &self.data_length)
-                .field("decoded_frames", &format_args!("[i32; {}]", self.decoded_frames.len()))
+                .field(
+                    "decoded_frames",
+                    &format_args!("[i32; {}]", self.decoded_frames.len()),
+                )
                 .field("decoded_frames_index", &self.decoded_frames_index)
                 .field("frame_index", &self.frame_index)
                 .field("total_frames", &self.total_frames)
@@ -1452,13 +1692,16 @@ pub mod flac_dec {
 /// ## The Vorbis decoder for `WaveReader`
 #[cfg(feature = "vorbis")]
 pub mod vorbis_dec {
-    use std::{io::SeekFrom, fmt::{self, Debug, Formatter}};
+    use std::{
+        fmt::{self, Debug, Formatter},
+        io::SeekFrom,
+    };
 
-    use crate::SampleType;
-    use crate::{Reader, SharedReader};
     use crate::AudioReadError;
-    use crate::wavcore::FmtChunk;
+    use crate::SampleType;
     use crate::hacks;
+    use crate::wavcore::FmtChunk;
+    use crate::{Reader, SharedReader};
     use vorbis_rs::VorbisDecoder;
 
     /// ## The Vorbis decoder for `WaveReader`
@@ -1498,13 +1741,19 @@ pub mod vorbis_dec {
     }
 
     impl VorbisDecoderWrap<'_> {
-        pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
+        pub fn new(
+            reader: Box<dyn Reader>,
+            data_offset: u64,
+            data_length: u64,
+            fmt: FmtChunk,
+            total_samples: u64,
+        ) -> Result<Self, AudioReadError> {
             let mut reader_holder = reader;
             let reader = SharedReader::new(hacks::force_borrow_mut!(*reader_holder, dyn Reader));
             let decoder = VorbisDecoder::new(reader.clone())?;
             let channels = decoder.channels().get() as u16;
             let sample_rate = decoder.sampling_frequency().get();
-            let mut ret = Self{
+            let mut ret = Self {
                 reader,
                 reader_holder,
                 decoder,
@@ -1526,14 +1775,20 @@ pub mod vorbis_dec {
         fn cur_block_frames(&self) -> usize {
             match self.decoded_samples {
                 None => 0,
-                Some(ref samples) => samples[0].len()
+                Some(ref samples) => samples[0].len(),
             }
         }
 
         fn decode(&mut self) -> Result<(), AudioReadError> {
             self.cur_block_frame_index += self.cur_block_frames() as u64;
             self.cur_frame_index = self.cur_block_frame_index;
-            self.decoded_samples = self.decoder.decode_audio_block()?.map(|samples|samples.samples().iter().map(|frame|frame.to_vec()).collect());
+            self.decoded_samples = self.decoder.decode_audio_block()?.map(|samples| {
+                samples
+                    .samples()
+                    .iter()
+                    .map(|frame| frame.to_vec())
+                    .collect()
+            });
             Ok(())
         }
 
@@ -1549,7 +1804,7 @@ pub mod vorbis_dec {
 
         /// Seek to the block that contains the specific frame index of the audio frame.
         pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-            let frame_index = match seek_from{
+            let frame_index = match seek_from {
                 SeekFrom::Start(fi) => fi,
                 SeekFrom::Current(ci) => (self.cur_frame_index as i64 + ci) as u64,
                 SeekFrom::End(ei) => (self.cur_frame_index as i64 + ei) as u64,
@@ -1559,10 +1814,12 @@ pub mod vorbis_dec {
                 self.cur_block_frame_index = 0;
             }
             self.cur_frame_index = frame_index;
-            while self.cur_block_frame_index + (self.cur_block_frames() as u64) < self.cur_frame_index {
+            while self.cur_block_frame_index + (self.cur_block_frames() as u64)
+                < self.cur_frame_index
+            {
                 self.decode()?;
                 if self.decoded_samples.is_none() {
-                    return Ok(())
+                    return Ok(());
                 }
             }
             Ok(())
@@ -1570,13 +1827,20 @@ pub mod vorbis_dec {
 
         /// Decode as audio frames. The audio frame is an array for all channels' one sample.
         pub fn decode_frame<S>(&mut self) -> Result<Option<Vec<S>>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             match self.decoded_samples {
                 None => Ok(None),
                 Some(ref samples) => {
-                    let cache_frame_index = (self.cur_frame_index - self.cur_block_frame_index) as usize;
+                    let cache_frame_index =
+                        (self.cur_frame_index - self.cur_block_frame_index) as usize;
                     if cache_frame_index < samples[0].len() {
-                        let ret: Vec<S> = (0..self.channels).map(|channel|S::scale_from(samples[channel as usize][cache_frame_index])).collect();
+                        let ret: Vec<S> = (0..self.channels)
+                            .map(|channel| {
+                                S::scale_from(samples[channel as usize][cache_frame_index])
+                            })
+                            .collect();
                         self.cur_frame_index += 1;
                         Ok(Some(ret))
                     } else {
@@ -1589,25 +1853,29 @@ pub mod vorbis_dec {
 
         /// Decode as stereo audio
         pub fn decode_stereo<S>(&mut self) -> Result<Option<(S, S)>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             match self.decode_frame()? {
                 None => Ok(None),
-                Some(frame) => {
-                    match frame.len() {
-                        1 => Ok(Some((frame[0], frame[0]))),
-                        2 => Ok(Some((frame[0], frame[1]))),
-                        o => Err(AudioReadError::Unsupported(format!("Could not convert {o} channel audio to stereo audio."))),
-                    }
-                }
+                Some(frame) => match frame.len() {
+                    1 => Ok(Some((frame[0], frame[0]))),
+                    2 => Ok(Some((frame[0], frame[1]))),
+                    o => Err(AudioReadError::Unsupported(format!(
+                        "Could not convert {o} channel audio to stereo audio."
+                    ))),
+                },
             }
         }
 
         /// Decode as mono audio. All channel samples will be mixed into one.
         pub fn decode_mono<S>(&mut self) -> Result<Option<S>, AudioReadError>
-        where S: SampleType {
+        where
+            S: SampleType,
+        {
             match self.decode_frame()? {
                 None => Ok(None),
-                Some(frame) => Ok(Some(S::average_arr(&frame)))
+                Some(frame) => Ok(Some(S::average_arr(&frame))),
             }
         }
     }
@@ -1623,10 +1891,13 @@ pub mod vorbis_dec {
                 .field("total_frames", &self.total_frames)
                 .field("channels", &self.channels)
                 .field("sample_rate", &self.sample_rate)
-                .field("decoded_samples", &match self.decoded_samples {
-                    None => "None".to_string(),
-                    Some(_) => format!("Some([f32; {}])", self.cur_block_frames()),
-                })
+                .field(
+                    "decoded_samples",
+                    &match self.decoded_samples {
+                        None => "None".to_string(),
+                        Some(_) => format!("Some([f32; {}])", self.cur_block_frames()),
+                    },
+                )
                 .field("cur_frame_index", &self.cur_frame_index)
                 .field("cur_block_frame_index", &self.cur_block_frame_index)
                 .finish()

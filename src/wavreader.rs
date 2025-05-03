@@ -1,25 +1,37 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom, BufReader, BufWriter}, collections::{BTreeSet, BTreeMap}};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom},
+    mem,
+    path::PathBuf,
+};
 
 use crate::Reader;
 use crate::SampleType;
-use crate::{AudioReadError, AudioError};
 use crate::SpeakerPosition;
-use crate::readwrite::{self, string_io::*};
-use crate::wavcore;
-use crate::wavcore::Spec;
-use crate::wavcore::ChunkHeader;
-use crate::wavcore::{FmtChunk, ExtensionData};
-use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, TrknChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
-use crate::wavcore::FullInfoCuePoint;
-use crate::decoders::{Decoder, ExtensibleDecoder, PcmDecoder, AdpcmDecoderWrap, PcmXLawDecoderWrap};
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
-use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
-use crate::filehasher::FileHasher;
 use crate::copiablebuf::CopiableBuffer;
+use crate::decoders::{
+    AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap,
+};
+use crate::filehasher::FileHasher;
+use crate::readwrite::{self, string_io::*};
+use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
+use crate::wavcore;
+use crate::wavcore::ChunkHeader;
+use crate::wavcore::FullInfoCuePoint;
+use crate::wavcore::Spec;
+use crate::wavcore::{
+    AcidChunk, BextChunk, CueChunk, Id3, InstChunk, JunkChunk, ListChunk, PlstChunk, SlntChunk,
+    SmplChunk, TrknChunk,
+};
+use crate::wavcore::{ExtensionData, FmtChunk};
 use crate::xlaw::XLaw;
+use crate::{AudioError, AudioReadError};
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
@@ -50,7 +62,7 @@ pub enum WaveDataSource {
 pub struct WaveReader {
     spec: Spec,
     fmt__chunk: FmtChunk, // fmt chunk must exists
-    fact_data: u64, // Total samples in the data chunk
+    fact_data: u64,       // Total samples in the data chunk
     data_chunk: FileDataSource,
     text_encoding: StringCodecMaps,
     slnt_chunk: Option<SlntChunk>,
@@ -70,11 +82,17 @@ pub struct WaveReader {
 
 /// Accepts a result, if it is `Ok`, return a `Some`; otherwise print the error message and return `None`
 pub fn optional<T, E>(result: Result<T, E>) -> Option<T>
-where E: std::error::Error{
+where
+    E: std::error::Error,
+{
     match result {
         Ok(object) => Some(object),
         Err(err) => {
-            eprintln!("Error occured while parsing \"{}\": {:?}", std::any::type_name::<T>(), err);
+            eprintln!(
+                "Error occured while parsing \"{}\": {:?}",
+                std::any::type_name::<T>(),
+                err
+            );
             None
         }
     }
@@ -90,14 +108,16 @@ impl WaveReader {
     pub fn new(file_source: WaveDataSource) -> Result<Self, AudioReadError> {
         let mut filesrc: Option<String> = None;
         let mut reader = match file_source {
-            WaveDataSource::Reader(reader) => {
-                reader
-            },
+            WaveDataSource::Reader(reader) => reader,
             WaveDataSource::Filename(filename) => {
                 filesrc = Some(filename.clone());
                 Box::new(BufReader::new(File::open(&filename)?))
-            },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given"))),
+            }
+            WaveDataSource::Unknown => {
+                return Err(AudioReadError::InvalidArguments(String::from(
+                    "\"Unknown\" data source was given",
+                )));
+            }
         };
 
         let text_encoding = StringCodecMaps::new();
@@ -107,7 +127,13 @@ impl WaveReader {
             Err(_) => (0u64, false),
         };
 
-        let mut filelen = if reader_seekable {let filelen = reader.seek(SeekFrom::End(0))?; reader.seek(SeekFrom::Start(filestart))?; filelen} else {0};
+        let mut filelen = if reader_seekable {
+            let filelen = reader.seek(SeekFrom::End(0))?;
+            reader.seek(SeekFrom::Start(filestart))?;
+            filelen
+        } else {
+            0
+        };
         let mut cur_pos = filestart;
 
         let mut riff_end = 0xFFFFFFFFu64;
@@ -124,10 +150,10 @@ impl WaveReader {
                 if filelen == 0 {
                     filelen = riff_end;
                 }
-            },
+            }
             b"RF64" => {
                 isRF64 = true;
-            },
+            }
             _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file"))), // Not WAV
         }
 
@@ -157,18 +183,32 @@ impl WaveReader {
         // Read each chunks from the WAV file
         let mut last_flag: [u8; 4];
         let mut chunk = ChunkHeader::new();
-        loop { // Loop through the chunks inside the RIFF chunk or RF64 chunk.
+        loop {
+            // Loop through the chunks inside the RIFF chunk or RF64 chunk.
             let mut manually_skipped = false;
-            let chunk_position = if reader_seekable {reader.stream_position()?} else {cur_pos};
+            let chunk_position = if reader_seekable {
+                reader.stream_position()?
+            } else {
+                cur_pos
+            };
             if ChunkHeader::align(chunk_position) == riff_end {
                 // Normally hit the end of the WAV file.
                 break;
             } else if chunk_position + 4 >= riff_end {
                 // Hit the end but not good.
                 match riff_end.cmp(&filelen) {
-                    Ordering::Greater => eprintln!("There end of the RIFF chunk exceeded the file size of {} bytes.", riff_end - filelen),
-                    Ordering::Equal => eprintln!("There are some chunk sizes wrong, probably the \"{}\" chunk.", text_encoding.decode_flags(&chunk.flag)),
-                    Ordering::Less => eprintln!("There are {} extra bytes at the end of the RIFF chunk.", filelen - riff_end),
+                    Ordering::Greater => eprintln!(
+                        "There end of the RIFF chunk exceeded the file size of {} bytes.",
+                        riff_end - filelen
+                    ),
+                    Ordering::Equal => eprintln!(
+                        "There are some chunk sizes wrong, probably the \"{}\" chunk.",
+                        text_encoding.decode_flags(&chunk.flag)
+                    ),
+                    Ordering::Less => eprintln!(
+                        "There are {} extra bytes at the end of the RIFF chunk.",
+                        filelen - riff_end
+                    ),
                 }
                 break;
             }
@@ -183,25 +223,37 @@ impl WaveReader {
                 b"fmt " => {
                     Self::no_duplication(&fmt__chunk, &chunk.flag)?;
                     fmt__chunk = Some(FmtChunk::read(&mut reader, chunk.size)?);
-                },
+                }
                 b"fact" => {
                     let mut buf = vec![0u8; chunk.size as usize];
                     reader.read_exact(&mut buf)?;
                     fact_data = match buf.len() {
-                        4 => u32::from_le_bytes(buf.into_iter().collect::<CopiableBuffer<u8, 4>>().into_array()) as u64,
-                        8 => u64::from_le_bytes(buf.into_iter().collect::<CopiableBuffer<u8, 8>>().into_array()),
+                        4 => u32::from_le_bytes(
+                            buf.into_iter()
+                                .collect::<CopiableBuffer<u8, 4>>()
+                                .into_array(),
+                        ) as u64,
+                        8 => u64::from_le_bytes(
+                            buf.into_iter()
+                                .collect::<CopiableBuffer<u8, 8>>()
+                                .into_array(),
+                        ),
                         o => {
                             eprintln!("Bad fact chunk size: {o}");
                             0
                         }
                     };
-                },
+                }
                 b"ds64" => {
                     if ds64_read {
-                        return Err(AudioReadError::DataCorrupted(String::from("Duplicated \"ds64\" chunk appears")))
+                        return Err(AudioReadError::DataCorrupted(String::from(
+                            "Duplicated \"ds64\" chunk appears",
+                        )));
                     }
                     if chunk.size < 28 {
-                        return Err(AudioReadError::DataCorrupted(String::from("the size of \"ds64\" chunk is too small to contain enough data")))
+                        return Err(AudioReadError::DataCorrupted(String::from(
+                            "the size of \"ds64\" chunk is too small to contain enough data",
+                        )));
                     }
                     let riff_len = u64::read_le(&mut reader)?;
                     data_size = u64::read_le(&mut reader)?;
@@ -215,16 +267,33 @@ impl WaveReader {
                 }
                 b"data" => {
                     if data_offset != 0 {
-                        return Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(&chunk.flag))));
+                        return Err(AudioReadError::DataCorrupted(format!(
+                            "Duplicated chunk '{}' in the WAV file",
+                            String::from_utf8_lossy(&chunk.flag)
+                        )));
                     }
                     data_offset = chunk.chunk_start_pos;
                     if !isRF64 {
                         data_size = chunk.size as u64;
                     }
                     if let Some(ref filename) = filesrc {
-                        data_chunk = FileDataSource::new(None, Some(filename.clone()), data_offset, data_size, reader_seekable, &mut cur_pos)?;
+                        data_chunk = FileDataSource::new(
+                            None,
+                            Some(filename.clone()),
+                            data_offset,
+                            data_size,
+                            reader_seekable,
+                            &mut cur_pos,
+                        )?;
                     } else {
-                        data_chunk = FileDataSource::new(Some(&mut *reader), None, data_offset, data_size, reader_seekable, &mut cur_pos)?;
+                        data_chunk = FileDataSource::new(
+                            Some(&mut *reader),
+                            None,
+                            data_offset,
+                            data_size,
+                            reader_seekable,
+                            &mut cur_pos,
+                        )?;
                     }
                     let chunk_end = ChunkHeader::align(chunk.chunk_start_pos + data_size);
                     if reader_seekable {
@@ -233,7 +302,7 @@ impl WaveReader {
                         readwrite::goto_offset_without_seek(&mut reader, &mut cur_pos, chunk_end)?;
                     }
                     manually_skipped = true;
-                },
+                }
                 b"slnt" => {
                     Self::ignore_laters(&mut slnt_chunk, &chunk.flag, ||optional(SlntChunk::read(&mut reader)));
                 }
@@ -259,7 +328,15 @@ impl WaveReader {
                     Self::ignore_laters(&mut ixml_chunk, &chunk.flag, ||optional(read_str(&mut reader, chunk.size as usize, &text_encoding)));
                 },
                 b"LIST" => {
-                    list_chunk.append(&mut optional(ListChunk::read(&mut reader, chunk.size as u64, &text_encoding)).into_iter().collect::<BTreeSet<ListChunk>>());
+                    list_chunk.append(
+                        &mut optional(ListChunk::read(
+                            &mut reader,
+                            chunk.size as u64,
+                            &text_encoding,
+                        ))
+                        .into_iter()
+                        .collect::<BTreeSet<ListChunk>>(),
+                    );
                 }
                 b"acid" => {
                     Self::ignore_laters(&mut acid_chunk, &chunk.flag, ||optional(AcidChunk::read(&mut reader)));
@@ -270,18 +347,28 @@ impl WaveReader {
                 b"id3 " => {
                     Self::ignore_laters(&mut id3__chunk, &chunk.flag, ||optional(Id3::id3_read(&mut reader, chunk.size as usize)));
                 },
-                b"\0\0\0\0" => { // empty flag
+                b"\0\0\0\0" => {
+                    // empty flag
                     return Err(AudioReadError::IncompleteFile(chunk_position));
-                },
+                }
                 // I used to find a BFDi chunk, after searching the internet, the chunk is dedicated to the BFD Player,
                 // Its content seems like a serial number string for the software, So no need to parse it.
                 other => {
-                    eprintln!("Skipped an unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], Position: 0x{:x}, Size: 0x{:x}",
-                             text_encoding.decode_flags(other),
-                             other[0], other[1], other[2], other[3],
-                             chunk_position, chunk.size);
-                    eprintln!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
-                },
+                    eprintln!(
+                        "Skipped an unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], Position: 0x{:x}, Size: 0x{:x}",
+                        text_encoding.decode_flags(other),
+                        other[0],
+                        other[1],
+                        other[2],
+                        other[3],
+                        chunk_position,
+                        chunk.size
+                    );
+                    eprintln!(
+                        "The previous chunk is '{}'",
+                        text_encoding.decode_flags(&last_flag)
+                    )
+                }
             }
             if !manually_skipped {
                 if reader_seekable {
@@ -295,12 +382,18 @@ impl WaveReader {
         }
 
         if isRF64 && !ds64_read {
-            return Err(AudioReadError::DataCorrupted(String::from("the WAV file is a RF64 file but doesn't provide the \"ds64\" chunk")));
+            return Err(AudioReadError::DataCorrupted(String::from(
+                "the WAV file is a RF64 file but doesn't provide the \"ds64\" chunk",
+            )));
         }
 
         let fmt__chunk = match fmt__chunk {
             Some(fmt__chunk) => fmt__chunk,
-            None => return Err(AudioReadError::DataCorrupted(String::from("the whole WAV file doesn't provide the \"data\" chunk"))),
+            None => {
+                return Err(AudioReadError::DataCorrupted(String::from(
+                    "the whole WAV file doesn't provide the \"data\" chunk",
+                )));
+            }
         };
 
         let mut channel_mask: u32 = 0;
@@ -341,81 +434,124 @@ impl WaveReader {
     }
 
     /// Provice spec information
-    pub fn spec(&self) -> Spec{
+    pub fn spec(&self) -> Spec {
         self.spec
     }
 
     /// * The `fact` data is the number of the total samples in the `data` chunk.
-    pub fn get_fact_data(&self) -> u64 {self.fact_data}
+    pub fn get_fact_data(&self) -> u64 {
+        self.fact_data
+    }
 
     /// * The `fmt ` chunk is to specify the detailed audio file format.
-    pub fn get_fmt__chunk(&self) -> &FmtChunk { &self.fmt__chunk }
+    pub fn get_fmt__chunk(&self) -> &FmtChunk {
+        &self.fmt__chunk
+    }
 
     /// * The `slnt` chunk indicates how long to stay silent.
-    pub fn get_slnt_chunk(&self) -> &Option<SlntChunk> { &self.slnt_chunk }
+    pub fn get_slnt_chunk(&self) -> &Option<SlntChunk> {
+        &self.slnt_chunk
+    }
 
     /// * The `bext` chunk has some `description`, `version`, `time_ref` pieces of information, etc.
-    pub fn get_bext_chunk(&self) -> &Option<BextChunk> { &self.bext_chunk }
+    pub fn get_bext_chunk(&self) -> &Option<BextChunk> {
+        &self.bext_chunk
+    }
 
     /// * The `smpl` chunk has some pieces of information about MIDI notes, pitch, etc.
-    pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> { &self.smpl_chunk }
+    pub fn get_smpl_chunk(&self) -> &Option<SmplChunk> {
+        &self.smpl_chunk
+    }
 
     /// * The `inst` chunk has some `base_note`, `gain`, `velocity`, etc.
-    pub fn get_inst_chunk(&self) -> &Option<InstChunk> { &self.inst_chunk }
+    pub fn get_inst_chunk(&self) -> &Option<InstChunk> {
+        &self.inst_chunk
+    }
 
     /// * The `plst` chunk is the playlist, it has a list that each element have `cue_point`, `num_samples`, `repeats`.
-    pub fn get_plst_chunk(&self) -> &Option<PlstChunk> { &self.plst_chunk }
+    pub fn get_plst_chunk(&self) -> &Option<PlstChunk> {
+        &self.plst_chunk
+    }
 
     /// * The `trkn` chunk, by the name.
-    pub fn get_trkn_chunk(&self) -> &Option<TrknChunk> { &self.trkn_chunk }
+    pub fn get_trkn_chunk(&self) -> &Option<TrknChunk> {
+        &self.trkn_chunk
+    }
 
     /// * The `cue ` chunk is with the `plst` chunk, it has a list that each element have `cue_point_id`, `position`, `chunk_start`, etc.
-    pub fn get_cue__chunk(&self) -> &Option<CueChunk> { &self.cue__chunk }
+    pub fn get_cue__chunk(&self) -> &Option<CueChunk> {
+        &self.cue__chunk
+    }
 
     /// * The `axml` chunk. I personally don't know what it is, by the name it looks like some kind of `audio XML`. It's a pure string chunk.
-    pub fn get_axml_chunk(&self) -> &Option<String> { &self.axml_chunk }
+    pub fn get_axml_chunk(&self) -> &Option<String> {
+        &self.axml_chunk
+    }
 
     /// * The `ixml` chunk. I personally don't know what it is, by the name it looks like some kind of `info XML`. It's a pure string chunk.
-    pub fn get_ixml_chunk(&self) -> &Option<String> { &self.ixml_chunk }
+    pub fn get_ixml_chunk(&self) -> &Option<String> {
+        &self.ixml_chunk
+    }
 
     /// * The `list` chunk, it has 2 subtypes, one is `INFO`, and another is `adtl`.
     /// * The `INFO` subtype is the metadata that contains `artist`, `album`, `title`, etc. It lacks `albumartist` info.
     /// * The `adtl` subtype is with the `cue ` chunk, it's a list including the `label`, `note`, `text`, `file` for the playlist.
-    pub fn get_list_chunk(&self) -> &BTreeSet<ListChunk> { &self.list_chunk }
+    pub fn get_list_chunk(&self) -> &BTreeSet<ListChunk> {
+        &self.list_chunk
+    }
 
     /// * The `acid` chunk, contains some pieces of information about the rhythm, e.g. `num_beats`, `tempo`, etc.
-    pub fn get_acid_chunk(&self) -> &Option<AcidChunk> { &self.acid_chunk }
+    pub fn get_acid_chunk(&self) -> &Option<AcidChunk> {
+        &self.acid_chunk
+    }
 
     /// * Another metadata chunk for the audio file. This covers more metadata than the `LIST INFO` chunk.
-    pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> { &self.id3__chunk }
+    pub fn get_id3__chunk(&self) -> &Option<Id3::Tag> {
+        &self.id3__chunk
+    }
 
     /// * The `JUNK` chunk, sometimes it's used for placeholder, sometimes it contains some random data for some random music software to show off.
-    pub fn get_junk_chunks(&self) -> &BTreeSet<JunkChunk> { &self.junk_chunks }
+    pub fn get_junk_chunks(&self) -> &BTreeSet<JunkChunk> {
+        &self.junk_chunks
+    }
 
     /// * If your audio file has `plst`, `cue `, and `LIST adtl` chunks, then BAM you can call this function for full playlist info.
     /// * Returns `Err` if some of these chunks are absent.
     pub fn create_full_info_cue_data(&self) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
         if self.list_chunk.is_empty() {
-            return Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()));
+            return Err(AudioError::NoSuchData(
+                "You don't have a `LIST` chunk.".to_owned(),
+            ));
         }
         for list_chunk in self.list_chunk.iter() {
             if let ListChunk::Adtl(adtl) = list_chunk {
                 return if let Some(ref cue__chunk) = self.cue__chunk {
                     wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
-                    Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
+                    Err(AudioError::NoSuchData(
+                        "You don't have a `cue ` chunk.".to_owned(),
+                    ))
                 };
             } else {
-                eprintln!("The data type of the `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk);
+                eprintln!(
+                    "The data type of the `LIST` chunk is `INFO`, not `adtl`: {:?}",
+                    list_chunk
+                );
             }
         }
-        Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", self.list_chunk)))
+        Err(AudioError::NoSuchData(format!(
+            "The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}",
+            self.list_chunk
+        )))
     }
 
     /// * To verify if a chunk had not read. Some chunks should not be duplicated.
     fn no_duplication<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
-            Err(AudioReadError::DataCorrupted(format!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag))))
+            Err(AudioReadError::DataCorrupted(format!(
+                "Duplicated chunk '{}' in the WAV file",
+                String::from_utf8_lossy(flag)
+            )))
         } else {
             Ok(())
         }
@@ -423,9 +559,14 @@ impl WaveReader {
 
     /// * Some chunks may appears more than once, only read the first one
     fn ignore_laters<T>(o: &mut Option<T>, flag: &[u8; 4], mut on_read: impl FnMut() -> Option<T>)
-    where T: Default {
+    where
+        T: Default,
+    {
         if o.is_some() {
-            eprintln!("Duplicated chunk '{}' in the WAV file", String::from_utf8_lossy(flag));
+            eprintln!(
+                "Duplicated chunk '{}' in the WAV file",
+                String::from_utf8_lossy(flag)
+            );
         } else {
             *o = on_read();
         }
@@ -437,24 +578,51 @@ impl WaveReader {
     /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_iter<S>(&mut self) -> Result<FrameIter<S>, AudioReadError>
-    where S: SampleType {
-        FrameIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        FrameIter::<S>::new(
+            &self.data_chunk,
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 
     /// ## Create an iterator for iterating through each audio frame, excretes mono-channel samples.
     /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
-    where S: SampleType {
-        MonoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        MonoIter::<S>::new(
+            &self.data_chunk,
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 
     /// ## Create an iterator for iterating through each audio frame, excretes two-channel stereo frames.
     /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
-    where S: SampleType {
-        StereoIter::<S>::new(&self.data_chunk, self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        StereoIter::<S>::new(
+            &self.data_chunk,
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes multi-channel audio frames.
@@ -463,24 +631,51 @@ impl WaveReader {
     /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
     pub fn frame_intoiter<S>(mut self) -> Result<FrameIntoIter<S>, AudioReadError>
-    where S: SampleType {
-        FrameIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        FrameIntoIter::<S>::new(
+            mem::take(&mut self.data_chunk),
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes mono-channel samples.
     /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_intoiter<S>(mut self) -> Result<MonoIntoIter<S>, AudioReadError>
-    where S: SampleType {
-        MonoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        MonoIntoIter::<S>::new(
+            mem::take(&mut self.data_chunk),
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 
     /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes two-channel stereo frames.
     /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_intoiter<S>(mut self) -> Result<StereoIntoIter<S>, AudioReadError>
-    where S: SampleType {
-        StereoIntoIter::<S>::new(mem::take(&mut self.data_chunk), self.data_chunk.offset, self.data_chunk.length, self.spec, self.fmt__chunk, self.fact_data)
+    where
+        S: SampleType,
+    {
+        StereoIntoIter::<S>::new(
+            mem::take(&mut self.data_chunk),
+            self.data_chunk.offset,
+            self.data_chunk.length,
+            self.spec,
+            self.fmt__chunk,
+            self.fact_data,
+        )
     }
 }
 
@@ -494,57 +689,159 @@ impl IntoIterator for WaveReader {
     }
 }
 
-fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], cur_pos: &mut u64) -> Result<(), AudioReadError> {
+fn expect_flag<T: Read>(
+    r: &mut T,
+    flag: &[u8; 4],
+    cur_pos: &mut u64,
+) -> Result<(), AudioReadError> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf)?;
     *cur_pos += 4;
     if &buf != flag {
         Err(AudioReadError::UnexpectedFlag(
             String::from_utf8_lossy(flag).to_string(),
-            String::from_utf8_lossy(&buf).to_string())
-        )
+            String::from_utf8_lossy(&buf).to_string(),
+        ))
     } else {
         Ok(())
     }
 }
 
 /// ## Create the decoder for each specific `format_tag` in the `fmt` chunk.
-fn create_decoder<S>(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Box<dyn Decoder<S>>, AudioReadError>
-where S: SampleType {
+fn create_decoder<S>(
+    reader: Box<dyn Reader>,
+    data_offset: u64,
+    data_length: u64,
+    spec: Spec,
+    fmt: FmtChunk,
+    fact_data: u64,
+) -> Result<Box<dyn Decoder<S>>, AudioReadError>
+where
+    S: SampleType,
+{
     use wavcore::format_tags::*;
     match fmt.format_tag {
-        FORMAT_TAG_PCM | FORMAT_TAG_PCM_IEEE => Ok(Box::new(PcmDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?)),
-        FORMAT_TAG_ALAW => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::ALaw, data_offset, data_length, fmt, fact_data)?)),
-        FORMAT_TAG_MULAW => Ok(Box::new(PcmXLawDecoderWrap::new(reader, XLaw::MuLaw, data_offset, data_length, fmt, fact_data)?)),
-        FORMAT_TAG_ADPCM_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(reader, data_offset, data_length, fmt, fact_data)?)),
-        FORMAT_TAG_ADPCM_IMA | FORMAT_TAG_ADPCM_IMA_ => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
-        FORMAT_TAG_ADPCM_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(reader, data_offset, data_length, fmt, fact_data)?)),
+        FORMAT_TAG_PCM | FORMAT_TAG_PCM_IEEE => Ok(Box::new(PcmDecoder::<S>::new(
+            reader,
+            data_offset,
+            data_length,
+            spec,
+            fmt,
+        )?)),
+        FORMAT_TAG_ALAW => Ok(Box::new(PcmXLawDecoderWrap::new(
+            reader,
+            XLaw::ALaw,
+            data_offset,
+            data_length,
+            fmt,
+            fact_data,
+        )?)),
+        FORMAT_TAG_MULAW => Ok(Box::new(PcmXLawDecoderWrap::new(
+            reader,
+            XLaw::MuLaw,
+            data_offset,
+            data_length,
+            fmt,
+            fact_data,
+        )?)),
+        FORMAT_TAG_ADPCM_MS => Ok(Box::new(AdpcmDecoderWrap::<DecMS>::new(
+            reader,
+            data_offset,
+            data_length,
+            fmt,
+            fact_data,
+        )?)),
+        FORMAT_TAG_ADPCM_IMA | FORMAT_TAG_ADPCM_IMA_ => Ok(Box::new(
+            AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?,
+        )),
+        FORMAT_TAG_ADPCM_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(
+            reader,
+            data_offset,
+            data_length,
+            fmt,
+            fact_data,
+        )?)),
         FORMAT_TAG_MP3 => {
             #[cfg(feature = "mp3dec")]
-            {Ok(Box::new(Mp3Decoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            {
+                Ok(Box::new(Mp3Decoder::new(
+                    reader,
+                    data_offset,
+                    data_length,
+                    fmt,
+                    fact_data,
+                )?))
+            }
             #[cfg(not(feature = "mp3dec"))]
-            {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding MP3 audio data inside the WAV file")))}
-        },
-        FORMAT_TAG_VORBIS => { // Ogg Vorbis
+            {
+                Err(AudioReadError::Unimplemented(String::from(
+                    "not implemented for decoding MP3 audio data inside the WAV file",
+                )))
+            }
+        }
+        FORMAT_TAG_VORBIS => {
+            // Ogg Vorbis
             #[cfg(feature = "vorbis")]
-            {Ok(Box::new(VorbisDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            {
+                Ok(Box::new(VorbisDecoderWrap::new(
+                    reader,
+                    data_offset,
+                    data_length,
+                    fmt,
+                    fact_data,
+                )?))
+            }
             #[cfg(not(feature = "vorbis"))]
-            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding ogg vorbis audio data inside the WAV file")))
-        },
+            Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding ogg vorbis audio data inside the WAV file",
+            )))
+        }
         FORMAT_TAG_OPUS => {
             #[cfg(feature = "opus")]
-            {Ok(Box::new(OpusDecoder::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            {
+                Ok(Box::new(OpusDecoder::new(
+                    reader,
+                    data_offset,
+                    data_length,
+                    fmt,
+                    fact_data,
+                )?))
+            }
             #[cfg(not(feature = "opus"))]
-            {Err(AudioReadError::Unimplemented(String::from("not implemented for decoding opus audio data inside the WAV file")))}
-        },
-        FORMAT_TAG_FLAC => { // FLAC
+            {
+                Err(AudioReadError::Unimplemented(String::from(
+                    "not implemented for decoding opus audio data inside the WAV file",
+                )))
+            }
+        }
+        FORMAT_TAG_FLAC => {
+            // FLAC
             #[cfg(feature = "flac")]
-            {Ok(Box::new(FlacDecoderWrap::new(reader, data_offset, data_length, fmt, fact_data)?))}
+            {
+                Ok(Box::new(FlacDecoderWrap::new(
+                    reader,
+                    data_offset,
+                    data_length,
+                    fmt,
+                    fact_data,
+                )?))
+            }
             #[cfg(not(feature = "flac"))]
-            Err(AudioReadError::Unimplemented(String::from("not implemented for decoding FLAC audio data inside the WAV file")))
-        },
-        FORMAT_TAG_EXTENSIBLE => Ok(ExtensibleDecoder::<S>::new(reader, data_offset, data_length, spec, fmt)?),
-        other => Err(AudioReadError::Unimplemented(format!("Not implemented for format_tag 0x{:x}", other))),
+            Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding FLAC audio data inside the WAV file",
+            )))
+        }
+        FORMAT_TAG_EXTENSIBLE => Ok(ExtensibleDecoder::<S>::new(
+            reader,
+            data_offset,
+            data_length,
+            spec,
+            fmt,
+        )?),
+        other => Err(AudioReadError::Unimplemented(format!(
+            "Not implemented for format_tag 0x{:x}",
+            other
+        ))),
     }
 }
 
@@ -570,7 +867,14 @@ pub struct FileDataSource {
 }
 
 impl FileDataSource {
-    pub fn new(mut reader: Option<&mut dyn Reader>, filepath: Option<String>, data_offset: u64, data_size: u64, reader_seekable: bool, reader_cur_pos: &mut u64) -> Result<Self, AudioReadError> {
+    pub fn new(
+        mut reader: Option<&mut dyn Reader>,
+        filepath: Option<String>,
+        data_offset: u64,
+        data_size: u64,
+        reader_seekable: bool,
+        reader_cur_pos: &mut u64,
+    ) -> Result<Self, AudioReadError> {
         let (file, offset, filepath) = if let Some(ref filepath) = filepath {
             // If we have the file path, we can open the file anytime anyway as we want.
             let path = PathBuf::from(filepath);
@@ -600,7 +904,9 @@ impl FileDataSource {
 
             (file, offset, filepath)
         } else {
-            return Err(AudioReadError::InvalidArguments("Must provide a `reader` or a `filepath`".to_string()));
+            return Err(AudioReadError::InvalidArguments(
+                "Must provide a `reader` or a `filepath`".to_string(),
+            ));
         };
 
         let mut hasher = FileHasher::new();
@@ -649,7 +955,9 @@ impl Default for FileDataSource {
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple frames.
 #[derive(Debug)]
 pub struct FrameIter<'a, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a FileDataSource,
 
@@ -670,8 +978,17 @@ where S: SampleType {
 }
 
 impl<'a, S> FrameIter<'a, S>
-where S: SampleType {
-    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: &'a FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -691,7 +1008,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for FrameIter<'_, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = Vec<S>;
 
     /// * This method is for decoding each audio frame.
@@ -711,7 +1030,9 @@ where S: SampleType {
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
 pub struct MonoIter<'a, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a FileDataSource,
 
@@ -732,8 +1053,17 @@ where S: SampleType {
 }
 
 impl<'a, S> MonoIter<'a, S>
-where S: SampleType {
-    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: &'a FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -753,7 +1083,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for MonoIter<'_, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = S;
 
     /// * This method is for decoding each audio frame.
@@ -768,13 +1100,14 @@ where S: SampleType {
     }
 }
 
-
 /// ## The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
 /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
 pub struct StereoIter<'a, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The borrowed data reader from the `WaveReader`
     data_reader: &'a FileDataSource,
 
@@ -795,8 +1128,17 @@ where S: SampleType {
 }
 
 impl<'a, S> StereoIter<'a, S>
-where S: SampleType {
-    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: &'a FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -816,7 +1158,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for StereoIter<'_, S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = (S, S);
 
     /// * This method is for decoding each audio frame.
@@ -839,7 +1183,9 @@ where S: SampleType {
 /// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct FrameIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The owned data reader from the `WaveReader`
     data_reader: FileDataSource,
 
@@ -860,8 +1206,17 @@ where S: SampleType {
 }
 
 impl<S> FrameIntoIter<S>
-where S: SampleType {
-    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -881,7 +1236,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for FrameIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = Vec<S>;
 
     /// * This method is for decoding each audio frame.
@@ -902,7 +1259,9 @@ where S: SampleType {
 /// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct MonoIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The owned data reader from the `WaveReader`
     data_reader: FileDataSource,
 
@@ -923,8 +1282,17 @@ where S: SampleType {
 }
 
 impl<S> MonoIntoIter<S>
-where S: SampleType {
-    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -944,7 +1312,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for MonoIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = S;
 
     /// * This method is for decoding each audio frame.
@@ -965,7 +1335,9 @@ where S: SampleType {
 /// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
 #[derive(Debug)]
 pub struct StereoIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     /// * The owned data reader from the `WaveReader`
     data_reader: FileDataSource,
 
@@ -986,8 +1358,17 @@ where S: SampleType {
 }
 
 impl<S> StereoIntoIter<S>
-where S: SampleType {
-    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+where
+    S: SampleType,
+{
+    fn new(
+        data_reader: FileDataSource,
+        data_offset: u64,
+        data_length: u64,
+        spec: Spec,
+        fmt: FmtChunk,
+        fact_data: u64,
+    ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -1007,7 +1388,9 @@ where S: SampleType {
 }
 
 impl<S> Iterator for StereoIntoIter<S>
-where S: SampleType {
+where
+    S: SampleType,
+{
     type Item = (S, S);
 
     /// * This method is for decoding each audio frame.
@@ -1021,4 +1404,3 @@ where S: SampleType {
         self.next()
     }
 }
-

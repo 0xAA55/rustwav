@@ -1,15 +1,15 @@
-mod errors;
-mod savagestr;
-mod readwrite;
-mod copiablebuf;
-mod filehasher;
 mod adpcm;
-mod xlaw;
+mod copiablebuf;
 mod downmixer;
+mod errors;
+mod filehasher;
+mod hacks;
+mod readwrite;
+mod savagestr;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
-mod hacks;
+mod xlaw;
 
 /// ## The utility for both you and me to convert waveform format.
 pub mod utils;
@@ -23,25 +23,30 @@ pub mod decoders;
 #[doc(hidden)]
 pub use sampletypes::{i24, u24};
 
-pub use sampletypes::{SampleType, SampleFrom};
-pub use readwrite::{Reader, Writer, ReadBridge, WriteBridge, SharedReader, SharedWriter, string_io};
-pub use wavcore::{Spec, SampleFormat, DataFormat};
-pub use wavreader::{WaveDataSource, WaveReader, FrameIter, StereoIter, MonoIter, FrameIntoIter, StereoIntoIter, MonoIntoIter};
-pub use wavwriter::{FileSizeOption, WaveWriter};
-pub use resampler::Resampler;
-pub use errors::{AudioReadError, AudioError, AudioWriteError};
-pub use wavcore::{AdpcmSubFormat};
-pub use wavcore::{FlacEncoderParams, FlacCompression};
 pub use downmixer::{Downmixer, DownmixerParams, SpeakerPosition};
+pub use errors::{AudioError, AudioReadError, AudioWriteError};
+pub use readwrite::{
+    ReadBridge, Reader, SharedReader, SharedWriter, WriteBridge, Writer, string_io,
+};
+pub use resampler::Resampler;
+pub use sampletypes::{SampleFrom, SampleType};
+pub use wavcore::AdpcmSubFormat;
+pub use wavcore::{DataFormat, SampleFormat, Spec};
+pub use wavcore::{FlacCompression, FlacEncoderParams};
+pub use wavreader::{
+    FrameIntoIter, FrameIter, MonoIntoIter, MonoIter, StereoIntoIter, StereoIter, WaveDataSource,
+    WaveReader,
+};
+pub use wavwriter::{FileSizeOption, WaveWriter};
 
 #[doc(inline)]
-pub use encoders::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
+pub use encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
 
 #[doc(inline)]
-pub use encoders::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
+pub use encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 
 #[doc(inline)]
-pub use encoders::{VorbisEncoderParams, VorbisBitrateStrategy};
+pub use encoders::{VorbisBitrateStrategy, VorbisEncoderParams};
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 10] = [
@@ -51,52 +56,63 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
     ("adpcm-ms", DataFormat::Adpcm(AdpcmSubFormat::Ms)),
     ("adpcm-ima", DataFormat::Adpcm(AdpcmSubFormat::Ima)),
     ("adpcm-yamaha", DataFormat::Adpcm(AdpcmSubFormat::Yamaha)),
-    ("mp3", DataFormat::Mp3(Mp3EncoderOptions{
-        channels: Mp3Channels::NotSet,
-        quality: Mp3Quality::Best,
-        bitrate: Mp3Bitrate::Kbps320,
-        vbr_mode: Mp3VbrMode::Off,
-        id3tag: None,
-    })),
-    ("opus", DataFormat::Opus(OpusEncoderOptions{
-        bitrate: OpusBitrate::Max,
-        encode_vbr: false,
-        samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
-    })),
-    ("flac", DataFormat::Flac(FlacEncoderParams{
-        verify_decoded: false,
-        compression: FlacCompression::Level8,
-        channels: 2,
-        sample_rate: 44100,
-        bits_per_sample: 32,
-        total_samples_estimate: 0,
-    })),
-    ("vorbis", DataFormat::Vorbis(VorbisEncoderParams{
-        channels: 2,
-        sample_rate: 44100,
-        stream_serial: None,
-        bitrate: Some(VorbisBitrateStrategy::Vbr(320_000)),
-        minimum_page_data_size: None,
-    }))
+    (
+        "mp3",
+        DataFormat::Mp3(Mp3EncoderOptions {
+            channels: Mp3Channels::NotSet,
+            quality: Mp3Quality::Best,
+            bitrate: Mp3Bitrate::Kbps320,
+            vbr_mode: Mp3VbrMode::Off,
+            id3tag: None,
+        }),
+    ),
+    (
+        "opus",
+        DataFormat::Opus(OpusEncoderOptions {
+            bitrate: OpusBitrate::Max,
+            encode_vbr: false,
+            samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
+        }),
+    ),
+    (
+        "flac",
+        DataFormat::Flac(FlacEncoderParams {
+            verify_decoded: false,
+            compression: FlacCompression::Level8,
+            channels: 2,
+            sample_rate: 44100,
+            bits_per_sample: 32,
+            total_samples_estimate: 0,
+        }),
+    ),
+    (
+        "vorbis",
+        DataFormat::Vorbis(VorbisEncoderParams {
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(VorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
 ];
 
 /// ## The fft size can be any number greater than the sample rate of the encoder or the decoder.
 /// * It is for the resampler. A greater number results in better resample quality, but the process could be slower.
 /// * In most cases, the audio sampling rate is about `11025` to `48000`, so `65536` is the best number for the resampler.
 pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
-	for i in 0..31 {
-		let fft_size = 1usize << i;
-		if fft_size >= sample_rate as usize {
-			return fft_size;
-		}
-	}
-	0x1_00000000_usize
+    for i in 0..31 {
+        let fft_size = 1usize << i;
+        if fft_size >= sample_rate as usize {
+            return fft_size;
+        }
+    }
+    0x1_00000000_usize
 }
 
 /// ## Transfer audio from the decoder to the encoder with resampling.
 /// * This allows to transfer of audio from the decoder to a different sample rate encoder.
 pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mut WaveWriter) {
-
     // The decoding audio spec
     let decode_spec = decoder.spec();
 
@@ -131,10 +147,15 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(&resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_mono(
+                    &resampler,
+                    &block,
+                    decode_sample_rate,
+                    encode_sample_rate,
+                );
                 encoder.write_mono_channel(&block).unwrap();
             }
-        },
+        }
         2 => {
             let mut iter = decoder.stereo_iter::<f32>().unwrap();
             loop {
@@ -142,10 +163,15 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(&resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_stereo(
+                    &resampler,
+                    &block,
+                    decode_sample_rate,
+                    encode_sample_rate,
+                );
                 encoder.write_stereos(&block).unwrap();
             }
-        },
+        }
         _ => {
             let mut iter = decoder.frame_iter::<f32>().unwrap();
             loop {
@@ -153,14 +179,19 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(&resampler, &block, decode_sample_rate, encode_sample_rate);
+                let block = utils::do_resample_frames(
+                    &resampler,
+                    &block,
+                    decode_sample_rate,
+                    encode_sample_rate,
+                );
                 encoder.write_frames(&block).unwrap();
             }
         }
     }
 }
 
-use std::{env::args, process::ExitCode, error::Error};
+use std::{env::args, error::Error, process::ExitCode};
 
 /// ## The `test()` function
 /// * arg1: the format, e.g. "pcm"
@@ -178,7 +209,18 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
 
     // Failed to match the data format
     if data_format == DataFormat::Unspecified {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Unknown format `{arg1}`. Please input one of these:\n{}", FORMATS.iter().map(|(s, _v)|{s.to_string()}).collect::<Vec<String>>().join(", "))).into());
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "Unknown format `{arg1}`. Please input one of these:\n{}",
+                FORMATS
+                    .iter()
+                    .map(|(s, _v)| { s.to_string() })
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
+        )
+        .into());
     }
 
     println!("======== TEST 1 ========");
@@ -199,27 +241,25 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     };
 
     match data_format {
-        DataFormat::Mp3(ref mut options) => {
-            match spec.channels {
-                1 => options.channels = Mp3Channels::Mono,
-                2 => options.channels = Mp3Channels::JointStereo,
-                o => panic!("MP3 format can't encode {o} channels audio."),
-            }
+        DataFormat::Mp3(ref mut options) => match spec.channels {
+            1 => options.channels = Mp3Channels::Mono,
+            2 => options.channels = Mp3Channels::JointStereo,
+            o => panic!("MP3 format can't encode {o} channels audio."),
         },
         DataFormat::Opus(ref options) => {
             spec.sample_rate = options.get_rounded_up_sample_rate(spec.sample_rate);
-        },
+        }
         DataFormat::Flac(ref mut options) => {
             options.channels = spec.channels;
             options.sample_rate = spec.sample_rate;
             options.bits_per_sample = spec.bits_per_sample as u32;
-        },
+        }
         _ => (),
     }
 
     // Just to let you know, WAV file can be larger than 4 GB
-	#[allow(unused_imports)]
-	use FileSizeOption::{NeverLargerThan4GB, AllowLargerThan4GB, ForceUse4GBFormat};
+    #[allow(unused_imports)]
+    use FileSizeOption::{AllowLargerThan4GB, ForceUse4GBFormat, NeverLargerThan4GB};
 
     // This is the encoder
     let mut wavewriter = WaveWriter::create(arg3, spec, data_format, NeverLargerThan4GB).unwrap();
@@ -248,14 +288,14 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     };
 
     let mut wavereader_2 = WaveReader::open(arg3).unwrap();
-    let mut wavewriter_2 = WaveWriter::create(arg4, spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 =
+        WaveWriter::create(arg4, spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     // Transfer audio samples from the decoder to the encoder
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
 
     // Get the metadata from the decoder
     wavewriter_2.inherit_metadata_from_reader(&wavereader_2, true);
-
 
     // Show debug info
     dbg!(&wavereader_2);
@@ -275,7 +315,9 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
 #[allow(dead_code)]
 pub fn test_wav() -> ExitCode {
     let args: Vec<String> = args().collect();
-    if args.len() < 5 {return ExitCode::from(1);}
+    if args.len() < 5 {
+        return ExitCode::from(1);
+    }
     let input_wav = &args[1];
     let output_wav = &args[2];
     let reinput_wav = &args[3];
@@ -285,18 +327,24 @@ pub fn test_wav() -> ExitCode {
         Err(e) => {
             eprintln!("{:?}", e);
             ExitCode::from(2)
-        },
+        }
     }
 }
 
 macro_rules! test_fn {
-	($name:ident, $index:expr) => {
-		#[test]
-		pub fn $name() {
-		    let fmt = FORMATS[$index].0;
-		    test(fmt, "test.wav", &format!("{fmt}_test_encode.wav"), &format!("{fmt}_test_decode.wav")).unwrap();
-		}
-	}
+    ($name:ident, $index:expr) => {
+        #[test]
+        pub fn $name() {
+            let fmt = FORMATS[$index].0;
+            test(
+                fmt,
+                "test.wav",
+                &format!("{fmt}_test_encode.wav"),
+                &format!("{fmt}_test_decode.wav"),
+            )
+            .unwrap();
+        }
+    };
 }
 
 test_fn!(test0, 0);

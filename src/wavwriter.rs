@@ -1,24 +1,32 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use std::{fs::File, io::{BufWriter, SeekFrom}, path::Path, collections::{BTreeSet, BTreeMap}};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    io::{BufWriter, SeekFrom},
+    path::Path,
+};
 
-use crate::Writer;
-use crate::WaveReader;
-use crate::{AudioWriteError, AudioError};
 use crate::SampleType;
+use crate::WaveReader;
+use crate::Writer;
+use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
+use crate::encoders::{AdpcmEncoderWrap, Encoder, PcmEncoder, PcmXLawEncoderWrap};
+use crate::hacks;
+use crate::readwrite::string_io::*;
+use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
 use crate::wavcore;
-use crate::wavcore::{DataFormat, AdpcmSubFormat, Spec, SampleFormat};
 use crate::wavcore::ChunkWriter;
 use crate::wavcore::FmtChunk;
-use crate::wavcore::{SlntChunk, BextChunk, SmplChunk, InstChunk, PlstChunk, TrknChunk, CueChunk, ListChunk, AcidChunk, JunkChunk, Id3};
 use crate::wavcore::FullInfoCuePoint;
-use crate::encoders::{Encoder, PcmEncoder, AdpcmEncoderWrap, PcmXLawEncoderWrap};
-use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
-use crate::readwrite::string_io::*;
-use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
-use crate::hacks;
+use crate::wavcore::{
+    AcidChunk, BextChunk, CueChunk, Id3, InstChunk, JunkChunk, ListChunk, PlstChunk, SlntChunk,
+    SmplChunk, TrknChunk,
+};
+use crate::wavcore::{AdpcmSubFormat, DataFormat, SampleFormat, Spec};
 use crate::xlaw::XLaw;
+use crate::{AudioError, AudioWriteError};
 
 #[cfg(feature = "mp3enc")]
 use crate::encoders::mp3::Mp3Encoder;
@@ -34,7 +42,7 @@ use crate::encoders::vorbis_enc::VorbisEncoderWrap;
 
 /// ## These options are used to specify what type of WAV file you want to create.
 #[derive(Debug)]
-pub enum FileSizeOption{
+pub enum FileSizeOption {
     /// * You specify the WAV file will never be larger than 4 GB. If the WAV file is about to exceed 4 GB and you continue to write data into it, errors occur.
     /// * This kind of WAV file is the most common one, most of the WAV parser supports this format.
     NeverLargerThan4GB,
@@ -87,15 +95,26 @@ pub struct WaveWriter<'a> {
 
 impl<'a> WaveWriter<'a> {
     /// ## Create WAV file through a file path.
-    pub fn create<P: AsRef<Path>>(filename: P, spec: Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
+    pub fn create<P: AsRef<Path>>(
+        filename: P,
+        spec: Spec,
+        data_format: DataFormat,
+        file_size_option: FileSizeOption,
+    ) -> Result<WaveWriter<'a>, AudioWriteError> {
         let file_writer = BufWriter::new(File::create(filename)?);
-        let wave_writer = WaveWriter::from(Box::new(file_writer), spec, data_format, file_size_option)?;
+        let wave_writer =
+            WaveWriter::from(Box::new(file_writer), spec, data_format, file_size_option)?;
         Ok(wave_writer)
     }
 
     /// ## Write the WAV file to the writer.
-    pub fn from(writer: Box<dyn Writer + 'a>, spec: Spec, data_format: DataFormat, file_size_option: FileSizeOption) -> Result<WaveWriter<'a>, AudioWriteError> {
-        let mut ret = Self{
+    pub fn from(
+        writer: Box<dyn Writer + 'a>,
+        spec: Spec,
+        data_format: DataFormat,
+        file_size_option: FileSizeOption,
+    ) -> Result<WaveWriter<'a>, AudioWriteError> {
+        let mut ret = Self {
             writer,
             spec,
             data_format,
@@ -133,48 +152,92 @@ impl<'a> WaveWriter<'a> {
         self.encoder = match self.data_format {
             DataFormat::Pcm => {
                 spec.verify_for_pcm()?;
-                Encoder::new(PcmEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?)
+                Encoder::new(PcmEncoder::new(
+                    hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                    spec,
+                )?)
+            }
+            DataFormat::Adpcm(sub_format) => match sub_format {
+                AdpcmSubFormat::Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(
+                    hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                    spec,
+                )?),
+                AdpcmSubFormat::Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(
+                    hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                    spec,
+                )?),
+                AdpcmSubFormat::Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(
+                    hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                    spec,
+                )?),
             },
-            DataFormat::Adpcm(sub_format) => {
-                match sub_format {
-                    AdpcmSubFormat::Ima => Encoder::new(AdpcmEncoderWrap::<EncIMA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
-                    AdpcmSubFormat::Ms => Encoder::new(AdpcmEncoderWrap::<EncMS>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
-                    AdpcmSubFormat::Yamaha => Encoder::new(AdpcmEncoderWrap::<EncYAMAHA>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec)?),
-                }
-            },
-            DataFormat::PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::ALaw)),
-            DataFormat::PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, XLaw::MuLaw)),
+            DataFormat::PcmALaw => Encoder::new(PcmXLawEncoderWrap::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                spec,
+                XLaw::ALaw,
+            )),
+            DataFormat::PcmMuLaw => Encoder::new(PcmXLawEncoderWrap::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                spec,
+                XLaw::MuLaw,
+            )),
             #[cfg(feature = "mp3enc")]
-            DataFormat::Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, mp3_options)?),
+            DataFormat::Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                spec,
+                mp3_options,
+            )?),
             #[cfg(feature = "opus")]
-            DataFormat::Opus(ref opus_options) => Encoder::new(OpusEncoder::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), spec, opus_options)?),
+            DataFormat::Opus(ref opus_options) => Encoder::new(OpusEncoder::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                spec,
+                opus_options,
+            )?),
             #[cfg(feature = "flac")]
-            DataFormat::Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), flac_options)?),
+            DataFormat::Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                flac_options,
+            )?),
             #[cfg(feature = "vorbis")]
-            DataFormat::Vorbis(vorbis_options) => Encoder::new(VorbisEncoderWrap::new(hacks::force_borrow_mut!(*self.writer, dyn Writer), vorbis_options)?),
-            DataFormat::Unspecified => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {}.", self.data_format))),
+            DataFormat::Vorbis(vorbis_options) => Encoder::new(VorbisEncoderWrap::new(
+                hacks::force_borrow_mut!(*self.writer, dyn Writer),
+                vorbis_options,
+            )?),
+            DataFormat::Unspecified => {
+                return Err(AudioWriteError::InvalidArguments(format!(
+                    "`data_format` is {}.",
+                    self.data_format
+                )));
+            }
             #[allow(unreachable_patterns)]
-            other => return Err(AudioWriteError::InvalidArguments(format!("`data_format` is {other} which is a disabled feature."))),
+            other => {
+                return Err(AudioWriteError::InvalidArguments(format!(
+                    "`data_format` is {other} which is a disabled feature."
+                )));
+            }
         };
         Ok(())
     }
 
     fn write_header(&mut self) -> Result<(), AudioWriteError> {
-        use SampleFormat::{Int, UInt, Float};
+        use SampleFormat::{Float, Int, UInt};
 
-        self.riff_chunk = Some(ChunkWriter::begin(hacks::force_borrow_mut!(*self.writer, dyn Writer), b"RIFF")?);
+        self.riff_chunk = Some(ChunkWriter::begin(
+            hacks::force_borrow_mut!(*self.writer, dyn Writer),
+            b"RIFF",
+        )?);
 
         // The first 4 bytes of the `RIFF` or `RF64` chunk must be `WAVE`. Then follows each chunk.
         self.writer.write_all(b"WAVE")?;
 
-        // If the WAV file may exceed 4GB in size, the RF64 format must be used. 
+        // If the WAV file may exceed 4GB in size, the RF64 format must be used.
         // This requires reserving a JUNK chunk after the WAVE header as a placeholder for the ds64 metadata.
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => (),
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 let cw = ChunkWriter::begin(&mut self.writer, b"JUNK")?;
                 cw.writer.write_all(&[0u8; 28])?;
-            },
+            }
         }
 
         // Uses the encoder's `new_fmt_chunk()` to generate the fmt chunk data.
@@ -191,14 +254,17 @@ impl<'a> WaveWriter<'a> {
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => {
                 0u32.write_le(&mut cw.writer)?;
-            },
+            }
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 0u64.write_le(&mut cw.writer)?;
-            },
+            }
         }
         cw.end();
 
-        self.data_chunk = Some(ChunkWriter::begin(hacks::force_borrow_mut!(*self.writer, dyn Writer), b"data")?);
+        self.data_chunk = Some(ChunkWriter::begin(
+            hacks::force_borrow_mut!(*self.writer, dyn Writer),
+            b"data",
+        )?);
         self.data_offset = self.data_chunk.as_ref().unwrap().get_chunk_start_pos();
 
         self.encoder.begin_encoding()?;
@@ -209,129 +275,182 @@ impl<'a> WaveWriter<'a> {
     /// Stores audio samples. The generic parameter `S` represents the user-provided input format.
     /// The encoder converts samples to the internal target format before encoding them into the WAV file.
     pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_samples(samples)?;
             self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Saves a single mono sample. Avoid frequent calls due to inefficiency.
     pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_sample(mono)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Batch-saves mono samples.
     pub fn write_mono_channel<S>(&mut self, monos: &[S]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_mono_channel(monos)?;
             self.num_frames_written += monos.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Batch-saves multiple mono channels.
     pub fn write_monos<S>(&mut self, monos: &[Vec<S>]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_monos(monos)?;
             self.num_frames_written += monos[0].len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Saves a single stereo sample (left + right). Avoid frequent calls due to inefficiency.
     pub fn write_stereo<S>(&mut self, stereo: (S, S)) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_stereo(stereo)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Batch-saves stereo samples.
     pub fn write_stereos<S>(&mut self, stereos: &[(S, S)]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             if self.spec.channels != 2 {
-                return Err(AudioWriteError::WrongChannels(format!("Can't write stereo audio to {} channels audio file.", self.spec.channels)));
+                return Err(AudioWriteError::WrongChannels(format!(
+                    "Can't write stereo audio to {} channels audio file.",
+                    self.spec.channels
+                )));
             }
             self.encoder.write_stereos(stereos)?;
             self.num_frames_written += stereos.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Saves two mono samples (as one stereo frame). Avoid frequent calls due to inefficiency.
     pub fn write_dual_mono<S>(&mut self, mono1: S, mono2: S) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_dual_mono(mono1, mono2)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Batch-saves pairs of mono samples (as stereo audio).
     pub fn write_dual_monos<S>(&mut self, mono1: &[S], mono2: &[S]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_dual_monos(mono1, mono2)?;
             self.num_frames_written += mono1.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Saves one audio frame. Avoid frequent calls due to inefficiency. Supports multi-channel layouts.
     pub fn write_frame<S>(&mut self, frame: &[S]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_frame(frame)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// Batch-saves audio frames. Supports multi-channel layouts.
     pub fn write_frames<S>(&mut self, frames: &[Vec<S>]) -> Result<(), AudioWriteError>
-    where S: SampleType {
+    where
+        S: SampleType,
+    {
         if self.data_chunk.is_some() {
             self.encoder.write_frames(frames, self.spec.channels)?;
             self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
-            Err(AudioWriteError::AlreadyFinished("The `data` chunk was sealed, and no longer accepts new samples to be encoded.".to_owned()))
+            Err(AudioWriteError::AlreadyFinished(
+                "The `data` chunk was sealed, and no longer accepts new samples to be encoded."
+                    .to_owned(),
+            ))
         }
     }
 
     /// * Get the spec for the `WaveWriter`
-    pub fn spec(&self) -> Spec{
+    pub fn spec(&self) -> Spec {
         self.spec
     }
     /// * See `WaveReader`
@@ -414,20 +533,30 @@ impl<'a> WaveWriter<'a> {
     /// * Returns `Err` if some of these chunks are absent.
     pub fn create_full_info_cue_data(&self) -> Result<BTreeMap<u32, FullInfoCuePoint>, AudioError> {
         if self.list_chunk.is_empty() {
-            return Err(AudioError::NoSuchData("You don't have a `LIST` chunk.".to_owned()));
+            return Err(AudioError::NoSuchData(
+                "You don't have a `LIST` chunk.".to_owned(),
+            ));
         }
         for list_chunk in self.list_chunk.iter() {
             if let ListChunk::Adtl(adtl) = list_chunk {
                 return if let Some(ref cue__chunk) = self.cue__chunk {
                     wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
-                    Err(AudioError::NoSuchData("You don't have a `cue ` chunk.".to_owned()))
+                    Err(AudioError::NoSuchData(
+                        "You don't have a `cue ` chunk.".to_owned(),
+                    ))
                 };
             } else {
-                eprintln!("The data type of the `LIST` chunk is `INFO`, not `adtl`: {:?}", list_chunk);
+                eprintln!(
+                    "The data type of the `LIST` chunk is `INFO`, not `adtl`: {:?}",
+                    list_chunk
+                );
             }
         }
-        Err(AudioError::NoSuchData(format!("The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}", self.list_chunk)))
+        Err(AudioError::NoSuchData(format!(
+            "The data type of your `LIST` chunk is `INFO`, not `adtl`: {:?}",
+            self.list_chunk
+        )))
     }
 
     /// * Finalizes writing to the data chunk and updates relevant parameters in the `fmt` chunk.
@@ -454,10 +583,10 @@ impl<'a> WaveWriter<'a> {
         match self.file_size_option {
             FileSizeOption::NeverLargerThan4GB => {
                 (fact_data.clamp(0, 0xFFFFFFFF) as u32).write_le(&mut self.writer)?;
-            },
+            }
             FileSizeOption::AllowLargerThan4GB | FileSizeOption::ForceUse4GBFormat => {
                 fact_data.write_le(&mut self.writer)?;
-            },
+            }
         }
 
         // Get back to the end of the data chunk, and then write all remaining chunks (metadata, auxiliary data) to the file.
@@ -485,7 +614,9 @@ impl<'a> WaveWriter<'a> {
         }
 
         // Writes all JUNK chunks to the file.
-        self.junk_chunks.iter().for_each(|chunk|{chunk.write(&mut self.writer).unwrap();});
+        self.junk_chunks.iter().for_each(|chunk| {
+            chunk.write(&mut self.writer).unwrap();
+        });
 
         // Finished RIFF chunk writing.
         self.riff_chunk = None;
@@ -493,7 +624,7 @@ impl<'a> WaveWriter<'a> {
         // Critical large-file handling workflow:
         // ---------------------------------------------------------------------
         // 1. RF64 Header Conversion:
-        //    - If total file size exceeds 4GB (u32::MAX): 
+        //    - If total file size exceeds 4GB (u32::MAX):
         //      a. Overwrite the initial 'RIFF' header with 'RF64'
         //      b. Write the ds64 chunk immediately after, containing:
         //         - riff_size: u64
@@ -501,9 +632,9 @@ impl<'a> WaveWriter<'a> {
         //         - table: Vec<(u32, u64)> (maps original chunk IDs to 64-bit sizes)
         //
         // 2. Backfill Pre-Reserved Regions:
-        //    - Replace the JUNK chunk placeholder (reserved via `write_junk()`) 
+        //    - Replace the JUNK chunk placeholder (reserved via `write_junk()`)
         //      with the ds64 chunk's binary data.
-        //    - Update all chunk size fields marked with 0xFFFFFFFF during encoding 
+        //    - Update all chunk size fields marked with 0xFFFFFFFF during encoding
         //      using the ds64 table entries.
         //
         // 3. Error Handling:
@@ -531,15 +662,15 @@ impl<'a> WaveWriter<'a> {
                 if file_end_pos > 0xFFFFFFFFu64 {
                     Err(AudioWriteError::NotPreparedFor4GBFile)?;
                 }
-            },
+            }
             FileSizeOption::AllowLargerThan4GB => {
                 if file_end_pos > 0xFFFFFFFFu64 {
                     change_to_4gb_hreader()?;
                 }
-            },
+            }
             FileSizeOption::ForceUse4GBFormat => {
                 change_to_4gb_hreader()?;
-            },
+            }
         }
         self.writer.flush()?;
         Ok(())

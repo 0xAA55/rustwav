@@ -13,7 +13,7 @@ impl Display for XLaw {
         match self {
             Self::ALaw => write!(f, "ALaw"),
             Self::MuLaw => write!(f, "MuLaw"),
-       }
+        }
     }
 }
 
@@ -48,14 +48,17 @@ fn ulaw_to_linear(u_val: u8) -> i32 {
 #[derive(Clone, Copy)]
 pub struct PcmXLawEncoder {
     which_law: XLaw,
-    linear_to_xlaw: [u8; 16384]
+    linear_to_xlaw: [u8; 16384],
 }
 
-impl Debug for PcmXLawEncoder{
+impl Debug for PcmXLawEncoder {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("PcmXLawEncoder")
             .field("which_law", &self.which_law)
-            .field("linear_to_xlaw", &format_args!("[u8; {}]", self.linear_to_xlaw.len()))
+            .field(
+                "linear_to_xlaw",
+                &format_args!("[u8; {}]", self.linear_to_xlaw.len()),
+            )
             .finish()
     }
 }
@@ -118,10 +121,10 @@ impl PcmXLawEncoder {
 #[derive(Clone, Copy)]
 pub struct PcmXLawDecoder {
     which_law: XLaw,
-    table: [i16; 256]
+    table: [i16; 256],
 }
 
-impl Debug for PcmXLawDecoder{
+impl Debug for PcmXLawDecoder {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         fmt.debug_struct("PcmXLawDecoder")
             .field("which_law", &self.which_law)
@@ -145,14 +148,14 @@ impl PcmXLawDecoder {
     pub fn new_alaw() -> Self {
         Self {
             which_law: XLaw::ALaw,
-            table: core::array::from_fn(|i| {alaw_to_linear(i as u8) as i16}),
+            table: core::array::from_fn(|i| alaw_to_linear(i as u8) as i16),
         }
     }
 
     pub fn new_ulaw() -> Self {
         Self {
             which_law: XLaw::MuLaw,
-            table: core::array::from_fn(|i| {ulaw_to_linear(i as u8) as i16}),
+            table: core::array::from_fn(|i| ulaw_to_linear(i as u8) as i16),
         }
     }
 

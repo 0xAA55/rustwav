@@ -1,40 +1,54 @@
 #![allow(dead_code)]
-use std::{ops::{Index, IndexMut}, iter::FromIterator, fmt::Debug};
+use std::{
+    fmt::Debug,
+    iter::FromIterator,
+    ops::{Index, IndexMut},
+};
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
 impl<T> CopiableItem for T where T: Default + Clone + Copy + Debug + Sized {}
 
 #[derive(Clone, Copy)]
 pub struct CopiableBuffer<T, const N: usize>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     buffer: [T; N],
     buf_used: usize,
 }
 
 #[derive(Debug)]
 pub struct CopiableBufferIter<'a, T, const N: usize>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     refbuf: &'a CopiableBuffer<T, N>,
     iter_index: usize,
 }
 
 #[derive(Debug)]
 pub struct CopiableBufferIterMut<'a, T, const N: usize>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     refbuf: &'a mut CopiableBuffer<T, N>,
     iter_index: usize,
 }
 
 #[derive(Clone, Copy)]
 pub struct CopiableBufferIntoIter<T, const N: usize>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     buffer: [T; N],
     buf_used: usize,
     iter_index: usize,
 }
 
 impl<T, const N: usize> CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     pub fn new() -> Self {
         Self {
             buffer: [T::default(); N],
@@ -53,7 +67,10 @@ where T: CopiableItem {
     #[track_caller]
     pub fn last(&mut self) -> &mut T {
         if self.buf_used == 0 {
-            panic!("CopiableBuffer<{}, {N}> is empty.", std::any::type_name::<T>());
+            panic!(
+                "CopiableBuffer<{}, {N}> is empty.",
+                std::any::type_name::<T>()
+            );
         }
         &mut self.buffer[self.buf_used - 1]
     }
@@ -61,7 +78,10 @@ where T: CopiableItem {
     #[track_caller]
     pub fn push(&mut self, data: T) {
         if self.buf_used >= self.buffer.len() {
-            panic!("CopiableBuffer<{}, {N}> is full.", std::any::type_name::<T>());
+            panic!(
+                "CopiableBuffer<{}, {N}> is full.",
+                std::any::type_name::<T>()
+            );
         } else {
             self.buffer[self.buf_used] = data;
             self.buf_used += 1;
@@ -93,7 +113,7 @@ where T: CopiableItem {
     pub fn is_full(&self) -> bool {
         self.len() == self.capacity()
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -108,45 +128,46 @@ where T: CopiableItem {
 }
 
 impl<T, const N: usize> Default for CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<T, const N: usize> Index<usize> for CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     type Output = T;
 
     #[track_caller]
     fn index(&self, index: usize) -> &Self::Output {
         if index >= self.buf_used {
-            panic!(
-                "Index out of bounds: {} >= {}",
-                index, self.buf_used
-            );
+            panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
         &self.buffer[index]
     }
 }
 
 impl<T, const N: usize> IndexMut<usize> for CopiableBuffer<T, N>
-where T: CopiableItem {
-
+where
+    T: CopiableItem,
+{
     #[track_caller]
     fn index_mut<'a>(&mut self, index: usize) -> &mut T {
         if index >= self.buf_used {
-            panic!(
-                "Index out of bounds: {} >= {}",
-                index, self.buf_used
-            );
+            panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
         &mut self.buffer[index]
     }
 }
 
 impl<T, const N: usize> FromIterator<T> for CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let mut ret = Self::new();
@@ -158,7 +179,9 @@ where T: CopiableItem {
 }
 
 impl<'a, T, const N: usize> Iterator for CopiableBufferIter<'a, T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -178,7 +201,9 @@ where T: CopiableItem {
 }
 
 impl<'a, T, const N: usize> Iterator for CopiableBufferIterMut<'a, T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -200,7 +225,9 @@ where T: CopiableItem {
 }
 
 impl<T, const N: usize> Iterator for CopiableBufferIntoIter<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -220,7 +247,9 @@ where T: CopiableItem {
 }
 
 impl<T, const N: usize> IntoIterator for CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     type Item = T;
     type IntoIter = CopiableBufferIntoIter<T, N>;
 
@@ -234,22 +263,32 @@ where T: CopiableItem {
 }
 
 impl<T, const N: usize> Debug for CopiableBuffer<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct(&format!("CopiableBuffer<{}, {N}>", std::any::type_name::<T>()))
-            .field("buffer", &&self.buffer[..self.buf_used])
-            .field("buf_used", &self.buf_used)
-            .finish()
+        fmt.debug_struct(&format!(
+            "CopiableBuffer<{}, {N}>",
+            std::any::type_name::<T>()
+        ))
+        .field("buffer", &&self.buffer[..self.buf_used])
+        .field("buf_used", &self.buf_used)
+        .finish()
     }
 }
 
 impl<T, const N: usize> Debug for CopiableBufferIntoIter<T, N>
-where T: CopiableItem {
+where
+    T: CopiableItem,
+{
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct(&format!("CopiableBufferIntoIter<{}, {N}>", std::any::type_name::<T>()))
-            .field("buffer", &&self.buffer[..self.buf_used])
-            .field("buf_used", &self.buf_used)
-            .field("iter_index", &self.iter_index)
-            .finish()
+        fmt.debug_struct(&format!(
+            "CopiableBufferIntoIter<{}, {N}>",
+            std::any::type_name::<T>()
+        ))
+        .field("buffer", &&self.buffer[..self.buf_used])
+        .field("buf_used", &self.buf_used)
+        .field("iter_index", &self.iter_index)
+        .finish()
     }
 }
