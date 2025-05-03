@@ -5,6 +5,7 @@ mod copiablebuf;
 mod filehasher;
 mod adpcm;
 mod xlaw;
+mod downmixer;
 mod wavcore;
 mod wavreader;
 mod wavwriter;
@@ -31,6 +32,7 @@ pub use resampler::Resampler;
 pub use errors::{AudioReadError, AudioError, AudioWriteError};
 pub use wavcore::{AdpcmSubFormat};
 pub use wavcore::{FlacEncoderParams, FlacCompression};
+pub use downmixer::{Downmixer, DownmixerParams, SpeakerPosition};
 
 #[doc(inline)]
 pub use encoders::{Mp3EncoderOptions, Mp3Channels, Mp3Quality, Mp3Bitrate, Mp3VbrMode};
