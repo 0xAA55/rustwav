@@ -13,6 +13,7 @@ English | [简体中文](Readme-CN.md)
 * Supports reading WAV audio files over 4GB in size.
 * Supports embedded formats including PCM, PCM-aLaw, PCM-muLaw, ADPCM-MS, ADPCM-IMA, ADPCM-YAMAHA, MP3, Opus, etc.
 * Resampler support assists in modifying sample rates.
+* Downmixer support assists in downmixing multi-channel audio to stereo or mono audio.
 * Supports reading WAV files with randomly distributed Chunk storage.
 * Generates corresponding iterators via **generic parameters** to retrieve audio frames, with sample formats in each frame **strictly converted to specified generic types according to their numerical ranges**.
     * Supported generic types: `i8`, `i16`, `i24`, `i32`, `i64`, `u8`, `u16`, `u24`, `u32`, `u64`, `f32`, `f64`

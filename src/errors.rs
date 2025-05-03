@@ -165,6 +165,7 @@ impl From<AudioWriteError> for io::Error {
 pub enum AudioError {
     GuessChannelMaskFailed(u16),
     ChannelNotMatchMask,
+    ChannekMaskNotMatch(String),
     Unparseable(String),
     NoSuchData(String),
     Unimplemented(String),
@@ -179,6 +180,7 @@ impl Display for AudioError {
        match self {
            Self::GuessChannelMaskFailed(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
            Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
+           Self::ChannekMaskNotMatch(info) => write!(f, "The channel mask does not match: {info}"),
            Self::Unparseable(data) => write!(f, "Could not parse {data}"),
            Self::NoSuchData(data) => write!(f, "Could not find data \"{data}\""),
            Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
@@ -193,6 +195,7 @@ impl From<AudioError> for AudioReadError {
         match err {
             AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::DataCorrupted("the channel number does not match the channel mask".to_owned()),
+            AudioError::ChannekMaskNotMatch(info) => Self::InvalidArguments(info),
             AudioError::Unparseable(data) => Self::DataCorrupted(format!("The data \"{data}\" is not parseable")),
             AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
@@ -207,6 +210,7 @@ impl From<AudioError> for AudioWriteError {
         match err {
             AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
             AudioError::ChannelNotMatchMask => Self::InvalidArguments("the channel number does not match the channel mask".to_owned()),
+            AudioError::ChannekMaskNotMatch(info) => Self::InvalidArguments(info),
             AudioError::Unparseable(data) => Self::InvalidInput(format!("The input data is unparseable: \"{data}\"")),
             AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
