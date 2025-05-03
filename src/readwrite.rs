@@ -83,7 +83,7 @@ impl Seek for WriteBridge<'_> {
     }
 }
 
-/// ## Multi-thread safe shared reader (no, I don't like this, I use `force_borrow_mut!()`)
+/// ## Encapsulated shared `&mut dyn Reader` (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
 pub struct SharedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
 
@@ -111,17 +111,17 @@ impl Read for SharedReader<'_> {
 
 impl Seek for SharedReader<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
-        self.escorted_read(|reader|{reader.seek(pos)})
+        self.0.borrow_mut().seek(pos)
     }
     fn rewind(&mut self) -> Result<(), io::Error> {
-        self.escorted_read(|reader|{reader.rewind()})
+        self.0.borrow_mut().rewind()
     }
     fn stream_position(&mut self) -> Result<u64, io::Error> {
-        self.escorted_read(|reader|{reader.stream_position()})
+        self.0.borrow_mut().stream_position()
     }
 }
 
-/// ## Multi-thread safe shared writer (no, I don't like this, I use `force_borrow_mut!()`)
+/// ## Encapsulated shared `&mut dyn Writer` (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
 pub struct SharedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
 
@@ -140,25 +140,25 @@ impl<'a> SharedWriter<'a>{
 
 impl Write for SharedWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        self.escorted_write(|writer|{writer.write(buf)})
+        self.0.borrow_mut().write(buf)
     }
     fn flush(&mut self) -> Result<(), io::Error> {
-        self.escorted_write(|writer|{writer.flush()})
+        self.0.borrow_mut().flush()
     }
     fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        self.escorted_write(|writer|{writer.write_all(buf)})
+        self.0.borrow_mut().write_all(buf)
     }
 }
 
 impl Seek for SharedWriter<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
-        self.escorted_write(|writer|{writer.seek(pos)})
+        self.0.borrow_mut().seek(pos)
     }
     fn rewind(&mut self) -> Result<(), io::Error> {
-        self.escorted_write(|writer|{writer.rewind()})
+        self.0.borrow_mut().rewind()
     }
     fn stream_position(&mut self) -> Result<u64, io::Error> {
-        self.escorted_write(|writer|{writer.stream_position()})
+        self.0.borrow_mut().stream_position()
     }
 }
 
