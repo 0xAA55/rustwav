@@ -23,7 +23,7 @@ pub mod decoders;
 #[doc(hidden)]
 pub use sampletypes::{i24, u24};
 
-pub use downmixer::{Downmixer, DownmixerParams, SpeakerPosition};
+pub use downmixer::{Downmixer, DownmixerParams};
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use readwrite::{
     ReadBridge, Reader, SharedReader, SharedWriter, WriteBridge, Writer, string_io,

@@ -9,12 +9,12 @@ use std::{
 
 use crate::SampleType;
 use crate::adpcm::ms::AdpcmCoeffSet;
-use crate::downmixer::SpeakerPosition;
 use crate::readwrite::{self, string_io::*};
 use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
 use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Mp3EncoderOptions, OpusEncoderOptions};
 use crate::{Reader, Writer};
+use crate::downmixer;
 
 #[allow(unused_imports)]
 pub use flac::{FlacCompression, FlacEncoderParams};
@@ -350,17 +350,17 @@ impl Spec {
 
     /// * Guess the channel mask
     pub fn guess_channel_mask(&self) -> Result<u32, AudioError> {
-        SpeakerPosition::guess_channel_mask(self.channels)
+        downmixer::speaker_positions::guess_channel_mask(self.channels)
     }
 
     /// * Break down a channel mask to the speaker positions.
     pub fn channel_mask_to_speaker_positions(&self) -> Vec<u32> {
-        SpeakerPosition::channel_mask_to_speaker_positions(self.channel_mask)
+        downmixer::speaker_positions::channel_mask_to_speaker_positions(self.channel_mask)
     }
 
     /// * Break down a channel mask to the speaker position description strings.
     pub fn channel_mask_to_speaker_positions_descs(&self) -> Vec<&'static str> {
-        SpeakerPosition::channel_mask_to_speaker_positions_descs(self.channel_mask)
+        downmixer::speaker_positions::channel_mask_to_speaker_positions_descs(self.channel_mask)
     }
 
     /// * Check if this spec is good for encoding PCM format.
@@ -378,7 +378,7 @@ impl Spec {
 
     /// * Check if the channel mask matches the channel number.
     pub fn is_channel_mask_valid(&self) -> bool {
-        SpeakerPosition::is_channel_mask_valid(self.channels, self.channel_mask)
+        downmixer::speaker_positions::is_channel_mask_valid(self.channels, self.channel_mask)
     }
 }
 

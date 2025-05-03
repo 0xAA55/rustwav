@@ -12,8 +12,8 @@ use std::{
 
 use crate::Reader;
 use crate::SampleType;
-use crate::SpeakerPosition;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
+use crate::xlaw::XLaw;
 use crate::copiablebuf::CopiableBuffer;
 use crate::decoders::{
     AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap,
@@ -30,8 +30,8 @@ use crate::wavcore::{
     SmplChunk, TrknChunk,
 };
 use crate::wavcore::{ExtensionData, FmtChunk};
-use crate::xlaw::XLaw;
 use crate::{AudioError, AudioReadError};
+use crate::downmixer;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
@@ -400,7 +400,7 @@ impl WaveReader {
         if let Some(extension) = fmt__chunk.extension {
             channel_mask = match extension.data {
                 ExtensionData::Extensible(extensible) => extensible.channel_mask,
-                _ => SpeakerPosition::guess_channel_mask(fmt__chunk.channels)?,
+                _ => downmixer::speaker_positions::guess_channel_mask(fmt__chunk.channels)?,
             };
         }
 
