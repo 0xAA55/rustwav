@@ -41,6 +41,8 @@ pub use encoders::{OpusEncoderOptions, OpusBitrate, OpusEncoderSampleDuration};
 #[doc(inline)]
 pub use encoders::{VorbisEncoderParams, VorbisBitrateStrategy};
 
+use std::cmp::max;
+
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 10] = [
     ("pcm", DataFormat::Pcm),
@@ -91,14 +93,6 @@ pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
 /// ## Transfer audio from the decoder to the encoder with resampling.
 /// * This allows to transfer of audio from the decoder to a different sample rate encoder.
 pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mut WaveWriter) {
-    // The fft size can be any number greater than the sample rate of the encoder or the decoder.
-    // It is for the resampler. A greater number results in better resample quality, but the process could be slower.
-    // In most cases, the audio sampling rate is about 11025 to 48000, so 65536 is the best number for the resampler.
-    const FFT_SIZE: usize = 65536;
-
-    // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
-    // Otherwise, it's not needed there.
-    let resampler = Resampler::new(FFT_SIZE);
 
     // The decoding audio spec
     let decode_spec = decoder.spec();
@@ -111,11 +105,20 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
     let decode_sample_rate = decode_spec.sample_rate;
     let encode_sample_rate = encode_spec.sample_rate;
 
+    // The fft size can be any number greater than the sample rate of the encoder or the decoder.
+    // It is for the resampler. A greater number results in better resample quality, but the process could be slower.
+    // In most cases, the audio sampling rate is about 11025 to 48000, so 65536 is the best number for the resampler.
+    let fft_size = get_rounded_up_fft_size(max(encode_sample_rate, decode_sample_rate));
+
+    // This is the resampler, if the decoder's sample rate is different than the encode sample rate, use the resampler to help stretch or compress the waveform.
+    // Otherwise, it's not needed there.
+    let resampler = Resampler::new(fft_size);
+
     // The number of channels must match
     assert_eq!(encode_channels, decode_channels);
 
     // Process size is for the resampler to process the waveform, it is the length of the source waveform slice.
-    let process_size = resampler.get_process_size(FFT_SIZE, decode_sample_rate, encode_sample_rate);
+    let process_size = resampler.get_process_size(fft_size, decode_sample_rate, encode_sample_rate);
 
     // There are three types of iterators for three types of audio channels: mono, stereo, and more than 2 channels of audio.
     // Usually, the third iterator can handle all numbers of channels, but it's the slowest iterator.
