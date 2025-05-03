@@ -50,7 +50,7 @@ pub struct WaveReader {
     spec: Spec,
     fmt__chunk: FmtChunk, // fmt chunk must exists
     fact_data: u64, // Total samples in the data chunk
-    data_chunk: WaveDataReader,
+    data_chunk: FileDataSource,
     text_encoding: StringCodecMaps,
     slnt_chunk: Option<SlntChunk>,
     bext_chunk: Option<BextChunk>,
@@ -143,6 +143,7 @@ impl WaveReader {
         let mut acid_chunk: Option<AcidChunk> = None;
         let mut id3__chunk: Option<Id3::Tag> = None;
         let mut junk_chunks = BTreeSet::<JunkChunk>::new();
+        let mut data_chunk = FileDataSource::default();
 
         // Read each chunks from the WAV file
         let mut last_flag: [u8; 4];
@@ -293,11 +294,6 @@ impl WaveReader {
             bits_per_sample: fmt__chunk.bits_per_sample,
             sample_format: fmt__chunk.get_sample_format(),
         };
-        let new_data_source = match filesrc {
-            Some(filename) => WaveDataSource::Filename(filename),
-            None => WaveDataSource::Reader(reader),
-        };
-        let data_chunk = WaveDataReader::new(new_data_source, data_offset, data_size)?;
         Ok(Self {
             spec,
             fmt__chunk,
@@ -613,12 +609,11 @@ impl WaveDataReader {
 }
 
 /// For `mem::take()`, used by the `IntoIter` iterators.
-impl Default for WaveDataReader {
+impl Default for FileDataSource {
     fn default() -> Self {
         Self {
-            reader: None,
-            tempdir: None,
-            filepath: PathBuf::new(),
+            file: None,
+            filepath: None,
             offset: 0,
             length: 0,
             datahash: 0,
@@ -635,7 +630,7 @@ impl Default for WaveDataReader {
 pub struct FrameIter<'a, S>
 where S: SampleType {
     /// * The borrowed data reader from the `WaveReader`
-    data_reader: &'a WaveDataReader,
+    data_reader: &'a FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -655,7 +650,7 @@ where S: SampleType {
 
 impl<'a, S> FrameIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -697,7 +692,7 @@ where S: SampleType {
 pub struct MonoIter<'a, S>
 where S: SampleType {
     /// * The borrowed data reader from the `WaveReader`
-    data_reader: &'a WaveDataReader,
+    data_reader: &'a FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -717,7 +712,7 @@ where S: SampleType {
 
 impl<'a, S> MonoIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -760,7 +755,7 @@ where S: SampleType {
 pub struct StereoIter<'a, S>
 where S: SampleType {
     /// * The borrowed data reader from the `WaveReader`
-    data_reader: &'a WaveDataReader,
+    data_reader: &'a FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -780,7 +775,7 @@ where S: SampleType {
 
 impl<'a, S> StereoIter<'a, S>
 where S: SampleType {
-    fn new(data_reader: &'a WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: &'a FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -825,7 +820,7 @@ where S: SampleType {
 pub struct FrameIntoIter<S>
 where S: SampleType {
     /// * The owned data reader from the `WaveReader`
-    data_reader: WaveDataReader,
+    data_reader: FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -845,7 +840,7 @@ where S: SampleType {
 
 impl<S> FrameIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -888,7 +883,7 @@ where S: SampleType {
 pub struct MonoIntoIter<S>
 where S: SampleType {
     /// * The owned data reader from the `WaveReader`
-    data_reader: WaveDataReader,
+    data_reader: FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -908,7 +903,7 @@ where S: SampleType {
 
 impl<S> MonoIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
@@ -951,7 +946,7 @@ where S: SampleType {
 pub struct StereoIntoIter<S>
 where S: SampleType {
     /// * The owned data reader from the `WaveReader`
-    data_reader: WaveDataReader,
+    data_reader: FileDataSource,
 
     /// * The position of the audio data in the audio file, normally it is inside the WAV file `data` chunk, but there's an exception for a temporarily created data-only file.
     data_offset: u64,
@@ -971,7 +966,7 @@ where S: SampleType {
 
 impl<S> StereoIntoIter<S>
 where S: SampleType {
-    fn new(data_reader: WaveDataReader, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
+    fn new(data_reader: FileDataSource, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk, fact_data: u64) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
         reader.seek(SeekFrom::Start(data_offset))?;
         Ok(Self {
