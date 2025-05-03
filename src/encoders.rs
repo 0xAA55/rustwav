@@ -1415,7 +1415,7 @@ pub mod mp3 {
                     channels: self.channels,
                     sample_rate: self.sample_rate,
                     byte_rate: self.bitrate / 8,
-                    block_align: 1,
+                    block_align: if self.sample_rate <= 28000 {576} else {576 * 2},
                     bits_per_sample: 0,
                     extension: Some(FmtExtension::new_mp3(Mp3Data::new(self.bitrate, self.sample_rate))),
                 })
