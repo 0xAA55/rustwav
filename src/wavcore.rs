@@ -7,7 +7,7 @@ use crate::{Reader, Writer};
 use crate::{AudioError, AudioReadError, AudioWriteError};
 use crate::{Mp3EncoderOptions, OpusEncoderOptions};
 use crate::adpcm::ms::AdpcmCoeffSet;
-use crate::readwrite::string_io::*;
+use crate::readwrite::{self, string_io::*};
 use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 
 #[allow(unused_imports)]
@@ -635,13 +635,20 @@ impl ChunkHeader {
     }
 
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
-        let mut flag = [0u8; 4];
-        reader.read_exact(&mut flag)?;
-        Ok(Self {
-            flag,
-            size: u32::read_le(reader)?,
-            chunk_start_pos: reader.stream_position()?
-        })
+        let mut ret = Self::new();
+        reader.read_exact(&mut ret.flag)?;
+        ret.size = u32::read_le(reader)?;
+        ret.chunk_start_pos = reader.stream_position()?;
+        Ok(ret)
+    }
+
+    pub fn read_unseekable(reader: &mut impl Reader, cur_pos: &mut u64) -> Result<Self, AudioReadError> {
+        let mut ret = Self::new();
+        reader.read_exact(&mut ret.flag)?;
+        ret.size = u32::read_le(reader)?;
+        *cur_pos += 8;
+        ret.chunk_start_pos = *cur_pos;
+        Ok(ret)
     }
 
     /// * Calculate alignment
@@ -655,8 +662,13 @@ impl ChunkHeader {
     }
 
     /// * Seek to the next chunk (with alignment)
-    pub fn seek_to_next_chunk(&self, reader: &mut dyn Reader) -> Result<u64, AudioReadError> {
+    pub fn seek_to_next_chunk(&self, reader: &mut impl Reader) -> Result<u64, AudioReadError> {
         Ok(reader.seek(SeekFrom::Start(self.next_chunk_pos()))?)
+    }
+
+    /// * If can't seek, do some dummy reads to the next chunk (with alignment)
+    pub fn goto_next_chunk_unseekable(&self, reader: &mut impl Reader, cur_pos: &mut u64) -> Result<u64, AudioReadError> {
+        Ok(readwrite::goto_offset_without_seek(reader, cur_pos, self.next_chunk_pos())?)
     }
 }
 
