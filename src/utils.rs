@@ -238,7 +238,7 @@ where
 }
 
 /// * Convert stereo audio to a mono waveform. Stereo to mono conversion.
-pub fn stereos_to_monos<S>(stereos: &[(S, S)]) -> Vec<S>
+pub fn stereos_to_mono_channel<S>(stereos: &[(S, S)]) -> Vec<S>
 where
     S: SampleType,
 {

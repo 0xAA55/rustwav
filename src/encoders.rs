@@ -1386,7 +1386,7 @@ pub mod mp3 {
                     self.buffers.flush()?;
                 }
                 match self.channels {
-                    1 => self.buffers.add_monos(&sample_conv::<T, S>(samples)),
+                    1 => self.buffers.add_mono_channel(&sample_conv::<T, S>(samples)),
                     2 => self
                         .buffers
                         .add_stereos(&utils::interleaved_samples_to_stereos(
@@ -1408,7 +1408,7 @@ pub mod mp3 {
                 match self.channels {
                     1 => self
                         .buffers
-                        .add_monos(&utils::stereos_to_monos(&stereos_conv::<T, S>(stereos))),
+                        .add_mono_channel(&utils::stereos_to_mono_channel(&stereos_conv::<T, S>(stereos))),
                     2 => self.buffers.add_stereos(&stereos_conv::<T, S>(stereos)),
                     o => Err(AudioWriteError::InvalidArguments(format!(
                         "Bad channels number: {o}"
@@ -1430,7 +1430,7 @@ pub mod mp3 {
                 match self.channels {
                     1 => self
                         .buffers
-                        .add_monos(&sample_conv::<T, S>(&utils::dual_monos_to_monos(&(
+                        .add_mono_channel(&sample_conv::<T, S>(&utils::dual_monos_to_monos(&(
                             mono_l.to_vec(),
                             mono_r.to_vec(),
                         ))?)),
@@ -1498,7 +1498,7 @@ pub mod mp3 {
                     }
                 }
             }
-            pub fn add_monos(&mut self, frames: &[S]) {
+            pub fn add_mono_channel(&mut self, frames: &[S]) {
                 match self {
                     Self::Mono(m) => m.extend(frames),
                     Self::Stereo((l, r)) => {
@@ -1509,7 +1509,7 @@ pub mod mp3 {
             }
             pub fn add_stereos(&mut self, frames: &[(S, S)]) {
                 match self {
-                    Self::Mono(m) => m.extend(utils::stereos_to_monos(frames)),
+                    Self::Mono(m) => m.extend(utils::stereos_to_mono_channel(frames)),
                     Self::Stereo((l, r)) => {
                         let (il, ir) = utils::stereos_to_dual_monos(frames);
                         l.extend(il);
@@ -1601,8 +1601,8 @@ pub mod mp3 {
                 self.channels.len() >= self.max_frames
             }
 
-            pub fn add_monos(&mut self, monos: &[S]) -> Result<(), AudioWriteError> {
-                self.channels.add_monos(monos);
+            pub fn add_mono_channel(&mut self, monos: &[S]) -> Result<(), AudioWriteError> {
+                self.channels.add_mono_channel(monos);
                 if self.is_full() {
                     self.flush()?;
                 }
