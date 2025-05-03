@@ -101,8 +101,13 @@ impl WaveReader {
 
         let text_encoding = StringCodecMaps::new();
 
-        let filestart = reader.stream_position()?;
-        let filelen = {reader.seek(SeekFrom::End(0))?; let filelen = reader.stream_position()?; reader.seek(SeekFrom::Start(filestart))?; filelen};
+        let (filestart, reader_seekable) = match reader.stream_position() {
+            Ok(position) => (position, true),
+            Err(_) => (0u64, false),
+        };
+
+        let mut filelen = if reader_seekable {let filelen = reader.seek(SeekFrom::End(0))?; reader.seek(SeekFrom::Start(filestart))?; filelen} else {0};
+        let mut cur_pos = filestart;
 
         let mut riff_end = 0xFFFFFFFFu64;
         let mut isRF64 = false;
@@ -110,22 +115,25 @@ impl WaveReader {
         let mut data_size = 0u64;
 
         // The whole file should be a `RIFF` chunk or a `RF64` chunk.
-        let chunk = ChunkHeader::read(&mut reader)?;
+        let chunk = ChunkHeader::read_unseekable(&mut reader, &mut cur_pos)?;
         match &chunk.flag {
             b"RIFF" => {
                 let riff_len = chunk.size as u64;
-                riff_end = ChunkHeader::align(reader.stream_position()? + riff_len);
+                riff_end = ChunkHeader::align(cur_pos + riff_len);
+                if filelen == 0 {
+                    filelen = riff_end;
+                }
             },
             b"RF64" => {
                 isRF64 = true;
             },
-            _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file"))), // 根本不是 WAV
+            _ => return Err(AudioReadError::FormatError(String::from("Not a WAV file"))), // Not WAV
         }
 
-        let start_of_riff = reader.stream_position()?;
+        let start_of_riff = cur_pos;
 
         // This flag must be `WAVE`, after the flag, there are chunks to read and parse.
-        expect_flag(&mut reader, b"WAVE")?;
+        expect_flag(&mut reader, b"WAVE", &mut cur_pos)?;
 
         let mut fmt__chunk: Option<FmtChunk> = None;
         let mut data_offset = 0u64;
@@ -148,9 +156,9 @@ impl WaveReader {
         // Read each chunks from the WAV file
         let mut last_flag: [u8; 4];
         let mut chunk = ChunkHeader::new();
-        let mut manually_skipping = false;
         loop { // Loop through the chunks inside the RIFF chunk or RF64 chunk.
-            let chunk_position = reader.stream_position()?;
+            let mut manually_skipped = false;
+            let chunk_position = if reader_seekable {reader.stream_position()?} else {cur_pos};
             if ChunkHeader::align(chunk_position) == riff_end {
                 // Normally hit the end of the WAV file.
                 break;
@@ -164,7 +172,7 @@ impl WaveReader {
                 break;
             }
             last_flag = chunk.flag;
-            chunk = ChunkHeader::read(&mut reader)?;
+            chunk = ChunkHeader::read_unseekable(&mut reader, &mut cur_pos)?;
             match &chunk.flag {
                 b"JUNK" => {
                     let mut junk = vec![0u8; chunk.size as usize];
@@ -199,6 +207,9 @@ impl WaveReader {
                     let _sample_count = u64::read_le(&mut reader)?;
                     // After these fields, there are tables for each chunk's size in 64 bits. Normally it's not needed to read this, except for huge > 4GB JUNK chunks.
                     riff_end = ChunkHeader::align(start_of_riff + riff_len);
+                    if filelen == 0 {
+                        filelen = riff_end;
+                    }
                     ds64_read = true;
                 }
                 b"data" => {
@@ -209,10 +220,18 @@ impl WaveReader {
                     if !isRF64 {
                         data_size = chunk.size as u64;
                     }
+                    if let Some(ref filename) = filesrc {
+                        data_chunk = FileDataSource::new(None, Some(filename.clone()), data_offset, data_size, reader_seekable, &mut cur_pos)?;
+                    } else {
+                        data_chunk = FileDataSource::new(Some(&mut *reader), None, data_offset, data_size, reader_seekable, &mut cur_pos)?;
+                    }
                     let chunk_end = ChunkHeader::align(chunk.chunk_start_pos + data_size);
-                    reader.seek(SeekFrom::Start(chunk_end))?;
-                    manually_skipping = true;
-                    continue;
+                    if reader_seekable {
+                        reader.seek(SeekFrom::Start(chunk_end))?;
+                    } else {
+                        readwrite::goto_offset_without_seek(&mut reader, &mut cur_pos, chunk_end)?;
+                    }
+                    manually_skipped = true;
                 },
                 b"slnt" => {
                     Self::ignore_laters(&mut slnt_chunk, &chunk.flag, ||optional(SlntChunk::read(&mut reader)));
@@ -263,10 +282,14 @@ impl WaveReader {
                     println!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
                 },
             }
-            if !manually_skipping {
-                chunk.seek_to_next_chunk(&mut reader)?;
-            } else {
-                manually_skipping = false;
+            if !manually_skipped {
+                if reader_seekable {
+                    cur_pos = chunk.next_chunk_pos();
+                    chunk.seek_to_next_chunk(&mut reader)?;
+                } else {
+                    cur_pos += chunk.size as u64;
+                    chunk.goto_next_chunk_unseekable(&mut reader, &mut cur_pos)?;
+                }
             }
         }
 
@@ -470,9 +493,10 @@ impl IntoIterator for WaveReader {
     }
 }
 
-fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4]) -> Result<(), AudioReadError> {
+fn expect_flag<T: Read>(r: &mut T, flag: &[u8; 4], cur_pos: &mut u64) -> Result<(), AudioReadError> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf)?;
+    *cur_pos += 4;
     if &buf != flag {
         Err(AudioReadError::UnexpectedFlag(
             String::from_utf8_lossy(flag).to_string(),
@@ -523,76 +547,69 @@ where S: SampleType {
     }
 }
 
-/// * The `WaveDataReader` provides the way to access the audio data, by a `Reader` or a file.
+/// * The `FileDataSource` provides the way to access the audio data, by a `Reader` or a file.
 /// * This is for creating the iterators. Each iterator uses this to read bytes, seek an offset, and convert data into samples.
 /// * By using this, every individual iterator can have its iterating position.
 #[derive(Debug)]
-struct WaveDataReader {
-    reader: Option<Box<dyn Reader>>,
-    tempdir: Option<tempfile::TempDir>,
-    filepath: PathBuf,
+pub struct FileDataSource {
+    /// Do not wrap the file into a `BufReader`, we only wrap it if we have to read data from it.
+    file: Option<File>,
+
+    /// Because the `WaveReader` could be created from just a `Reader`, it does not always come from a file, so there could be no file path.
+    filepath: Option<PathBuf>,
+
+    /// The `data` chunk data offset of the file
     offset: u64,
+
+    /// The `data` chunk length
     length: u64,
+
+    /// The hash of the `data` chunk. It's actually useless.
     datahash: u64,
 }
 
-impl WaveDataReader {
-    fn new(file_source: WaveDataSource, data_offset: u64, data_size: u64) -> Result<Self, AudioReadError> {
-        let reader: Option<Box<dyn Reader>>;
-        let filepath: Option<PathBuf>;
-        let tempdir: Option<tempfile::TempDir>;
-        let mut hasher = FileHasher::new();
-        let datahash: u64;
-        let offset: u64;
-        let have_source_file: bool;
-        match file_source {
-            WaveDataSource::Reader(mut r) => {
-                // Only a reader, no filenames, it's time to cut open its belly, seek for the `data` chunk,
-                // and copy the data into a temporary file for the iterator.
-                datahash = hasher.hash(&mut r, data_offset, data_size)?;
-                reader = Some(r);
-                let tdir = tempfile::TempDir::new()?;
-                filepath = Some(tdir.path().join(format!("{:x}.tmp", datahash)));
-                tempdir = Some(tdir);
-                offset = 0;
-                have_source_file = false;
-            },
-            WaveDataSource::Filename(path) => {
-                // There is a filename. Just open the file for the iterator to read.
-                let path = PathBuf::from(path);
-                let mut r = Box::new(BufReader::new(File::open(&path)?));
-                datahash = hasher.hash(&mut r, data_offset, data_size)?;
-                reader = Some(r);
-                tempdir = None;
-                filepath = Some(path);
-                offset = data_offset;
-                have_source_file = true;
-            },
-            WaveDataSource::Unknown => return Err(AudioReadError::InvalidArguments(String::from("\"Unknown\" data source was given"))),
-        };
+impl FileDataSource {
+    pub fn new(mut reader: Option<&mut dyn Reader>, filepath: Option<String>, data_offset: u64, data_size: u64, reader_seekable: bool, reader_cur_pos: &mut u64) -> Result<Self, AudioReadError> {
+        let (file, offset, filepath) = if let Some(ref filepath) = filepath {
+            // If we have the file path, we can open the file anytime anyway as we want.
+            let path = PathBuf::from(filepath);
+            let filepath = Some(path.clone());
+            let file = File::open(&path)?;
+            (file, data_offset, filepath)
+        } else if let Some(ref mut reader) = reader {
+            // If we only get the reader, regardless of whether seekable or not, we have to create a temporary file to store the `data` chunk data.
+            // Because the reader can be anything that some can do `try_clone()`, some can not do this, we need the one that can do `try_clone()`.
+            let file = tempfile::tempfile()?; // This kind of temp file (in Windows) can delete itself without its `drop()` being called if we don't want it.
+            let filepath = Option::<PathBuf>::None;
+            let offset = 0u64;
 
-        // This is to store the original `Reader`, if there's no original `Reader`, this value is `None`.
-        let mut orig_reader: Option<Box<dyn Reader>> = None;
-
-        let mut reader = reader.unwrap();
-        let filepath = filepath.unwrap();
-
-        // Create the temporary file for the iterator if there's no source file name.
-        if !have_source_file {
-
-            // The temporary file name is the hash of the `data` chunk.
-            let mut file = BufWriter::new(File::create(&filepath)?);
-            reader.seek(SeekFrom::Start(offset))?;
-            readwrite::copy(&mut reader, &mut file, data_size)?;
-            orig_reader = Some(reader);
+            // Let's create the temp file and copy the `data` chunk data into it.
+            let mut writer = BufWriter::new(file);
+            if reader_seekable {
+                reader.seek(SeekFrom::Start(data_offset))?;
+            } else {
+                readwrite::goto_offset_without_seek(&mut *reader, reader_cur_pos, data_offset)?;
+            }
+            readwrite::copy(&mut *reader, &mut writer, data_size)?;
+            *reader_cur_pos += data_size;
+            let file: File = writer.into_inner().unwrap();
 
             #[cfg(debug_assertions)]
-            println!("Using tempfile to store \"data\" chunk: {}", filepath.to_string_lossy());
-        }
+            println!("Using tempfile to store \"data\" chunk: {:?}", file); // We can't get the path of the temp file directly, but it can be printed out anyway.
+
+            (file, offset, filepath)
+        } else {
+            return Err(AudioReadError::InvalidArguments("Must provide a `reader` or a `filepath`".to_string()));
+        };
+
+        let mut hasher = FileHasher::new();
+        let mut reader = BufReader::new(file);
+        let datahash = hasher.hash(&mut reader, offset, data_size)?;
+        let mut file = reader.into_inner();
+        file.seek(SeekFrom::Start(offset))?;
 
         Ok(Self {
-            reader: orig_reader,
-            tempdir,
+            file: Some(file), // Do not wrap the file into a `BufReader`, we only wrap it if we have to read data from it.
             filepath,
             offset,
             length: data_size,
@@ -600,9 +617,12 @@ impl WaveDataReader {
         })
     }
 
-    // Open the source file or the temporary file, and seek the `data` chunk inner data offset.
-    fn open(&self) -> Result<Box<dyn Reader>, AudioReadError> {
-        let mut file = BufReader::new(File::open(&self.filepath)?);
+    /// Open the source file or the temporary file or clone the file, and seek the `data` chunk inner data offset.
+    pub fn open(&self) -> Result<Box<dyn Reader>, AudioReadError> {
+        let mut file = BufReader::new(match self.file.as_ref().unwrap().try_clone() {
+            Ok(file) => file,
+            Err(_) => File::open(self.filepath.as_ref().unwrap())?,
+        });
         file.seek(SeekFrom::Start(self.offset))?;
         Ok(Box::new(file))
     }
