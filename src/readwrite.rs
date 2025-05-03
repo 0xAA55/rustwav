@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{io::{self, Read, Write, Seek, SeekFrom}, sync::{Arc, Mutex}, ops::{DerefMut}, fmt::Debug};
+use std::{io::{self, Read, Write, Seek, SeekFrom}, rc::Rc, cell::RefCell, fmt::Debug};
 
 /// ## The `Reader` trait, `Read + Seek + Debug`
 pub trait Reader: Read + Seek + Debug {}
@@ -85,18 +85,17 @@ impl Seek for WriteBridge<'_> {
 
 /// ## Multi-thread safe shared reader (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
-pub struct SharedReader<'a>(Arc<Mutex<&'a mut dyn Reader>>);
+pub struct SharedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
 
 impl<'a> SharedReader<'a>{
     pub fn new(reader: &'a mut dyn Reader) -> Self {
-        Self(Arc::new(Mutex::new(reader)))
+        Self(Rc::new(RefCell::new(reader)))
     }
 
     /// * Let the reader work in your closure with a mutex lock guard.
     pub fn escorted_read<T, F, E>(&self, mut action: F) -> Result<T, E>
     where F: FnMut(&mut dyn Reader) -> Result<T, E> {
-        let mut guard = self.0.lock().unwrap();
-        let mut reader = guard.deref_mut();
+        let mut reader = &mut *self.0.borrow_mut();
         (action)(&mut reader)
     }
 }
@@ -124,18 +123,17 @@ impl Seek for SharedReader<'_> {
 
 /// ## Multi-thread safe shared writer (no, I don't like this, I use `force_borrow_mut!()`)
 #[derive(Debug, Clone)]
-pub struct SharedWriter<'a>(Arc<Mutex<&'a mut dyn Writer>>);
+pub struct SharedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
 
 impl<'a> SharedWriter<'a>{
     pub fn new(writer: &'a mut dyn Writer) -> Self {
-        Self(Arc::new(Mutex::new(writer)))
+        Self(Rc::new(RefCell::new(writer)))
     }
 
     /// * Let the writer work in your closure with a mutex lock guard.
     pub fn escorted_write<T, F, E>(&self, mut action: F) -> Result<T, E>
     where F: FnMut(&mut dyn Writer) -> Result<T, E> {
-        let mut guard = self.0.lock().unwrap();
-        let mut writer = guard.deref_mut();
+        let mut writer = &mut *self.0.borrow_mut();
         (action)(&mut writer)
     }
 }
