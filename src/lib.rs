@@ -78,6 +78,16 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
     }))
 ];
 
+pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
+	for i in 0..31 {
+		let fft_size = 1usize << i;
+		if fft_size >= sample_rate as usize {
+			return fft_size;
+		}
+	}
+	0x1_00000000_usize
+}
+
 /// ## Transfer audio from the decoder to the encoder with resampling.
 /// * This allows to transfer of audio from the decoder to a different sample rate encoder.
 pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mut WaveWriter) {

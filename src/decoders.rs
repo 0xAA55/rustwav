@@ -10,6 +10,7 @@ use crate::adpcm;
 use crate::wavcore::{Spec, WaveSampleType, FmtChunk, ExtensionData, ExtensibleData};
 use crate::xlaw::{XLaw, PcmXLawDecoder};
 use crate::wavcore::format_tags::*;
+use crate::get_rounded_up_fft_size;
 
 #[cfg(feature = "mp3dec")]
 use mp3::Mp3Decoder;
@@ -157,12 +158,6 @@ impl<S> Decoder<S> for VorbisDecoderWrap<'_>
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
-}
-
-fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
-    let mut ret = 1usize;
-    while ret < (sample_rate as usize) {ret <<= 1;}
-    ret
 }
 
 #[derive(Debug)]
