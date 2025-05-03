@@ -83,7 +83,6 @@ impl WaveReader {
     /// * Open the WAV file from a file path. No temporary files will be created.
     pub fn open(file_source: &str) -> Result<Self, AudioReadError> {
         Self::new(WaveDataSource::Filename(file_source.to_string()))
-        // Self::new(WaveDataSource::Reader(Box::new(BufReader::new(File::open(file_source)?)))) // Test for the temp file
     }
 
     /// * Open the WAV file from a `WaveDataSource`, if the `WaveDataSource` is `Reader`, the `WaveReader` will create an auto-delete temporary file for the `data` chunk.
