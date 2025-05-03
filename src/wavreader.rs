@@ -6,6 +6,7 @@ use std::{fs::File, path::PathBuf, cmp::Ordering, mem, io::{Read, Seek, SeekFrom
 use crate::Reader;
 use crate::SampleType;
 use crate::{AudioReadError, AudioError};
+use crate::SpeakerPosition;
 use crate::readwrite::{self, string_io::*};
 use crate::wavcore;
 use crate::wavcore::Spec;
@@ -19,7 +20,6 @@ use crate::savagestr::{StringCodecMaps, SavageStringCodecs};
 use crate::filehasher::FileHasher;
 use crate::copiablebuf::CopiableBuffer;
 use crate::xlaw::XLaw;
-use crate::downmixer::SpeakerPosition;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
