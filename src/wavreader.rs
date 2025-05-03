@@ -275,11 +275,11 @@ impl WaveReader {
                 // I used to find a BFDi chunk, after searching the internet, the chunk is dedicated to the BFD Player,
                 // Its content seems like a serial number string for the software, So no need to parse it.
                 other => {
-                    println!("Skipped an unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], Position: 0x{:x}, Size: 0x{:x}",
+                    eprintln!("Skipped an unknown chunk in RIFF or RF64 chunk: '{}' [0x{:x}, 0x{:x}, 0x{:x}, 0x{:x}], Position: 0x{:x}, Size: 0x{:x}",
                              text_encoding.decode_flags(other),
                              other[0], other[1], other[2], other[3],
                              chunk_position, chunk.size);
-                    println!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
+                    eprintln!("The previous chunk is '{}'", text_encoding.decode_flags(&last_flag))
                 },
             }
             if !manually_skipped {
