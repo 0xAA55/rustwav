@@ -290,6 +290,7 @@ where S: SampleType {
     /// ## The decoder returned by this function has two exclusive responsibilities:
     /// 1. Read raw bytes from the input stream.
     /// 2. Convert them into samples of the target format `S`.
+    ///
     /// It does NOT handle end-of-stream detection — the caller must implement 
     /// termination logic (e.g., check input.is_empty() or external duration tracking).
     #[allow(clippy::type_complexity)]
