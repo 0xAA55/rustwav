@@ -215,7 +215,7 @@ pub struct Encoder<'a> {
     encoder: Box<dyn EncoderToImpl + 'a>,
 }
 
-impl<'a> Default for Encoder<'_> {
+impl Default for Encoder<'_> {
     fn default() -> Self {
         Self::new(DummyEncoder{})
     }
@@ -530,7 +530,7 @@ pub struct PcmEncoder<'a> {
 impl<'a> PcmEncoder<'a> {
     /// * target_sample: The specific PCM format (e.g., bit depth, signedness) to encode into the WAV file.
     pub fn new(writer: &'a mut dyn Writer, spec: Spec) -> Result<Self, AudioWriteError> {
-        if spec.is_channel_mask_valid() == false {
+        if !spec.is_channel_mask_valid() {
             return Err(AudioWriteError::InvalidArguments(format!("Number of bits of channel mask 0x{:08x} does not match {} channels", spec.channel_mask, spec.channels)));
         }
         let target_sample = spec.get_sample_type();
@@ -554,7 +554,7 @@ impl<'a> PcmEncoder<'a> {
     }
 }
 
-impl<'a> EncoderToImpl for PcmEncoder<'_> {
+impl EncoderToImpl for PcmEncoder<'_> {
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
     }
@@ -678,7 +678,7 @@ where E: adpcm::AdpcmEncoder {
     }
 }
 
-impl<'a, E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
+impl<E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
 where E: adpcm::AdpcmEncoder {
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
@@ -754,7 +754,7 @@ impl<'a> PcmXLawEncoderWrap<'a> {
     }
 }
 
-impl<'a> EncoderToImpl for PcmXLawEncoderWrap<'_> {
+impl EncoderToImpl for PcmXLawEncoderWrap<'_> {
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
     }
@@ -1403,7 +1403,7 @@ pub mod mp3 {
             }
         }
 
-        impl<'a, S> EncoderToImpl for Mp3Encoder<'_, S>
+        impl<S> EncoderToImpl for Mp3Encoder<'_, S>
         where S: SampleType {
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
                 Ok(())
@@ -1480,7 +1480,7 @@ pub mod mp3 {
             }
         }
 
-        impl<'a, S> Debug for ChannelBuffers<'_, S>
+        impl<S> Debug for ChannelBuffers<'_, S>
         where S: SampleType {
             fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
                 fmt.debug_struct(&format!("ChannelBuffers<{}>", type_name::<S>()))
@@ -1703,7 +1703,7 @@ pub mod opus {
             }
         }
 
-        impl<'a> Debug for OpusEncoder<'_> {
+        impl Debug for OpusEncoder<'_> {
             fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
                 fmt.debug_struct("OpusEncoder")
                     .field("writer", &self.writer)
@@ -1719,7 +1719,7 @@ pub mod opus {
             }
         }
 
-        impl<'a> EncoderToImpl for OpusEncoder<'_> {
+        impl EncoderToImpl for OpusEncoder<'_> {
             fn get_bitrate(&self) -> u32 {
                 if self.samples_written != 0 {
                     (self.sample_rate as u64 * self.bytes_written / self.samples_written * self.channels as u64 * 8) as u32
@@ -1903,46 +1903,46 @@ pub mod flac_enc {
 
         pub fn write_interleaved_samples(&mut self, samples: &[i32]) -> Result<(), AudioWriteError> {
             match self.encoder.write_interleaved_samples(&self.fit_samples_to_bps(samples)) {
-                Ok(_) => Ok(self.frames_written += samples.len() as u64 / self.get_channels() as u64),
+                Ok(_) => {self.frames_written += samples.len() as u64 / self.get_channels() as u64; Ok(())},
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_mono_channel(&mut self, monos: &[i32]) -> Result<(), AudioWriteError> {
             match self.encoder.write_mono_channel(&self.fit_samples_to_bps(monos)) {
-                Ok(_) => Ok(self.frames_written += monos.len() as u64),
+                Ok(_) => {self.frames_written += monos.len() as u64; Ok(())},
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_stereos(&mut self, stereos: &[(i32, i32)]) -> Result<(), AudioWriteError> {
             match self.encoder.write_stereos(&self.fit_stereos_to_bps(stereos)) {
-                Ok(_) => Ok(self.frames_written += stereos.len() as u64),
+                Ok(_) => {self.frames_written += stereos.len() as u64; Ok(())},
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_monos(&mut self, monos: &[Vec<i32>]) -> Result<(), AudioWriteError> {
             match self.encoder.write_monos(&self.fit_2d_to_bps(monos)) {
-                Ok(_) => Ok(self.frames_written += monos[0].len() as u64),
+                Ok(_) => {self.frames_written += monos[0].len() as u64; Ok(())},
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
 
         pub fn write_frames(&mut self, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {
             match self.encoder.write_frames(&self.fit_2d_to_bps(frames)) {
-                Ok(_) => Ok(self.frames_written += frames.len() as u64),
+                Ok(_) => {self.frames_written += frames.len() as u64; Ok(())},
                 Err(e) => Err(AudioWriteError::from(e)),
             }
         }
     }
 
-    impl<'a> EncoderToImpl for FlacEncoderWrap<'_> {
+    impl EncoderToImpl for FlacEncoderWrap<'_> {
         fn get_bitrate(&self) -> u32 {
             if self.frames_written != 0 {
                 (*self.bytes_written * self.get_sample_rate() as u64 * 8 / self.frames_written) as u32
             } else {
-                self.get_sample_rate() as u32 * self.get_channels() as u32 * 8 // Fake data
+                self.get_sample_rate() * self.get_channels() as u32 * 8 // Fake data
             }
         }
 
@@ -2149,7 +2149,7 @@ pub mod vorbis_enc {
             Finished,
         }
 
-        impl<'a> Debug for VorbisEncoderOrBuilder<'_> {
+        impl Debug for VorbisEncoderOrBuilder<'_> {
             fn fmt(&self, f: &mut Formatter) -> fmt::Result {
                 match self {
                     Self::Builder{builder: _, metadata} => write!(f, "Builder(builder: VorbisEncoderBuilder<WriteBridge>, metadata: {:?})", metadata),
@@ -2201,7 +2201,7 @@ pub mod vorbis_enc {
                     writer,
                     params,
                     encoder: VorbisEncoderOrBuilder::Builder{
-                        builder: builder,
+                        builder,
                         metadata: BTreeMap::new(),
                     },
                     data_offset,
@@ -2246,7 +2246,7 @@ pub mod vorbis_enc {
                         Ok(())
                     },
                     VorbisEncoderOrBuilder::Encoder(_) => Ok(()),
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished("The Vorbis encoder has been sealed. No more encoding accepted.".to_string())),
                 }
             }
 
@@ -2263,7 +2263,7 @@ pub mod vorbis_enc {
                         self.frames_written += frames[0].len() as u64;
                         Ok(())
                     },
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished("The Vorbis encoder has been sealed. No more encoding accepted.".to_string())),
                 }
             }
 
@@ -2272,12 +2272,12 @@ pub mod vorbis_enc {
                 match self.encoder {
                     VorbisEncoderOrBuilder::Builder{builder: _, metadata: _} => Err(AudioWriteError::InvalidArguments("Must call `begin_to_encode()` before encoding.".to_string())),
                     VorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
-                        encoder.encode_audio_block(&monos)?;
+                        encoder.encode_audio_block(monos)?;
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += monos.len() as u64;
                         Ok(())
                     },
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(format!("The Vorbis encoder has been sealed. No more encoding accepted."))),
+                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished("The Vorbis encoder has been sealed. No more encoding accepted.".to_string())),
                 }
             }
 
@@ -2294,7 +2294,7 @@ pub mod vorbis_enc {
             }
         }
 
-        impl<'a> EncoderToImpl for VorbisEncoderWrap<'_> {
+        impl EncoderToImpl for VorbisEncoderWrap<'_> {
             fn get_bitrate(&self) -> u32 {
                 if self.frames_written != 0 {
                     (self.bytes_written * 8 * self.get_sample_rate() as u64 / self.frames_written) as u32

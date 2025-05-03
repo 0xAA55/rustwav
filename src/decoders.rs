@@ -138,7 +138,7 @@ impl<S> Decoder<S> for OpusDecoder
 }
 
 #[cfg(feature = "flac")]
-impl<'a, S> Decoder<S> for FlacDecoderWrap<'a>
+impl<S> Decoder<S> for FlacDecoderWrap<'_>
     where S: SampleType {
     fn get_channels(&self) -> u16 { FlacDecoderWrap::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(FlacDecoderWrap::get_cur_frame_index(self)) }
@@ -149,7 +149,7 @@ impl<'a, S> Decoder<S> for FlacDecoderWrap<'a>
 }
 
 #[cfg(feature = "vorbis")]
-impl<'a, S> Decoder<S> for VorbisDecoderWrap<'a>
+impl<S> Decoder<S> for VorbisDecoderWrap<'_>
     where S: SampleType {
     fn get_channels(&self) -> u16 { VorbisDecoderWrap::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(VorbisDecoderWrap::get_cur_frame_index(self)) }
@@ -173,9 +173,10 @@ where S: SampleType {
 
 impl<S> ExtensibleDecoder<S>
 where S: SampleType {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, spec: Spec, fmt: FmtChunk) -> Result<Box<dyn Decoder<S>>, AudioError> {
         if fmt.format_tag != FORMAT_TAG_EXTENSIBLE {
-            Err(AudioError::InvalidArguments(format!("The `format_tag` from `fmt ` chunk must be 0xFFFE for the extensible decoder.")))
+            Err(AudioError::InvalidArguments("The `format_tag` from `fmt ` chunk must be 0xFFFE for the extensible decoder.".to_string()))
         } else {
             match fmt.extension {
                 None => {
@@ -1075,7 +1076,7 @@ pub mod opus {
         }
 
         fn get_samples_per_block(&self) -> usize {
-            self.block_align as usize
+            self.block_align
         }
 
         fn decode_block(&mut self) -> Result<(), AudioReadError> {
@@ -1241,7 +1242,7 @@ pub mod flac_dec {
         self_ptr: Box<*mut FlacDecoderWrap<'a>>
     }
 
-    impl<'a> FlacDecoderWrap<'a> {
+    impl FlacDecoderWrap<'_> {
         pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
             let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
@@ -1500,7 +1501,7 @@ pub mod vorbis_dec {
         cur_block_frame_index: u64,
     }
 
-    impl<'a> VorbisDecoderWrap<'_> {
+    impl VorbisDecoderWrap<'_> {
         pub fn new(reader: Box<dyn Reader>, data_offset: u64, data_length: u64, fmt: FmtChunk, total_samples: u64) -> Result<Self, AudioReadError> {
             let mut reader_holder = reader;
             let reader = SharedReader::new(hacks::force_borrow_mut!(*reader_holder, dyn Reader));
@@ -1536,10 +1537,7 @@ pub mod vorbis_dec {
         fn decode(&mut self) -> Result<(), AudioReadError> {
             self.cur_block_frame_index += self.cur_block_frames() as u64;
             self.cur_frame_index = self.cur_block_frame_index;
-            self.decoded_samples = match self.decoder.decode_audio_block()? {
-                None => None,
-                Some(samples) => Some(samples.samples().into_iter().map(|frame|frame.to_vec()).collect()),
-            };
+            self.decoded_samples = self.decoder.decode_audio_block()?.map(|samples|samples.samples().iter().map(|frame|frame.to_vec()).collect());
             Ok(())
         }
 
@@ -1630,7 +1628,7 @@ pub mod vorbis_dec {
                 .field("channels", &self.channels)
                 .field("sample_rate", &self.sample_rate)
                 .field("decoded_samples", &match self.decoded_samples {
-                    None => format!("None"),
+                    None => "None".to_string(),
                     Some(_) => format!("Some([f32; {}])", self.cur_block_frames()),
                 })
                 .field("cur_frame_index", &self.cur_frame_index)

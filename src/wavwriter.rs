@@ -53,7 +53,8 @@ pub enum FileSizeOption{
 /// * Choose one of the internal formats by specifying `DataFormat` and use the `WaveWriter` to create the WAV file.
 /// * Use the methods, like `write_samples()`, `write_mono_channel()`, `write_monos()`, `write_stereos()`, etc, to write your PCM samples to the `WaveWriter`, it will encode.
 /// * Call `finalize()` or just let the `WaveWriter` get out of the scope.
-/// BAM. The WAV file was created successfully with the audio sound as you provided.
+///
+/// Then BAM. The WAV file was created successfully with the audio sound as you provided.
 #[derive(Debug)]
 pub struct WaveWriter<'a> {
     writer: Box<dyn Writer + 'a>,
@@ -343,7 +344,7 @@ impl<'a> WaveWriter<'a> {
     }
     /// * See `WaveReader`
     pub fn set_slnt_chunk(&mut self, chunk: &SlntChunk) {
-        self.slnt_chunk = Some(chunk.clone());
+        self.slnt_chunk = Some(*chunk);
     }
     /// * See `WaveReader`
     pub fn set_bext_chunk(&mut self, chunk: &BextChunk) {
@@ -392,12 +393,12 @@ impl<'a> WaveWriter<'a> {
 
     /// Transfers audio metadata (e.g., track info) from the reader.
     pub fn inherit_metadata_from_reader(&mut self, reader: &WaveReader, include_junk_chunks: bool) {
-        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = reader.get_slnt_chunk().clone();}
+        if reader.get_slnt_chunk().is_some() {self.slnt_chunk = *reader.get_slnt_chunk();}
+        if reader.get_inst_chunk().is_some() {self.inst_chunk = *reader.get_inst_chunk();}
+        if reader.get_trkn_chunk().is_some() {self.trkn_chunk = *reader.get_trkn_chunk();}
         if reader.get_bext_chunk().is_some() {self.bext_chunk = reader.get_bext_chunk().clone();}
         if reader.get_smpl_chunk().is_some() {self.smpl_chunk = reader.get_smpl_chunk().clone();}
-        if reader.get_inst_chunk().is_some() {self.inst_chunk = reader.get_inst_chunk().clone();}
         if reader.get_plst_chunk().is_some() {self.plst_chunk = reader.get_plst_chunk().clone();}
-        if reader.get_trkn_chunk().is_some() {self.trkn_chunk = reader.get_trkn_chunk().clone();}
         if reader.get_cue__chunk().is_some() {self.cue__chunk = reader.get_cue__chunk().clone();}
         if reader.get_axml_chunk().is_some() {self.axml_chunk = reader.get_axml_chunk().clone();}
         if reader.get_ixml_chunk().is_some() {self.ixml_chunk = reader.get_ixml_chunk().clone();}

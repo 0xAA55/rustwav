@@ -1,5 +1,5 @@
 use std::{io, fmt::Debug};
-use crate::wavcore::{FmtChunk};
+use crate::wavcore::FmtChunk;
 
 /// * This is used for the encoder to decide while the new sample arrives, which channel the sample should be put in
 #[derive(Debug, Clone, Copy)]
@@ -114,7 +114,7 @@ pub mod ima {
     use std::{io, cmp::min, mem};
 
     use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
-    use crate::copiablebuf::{CopiableBuffer};
+    use crate::copiablebuf::CopiableBuffer;
     use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmImaData};
 
     #[derive(Debug)]
@@ -593,7 +593,7 @@ pub mod ima {
         }
 
         /// * Flush both decoder cores.
-        /// Continuous feeding the decoder zero data until it finished decoding a whole block.
+        ///   Continuous feeding the decoder zero data until it finished decoding a whole block.
         pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
             while !self.core_l.on_new_block() || !self.core_r.on_new_block() {
                 let mut iter = [0u8].into_iter();
@@ -655,7 +655,7 @@ pub mod ms {
     use std::io;
 
     use super::{AdpcmEncoder, AdpcmDecoder, CurrentChannel};
-    use crate::copiablebuf::{CopiableBuffer};
+    use crate::copiablebuf::CopiableBuffer;
     use crate::wavcore::{FmtChunk, FmtExtension, ExtensionData, AdpcmMsData};
 
     const ADAPTATIONTABLE: [i16; 16] = [
@@ -1367,8 +1367,8 @@ pub mod yamaha {
     use std::{io, cmp::min};
 
     use super::{AdpcmEncoder, AdpcmDecoder};
-    use crate::copiablebuf::{CopiableBuffer};
-    use crate::wavcore::{FmtChunk};
+    use crate::copiablebuf::CopiableBuffer;
+    use crate::wavcore::FmtChunk;
 
     const BLOCK_SIZE: usize = 1024;
 

@@ -24,7 +24,7 @@ impl<'a> ReadBridge<'a> {
     }
 }
 
-impl<'a> Read for ReadBridge<'_> {
+impl Read for ReadBridge<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         self.reader.read(buf)
     }
@@ -33,7 +33,7 @@ impl<'a> Read for ReadBridge<'_> {
     }
 }
 
-impl<'a> Seek for ReadBridge<'_> {
+impl Seek for ReadBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.reader.seek(pos)
     }
@@ -59,7 +59,7 @@ impl<'a> WriteBridge<'a> {
     }
 }
 
-impl<'a> Write for WriteBridge<'_> {
+impl Write for WriteBridge<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         self.writer.write(buf)
     }
@@ -71,7 +71,7 @@ impl<'a> Write for WriteBridge<'_> {
     }
 }
 
-impl<'a> Seek for WriteBridge<'_> {
+impl Seek for WriteBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.writer.seek(pos)
     }
@@ -101,7 +101,7 @@ impl<'a> SharedReader<'a>{
     }
 }
 
-impl<'a> Read for SharedReader<'_> {
+impl Read for SharedReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         self.escorted_read(|reader|{reader.read(buf)})
     }
@@ -110,7 +110,7 @@ impl<'a> Read for SharedReader<'_> {
     }
 }
 
-impl<'a> Seek for SharedReader<'_> {
+impl Seek for SharedReader<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.escorted_read(|reader|{reader.seek(pos)})
     }
@@ -140,7 +140,7 @@ impl<'a> SharedWriter<'a>{
     }
 }
 
-impl<'a> Write for SharedWriter<'_> {
+impl Write for SharedWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         self.escorted_write(|writer|{writer.write(buf)})
     }
@@ -152,7 +152,7 @@ impl<'a> Write for SharedWriter<'_> {
     }
 }
 
-impl<'a> Seek for SharedWriter<'_> {
+impl Seek for SharedWriter<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.escorted_write(|writer|{writer.seek(pos)})
     }

@@ -185,7 +185,7 @@ where S: SampleType,
 /// * Convert samples to another format by scaling. e.g. `u8` to `i16` conversion is to scale `[0, 255]` into `[-32768, +32767]`
 /// * Upscaling is lossless. Beware, the precision of `f32` is roughly the same as `i24`. Convert `i32` to `f32` is lossy.
 /// * `i32` to `f64` is lossless but `f64` for audio processing consumes lots of memory.
-pub fn sample_conv<'a, S, D>(frame: &'a [S]) -> Cow<'a, [D]>
+pub fn sample_conv<S, D>(frame: &[S]) -> Cow<'_, [D]>
 where S: SampleType,
       D: SampleType {
 
@@ -197,7 +197,7 @@ where S: SampleType,
 }
 
 /// * Convert multiple stereo samples to another format by scaling, see `sample_conv()`.
-pub fn stereos_conv<'a, S, D>(stereos: &'a [(S, S)]) -> Cow<'a, [(D, D)]>
+pub fn stereos_conv<S, D>(stereos: &[(S, S)]) -> Cow<'_, [(D, D)]>
 where S: SampleType,
       D: SampleType {
 
@@ -209,7 +209,7 @@ where S: SampleType,
 }
 
 /// * Convert 2D audio e.g. Audio frames or multiple mono waveforms, to another format by scaling, see `sample_conv()`.
-pub fn sample_conv_batch<'a, S, D>(frames: &[Vec<S>]) ->  Cow<'a, [Vec<D>]>
+pub fn sample_conv_batch<S, D>(frames: &[Vec<S>]) ->  Cow<'_, [Vec<D>]>
 where S: SampleType,
       D: SampleType {
 

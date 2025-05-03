@@ -121,7 +121,7 @@ pub mod format_tags {
     pub const FORMAT_TAG_ADPCM_YAMAHA : u16 = 0x0020;
     pub const FORMAT_TAG_MP3          : u16 = 0x0055;
     pub const FORMAT_TAG_OPUS         : u16 = 0x704F;
-    pub const FORMAT_TAG_VORBIS       : u16 = ('O' as u16) | ('g' as u16) << 8;
+    pub const FORMAT_TAG_VORBIS       : u16 = ('O' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_FLAC         : u16 = 0xF1AC;
     pub const FORMAT_TAG_EXTENSIBLE   : u16 = 0xFFFE;
 }
