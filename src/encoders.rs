@@ -274,7 +274,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_samples__i8(&sample_conv(samples)),
             "i16" => self.encoder.write_samples_i16(&sample_conv(samples)),
             "i24" => self.encoder.write_samples_i24(&sample_conv(samples)),
@@ -299,7 +299,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_frame__i8(&sample_conv(frame)),
             "i16" => self.encoder.write_frame_i16(&sample_conv(frame)),
             "i24" => self.encoder.write_frame_i24(&sample_conv(frame)),
@@ -328,8 +328,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
-            // 希望编译器能做到优化，省区字符串比对的过程。
+        match S::TYPE_NAME {
             "i8" => self
                 .encoder
                 .write_frames__i8(&sample_conv_batch(frames), channels),
@@ -378,7 +377,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_sample__i8(mono.to_i8()),
             "i16" => self.encoder.write_sample_i16(mono.to_i16()),
             "i24" => self.encoder.write_sample_i24(mono.to_i24()),
@@ -391,6 +390,7 @@ impl<'a> Encoder<'a> {
             "u64" => self.encoder.write_sample_u64(mono.to_u64()),
             "f32" => self.encoder.write_sample_f32(mono.to_f32()),
             "f64" => self.encoder.write_sample_f64(mono.to_f64()),
+        match S::TYPE_NAME {
             other => Err(AudioWriteError::InvalidArguments(format!(
                 "Bad sample type: {}",
                 other
@@ -403,7 +403,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_mono_channel__i8(&sample_conv(monos)),
             "i16" => self.encoder.write_mono_channel_i16(&sample_conv(monos)),
             "i24" => self.encoder.write_mono_channel_i24(&sample_conv(monos)),
@@ -428,7 +428,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self
                 .encoder
                 .write_dual_sample__i8(mono1.to_i8(), mono2.to_i8()),
@@ -477,7 +477,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self
                 .encoder
                 .write_dual_monos__i8(&sample_conv(mono1), &sample_conv(mono2)),
@@ -526,7 +526,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_monos__i8(&sample_conv_batch(monos)),
             "i16" => self.encoder.write_monos_i16(&sample_conv_batch(monos)),
             "i24" => self.encoder.write_monos_i24(&sample_conv_batch(monos)),
@@ -551,7 +551,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_stereo__i8(stereo_conv(stereo)),
             "i16" => self.encoder.write_stereo_i16(stereo_conv(stereo)),
             "i24" => self.encoder.write_stereo_i24(stereo_conv(stereo)),
@@ -576,7 +576,7 @@ impl<'a> Encoder<'a> {
     where
         S: SampleType,
     {
-        match std::any::type_name::<S>() {
+        match S::TYPE_NAME {
             "i8" => self.encoder.write_stereos__i8(&stereos_conv(stereos)),
             "i16" => self.encoder.write_stereos_i16(&stereos_conv(stereos)),
             "i24" => self.encoder.write_stereos_i24(&stereos_conv(stereos)),
