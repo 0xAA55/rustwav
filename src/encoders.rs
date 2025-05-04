@@ -18,6 +18,8 @@ use crate::{SampleType, i24, u24};
 /// Due to trait bounds prohibiting generic parameters, each function must be explicitly
 /// implemented for every supported type.
 pub trait EncoderToImpl: Debug {
+    fn get_channels(&self) -> u16;
+    fn get_max_channels(&self) -> u16;
     fn get_bitrate(&self) -> u32;
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError>;
     fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError>;
@@ -171,6 +173,13 @@ pub struct DummyEncoder;
 
 /// ## Default implementations: all functions are `panic!`
 impl EncoderToImpl for DummyEncoder {
+    fn get_channels(&self) -> u16 {
+        panic!("Encoder creation failed.");
+    }
+
+    fn get_max_channels(&self) -> u16 {
+        panic!("Encoder creation failed.");
+    }
     fn get_bitrate(&self) -> u32 {
         panic!("Must implement `get_bitrate()` for your encoder.");
     }
@@ -229,6 +238,14 @@ impl<'a> Encoder<'a> {
         Self {
             encoder: Box::new(encoder),
         }
+    }
+
+    pub fn get_channels(&self) -> u16 {
+        self.encoder.get_channels()
+    }
+
+    pub fn get_max_channels(&self) -> u16 {
+        self.encoder.get_max_channels()
     }
 
     pub fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
@@ -710,9 +727,18 @@ impl<'a> PcmEncoder<'a> {
 }
 
 impl EncoderToImpl for PcmEncoder<'_> {
+    fn get_channels(&self) -> u16 {
+        self.spec.channels
+    }
+
+    fn get_max_channels(&self) -> u16 {
+        18
+    }
+
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
     }
+
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
         use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         let bytes_per_sample = self.spec.bits_per_sample / 8;
@@ -864,6 +890,14 @@ impl<E> EncoderToImpl for AdpcmEncoderWrap<'_, E>
 where
     E: adpcm::AdpcmEncoder,
 {
+    fn get_channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn get_max_channels(&self) -> u16 {
+        2
+    }
+
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
     }
@@ -948,6 +982,14 @@ impl<'a> PcmXLawEncoderWrap<'a> {
 }
 
 impl EncoderToImpl for PcmXLawEncoderWrap<'_> {
+    fn get_channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn get_max_channels(&self) -> u16 {
+        2
+    }
+
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
         Ok(())
     }
@@ -1710,6 +1752,14 @@ pub mod mp3 {
         where
             S: SampleType,
         {
+            fn get_channels(&self) -> u16 {
+                self.channels
+            }
+
+            fn get_max_channels(&self) -> u16 {
+                2
+            }
+
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
                 Ok(())
             }
@@ -2073,6 +2123,14 @@ pub mod opus {
         }
 
         impl EncoderToImpl for OpusEncoder<'_> {
+            fn get_channels(&self) -> u16 {
+                self.channels
+            }
+
+            fn get_max_channels(&self) -> u16 {
+                255
+            }
+
             fn get_bitrate(&self) -> u32 {
                 if self.samples_written != 0 {
                     (self.sample_rate as u64 * self.bytes_written / self.samples_written
@@ -2354,6 +2412,19 @@ pub mod flac_enc {
     }
 
     impl EncoderToImpl for FlacEncoderWrap<'_> {
+        fn get_channels(&self) -> u16 {
+            self.params.channels
+        }
+
+        fn get_max_channels(&self) -> u16 {
+            8
+        }
+
+        fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+            self.encoder.initialize()?;
+            Ok(())
+        }
+
         fn get_bitrate(&self) -> u32 {
             if self.frames_written != 0 {
                 (*self.bytes_written * self.get_sample_rate() as u64 * 8 / self.frames_written)
@@ -2770,6 +2841,14 @@ pub mod vorbis_enc {
         }
 
         impl EncoderToImpl for VorbisEncoderWrap<'_> {
+            fn get_channels(&self) -> u16 {
+                self.params.channels
+            }
+
+            fn get_max_channels(&self) -> u16 {
+                255
+            }
+
             fn get_bitrate(&self) -> u32 {
                 if self.frames_written != 0 {
                     (self.bytes_written * 8 * self.get_sample_rate() as u64 / self.frames_written)
