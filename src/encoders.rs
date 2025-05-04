@@ -180,28 +180,29 @@ impl EncoderToImpl for DummyEncoder {
     fn get_max_channels(&self) -> u16 {
         panic!("Encoder creation failed.");
     }
+
     fn get_bitrate(&self) -> u32 {
-        panic!("Must implement `get_bitrate()` for your encoder.");
+        panic!("Encoder creation failed.");
     }
 
     fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-        panic!("Must implement `begin_encoding()` for your encoder.");
+        panic!("Encoder creation failed.");
     }
 
     fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
-        panic!("Must implement `new_fmt_chunk()` for your encoder.");
+        panic!("Encoder creation failed.");
     }
 
     fn update_fmt_chunk(&self, _fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
-        panic!("Must implement `update_fmt_chunk()` for your encoder.");
+        panic!("Encoder creation failed.");
     }
 
     fn finish(&mut self) -> Result<(), AudioWriteError> {
-        panic!("Must implement `finish()` for your encoder to flush the data.");
+        panic!("Encoder creation failed.");
     }
 
-    fn write_samples_f32(&mut self, _samples: &[f32]) -> Result<(), AudioWriteError> {
-        panic!("Must at lease implement `write_samples_f32()` for your encoder to get samples.");
+    fn write_interleaved_samples_f32(&mut self, _samples: &[f32]) -> Result<(), AudioWriteError> {
+        panic!("Encoder creation failed.");
     }
 
     fn write_samples__i8(&mut self, samples: &[i8 ]) -> Result<(), AudioWriteError> {self.write_samples_f32(&sample_conv(samples))}
@@ -226,7 +227,7 @@ pub struct Encoder<'a> {
 
 impl Default for Encoder<'_> {
     fn default() -> Self {
-        Self::new(DummyEncoder {})
+        Self::new(DummyEncoder)
     }
 }
 
