@@ -2132,6 +2132,10 @@ pub mod opus {
                 255
             }
 
+            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                Ok(())
+            }
+
             fn get_bitrate(&self) -> u32 {
                 if self.samples_written != 0 {
                     (self.sample_rate as u64 * self.bytes_written / self.samples_written
@@ -2140,9 +2144,6 @@ pub mod opus {
                 } else {
                     self.sample_rate * self.channels as u32 * 8 // Fake data
                 }
-            }
-            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-                Ok(())
             }
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
@@ -2156,11 +2157,13 @@ pub mod opus {
                     extension: None,
                 })
             }
+
             fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
                 fmt.byte_rate = self.get_bitrate() / 8;
                 fmt.block_align = self.num_samples_per_encode as u16;
                 Ok(())
             }
+
             fn finish(&mut self) -> Result<(), AudioWriteError> {
                 self.flush()?;
                 self.writer.flush()?;
@@ -2433,11 +2436,6 @@ pub mod flac_enc {
             } else {
                 self.get_sample_rate() * self.get_channels() as u32 * 8 // Fake data
             }
-        }
-
-        fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-            self.encoder.initialize()?;
-            Ok(())
         }
 
         fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
@@ -2850,6 +2848,10 @@ pub mod vorbis_enc {
                 255
             }
 
+            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                self.begin_to_encode()
+            }
+
             fn get_bitrate(&self) -> u32 {
                 if self.frames_written != 0 {
                     (self.bytes_written * 8 * self.get_sample_rate() as u64 / self.frames_written)
@@ -2874,10 +2876,6 @@ pub mod vorbis_enc {
             fn update_fmt_chunk(&self, fmt: &mut FmtChunk) -> Result<(), AudioWriteError> {
                 fmt.byte_rate = self.get_bitrate() / 8;
                 Ok(())
-            }
-
-            fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-                self.begin_to_encode()
             }
 
             fn finish(&mut self) -> Result<(), AudioWriteError> {
