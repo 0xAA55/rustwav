@@ -1962,7 +1962,7 @@ pub mod opus {
                 options: &OpusEncoderOptions,
             ) -> Result<Self, AudioWriteError> {
                 let mut opus_channels = Channels::Mono;
-                unsafe {
+                unsafe { // See <https://github.com/SpaceManiac/opus-rs/blob/master/src/lib.rs#L52>
                     *(&mut opus_channels as *mut Channels as usize as *mut u8) = spec.channels as u8;
                 };
                 if !OPUS_ALLOWED_SAMPLE_RATES.contains(&spec.sample_rate) {
