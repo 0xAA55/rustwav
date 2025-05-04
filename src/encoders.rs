@@ -1961,14 +1961,9 @@ pub mod opus {
                 spec: Spec,
                 options: &OpusEncoderOptions,
             ) -> Result<Self, AudioWriteError> {
-                let opus_channels = match spec.channels {
-                    1 => Channels::Mono,
-                    2 => Channels::Stereo,
-                    o => {
-                        return Err(AudioWriteError::InvalidArguments(format!(
-                            "Bad channels: {o} for the opus encoder."
-                        )));
-                    }
+                let mut opus_channels = Channels::Mono;
+                unsafe {
+                    *(&mut opus_channels as *mut Channels as usize as *mut u8) = spec.channels as u8;
                 };
                 if !OPUS_ALLOWED_SAMPLE_RATES.contains(&spec.sample_rate) {
                     return Err(AudioWriteError::InvalidArguments(format!(
