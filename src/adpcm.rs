@@ -1745,8 +1745,8 @@ pub mod yamaha {
             mut output: impl FnMut(u8),
         ) -> Result<(), io::Error> {
             match self {
-                Self::Mono(enc) => enc.encode(|| input(), |nibble| output(nibble)),
-                Self::Stereo(enc) => enc.encode(|| input(), |nibble| output(nibble)),
+                Self::Mono(enc) => enc.encode(&mut input, &mut output),
+                Self::Stereo(enc) => enc.encode(&mut input, &mut output),
             }
             Ok(())
         }
@@ -1781,8 +1781,8 @@ pub mod yamaha {
 
         fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
             match self {
-                Self::Mono(enc) => enc.flush(|nibble| output(nibble)),
-                Self::Stereo(enc) => enc.flush(|nibble| output(nibble)),
+                Self::Mono(enc) => enc.flush(&mut output),
+                Self::Stereo(enc) => enc.flush(&mut output),
             }
             Ok(())
         }
@@ -1817,7 +1817,7 @@ pub mod yamaha {
             while let Some(nibble) = input() {
                 self.decode_sample(nibble)
                     .into_iter()
-                    .for_each(|sample| output(sample));
+                    .for_each(&mut output);
             }
         }
     }
@@ -1862,7 +1862,7 @@ pub mod yamaha {
             while let Some(nibble) = input() {
                 self.decode_sample(nibble)
                     .into_iter()
-                    .for_each(|sample| output(sample));
+                    .for_each(&mut output);
             }
         }
     }
@@ -1924,8 +1924,8 @@ pub mod yamaha {
             mut output: impl FnMut(i16),
         ) -> Result<(), io::Error> {
             match self {
-                Self::Mono(dec) => dec.decode(|| input(), |sample| output(sample)),
-                Self::Stereo(dec) => dec.decode(|| input(), |sample| output(sample)),
+                Self::Mono(dec) => dec.decode(&mut input, &mut output),
+                Self::Stereo(dec) => dec.decode(&mut input, &mut output),
             }
             Ok(())
         }
