@@ -300,12 +300,12 @@ impl<'a> Encoder<'a> {
         S: SampleType,
     {
         match S::TYPE_NAME {
-            "i8" => self.encoder.write_frame__i8(&sample_conv(frame)),
+            "i8"  => self.encoder.write_frame__i8(&sample_conv(frame)),
             "i16" => self.encoder.write_frame_i16(&sample_conv(frame)),
             "i24" => self.encoder.write_frame_i24(&sample_conv(frame)),
             "i32" => self.encoder.write_frame_i32(&sample_conv(frame)),
             "i64" => self.encoder.write_frame_i64(&sample_conv(frame)),
-            "u8" => self.encoder.write_frame__u8(&sample_conv(frame)),
+            "u8"  => self.encoder.write_frame__u8(&sample_conv(frame)),
             "u16" => self.encoder.write_frame_u16(&sample_conv(frame)),
             "u24" => self.encoder.write_frame_u24(&sample_conv(frame)),
             "u32" => self.encoder.write_frame_u32(&sample_conv(frame)),
@@ -400,12 +400,12 @@ impl<'a> Encoder<'a> {
         S: SampleType,
     {
         match S::TYPE_NAME {
-            "i8" => self.encoder.write_mono_channel__i8(&sample_conv(monos)),
+            "i8"  => self.encoder.write_mono_channel__i8(&sample_conv(monos)),
             "i16" => self.encoder.write_mono_channel_i16(&sample_conv(monos)),
             "i24" => self.encoder.write_mono_channel_i24(&sample_conv(monos)),
             "i32" => self.encoder.write_mono_channel_i32(&sample_conv(monos)),
             "i64" => self.encoder.write_mono_channel_i64(&sample_conv(monos)),
-            "u8" => self.encoder.write_mono_channel__u8(&sample_conv(monos)),
+            "u8"  => self.encoder.write_mono_channel__u8(&sample_conv(monos)),
             "u16" => self.encoder.write_mono_channel_u16(&sample_conv(monos)),
             "u24" => self.encoder.write_mono_channel_u24(&sample_conv(monos)),
             "u32" => self.encoder.write_mono_channel_u32(&sample_conv(monos)),
@@ -475,12 +475,12 @@ impl<'a> Encoder<'a> {
         S: SampleType,
     {
         match S::TYPE_NAME {
-            "i8" => self.encoder.write_monos__i8(&sample_conv_batch(monos)),
+            "i8"  => self.encoder.write_monos__i8(&sample_conv_batch(monos)),
             "i16" => self.encoder.write_monos_i16(&sample_conv_batch(monos)),
             "i24" => self.encoder.write_monos_i24(&sample_conv_batch(monos)),
             "i32" => self.encoder.write_monos_i32(&sample_conv_batch(monos)),
             "i64" => self.encoder.write_monos_i64(&sample_conv_batch(monos)),
-            "u8" => self.encoder.write_monos__u8(&sample_conv_batch(monos)),
+            "u8"  => self.encoder.write_monos__u8(&sample_conv_batch(monos)),
             "u16" => self.encoder.write_monos_u16(&sample_conv_batch(monos)),
             "u24" => self.encoder.write_monos_u24(&sample_conv_batch(monos)),
             "u32" => self.encoder.write_monos_u32(&sample_conv_batch(monos)),
@@ -500,12 +500,12 @@ impl<'a> Encoder<'a> {
         S: SampleType,
     {
         match S::TYPE_NAME {
-            "i8" => self.encoder.write_stereo__i8(stereo_conv(stereo)),
+            "i8"  => self.encoder.write_stereo__i8(stereo_conv(stereo)),
             "i16" => self.encoder.write_stereo_i16(stereo_conv(stereo)),
             "i24" => self.encoder.write_stereo_i24(stereo_conv(stereo)),
             "i32" => self.encoder.write_stereo_i32(stereo_conv(stereo)),
             "i64" => self.encoder.write_stereo_i64(stereo_conv(stereo)),
-            "u8" => self.encoder.write_stereo__u8(stereo_conv(stereo)),
+            "u8"  => self.encoder.write_stereo__u8(stereo_conv(stereo)),
             "u16" => self.encoder.write_stereo_u16(stereo_conv(stereo)),
             "u24" => self.encoder.write_stereo_u24(stereo_conv(stereo)),
             "u32" => self.encoder.write_stereo_u32(stereo_conv(stereo)),
@@ -525,12 +525,12 @@ impl<'a> Encoder<'a> {
         S: SampleType,
     {
         match S::TYPE_NAME {
-            "i8" => self.encoder.write_stereos__i8(&stereos_conv(stereos)),
+            "i8"  => self.encoder.write_stereos__i8(&stereos_conv(stereos)),
             "i16" => self.encoder.write_stereos_i16(&stereos_conv(stereos)),
             "i24" => self.encoder.write_stereos_i24(&stereos_conv(stereos)),
             "i32" => self.encoder.write_stereos_i32(&stereos_conv(stereos)),
             "i64" => self.encoder.write_stereos_i64(&stereos_conv(stereos)),
-            "u8" => self.encoder.write_stereos__u8(&stereos_conv(stereos)),
+            "u8"  => self.encoder.write_stereos__u8(&stereos_conv(stereos)),
             "u16" => self.encoder.write_stereos_u16(&stereos_conv(stereos)),
             "u24" => self.encoder.write_stereos_u24(&stereos_conv(stereos)),
             "u32" => self.encoder.write_stereos_u32(&stereos_conv(stereos)),
