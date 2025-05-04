@@ -274,12 +274,12 @@ impl<'a> WaveWriter<'a> {
 
     /// Stores audio samples. The generic parameter `S` represents the user-provided input format.
     /// The encoder converts samples to the internal target format before encoding them into the WAV file.
-    pub fn write_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
+    pub fn write_interleaved_samples<S>(&mut self, samples: &[S]) -> Result<(), AudioWriteError>
     where
         S: SampleType,
     {
         if self.data_chunk.is_some() {
-            self.encoder.write_samples(samples)?;
+            self.encoder.write_interleaved_samples(samples)?;
             self.num_frames_written += (samples.len() / self.spec.channels as usize) as u64;
             Ok(())
         } else {
@@ -291,12 +291,12 @@ impl<'a> WaveWriter<'a> {
     }
 
     /// Saves a single mono sample. Avoid frequent calls due to inefficiency.
-    pub fn write_sample<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
+    pub fn write_mono<S>(&mut self, mono: S) -> Result<(), AudioWriteError>
     where
         S: SampleType,
     {
         if self.data_chunk.is_some() {
-            self.encoder.write_sample(mono)?;
+            self.encoder.write_mono(mono)?;
             self.num_frames_written += 1;
             Ok(())
         } else {
@@ -438,7 +438,7 @@ impl<'a> WaveWriter<'a> {
         S: SampleType,
     {
         if self.data_chunk.is_some() {
-            self.encoder.write_frames(frames, self.spec.channels)?;
+            self.encoder.write_frames(frames)?;
             self.num_frames_written += frames.len() as u64;
             Ok(())
         } else {
