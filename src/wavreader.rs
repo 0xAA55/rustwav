@@ -751,9 +751,13 @@ where
             fmt,
             fact_data,
         )?)),
-        FORMAT_TAG_ADPCM_IMA | FORMAT_TAG_ADPCM_IMA_ => Ok(Box::new(
-            AdpcmDecoderWrap::<DecIMA>::new(reader, data_offset, data_length, fmt, fact_data)?,
-        )),
+        FORMAT_TAG_ADPCM_IMA | FORMAT_TAG_ADPCM_IMA_ => Ok(Box::new(AdpcmDecoderWrap::<DecIMA>::new(
+            reader,
+            data_offset,
+            data_length,
+            fmt,
+            fact_data
+        )?)),
         FORMAT_TAG_ADPCM_YAMAHA => Ok(Box::new(AdpcmDecoderWrap::<DecYAMAHA>::new(
             reader,
             data_offset,
@@ -763,73 +767,61 @@ where
         )?)),
         FORMAT_TAG_MP3 => {
             #[cfg(feature = "mp3dec")]
-            {
-                Ok(Box::new(Mp3Decoder::new(
-                    reader,
-                    data_offset,
-                    data_length,
-                    fmt,
-                    fact_data,
-                )?))
-            }
+            return Ok(Box::new(Mp3Decoder::new(
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
             #[cfg(not(feature = "mp3dec"))]
-            {
-                Err(AudioReadError::Unimplemented(String::from(
-                    "not implemented for decoding MP3 audio data inside the WAV file",
-                )))
-            }
+            return Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding MP3 audio data inside the WAV file",
+            )));
         }
         FORMAT_TAG_VORBIS => {
             // Ogg Vorbis
             #[cfg(feature = "vorbis")]
-            {
-                Ok(Box::new(VorbisDecoderWrap::new(
-                    reader,
-                    data_offset,
-                    data_length,
-                    fmt,
-                    fact_data,
-                )?))
-            }
+            return Ok(Box::new(VorbisDecoderWrap::new(
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
             #[cfg(not(feature = "vorbis"))]
-            Err(AudioReadError::Unimplemented(String::from(
+            return Err(AudioReadError::Unimplemented(String::from(
                 "not implemented for decoding ogg vorbis audio data inside the WAV file",
-            )))
+            )));
         }
         FORMAT_TAG_OPUS => {
             #[cfg(feature = "opus")]
-            {
-                Ok(Box::new(OpusDecoder::new(
-                    reader,
-                    data_offset,
-                    data_length,
-                    fmt,
-                    fact_data,
-                )?))
-            }
+            return Ok(Box::new(OpusDecoder::new(
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
             #[cfg(not(feature = "opus"))]
-            {
-                Err(AudioReadError::Unimplemented(String::from(
-                    "not implemented for decoding opus audio data inside the WAV file",
-                )))
-            }
+            return Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding opus audio data inside the WAV file",
+            )));
         }
         FORMAT_TAG_FLAC => {
             // FLAC
             #[cfg(feature = "flac")]
-            {
-                Ok(Box::new(FlacDecoderWrap::new(
-                    reader,
-                    data_offset,
-                    data_length,
-                    fmt,
-                    fact_data,
-                )?))
-            }
+            return Ok(Box::new(FlacDecoderWrap::new(
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
             #[cfg(not(feature = "flac"))]
-            Err(AudioReadError::Unimplemented(String::from(
+            return Err(AudioReadError::Unimplemented(String::from(
                 "not implemented for decoding FLAC audio data inside the WAV file",
-            )))
+            )));
         }
         FORMAT_TAG_EXTENSIBLE => Ok(ExtensibleDecoder::<S>::new(
             reader,
