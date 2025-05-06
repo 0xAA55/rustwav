@@ -191,7 +191,7 @@ impl WaveReader {
             } else {
                 cur_pos
             };
-            if ChunkHeader::align(chunk_position) == riff_end {
+            if chunk_position == riff_end {
                 // Normally hit the end of the WAV file.
                 break;
             } else if chunk_position + 4 >= riff_end {
@@ -376,6 +376,15 @@ impl WaveReader {
                     chunk.seek_to_next_chunk(&mut reader)?;
                 } else {
                     cur_pos += chunk.size as u64;
+                    cur_pos = ChunkHeader::align(cur_pos);
+                    chunk.goto_next_chunk_unseekable(&mut reader, &mut cur_pos)?;
+                }
+            } else {
+                // The `FileDataSource` updated `cur_pos` to the end of the `data` chunk but not align it to 16-bit position.
+                cur_pos = ChunkHeader::align(cur_pos);
+                if reader_seekable {
+                    reader.seek(SeekFrom::Start(cur_pos))?;
+                } else {
                     chunk.goto_next_chunk_unseekable(&mut reader, &mut cur_pos)?;
                 }
             }
