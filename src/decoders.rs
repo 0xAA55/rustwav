@@ -21,8 +21,8 @@ use opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use flac_dec::FlacDecoderWrap;
 
-#[cfg(feature = "vorbis")]
-use vorbis_dec::VorbisDecoderWrap;
+#[cfg(feature = "oggvorbis")]
+use oggvorbis_dec::OggVorbisDecoderWrap;
 
 /// ## Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
@@ -152,11 +152,11 @@ impl<S> Decoder<S> for FlacDecoderWrap<'_>
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
 }
 
-#[cfg(feature = "vorbis")]
-impl<S> Decoder<S> for VorbisDecoderWrap<'_>
+#[cfg(feature = "oggvorbis")]
+impl<S> Decoder<S> for OggVorbisDecoderWrap<'_>
     where S: SampleType {
-    fn get_channels(&self) -> u16 { VorbisDecoderWrap::get_channels(self) }
-    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(VorbisDecoderWrap::get_cur_frame_index(self)) }
+    fn get_channels(&self) -> u16 { OggVorbisDecoderWrap::get_channels(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(OggVorbisDecoderWrap::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
@@ -1689,9 +1689,9 @@ pub mod flac_dec {
     }
 }
 
-/// ## The Vorbis decoder for `WaveReader`
-#[cfg(feature = "vorbis")]
-pub mod vorbis_dec {
+/// ## The OggVorbis decoder for `WaveReader`
+#[cfg(feature = "oggvorbis")]
+pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
         io::SeekFrom,
@@ -1702,10 +1702,14 @@ pub mod vorbis_dec {
     use crate::hacks;
     use crate::wavcore::FmtChunk;
     use crate::{Reader, SharedReader};
+    use crate::OggVorbisMode;
     use vorbis_rs::VorbisDecoder;
 
-    /// ## The Vorbis decoder for `WaveReader`
-    pub struct VorbisDecoderWrap<'a> {
+    /// ## The OggVorbis decoder for `WaveReader`
+    pub struct OggVorbisDecoderWrap<'a> {
+        /// The mode of how the ogg vorbis file encapsulated in the WAV file.
+        mode: OggVorbisMode,
+
         /// The shared reader for the decoder to use
         reader: SharedReader<'a>,
 
@@ -1715,7 +1719,7 @@ pub mod vorbis_dec {
         /// Let the decoder use the shared reader. Because the decoder did't need the reader to implement the `Seek` trait, we can control where to let it decode from.
         decoder: VorbisDecoder<SharedReader<'a>>,
 
-        /// The data offset of the Ogg Vorbis data in the WAV file.
+        /// The data offset of the OggVorbis data in the WAV file.
         data_offset: u64,
 
         /// The size of the data
@@ -1724,7 +1728,7 @@ pub mod vorbis_dec {
         /// How many audio frames in total
         total_frames: u64,
 
-        /// Channels, it seems that Ogg Vorbis supports up to 8 channels
+        /// Channels, it seems that OggVorbis supports up to 8 channels
         channels: u16,
 
         /// Sample rate
@@ -1740,8 +1744,9 @@ pub mod vorbis_dec {
         cur_block_frame_index: u64,
     }
 
-    impl VorbisDecoderWrap<'_> {
+    impl OggVorbisDecoderWrap<'_> {
         pub fn new(
+            mode: OggVorbisMode,
             reader: Box<dyn Reader>,
             data_offset: u64,
             data_length: u64,
@@ -1754,6 +1759,7 @@ pub mod vorbis_dec {
             let channels = decoder.channels().get() as u16;
             let sample_rate = decoder.sampling_frequency().get();
             let mut ret = Self {
+                mode,
                 reader,
                 reader_holder,
                 decoder,
@@ -1792,7 +1798,7 @@ pub mod vorbis_dec {
             Ok(())
         }
 
-        /// Get how many channels in the Ogg Vorbis audio data
+        /// Get how many channels in the OggVorbis audio data
         pub fn get_channels(&self) -> u16 {
             self.channels
         }
@@ -1880,9 +1886,9 @@ pub mod vorbis_dec {
         }
     }
 
-    impl Debug for VorbisDecoderWrap<'_> {
+    impl Debug for OggVorbisDecoderWrap<'_> {
         fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-            f.debug_struct("VorbisDecoderWrap")
+            f.debug_struct("OggVorbisDecoderWrap")
                 .field("reader", &self.reader)
                 .field("reader_holder", &self.reader_holder)
                 .field("decoder", &format_args!("VorbisDecoder<Reader>"))

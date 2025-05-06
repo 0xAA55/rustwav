@@ -32,6 +32,7 @@ use crate::wavcore::{
 use crate::wavcore::{ExtensionData, FmtChunk};
 use crate::{AudioError, AudioReadError};
 use crate::downmixer;
+use crate::OggVorbisMode;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
@@ -42,8 +43,8 @@ use crate::decoders::opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use crate::decoders::flac_dec::FlacDecoderWrap;
 
-#[cfg(feature = "vorbis")]
-use crate::decoders::vorbis_dec::VorbisDecoderWrap;
+#[cfg(feature = "oggvorbis")]
+use crate::decoders::oggvorbis_dec::OggVorbisDecoderWrap;
 
 /// ## The data source for the `WaveReader`, currently we have a file reader or a file path.
 #[derive(Debug)]
@@ -779,17 +780,50 @@ where
                 "not implemented for decoding MP3 audio data inside the WAV file",
             )));
         }
-        FORMAT_TAG_VORBIS => {
-            // Ogg Vorbis
-            #[cfg(feature = "vorbis")]
-            return Ok(Box::new(VorbisDecoderWrap::new(
+        FORMAT_TAG_OGG_VORBIS1 | FORMAT_TAG_OGG_VORBIS1P => {
+            // OggVorbis
+            #[cfg(feature = "oggvorbis")]
+            return Ok(Box::new(OggVorbisDecoderWrap::new(
+                OggVorbisMode::OriginalStreamCompatible,
                 reader,
                 data_offset,
                 data_length,
                 fmt,
                 fact_data,
             )?));
-            #[cfg(not(feature = "vorbis"))]
+            #[cfg(not(feature = "oggvorbis"))]
+            return Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding ogg vorbis audio data inside the WAV file",
+            )));
+        }
+        FORMAT_TAG_OGG_VORBIS2 | FORMAT_TAG_OGG_VORBIS2P => {
+            // OggVorbis
+            #[cfg(feature = "oggvorbis")]
+            return Ok(Box::new(OggVorbisDecoderWrap::new(
+                OggVorbisMode::HaveIndependentHeader,
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
+            #[cfg(not(feature = "oggvorbis"))]
+            return Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding ogg vorbis audio data inside the WAV file",
+            )));
+        }
+        FORMAT_TAG_OGG_VORBIS3 | FORMAT_TAG_OGG_VORBIS3P => {
+            // OggVorbis
+            #[cfg(feature = "oggvorbis")]
+            return Ok(Box::new(OggVorbisDecoderWrap::new(
+                OggVorbisMode::HaveNoCodebookHeader,
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
+            #[cfg(not(feature = "oggvorbis"))]
             return Err(AudioReadError::Unimplemented(String::from(
                 "not implemented for decoding ogg vorbis audio data inside the WAV file",
             )));

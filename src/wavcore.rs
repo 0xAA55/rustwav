@@ -20,10 +20,10 @@ use crate::downmixer;
 pub use flac::{FlacCompression, FlacEncoderParams};
 
 #[allow(unused_imports)]
-pub use crate::{VorbisBitrateStrategy, VorbisEncoderParams};
+pub use crate::{OggVorbisBitrateStrategy, OggVorbisEncoderParams};
 
 /// ## Specify the audio codecs of the WAV file.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum DataFormat {
     /// * This is used for creating a new `DataFormat` to specify an `unknown` format.
@@ -58,9 +58,9 @@ pub enum DataFormat {
     /// * The WAV file which encapsulates the FLAC file as its content, the size of the WAV file looks like an FLAC file size.
     Flac(FlacEncoderParams),
 
-    /// * Vorbis. Just a pure Vorbis file encapsulated in the `data` chunk.
-    /// * The WAV file which encapsulates the Vorbis file as its content, the size of the WAV file looks like an Vorbis file size.
-    Vorbis(VorbisEncoderParams),
+    /// * OggVorbis. Just a pure OggVorbis file encapsulated in the `data` chunk.
+    /// * The WAV file which encapsulates the OggVorbis file as its content, the size of the WAV file looks like an OggVorbis file size.
+    OggVorbis(OggVorbisEncoderParams),
 }
 
 /// * When to encode audio to ADPCM format, choose one of the subformats.
@@ -95,7 +95,7 @@ impl Display for DataFormat {
             Self::Mp3(options) => write!(f, "MP3({:?})", options),
             Self::Opus(options) => write!(f, "Opus({:?})", options),
             Self::Flac(options) => write!(f, "Flac({:?})", options),
-            Self::Vorbis(options) => write!(f, "Vorbis({:?})", options),
+            Self::OggVorbis(options) => write!(f, "OggVorbis({:?})", options),
         }
     }
 }
@@ -121,7 +121,12 @@ pub mod format_tags {
     pub const FORMAT_TAG_ADPCM_YAMAHA : u16 = 0x0020;
     pub const FORMAT_TAG_MP3          : u16 = 0x0055;
     pub const FORMAT_TAG_OPUS         : u16 = 0x704F;
-    pub const FORMAT_TAG_VORBIS       : u16 = ('O' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS1  : u16 = ('O' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS2  : u16 = ('P' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS3  : u16 = ('Q' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS1P : u16 = ('o' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS2P : u16 = ('p' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_OGG_VORBIS3P : u16 = ('q' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_FLAC         : u16 = 0xF1AC;
     pub const FORMAT_TAG_EXTENSIBLE   : u16 = 0xFFFE;
 }
@@ -624,6 +629,12 @@ pub enum ExtensionData {
     /// * MP3 specified extension data.
     Mp3(Mp3Data),
 
+    /// * OggVorbis specified extension data.
+    OggVorbis(OggVorbisData),
+
+    /// * Another OggVorbis specified extension data.
+    OggVorbisWithHeader(OggVorbisWithHeaderData),
+
     /// * Extensible data, it has channel mask, GUID for formats, etc, dedicated for multi-channel PCM format.
     Extensible(ExtensibleData),
 }
@@ -650,6 +661,31 @@ pub struct Mp3Data {
     pub block_size: u16,
     pub frames_per_block: u16,
     pub codec_delay: u16,
+}
+
+/// ## The extension data for OggVorbis
+#[derive(Debug, Clone, Copy)]
+pub struct OggVorbisData {
+    /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
+    pub codec_version: u32,
+
+    /// * The `libvorbis` version, our `rustwav` depends on `vorbis_rs 0.5.5`, which uses `vorbis-sys`, which uses `libvorbis 1.3.7 20200704`
+    /// * So this field must be 0x20200704 for our encoded WAV file.
+    pub vorbis_version: u32,
+}
+
+/// ## The another extension data for OggVorbis
+#[derive(Debug, Clone)]
+pub struct OggVorbisWithHeaderData {
+    /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
+    pub codec_version: u32,
+
+    /// * The `libvorbis` version, our `rustwav` depends on `vorbis_rs 0.5.5`, which uses `vorbis-sys`, which uses `libvorbis 1.3.7 20200704`
+    /// * So this field must be 0x20200704 for our encoded WAV file.
+    pub vorbis_version: u32,
+
+    /// * The OggVorbis header data
+    pub header: Vec<u8>,
 }
 
 /// ## The extension data for extensible.
@@ -775,6 +811,20 @@ impl FmtExtension {
         }
     }
 
+    pub fn new_oggvorbis(oggvorbis: OggVorbisData) -> Self {
+        Self {
+            ext_len: OggVorbisData::sizeof() as u16,
+            data: ExtensionData::OggVorbis(oggvorbis),
+        }
+    }
+
+    pub fn new_oggvorbis_with_header(oggvorbis_with_header: &OggVorbisWithHeaderData) -> Self {
+        Self {
+            ext_len: oggvorbis_with_header.sizeof() as u16,
+            data: ExtensionData::OggVorbisWithHeader(oggvorbis_with_header.clone()),
+        }
+    }
+
     pub fn new_extensible(extensible: ExtensibleData) -> Self {
         Self {
             ext_len: ExtensibleData::sizeof() as u16,
@@ -786,14 +836,12 @@ impl FmtExtension {
         self.ext_len
     }
 
-    pub fn read(reader: &mut impl Reader, format_tag: u16) -> Result<Self, AudioReadError> {
-        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
-        const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
+    pub fn read(reader: &mut impl Reader, fmt_chunk: &FmtChunk) -> Result<Self, AudioReadError> {
         let ext_len = u16::read_le(reader)?;
         Ok(Self {
             ext_len,
-            data: match format_tag {
-                TAG_ADPCM_MS => {
+            data: match fmt_chunk.format_tag {
+                FORMAT_TAG_ADPCM_MS => {
                     if ext_len as usize >= AdpcmMsData::sizeof() {
                         Ok(ExtensionData::AdpcmMs(AdpcmMsData::read(reader)?))
                     } else {
@@ -803,7 +851,7 @@ impl FmtExtension {
                         )))
                     }
                 }
-                TAG_ADPCM_IMA => {
+                FORMAT_TAG_ADPCM_IMA => {
                     if ext_len as usize >= AdpcmImaData::sizeof() {
                         Ok(ExtensionData::AdpcmIma(AdpcmImaData::read(reader)?))
                     } else {
@@ -813,7 +861,7 @@ impl FmtExtension {
                         )))
                     }
                 }
-                0x0055 => {
+                FORMAT_TAG_MP3 => {
                     if ext_len as usize >= Mp3Data::sizeof() {
                         Ok(ExtensionData::Mp3(Mp3Data::read(reader)?))
                     } else {
@@ -823,9 +871,31 @@ impl FmtExtension {
                         )))
                     }
                 }
-                0xFFFE => {
+                FORMAT_TAG_OGG_VORBIS1 | FORMAT_TAG_OGG_VORBIS3 | FORMAT_TAG_OGG_VORBIS1P | FORMAT_TAG_OGG_VORBIS3P => {
+                    if ext_len as usize >= OggVorbisData::sizeof() {
+                        Ok(ExtensionData::OggVorbis(OggVorbisData::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for OggVorbis should be bigger than {}, got {ext_len}",
+                            OggVorbisData::sizeof()
+                        )))
+                    }
+                }
+                FORMAT_TAG_OGG_VORBIS2 | FORMAT_TAG_OGG_VORBIS2P => {
+                    if ext_len as usize >= OggVorbisWithHeaderData::sizeof_min() {
+                        Ok(ExtensionData::OggVorbisWithHeader(OggVorbisWithHeaderData::read(reader, ext_len)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for OggVorbis should be bigger than {}, got {ext_len}",
+                            OggVorbisWithHeaderData::sizeof_min()
+                        )))
+                    }
+                }
+                FORMAT_TAG_EXTENSIBLE => {
                     if ext_len as usize >= ExtensibleData::sizeof() {
                         Ok(ExtensionData::Extensible(ExtensibleData::read(reader)?))
+                    } else if ext_len == 0 {
+                        Ok(ExtensionData::Extensible(ExtensibleData::new(fmt_chunk)?))
                     } else {
                         Err(AudioReadError::IncompleteData(format!(
                             "The extension data for EXTENSIBLE should be bigger than {}, got {ext_len}",
@@ -852,6 +922,8 @@ impl FmtExtension {
                 ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
                 ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
                 ExtensionData::Mp3(data) => Ok(data.write(writer)?),
+                ExtensionData::OggVorbis(data) => Ok(data.write(writer)?),
+                ExtensionData::OggVorbisWithHeader(data) => Ok(data.write(writer)?),
                 ExtensionData::Extensible(data) => Ok(data.write(writer)?),
             }
         } else {
@@ -973,6 +1045,68 @@ impl Mp3Data {
         Ok(())
     }
 }
+
+impl OggVorbisData {
+    pub fn new() -> Self {
+        Self {
+            codec_version: 0x20250506,
+            vorbis_version: 0x20200704,
+        }
+    }
+
+    pub fn sizeof() -> usize {
+        8
+    }
+
+    pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
+        Ok(Self {
+            codec_version: u32::read_le(reader)?,
+            vorbis_version: u32::read_le(reader)?,
+        })
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.codec_version.write_le(writer)?;
+        self.vorbis_version.write_le(writer)?;
+        Ok(())
+    }
+}
+
+impl OggVorbisWithHeaderData {
+    pub fn new() -> Self {
+        Self {
+            codec_version: 0x20250506,
+            vorbis_version: 0x20200704,
+            header: Vec::new(),
+        }
+    }
+
+    pub fn sizeof_min() -> usize {
+        8
+    }
+
+    pub fn sizeof(&self) -> usize {
+        Self::sizeof_min() + self.header.len()
+    }
+
+    pub fn read(reader: &mut impl Reader, ext_len: u16) -> Result<Self, AudioReadError> {
+        let mut ret = Self {
+            codec_version: u32::read_le(reader)?,
+            vorbis_version: u32::read_le(reader)?,
+            header: vec![0u8; ext_len as usize - 8],
+        };
+        reader.read_exact(&mut ret.header)?;
+        Ok(ret)
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        self.codec_version.write_le(writer)?;
+        self.vorbis_version.write_le(writer)?;
+        writer.write_all(&self.header)?;
+        Ok(())
+    }
+}
+
 
 impl ExtensibleData {
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {

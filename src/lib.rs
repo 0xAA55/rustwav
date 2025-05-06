@@ -48,7 +48,7 @@ pub use encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3Vb
 pub use encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 
 #[doc(inline)]
-pub use encoders::{VorbisBitrateStrategy, VorbisEncoderParams};
+pub use encoders::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 10] = [
@@ -88,12 +88,13 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
         }),
     ),
     (
-        "vorbis",
-        DataFormat::Vorbis(VorbisEncoderParams {
+        "oggvorbis",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::OriginalStreamCompatible,
             channels: 2,
             sample_rate: 44100,
             stream_serial: None,
-            bitrate: Some(VorbisBitrateStrategy::Vbr(320_000)),
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
             minimum_page_data_size: None,
         }),
     ),

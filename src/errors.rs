@@ -532,7 +532,7 @@ impl From<&dyn flac::FlacError> for AudioWriteError {
     }
 }
 
-#[cfg(feature = "vorbis")]
+#[cfg(feature = "oggvorbis")]
 impl From<vorbis_rs::VorbisError> for AudioReadError {
     fn from(err: vorbis_rs::VorbisError) -> Self {
         use vorbis_rs::VorbisError::*;
@@ -542,7 +542,7 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
                 let func = liberr.function();
                 let kind = liberr.kind();
                 let message =
-                    format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                    format!("OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}");
                 use vorbis_rs::VorbisLibraryErrorKind::*;
                 match kind {
                     False | InternalFault => Self::OtherReason(message),
@@ -555,10 +555,10 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
                     InvalidValue => Self::InvalidArguments(message),
                     NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
                     Other { result_code: code } => Self::OtherReason(format!(
-                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}"
+                        "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}"
                     )),
                     o => Self::OtherReason(format!(
-                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
+                        "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
                     )),
                 }
             }
@@ -587,7 +587,7 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
     }
 }
 
-#[cfg(feature = "vorbis")]
+#[cfg(feature = "oggvorbis")]
 impl From<vorbis_rs::VorbisError> for AudioWriteError {
     fn from(err: vorbis_rs::VorbisError) -> Self {
         use vorbis_rs::VorbisError::*;
@@ -597,7 +597,7 @@ impl From<vorbis_rs::VorbisError> for AudioWriteError {
                 let func = liberr.function();
                 let kind = liberr.kind();
                 let message =
-                    format!("Vorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                    format!("OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}");
                 use vorbis_rs::VorbisLibraryErrorKind::*;
                 match kind {
                     False | Hole | InternalFault | NotVorbis | BadHeader | BadVorbisVersion
@@ -608,10 +608,10 @@ impl From<vorbis_rs::VorbisError> for AudioWriteError {
                     InvalidValue => Self::InvalidInput(message),
                     NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
                     Other { result_code: code } => Self::OtherReason(format!(
-                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, code: {code}"
+                        "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}, code: {code}"
                     )),
                     o => Self::OtherReason(format!(
-                        "Vorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
+                        "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
                     )),
                 }
             }

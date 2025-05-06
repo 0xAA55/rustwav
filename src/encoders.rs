@@ -2469,35 +2469,47 @@ pub mod flac_enc {
     }
 }
 
-/// ## The Ogg Vorbis encoder for `format_tag = 0x674f`
+/// ## The OggVorbis encoder
 /// * Microsoft says this should be supported: see <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h#L2321>
 /// * FFmpeg does not support this format: see <https://git.ffmpeg.org/gitweb/ffmpeg.git/blob/refs/heads/release/7.1:/libavformat/riff.c>
-pub mod vorbis_enc {
-    /// ## Vorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
+pub mod oggvorbis_enc {
+    /// ## OggVorbis encoder mode
     #[derive(Debug, Clone, Copy, Default, PartialEq)]
-    pub struct VorbisEncoderParams {
+    pub enum OggVorbisMode {
+        #[default]
+        OriginalStreamCompatible = 1,
+        HaveIndependentHeader = 2,
+        HaveNoCodebookHeader = 3,
+    }
+
+    /// ## OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
+    #[derive(Debug, Clone, Copy, Default, PartialEq)]
+    pub struct OggVorbisEncoderParams {
+        /// OggVorbis encoder mode
+        pub mode: OggVorbisMode,
+
         /// Num channels
         pub channels: u16,
 
         /// Sample rate
         pub sample_rate: u32,
 
-        /// The serials for the generated Ogg Vorbis streams will be randomly generated, as dictated by the Ogg specification. If this behavior is not desirable, set this field to `Some(your_serial_number)`.
+        /// The serials for the generated OggVorbis streams will be randomly generated, as dictated by the Ogg specification. If this behavior is not desirable, set this field to `Some(your_serial_number)`.
         pub stream_serial: Option<i32>,
 
-        /// Vorbis bitrate strategy represents a bitrate management strategy that a Vorbis encoder can use.
-        pub bitrate: Option<VorbisBitrateStrategy>,
+        /// OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
+        pub bitrate: Option<OggVorbisBitrateStrategy>,
 
-        /// Specifies the minimum size of Vorbis stream data to put into each Ogg page, except for some header pages,
-        /// which have to be cut short to conform to the Ogg Vorbis specification.
+        /// Specifies the minimum size of OggVorbis stream data to put into each Ogg page, except for some header pages,
+        /// which have to be cut short to conform to the OggVorbis specification.
         /// This value controls the tradeoff between Ogg encapsulation overhead and ease of seeking and packet loss concealment.
         /// By default, it is set to None, which lets the encoder decide.
         pub minimum_page_data_size: Option<u16>,
     }
 
-    /// ## Vorbis bitrate strategy represents a bitrate management strategy that a Vorbis encoder can use.
+    /// ## OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
     #[derive(Debug, Clone, Copy, PartialEq)]
-    pub enum VorbisBitrateStrategy {
+    pub enum OggVorbisBitrateStrategy {
         /// Pure VBR quality mode, selected by a target bitrate (in bit/s).
         /// The bitrate management engine is not enabled.
         /// The average bitrate will usually be close to the target, but there are no guarantees.
@@ -2505,8 +2517,8 @@ pub mod vorbis_enc {
         Vbr(u32),
 
         /// Similar to `Vbr`, this encoding strategy fixes the output subjective quality level,
-        /// but lets Vorbis vary the target bitrate depending on the qualities of the input signal.
-        /// An upside of this approach is that Vorbis can automatically increase or decrease the target bitrate according to how difficult the signal is to encode,
+        /// but lets OggVorbis vary the target bitrate depending on the qualities of the input signal.
+        /// An upside of this approach is that OggVorbis can automatically increase or decrease the target bitrate according to how difficult the signal is to encode,
         /// which guarantees perceptually-consistent results while using an optimal bitrate.
         /// Another upside is that there always is some mode to encode audio at a given quality level.
         /// The downside is that the output bitrate is harder to predict across different types of audio signals.
@@ -2525,10 +2537,10 @@ pub mod vorbis_enc {
         ConstrainedAbr(u32),
     }
 
-    #[cfg(feature = "vorbis")]
+    #[cfg(feature = "oggvorbis")]
     use super::EncoderToImpl;
 
-    #[cfg(feature = "vorbis")]
+    #[cfg(feature = "oggvorbis")]
     mod impl_vorbis {
         use std::{
             collections::BTreeMap,
@@ -2548,9 +2560,20 @@ pub mod vorbis_enc {
         use crate::wavcore::format_tags::*;
         use crate::{i24, u24};
 
-        impl VorbisBitrateStrategy {
+        impl OggVorbisBitrateStrategy {
+            fn is_vbr(&self) -> bool {
+                match self {
+                    Self::Vbr(_) => true,
+                    Self::QualityVbr(_) => true,
+                    Self::Abr(_) => false,
+                    Self::ConstrainedAbr(_) => false,
+                }
+            }
+        }
+
+        impl Into<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
             /// ## Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
-            fn to(self) -> VorbisBitrateManagementStrategy {
+            fn into(self) -> VorbisBitrateManagementStrategy {
                 match self {
                     Self::Vbr(bitrate) => VorbisBitrateManagementStrategy::Vbr {
                         target_bitrate: NonZero::new(bitrate).unwrap(),
@@ -2561,40 +2584,50 @@ pub mod vorbis_enc {
                     Self::Abr(bitrate) => VorbisBitrateManagementStrategy::Abr {
                         average_bitrate: NonZero::new(bitrate).unwrap(),
                     },
-                    Self::ConstrainedAbr(bitrate) => {
-                        VorbisBitrateManagementStrategy::ConstrainedAbr {
-                            maximum_bitrate: NonZero::new(bitrate).unwrap(),
-                        }
-                    }
+                    Self::ConstrainedAbr(bitrate) => VorbisBitrateManagementStrategy::ConstrainedAbr {
+                        maximum_bitrate: NonZero::new(bitrate).unwrap(),
+                    },
                 }
             }
         }
 
-        impl Default for VorbisBitrateStrategy {
+        impl From<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
+            /// ## Convert from `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
+            fn from(vbms: VorbisBitrateManagementStrategy) -> Self {
+                match vbms {
+                    VorbisBitrateManagementStrategy::Vbr{target_bitrate} => Self::Vbr(target_bitrate.into()),
+                    VorbisBitrateManagementStrategy::QualityVbr{target_quality} => Self::QualityVbr(target_quality.into()),
+                    VorbisBitrateManagementStrategy::Abr{average_bitrate} => Self::Abr(average_bitrate.into()),
+                    VorbisBitrateManagementStrategy::ConstrainedAbr{maximum_bitrate} => Self::ConstrainedAbr(maximum_bitrate.into()),
+                }
+            }
+        }
+
+        impl Default for OggVorbisBitrateStrategy {
             fn default() -> Self {
                 Self::Vbr(320_000) // I don't know which is best for `default()`.
             }
         }
 
-        /// ## The Vorbis encoder or builder enum, the builder one has metadata to put in the builder.
-        enum VorbisEncoderOrBuilder<'a> {
-            /// The Vorbis encoder builder
+        /// ## The OggVorbis encoder or builder enum, the builder one has metadata to put in the builder.
+        enum OggVorbisEncoderOrBuilder<'a> {
+            /// The OggVorbis encoder builder
             Builder {
                 /// The builder that has our shared writer.
                 builder: VorbisEncoderBuilder<SharedWriter<'a>>,
 
-                /// The metadata to be added to the Vorbis file. Before the encoder was built, add all of the comments here.
+                /// The metadata to be added to the OggVorbis file. Before the encoder was built, add all of the comments here.
                 metadata: BTreeMap<String, String>,
             },
 
-            /// The built encoder. It has our shared writer. Use this to encode PCM waveform to Ogg Vorbis format.
+            /// The built encoder. It has our shared writer. Use this to encode PCM waveform to OggVorbis format.
             Encoder(VorbisEncoder<SharedWriter<'a>>),
 
             /// When the encoding has finished, set this enum to `Finished`
             Finished,
         }
 
-        impl Debug for VorbisEncoderOrBuilder<'_> {
+        impl Debug for OggVorbisEncoderOrBuilder<'_> {
             fn fmt(&self, f: &mut Formatter) -> fmt::Result {
                 match self {
                     Self::Builder {
@@ -2611,19 +2644,19 @@ pub mod vorbis_enc {
             }
         }
 
-        /// ## Vorbis encoder wrap for `WaveWriter`
+        /// ## OggVorbis encoder wrap for `WaveWriter`
         #[derive(Debug)]
-        pub struct VorbisEncoderWrap<'a> {
+        pub struct OggVorbisEncoderWrap<'a> {
             /// The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`
             writer: SharedWriter<'a>,
 
             /// The parameters for the encoder
-            params: VorbisEncoderParams,
+            params: OggVorbisEncoderParams,
 
-            /// The Vorbis encoder builder or the built encoder.
-            encoder: VorbisEncoderOrBuilder<'a>,
+            /// The OggVorbis encoder builder or the built encoder.
+            encoder: OggVorbisEncoderOrBuilder<'a>,
 
-            /// The data offset. The Ogg Vorbis data should be written after here.
+            /// The data offset. The OggVorbis data should be written after here.
             data_offset: u64,
 
             /// How many bytes were written. This field is for calculating the bitrate of the Ogg stream.
@@ -2633,10 +2666,10 @@ pub mod vorbis_enc {
             frames_written: u64,
         }
 
-        impl<'a> VorbisEncoderWrap<'a> {
+        impl<'a> OggVorbisEncoderWrap<'a> {
             pub fn new(
                 writer: &'a mut dyn Writer,
-                params: VorbisEncoderParams,
+                params: &OggVorbisEncoderParams,
             ) -> Result<Self, AudioWriteError> {
                 let mut writer = SharedWriter::new(writer);
                 let data_offset = writer.stream_position()?;
@@ -2649,20 +2682,24 @@ pub mod vorbis_enc {
                     builder.stream_serial(serial);
                 }
                 if let Some(bitrate) = params.bitrate {
-                    builder.bitrate_management_strategy(bitrate.to());
+                    builder.bitrate_management_strategy(bitrate.into());
                 }
                 builder.minimum_page_data_size(params.minimum_page_data_size);
-                Ok(Self {
+                let mut ret = Self {
                     writer,
-                    params,
-                    encoder: VorbisEncoderOrBuilder::Builder {
+                    params: *params,
+                    encoder: OggVorbisEncoderOrBuilder::Builder {
                         builder,
                         metadata: BTreeMap::new(),
                     },
                     data_offset,
                     bytes_written: 0,
                     frames_written: 0,
-                })
+                };
+                if ret.params.bitrate.is_none() {
+                    ret.params.bitrate = Some(VorbisBitrateManagementStrategy::default().into());
+                }
+                Ok(ret)
             }
 
             /// Get num channels from the params
@@ -2682,7 +2719,7 @@ pub mod vorbis_enc {
                 value: String,
             ) -> Result<(), AudioWriteError> {
                 match self.encoder {
-                    VorbisEncoderOrBuilder::Builder{builder: _, ref mut metadata} => {
+                    OggVorbisEncoderOrBuilder::Builder{builder: _, ref mut metadata} => {
                         metadata.insert(key, value);
                         Ok(())
                     },
@@ -2694,7 +2731,7 @@ pub mod vorbis_enc {
             /// After this point, you can not add metadata anymore, and then the encoding starts.
             pub fn begin_to_encode(&mut self) -> Result<(), AudioWriteError> {
                 match self.encoder {
-                    VorbisEncoderOrBuilder::Builder {
+                    OggVorbisEncoderOrBuilder::Builder {
                         ref mut builder,
                         ref metadata,
                     } => {
@@ -2706,12 +2743,12 @@ pub mod vorbis_enc {
                                 }
                             }
                         }
-                        self.encoder = VorbisEncoderOrBuilder::Encoder(builder.build()?);
+                        self.encoder = OggVorbisEncoderOrBuilder::Encoder(builder.build()?);
                         Ok(())
                     }
-                    VorbisEncoderOrBuilder::Encoder(_) => Ok(()),
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
-                        "The Vorbis encoder has been sealed. No more encoding accepted."
+                    OggVorbisEncoderOrBuilder::Encoder(_) => Ok(()),
+                    OggVorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
+                        "The OggVorbis encoder has been sealed. No more encoding accepted."
                             .to_string(),
                     )),
                 }
@@ -2722,21 +2759,21 @@ pub mod vorbis_enc {
             pub fn write_interleaved_samples(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {
                 let channels = self.get_channels();
                 match self.encoder {
-                    VorbisEncoderOrBuilder::Builder {
+                    OggVorbisEncoderOrBuilder::Builder {
                         builder: _,
                         metadata: _,
                     } => Err(AudioWriteError::InvalidArguments(
                         "Must call `begin_to_encode()` before encoding.".to_string(),
                     )),
-                    VorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
+                    OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
                         let frames = utils::interleaved_samples_to_monos(samples, channels)?;
                         encoder.encode_audio_block(&frames)?;
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += frames[0].len() as u64;
                         Ok(())
                     }
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
-                        "The Vorbis encoder has been sealed. No more encoding accepted."
+                    OggVorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
+                        "The OggVorbis encoder has been sealed. No more encoding accepted."
                             .to_string(),
                     )),
                 }
@@ -2745,20 +2782,20 @@ pub mod vorbis_enc {
             /// Write multiple mono waveforms to the encoder.
             pub fn write_monos(&mut self, monos: &[Vec<f32>]) -> Result<(), AudioWriteError> {
                 match self.encoder {
-                    VorbisEncoderOrBuilder::Builder {
+                    OggVorbisEncoderOrBuilder::Builder {
                         builder: _,
                         metadata: _,
                     } => Err(AudioWriteError::InvalidArguments(
                         "Must call `begin_to_encode()` before encoding.".to_string(),
                     )),
-                    VorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
+                    OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
                         encoder.encode_audio_block(monos)?;
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += monos.len() as u64;
                         Ok(())
                     }
-                    VorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
-                        "The Vorbis encoder has been sealed. No more encoding accepted."
+                    OggVorbisEncoderOrBuilder::Finished => Err(AudioWriteError::AlreadyFinished(
+                        "The OggVorbis encoder has been sealed. No more encoding accepted."
                             .to_string(),
                     )),
                 }
@@ -2767,22 +2804,22 @@ pub mod vorbis_enc {
             /// Finish encoding audio.
             pub fn finish(&mut self) -> Result<(), AudioWriteError> {
                 match self.encoder {
-                    VorbisEncoderOrBuilder::Builder {
+                    OggVorbisEncoderOrBuilder::Builder {
                         builder: _,
                         metadata: _,
                     } => Err(AudioWriteError::InvalidArguments(
                         "Must call `begin_to_encode()` before encoding.".to_string(),
                     )),
-                    VorbisEncoderOrBuilder::Encoder(ref mut _encoder) => {
-                        self.encoder = VorbisEncoderOrBuilder::Finished;
+                    OggVorbisEncoderOrBuilder::Encoder(ref mut _encoder) => {
+                        self.encoder = OggVorbisEncoderOrBuilder::Finished;
                         Ok(())
                     }
-                    VorbisEncoderOrBuilder::Finished => Ok(()),
+                    OggVorbisEncoderOrBuilder::Finished => Ok(()),
                 }
             }
         }
 
-        impl EncoderToImpl for VorbisEncoderWrap<'_> {
+        impl EncoderToImpl for OggVorbisEncoderWrap<'_> {
             fn get_channels(&self) -> u16 {
                 self.params.channels
             }
@@ -2806,7 +2843,29 @@ pub mod vorbis_enc {
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
                 Ok(FmtChunk {
-                    format_tag: FORMAT_TAG_VORBIS,
+                    format_tag: match self.params.mode {
+                        OggVorbisMode::OriginalStreamCompatible => {
+                            if self.params.bitrate.unwrap().is_vbr() {
+                                FORMAT_TAG_OGG_VORBIS1
+                            } else {
+                                FORMAT_TAG_OGG_VORBIS1P
+                            }
+                        }
+                        OggVorbisMode::HaveIndependentHeader => {
+                            if self.params.bitrate.unwrap().is_vbr() {
+                                FORMAT_TAG_OGG_VORBIS2
+                            } else {
+                                FORMAT_TAG_OGG_VORBIS2P
+                            }
+                        }
+                        OggVorbisMode::HaveNoCodebookHeader => {
+                            if self.params.bitrate.unwrap().is_vbr() {
+                                FORMAT_TAG_OGG_VORBIS3
+                            } else {
+                                FORMAT_TAG_OGG_VORBIS3P
+                            }
+                        }
+                    },
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
                     byte_rate: self.get_bitrate() / 8,
@@ -2854,8 +2913,8 @@ pub mod vorbis_enc {
         }
     }
 
-    #[cfg(feature = "vorbis")]
+    #[cfg(feature = "oggvorbis")]
     pub use impl_vorbis::*;
 }
 
-pub use vorbis_enc::{VorbisBitrateStrategy, VorbisEncoderParams};
+pub use oggvorbis_enc::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
