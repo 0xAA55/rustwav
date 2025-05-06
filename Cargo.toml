@@ -1,13 +1,13 @@
 [package]
 name = "rustwav"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 authors = ["0xAA55 <838816058@qq.com>"]
 readme = "Readme.md"
 license-file = "LICENSE"
-description = "WAV format audio file parser and creator, with resampler, can change the sample rate of the audio file, and a lot of sub-format support e.g. ADPCM, aLaw, MuLaw, mp3, opus, flac, etc."
+description = "WAV format audio file parser and creator, with resampler and downmixer, can change the sample rate of the audio file, and a lot of sub-format support e.g. ADPCM, aLaw, MuLaw, mp3, opus, flac, ogg vorbis, etc."
 repository = "https://github.com/0xAA55-rs/rustwav"
-keywords = ["audio", "WAV"]
+keywords = ["audio", "WAV", "codec", "RIFF"]
 
 [dependencies]
 encoding = { version = "0.2.33", optional = true }

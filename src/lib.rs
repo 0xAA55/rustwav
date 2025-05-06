@@ -50,6 +50,8 @@ pub use encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 #[doc(inline)]
 pub use encoders::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
 
+use std::{env::args, error::Error, process::ExitCode};
+
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 15] = [
     ("pcm", DataFormat::Pcm),
@@ -248,8 +250,6 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
         }
     }
 }
-
-use std::{env::args, error::Error, process::ExitCode};
 
 /// ## The `test()` function
 /// * arg1: the format, e.g. "pcm"
