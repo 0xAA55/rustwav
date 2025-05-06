@@ -188,6 +188,7 @@ impl WaveReader {
             // Loop through the chunks inside the RIFF chunk or RF64 chunk.
             let mut manually_skipped = false;
             let chunk_position = if reader_seekable {
+                assert_eq!(reader.stream_position()?, cur_pos);
                 reader.stream_position()?
             } else {
                 cur_pos
@@ -922,7 +923,6 @@ impl FileDataSource {
                 readwrite::goto_offset_without_seek(&mut *reader, reader_cur_pos, data_offset)?;
             }
             readwrite::copy(&mut *reader, &mut writer, data_size)?;
-            *reader_cur_pos += data_size;
             let file: File = writer.into_inner().unwrap();
 
             #[cfg(debug_assertions)]
@@ -940,6 +940,8 @@ impl FileDataSource {
         let datahash = hasher.hash(&mut reader, offset, data_size)?;
         let mut file = reader.into_inner();
         file.seek(SeekFrom::Start(offset))?;
+
+        *reader_cur_pos += data_size;
 
         Ok(Self {
             file: Some(file), // Do not wrap the file into a `BufReader`, we only wrap it if we have to read data from it.
