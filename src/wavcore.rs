@@ -1099,11 +1099,11 @@ impl OggVorbisData {
 }
 
 impl OggVorbisWithHeaderData {
-    pub fn new() -> Self {
+    pub fn new(header: &[u8]) -> Self {
         Self {
             codec_version: 0x20250506,
             vorbis_version: 0x20200704,
-            header: Vec::new(),
+            header: header.to_vec(),
         }
     }
 
