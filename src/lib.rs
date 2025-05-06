@@ -51,7 +51,7 @@ pub use encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 pub use encoders::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
-pub const FORMATS: [(&str, DataFormat); 10] = [
+pub const FORMATS: [(&str, DataFormat); 15] = [
     ("pcm", DataFormat::Pcm),
     ("pcm-alaw", DataFormat::PcmALaw),
     ("pcm-ulaw", DataFormat::PcmMuLaw),
@@ -88,13 +88,68 @@ pub const FORMATS: [(&str, DataFormat); 10] = [
         }),
     ),
     (
-        "oggvorbis",
+        "oggvorbis1",
         DataFormat::OggVorbis(OggVorbisEncoderParams {
             mode: OggVorbisMode::OriginalStreamCompatible,
             channels: 2,
             sample_rate: 44100,
             stream_serial: None,
             bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
+    (
+        "oggvorbis2",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::HaveIndependentHeader,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
+    (
+        "oggvorbis3",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::HaveNoCodebookHeader,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
+    (
+        "oggvorbis1p",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::OriginalStreamCompatible,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Abr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
+    (
+        "oggvorbis2p",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::HaveIndependentHeader,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Abr(320_000)),
+            minimum_page_data_size: None,
+        }),
+    ),
+    (
+        "oggvorbis3p",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::HaveNoCodebookHeader,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Abr(320_000)),
             minimum_page_data_size: None,
         }),
     ),
