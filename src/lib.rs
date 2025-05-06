@@ -1,7 +1,7 @@
-mod adpcm;
-mod copiablebuf;
+
 mod downmixer;
 mod errors;
+mod copiablebuf;
 mod filehasher;
 mod hacks;
 mod readwrite;
@@ -10,6 +10,7 @@ mod wavcore;
 mod wavreader;
 mod wavwriter;
 mod xlaw;
+mod adpcm;
 
 /// ## The utility for both you and me to convert waveform format.
 pub mod utils;
@@ -38,6 +39,7 @@ pub use wavreader::{
     WaveReader,
 };
 pub use wavwriter::{FileSizeOption, WaveWriter};
+pub use copiablebuf::CopiableBuffer;
 
 #[doc(inline)]
 pub use encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
