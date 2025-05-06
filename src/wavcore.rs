@@ -674,7 +674,7 @@ pub struct Mp3Data {
 }
 
 /// ## The extension data for OggVorbis
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct OggVorbisData {
     /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
     pub codec_version: u32,
@@ -682,6 +682,15 @@ pub struct OggVorbisData {
     /// * The `libvorbis` version, our `rustwav` depends on `vorbis_rs 0.5.5`, which uses `vorbis-sys`, which uses `libvorbis 1.3.7 20200704`
     /// * So this field must be 0x20200704 for our encoded WAV file.
     pub vorbis_version: u32,
+}
+
+impl Debug for OggVorbisData {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("OggVorbisWithHeaderData")
+        .field("codec_version", &format_args!("{:x}/{:x}/{:x}", self.codec_version >> 16, (self.codec_version >> 8) & 0xFF, self.codec_version & 0xFF))
+        .field("vorbis_version", &format_args!("{:x}/{:x}/{:x}", self.vorbis_version >> 16, (self.vorbis_version >> 8) & 0xFF, self.vorbis_version & 0xFF))
+        .finish()
+    }
 }
 
 /// ## The another extension data for OggVorbis
