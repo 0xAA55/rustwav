@@ -31,7 +31,6 @@ use crate::wavcore::{
 };
 use crate::wavcore::{ExtensionData, FmtChunk};
 use crate::{AudioError, AudioReadError};
-use crate::downmixer;
 use crate::OggVorbisMode;
 
 #[cfg(feature = "mp3dec")]
@@ -398,21 +397,19 @@ impl WaveReader {
             }
         };
 
-        let mut channel_mask: u32 = 0;
-        if let Some(extension) = &fmt__chunk.extension {
-            channel_mask = match &extension.data {
-                ExtensionData::Extensible(extensible) => extensible.channel_mask,
-                _ => downmixer::speaker_positions::guess_channel_mask(fmt__chunk.channels)?,
-            };
-        }
-
-        let spec = Spec {
+        let mut spec = Spec {
             channels: fmt__chunk.channels,
-            channel_mask,
+            channel_mask: 0,
             sample_rate: fmt__chunk.sample_rate,
             bits_per_sample: fmt__chunk.bits_per_sample,
             sample_format: fmt__chunk.get_sample_format(),
         };
+        spec.channel_mask = spec.guess_channel_mask()?;
+        if let Some(extension) = &fmt__chunk.extension {
+            if let ExtensionData::Extensible(extensible) = &extension.data {
+                spec.channel_mask = extensible.channel_mask;
+            }
+        }
         Ok(Self {
             spec,
             fmt__chunk,
