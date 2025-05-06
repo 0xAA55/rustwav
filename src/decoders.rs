@@ -181,7 +181,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
     ) -> Result<Box<dyn Decoder<S>>, AudioError> {
         if fmt.format_tag != FORMAT_TAG_EXTENSIBLE {
             Err(AudioError::InvalidArguments(
@@ -189,7 +189,7 @@ where
                     .to_string(),
             ))
         } else {
-            match fmt.extension {
+            match &fmt.extension {
                 None => {
                     eprintln!(
                         "No extension data was found in the `fmt ` chunk. The audio data is parsed as PCM."
@@ -202,7 +202,7 @@ where
                         fmt,
                     )?))
                 }
-                Some(extension) => match extension.data {
+                Some(extension) => match &extension.data {
                     ExtensionData::Extensible(extensible) => {
                         if (extension.ext_len as usize) < ExtensibleData::sizeof() {
                             eprintln!(
@@ -274,7 +274,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
     ) -> Result<Self, AudioError> {
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
@@ -458,7 +458,7 @@ where
         reader: Box<dyn Reader>,
         data_offset: u64,
         data_length: u64,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         total_samples: u64,
     ) -> Result<Self, AudioReadError> {
         let decoder = D::new(fmt)?;
@@ -687,7 +687,7 @@ impl PcmXLawDecoderWrap {
         which_law: XLaw,
         data_offset: u64,
         data_length: u64,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         total_samples: u64,
     ) -> Result<Self, AudioReadError> {
         match fmt.channels {
@@ -894,7 +894,7 @@ pub mod mp3 {
             reader: Box<dyn Reader>,
             data_offset: u64,
             data_length: u64,
-            fmt: FmtChunk,
+            fmt: &FmtChunk,
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             let mut reader = reader;
@@ -1181,7 +1181,7 @@ pub mod opus {
             mut reader: Box<dyn Reader>,
             data_offset: u64,
             data_length: u64,
-            fmt: FmtChunk,
+            fmt: &FmtChunk,
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             let channels = fmt.channels;
@@ -1445,7 +1445,7 @@ pub mod flac_dec {
             reader: Box<dyn Reader>,
             data_offset: u64,
             data_length: u64,
-            fmt: FmtChunk,
+            fmt: &FmtChunk,
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
@@ -1750,7 +1750,7 @@ pub mod oggvorbis_dec {
             reader: Box<dyn Reader>,
             data_offset: u64,
             data_length: u64,
-            fmt: FmtChunk,
+            fmt: &FmtChunk,
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             let mut reader_holder = reader;

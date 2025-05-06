@@ -577,7 +577,7 @@ impl Default for ChunkHeader {
 }
 
 /// ## The `fmt ` chunk for the WAV file.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct FmtChunk {
     /// * See <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h>
     pub format_tag: u16,
@@ -605,7 +605,7 @@ pub struct FmtChunk {
 }
 
 /// ## The `fmt ` chunk extension block
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct FmtExtension {
     /// * Extension block size
     pub ext_len: u16,
@@ -615,7 +615,7 @@ pub struct FmtExtension {
 }
 
 /// ## Extension block data
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum ExtensionData {
     /// * If the extension block size is zero, here we have `Nodata` for it.
     Nodata,
@@ -737,7 +737,7 @@ impl FmtChunk {
         self.byte_rate.write_le(writer)?;
         self.block_align.write_le(writer)?;
         self.bits_per_sample.write_le(writer)?;
-        if let Some(extension) = self.extension {
+        if let Some(extension) = &self.extension {
             extension.write(writer)?;
         }
         Ok(())
@@ -755,8 +755,8 @@ impl FmtChunk {
             (0xFFFE, 16) => Int,
             (0xFFFE, 24) => Int,
             (0xFFFE, 32) | (0xFFFE, 64) => {
-                if let Some(extension) = self.extension {
-                    match extension.data {
+                if let Some(extension) = &self.extension {
+                    match &extension.data {
                         ExtensionData::Extensible(extensible) => {
                             match extensible.sub_format {
                                 GUID_PCM_FORMAT => Int,
@@ -769,7 +769,7 @@ impl FmtChunk {
                         }
                     }
                 } else {
-                    Int // 我们还是宽松的，0xFFFE 也允许没有扩展数据。
+                    Int
                 }
             }
             (3, 32) => Float,
@@ -909,12 +909,9 @@ impl FmtExtension {
     }
 
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        const TAG_ADPCM_IMA: u16 = AdpcmSubFormat::Ima as u16;
-        const TAG_ADPCM_MS: u16 = AdpcmSubFormat::Ms as u16;
         self.ext_len.write_le(writer)?;
         if self.ext_len != 0 {
-            // 这里我们也是宽松的，允许在这里存个表示长度为 0 的数值。
-            match self.data {
+            match &self.data {
                 ExtensionData::Nodata => Err(AudioWriteError::InvalidArguments(format!(
                     "There should be data in {} bytes to be written, but the data is `Nodata`.",
                     self.ext_len

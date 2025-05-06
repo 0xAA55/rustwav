@@ -149,7 +149,7 @@ impl<'a> WaveWriter<'a> {
 
     fn create_encoder(&mut self) -> Result<(), AudioWriteError> {
         let spec = self.spec;
-        self.encoder = match self.data_format {
+        self.encoder = match &self.data_format {
             DataFormat::Pcm => {
                 spec.verify_for_pcm()?;
                 Encoder::new(PcmEncoder::new(
@@ -182,19 +182,19 @@ impl<'a> WaveWriter<'a> {
                 XLaw::MuLaw,
             )),
             #[cfg(feature = "mp3enc")]
-            DataFormat::Mp3(ref mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(
+            DataFormat::Mp3(mp3_options) => Encoder::new(Mp3Encoder::<f32>::new(
                 hacks::force_borrow_mut!(*self.writer, dyn Writer),
                 spec,
                 mp3_options,
             )?),
             #[cfg(feature = "opus")]
-            DataFormat::Opus(ref opus_options) => Encoder::new(OpusEncoder::new(
+            DataFormat::Opus(opus_options) => Encoder::new(OpusEncoder::new(
                 hacks::force_borrow_mut!(*self.writer, dyn Writer),
                 spec,
                 opus_options,
             )?),
             #[cfg(feature = "flac")]
-            DataFormat::Flac(ref flac_options) => Encoder::new(FlacEncoderWrap::new(
+            DataFormat::Flac(flac_options) => Encoder::new(FlacEncoderWrap::new(
                 hacks::force_borrow_mut!(*self.writer, dyn Writer),
                 flac_options,
             )?),
@@ -455,7 +455,7 @@ impl<'a> WaveWriter<'a> {
     }
     /// * See `WaveReader`
     pub fn get_data_format(&self) -> DataFormat {
-        self.data_format
+        self.data_format.clone()
     }
     /// * Get how many audio frames were written
     pub fn get_num_frames_written(&self) -> u64 {

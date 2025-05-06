@@ -64,7 +64,7 @@ pub trait AdpcmEncoder: Debug {
 /// ## The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
 /// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
-    fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+    fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
     where
         Self: Sized;
 
@@ -131,7 +131,7 @@ pub mod ima {
     use std::{cmp::min, io, mem};
 
     use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
-    use crate::copiablebuf::CopiableBuffer;
+    use crate::CopiableBuffer;
     use crate::wavcore::{AdpcmImaData, ExtensionData, FmtChunk, FmtExtension};
 
     #[derive(Debug)]
@@ -421,7 +421,7 @@ pub mod ima {
             fmt_chunk.bits_per_sample = 4;
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8
                 / (fmt_chunk.channels as u32 * fmt_chunk.bits_per_sample as u32);
-            if let Some(extension) = fmt_chunk.extension {
+            if let Some(extension) = &fmt_chunk.extension {
                 if let ExtensionData::AdpcmIma(mut adpcm_ima) = extension.data {
                     adpcm_ima.samples_per_block = (BLOCK_SIZE as u16 - 4) * fmt_chunk.channels * 2;
                     Ok(())
@@ -461,7 +461,7 @@ pub mod ima {
     }
 
     impl DecoderCore {
-        pub fn new(fmt_chunk: FmtChunk) -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample_val: 0,
                 stepsize_index: 0,
@@ -588,7 +588,7 @@ pub mod ima {
     }
 
     impl StereoDecoder {
-        pub fn new(fmt_chunk: FmtChunk) -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 current_channel: CurrentChannel::Left,
                 core_l: DecoderCore::new(fmt_chunk),
@@ -664,7 +664,7 @@ pub mod ima {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
         where
             Self: Sized,
         {
@@ -724,7 +724,7 @@ pub mod ms {
     use std::io;
 
     use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
-    use crate::copiablebuf::CopiableBuffer;
+    use crate::CopiableBuffer;
     use crate::wavcore::{AdpcmMsData, ExtensionData, FmtChunk, FmtExtension};
 
     const ADAPTATIONTABLE: [i16; 16] = [
@@ -1112,7 +1112,7 @@ pub mod ms {
                 * fmt_chunk.channels as u32
                 * fmt_chunk.bits_per_sample as u32
                 / 8;
-            if let Some(extension) = fmt_chunk.extension {
+            if let Some(extension) = &fmt_chunk.extension {
                 if let ExtensionData::AdpcmMs(mut adpcm_ms) = extension.data {
                     adpcm_ms.samples_per_block =
                         (BLOCK_SIZE as u16 - HEADER_SIZE as u16) * 2 * fmt_chunk.channels;
@@ -1171,14 +1171,14 @@ pub mod ms {
 
     impl DecoderCore {
         /// * If `fmt_chunk` doesn't have the extension data, use the default coeff table.
-        pub fn new(fmt_chunk: FmtChunk) -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 sample1: 0,
                 sample2: 0,
                 coeff: AdpcmCoeffSet::new(),
                 delta: 0,
                 ready: false,
-                coeff_table: match fmt_chunk.extension {
+                coeff_table: match &fmt_chunk.extension {
                     None => DEF_COEFF_TABLE,
                     Some(extension) => {
                         if extension.ext_len < 12 {
@@ -1309,7 +1309,7 @@ pub mod ms {
     }
 
     impl StereoDecoder {
-        pub fn new(fmt_chunk: FmtChunk) -> Self {
+        pub fn new(fmt_chunk: &FmtChunk) -> Self {
             Self {
                 core_l: DecoderCore::new(fmt_chunk),
                 core_r: DecoderCore::new(fmt_chunk),
@@ -1364,7 +1364,7 @@ pub mod ms {
     }
 
     impl Decoder {
-        pub fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error> {
+        pub fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Self::Stereo(StereoDecoder::new(fmt_chunk))),
@@ -1419,7 +1419,7 @@ pub mod ms {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
         where
             Self: Sized,
         {
@@ -1534,7 +1534,7 @@ pub mod yamaha {
     use std::{cmp::min, io};
 
     use super::{AdpcmDecoder, AdpcmEncoder};
-    use crate::copiablebuf::CopiableBuffer;
+    use crate::CopiableBuffer;
     use crate::wavcore::FmtChunk;
 
     const BLOCK_SIZE: usize = 1024;
@@ -1889,7 +1889,7 @@ pub mod yamaha {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
         where
             Self: Sized,
         {

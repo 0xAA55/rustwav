@@ -1072,7 +1072,7 @@ pub mod mp3 {
 
     const ID3_FIELD_LENGTH: usize = 250;
 
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Mp3Id3Tag {
         pub title: [u8; ID3_FIELD_LENGTH],
         pub artist: [u8; ID3_FIELD_LENGTH],
@@ -1083,7 +1083,7 @@ pub mod mp3 {
     }
 
     /// ## The encoder options for MP3
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Mp3EncoderOptions {
         /// * MP3 channels, not just mono and stereo. MP3 supports two channels in multiple ways.
         pub channels: Mp3Channels,
@@ -1273,7 +1273,7 @@ pub mod mp3 {
                     quality: self.quality.to_lame_quality(),
                     bitrate: self.bitrate.to_lame_bitrate(),
                     vbr_mode: self.vbr_mode.to_lame_vbr_mode(),
-                    id3tag: self.id3tag,
+                    id3tag: self.id3tag.clone(),
                 }
             }
         }
@@ -1352,7 +1352,7 @@ pub mod mp3 {
                     sample_rate: spec.sample_rate,
                     bitrate: mp3_options.get_bitrate(),
                     encoder: encoder.clone(),
-                    encoder_options: *mp3_options,
+                    encoder_options: mp3_options.clone(),
                     buffers: match channels {
                         1 | 2 => ChannelBuffers::<'a, S>::new(
                             writer,

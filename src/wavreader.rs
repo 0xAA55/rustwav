@@ -398,8 +398,8 @@ impl WaveReader {
         };
 
         let mut channel_mask: u32 = 0;
-        if let Some(extension) = fmt__chunk.extension {
-            channel_mask = match extension.data {
+        if let Some(extension) = &fmt__chunk.extension {
+            channel_mask = match &extension.data {
                 ExtensionData::Extensible(extensible) => extensible.channel_mask,
                 _ => downmixer::speaker_positions::guess_channel_mask(fmt__chunk.channels)?,
             };
@@ -587,7 +587,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -604,7 +604,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -621,7 +621,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -640,7 +640,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -657,7 +657,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -674,7 +674,7 @@ impl WaveReader {
             self.data_chunk.offset,
             self.data_chunk.length,
             self.spec,
-            self.fmt__chunk,
+            &self.fmt__chunk,
             self.fact_data,
         )
     }
@@ -714,7 +714,7 @@ fn create_decoder<S>(
     data_offset: u64,
     data_length: u64,
     spec: Spec,
-    fmt: FmtChunk,
+    fmt: &FmtChunk,
     fact_data: u64,
 ) -> Result<Box<dyn Decoder<S>>, AudioReadError>
 where
@@ -1012,7 +1012,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
@@ -1087,7 +1087,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
@@ -1162,7 +1162,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
@@ -1240,7 +1240,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
@@ -1316,7 +1316,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
@@ -1392,7 +1392,7 @@ where
         data_offset: u64,
         data_length: u64,
         spec: Spec,
-        fmt: FmtChunk,
+        fmt: &FmtChunk,
         fact_data: u64,
     ) -> Result<Self, AudioReadError> {
         let mut reader = data_reader.open()?;
