@@ -725,7 +725,7 @@ impl FmtChunk {
             extension: None,
         };
         if chunk_size > 16 {
-            ret.extension = Some(FmtExtension::read(reader, ret.format_tag)?);
+            ret.extension = Some(FmtExtension::read(reader, &ret)?);
         }
         Ok(ret)
     }
