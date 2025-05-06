@@ -574,8 +574,8 @@ impl Debug for ChunkHeader {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("ChunkHeader")
         .field("flag", &String::from_utf8_lossy(&self.flag).to_owned())
-        .field("size", self.size))
-        .field("chunk_start_pos", self.chunk_start_pos))
+        .field("size", &self.size)
+        .field("chunk_start_pos", &self.chunk_start_pos)
         .finish()
     }
 }
