@@ -257,6 +257,10 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
             options.sample_rate = spec.sample_rate;
             options.bits_per_sample = spec.bits_per_sample as u32;
         }
+        DataFormat::OggVorbis(ref mut options) => {
+            options.channels = spec.channels;
+            options.sample_rate = spec.sample_rate;
+        }
         _ => (),
     }
 
@@ -291,8 +295,7 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     };
 
     let mut wavereader_2 = WaveReader::open(arg3).unwrap();
-    let mut wavewriter_2 =
-        WaveWriter::create(arg4, spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
+    let mut wavewriter_2 = WaveWriter::create(arg4, spec2, DataFormat::Pcm, NeverLargerThan4GB).unwrap();
 
     // Transfer audio samples from the decoder to the encoder
     transfer_audio_from_decoder_to_encoder(&mut wavereader_2, &mut wavewriter_2);
