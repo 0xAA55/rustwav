@@ -3,7 +3,8 @@
 use std::{
     cmp::min,
     fmt::Debug,
-    io::{self, Read, Seek, SeekFrom, Write},
+    mem,
+    io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
     cell::RefCell,
 };
@@ -305,6 +306,84 @@ where
 
         self.stream_pos = new_pos;
         Ok(new_pos)
+    }
+}
+
+/// ## A writer for some libraries that asks for a `Write`, but we want to separate the data it writes.
+/// * So we have a borrowed `Writer` that writes things to our target (a file, or something else)
+/// * And we have a `cursor` to capture the data that we want to store somewhere else.
+/// * Then we have this struct to pretend it is a `Write`, but we can control when it switches to write mode to write data directly or switch to cursor mode to capture the data that we don't want it to write now.
+#[derive(Debug)]
+pub struct WriterWithCursor<'a> {
+    writer: &'a mut dyn Writer,
+    cursor: Cursor<Vec<u8>>,
+    pub cursor_mode: bool,
+}
+
+impl<'a> WriterWithCursor<'a> {
+    pub fn new(writer: &'a mut dyn Writer, cursor_mode: bool) -> Self {
+        Self {
+            writer,
+            cursor: Cursor::new(Vec::new()),
+            cursor_mode,
+        }
+    }
+
+    pub fn switch_to_cursor_mode(&mut self) {
+        self.cursor_mode = true;
+    }
+
+    pub fn switch_to_writer_mode(&mut self) {
+        self.cursor_mode = false;
+    }
+
+    fn get_writer(&mut self) -> &mut dyn Writer {
+        if self.cursor_mode {
+            &mut self.cursor
+        } else {
+            &mut self.writer
+        }
+    }
+
+    pub fn get_cursor_data(&self) -> &Vec<u8> {
+        self.cursor.get_ref()
+    }
+
+    pub fn clear_cursor_data(&mut self) {
+        self.cursor = Cursor::default();
+    }
+
+    pub fn get_cursor_data_and_clear(&mut self) -> Vec<u8> {
+        mem::take(&mut self.cursor).into_inner()
+    }
+
+    pub fn flush_cursor_data_to_writer(&mut self) -> Result<(), io::Error> {
+        self.writer.write_all(&mem::take(&mut self.cursor).into_inner())?;
+        Ok(())
+    }
+}
+
+impl Write for WriterWithCursor<'_> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.get_writer().write(buf)
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.get_writer().flush()
+    }
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        self.get_writer().write_all(buf)
+    }
+}
+
+impl Seek for WriterWithCursor<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.get_writer().seek(pos)
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.get_writer().rewind()
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.get_writer().stream_position()
     }
 }
 
