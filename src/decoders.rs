@@ -153,7 +153,7 @@ impl<S> Decoder<S> for FlacDecoderWrap<'_>
 }
 
 #[cfg(feature = "oggvorbis")]
-impl<S> Decoder<S> for OggVorbisDecoderWrap<'_>
+impl<S> Decoder<S> for OggVorbisDecoderWrap
     where S: SampleType {
     fn get_channels(&self) -> u16 { OggVorbisDecoderWrap::get_channels(self) }
     fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(OggVorbisDecoderWrap::get_cur_frame_index(self)) }
@@ -1694,26 +1694,22 @@ pub mod flac_dec {
 pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
-        io::SeekFrom,
+        io::{Seek, Cursor, SeekFrom},
     };
 
     use crate::AudioReadError;
     use crate::SampleType;
-    use crate::hacks;
     use crate::wavcore::{FmtChunk, ExtensionData};
-    use crate::{Reader, SharedReader};
+    use crate::{Reader, SharedReaderOwned, CombinedReader};
     use vorbis_rs::VorbisDecoder;
 
     /// ## The OggVorbis decoder for `WaveReader`
-    pub struct OggVorbisDecoderWrap<'a> {
+    pub struct OggVorbisDecoderWrap {
         /// The shared reader for the decoder to use
-        reader: SharedReader<'a>,
-
-        /// Because the reader of the shared reader was borrowed from somewhere, let the `reader_holder` lend the reader for it.
-        reader_holder: Box<dyn Reader>,
+        reader: SharedReaderOwned,
 
         /// Let the decoder use the shared reader. Because the decoder did't need the reader to implement the `Seek` trait, we can control where to let it decode from.
-        decoder: VorbisDecoder<SharedReader<'a>>,
+        decoder: VorbisDecoder<SharedReaderOwned>,
 
         /// The data offset of the OggVorbis data in the WAV file.
         data_offset: u64,
@@ -1738,12 +1734,9 @@ pub mod oggvorbis_dec {
 
         /// Current block frame index. The start index of the decoded samples.
         cur_block_frame_index: u64,
-
-        /// Ogg Vorbis header for `OggVorbisMode::HaveIndependentHeader`
-        ogg_vorbis_header: Vec<u8>,
     }
 
-    impl OggVorbisDecoderWrap<'_> {
+    impl OggVorbisDecoderWrap {
         pub fn new(
             reader: Box<dyn Reader>,
             data_offset: u64,
@@ -1752,14 +1745,43 @@ pub mod oggvorbis_dec {
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             use crate::wavcore::format_tags::*;
-            let mut reader_holder = reader;
-            let reader = SharedReader::new(hacks::force_borrow_mut!(*reader_holder, dyn Reader));
+            let ogg_vorbis_header = if let Some(extension) = &fmt.extension {
+                match &extension.data {
+                    ExtensionData::OggVorbis(_) => {
+                        if [
+                            FORMAT_TAG_OGG_VORBIS1,
+                            FORMAT_TAG_OGG_VORBIS1P,
+                            FORMAT_TAG_OGG_VORBIS3,
+                            FORMAT_TAG_OGG_VORBIS3P,
+                        ].contains(&fmt.format_tag) {
+                            Vec::new()
+                        } else {
+                            return Err(AudioReadError::FormatError(format!("For `format_tag` is `FORMAT_TAG_OGG_VORBIS2` or `FORMAT_TAG_OGG_VORBIS2P`, the `fmt ` chunk must provide the Ogg Vorbis header data.")));
+                        }
+                    }
+                    ExtensionData::OggVorbisWithHeader(data) => {
+                        if [
+                            FORMAT_TAG_OGG_VORBIS2,
+                            FORMAT_TAG_OGG_VORBIS2P,
+                        ].contains(&fmt.format_tag) {
+                            data.header.clone()
+                        } else {
+                            return Err(AudioReadError::FormatError(format!("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.")));
+                        }
+                    }
+                    o => return Err(AudioReadError::FormatError(format!("The extension data type is not for Ogg Vorbis, it is {:?}", o))),
+                }
+            } else {
+                Vec::new()
+            };
+            let ogg_vorbis_header_len = ogg_vorbis_header.len() as u64;
+            let cursor = Cursor::new(ogg_vorbis_header);
+            let reader = SharedReaderOwned::new(Box::new(CombinedReader::new(cursor, 0, ogg_vorbis_header_len, SharedReaderOwned::new(reader), data_offset, data_length)?));
             let decoder = VorbisDecoder::new(reader.clone())?;
             let channels = decoder.channels().get() as u16;
             let sample_rate = decoder.sampling_frequency().get();
             let mut ret = Self {
                 reader,
-                reader_holder,
                 decoder,
                 data_offset,
                 data_length,
@@ -1769,35 +1791,6 @@ pub mod oggvorbis_dec {
                 decoded_samples: None,
                 cur_frame_index: 0,
                 cur_block_frame_index: 0,
-                ogg_vorbis_header: if let Some(extension) = &fmt.extension {
-                    match &extension.data {
-                        ExtensionData::OggVorbis(_) => {
-                            if [
-                                FORMAT_TAG_OGG_VORBIS1,
-                                FORMAT_TAG_OGG_VORBIS1P,
-                                FORMAT_TAG_OGG_VORBIS3,
-                                FORMAT_TAG_OGG_VORBIS3P,
-                            ].contains(&fmt.format_tag) {
-                                Vec::new()
-                            } else {
-                                return Err(AudioReadError::FormatError(format!("For `format_tag` is `FORMAT_TAG_OGG_VORBIS2` or `FORMAT_TAG_OGG_VORBIS2P`, the `fmt ` chunk must provide the Ogg Vorbis header data.")));
-                            }
-                        }
-                        ExtensionData::OggVorbisWithHeader(data) => {
-                            if [
-                                FORMAT_TAG_OGG_VORBIS2,
-                                FORMAT_TAG_OGG_VORBIS2P,
-                            ].contains(&fmt.format_tag) {
-                                data.header.clone()
-                            } else {
-                                return Err(AudioReadError::FormatError(format!("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.")));
-                            }
-                        }
-                        o => return Err(AudioReadError::FormatError(format!("The extension data type is not for Ogg Vorbis, it is {:?}", o))),
-                    }
-                } else {
-                    Vec::new()
-                }
             };
             assert_eq!(fmt.channels, ret.channels);
             assert_eq!(fmt.sample_rate, ret.sample_rate);
@@ -1844,7 +1837,7 @@ pub mod oggvorbis_dec {
                 SeekFrom::End(ei) => (self.cur_frame_index as i64 + ei) as u64,
             };
             if frame_index < self.cur_block_frame_index {
-                self.reader_holder.seek(SeekFrom::Start(self.data_offset))?;
+                self.reader.seek(SeekFrom::Start(self.data_offset))?;
                 self.cur_block_frame_index = 0;
             }
             self.cur_frame_index = frame_index;
@@ -1914,11 +1907,10 @@ pub mod oggvorbis_dec {
         }
     }
 
-    impl Debug for OggVorbisDecoderWrap<'_> {
+    impl Debug for OggVorbisDecoderWrap {
         fn fmt(&self, f: &mut Formatter) -> fmt::Result {
             f.debug_struct("OggVorbisDecoderWrap")
                 .field("reader", &self.reader)
-                .field("reader_holder", &self.reader_holder)
                 .field("decoder", &format_args!("VorbisDecoder<Reader>"))
                 .field("data_offset", &self.data_offset)
                 .field("data_length", &self.data_length)
