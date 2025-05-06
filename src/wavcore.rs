@@ -1119,7 +1119,7 @@ impl OggVorbisWithHeaderData {
         let mut ret = Self {
             codec_version: u32::read_le(reader)?,
             vorbis_version: u32::read_le(reader)?,
-            header: vec![0u8; ext_len as usize - 8],
+            header: vec![0u8; ext_len as usize - Self::sizeof_min()],
         };
         reader.read_exact(&mut ret.header)?;
         Ok(ret)
