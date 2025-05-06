@@ -7,6 +7,7 @@ use std::{
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
     cell::RefCell,
+    ops::{Deref, DerefMut}
 };
 
 /// ## The `Reader` trait, `Read + Seek + Debug`
@@ -376,6 +377,55 @@ impl Write for WriterWithCursor<'_> {
 }
 
 impl Seek for WriterWithCursor<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.get_writer().seek(pos)
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.get_writer().rewind()
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.get_writer().stream_position()
+    }
+}
+
+/// ## The shared version of the `WriterWithCursor`.
+/// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to cursor mode.
+#[derive(Debug, Clone)]
+pub struct SharedWriterWithCursor<'a> (Rc<RefCell<WriterWithCursor<'a>>>);
+
+impl<'a> SharedWriterWithCursor<'a> {
+    pub fn new(writer_with_cursor: WriterWithCursor<'a>) -> Self {
+        Self(Rc::new(RefCell::new(writer_with_cursor)))
+    }
+}
+
+impl<'a> Deref for SharedWriterWithCursor<'a> {
+    type Target = WriterWithCursor<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe{&*self.0.as_ptr()}
+    }
+}
+
+impl<'a> DerefMut for SharedWriterWithCursor<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe{&mut *self.0.as_ptr()}
+    }
+}
+
+impl Write for SharedWriterWithCursor<'_> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.get_writer().write(buf)
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.get_writer().flush()
+    }
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        self.get_writer().write_all(buf)
+    }
+}
+
+impl Seek for SharedWriterWithCursor<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.get_writer().seek(pos)
     }
