@@ -1109,6 +1109,23 @@ impl OggVorbisWithHeaderData {
 
 
 impl ExtensibleData {
+    pub fn new(fmt_chunk: &FmtChunk) -> Result<Self, AudioReadError> {
+        Ok(Self {
+            valid_bits_per_sample: fmt_chunk.bits_per_sample,
+            channel_mask: {
+                let spec = Spec {
+                    channels: fmt_chunk.channels,
+                    channel_mask: 0,
+                    sample_rate: fmt_chunk.sample_rate,
+                    bits_per_sample: fmt_chunk.bits_per_sample,
+                    sample_format: SampleFormat::Unknown,
+                };
+                spec.guess_channel_mask()?
+            },
+            sub_format: GUID_PCM_FORMAT,
+        })
+    }
+
     pub fn read(reader: &mut impl Reader) -> Result<Self, AudioReadError> {
         Ok(Self {
             valid_bits_per_sample: u16::read_le(reader)?,
