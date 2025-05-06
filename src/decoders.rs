@@ -1801,6 +1801,7 @@ pub mod oggvorbis_dec {
             };
             assert_eq!(fmt.channels, ret.channels);
             assert_eq!(fmt.sample_rate, ret.sample_rate);
+            std::hint::black_box(&mut ret);
             ret.decode()?;
             Ok(ret)
         }
