@@ -2553,8 +2553,7 @@ pub mod oggvorbis_enc {
         use vorbis_rs::*;
 
         use crate::AudioWriteError;
-        use crate::SharedWriter;
-        use crate::Writer;
+        use crate::{SharedWriterWithCursor, WriterWithCursor, Writer};
         use crate::utils::{self, sample_conv, sample_conv_batch};
         use crate::wavcore::{FmtChunk, FmtExtension, OggVorbisData, OggVorbisWithHeaderData};
         use crate::wavcore::format_tags::*;
@@ -2614,14 +2613,14 @@ pub mod oggvorbis_enc {
             /// The OggVorbis encoder builder
             Builder {
                 /// The builder that has our shared writer.
-                builder: VorbisEncoderBuilder<SharedWriter<'a>>,
+                builder: VorbisEncoderBuilder<SharedWriterWithCursor<'a>>,
 
                 /// The metadata to be added to the OggVorbis file. Before the encoder was built, add all of the comments here.
                 metadata: BTreeMap<String, String>,
             },
 
             /// The built encoder. It has our shared writer. Use this to encode PCM waveform to OggVorbis format.
-            Encoder(VorbisEncoder<SharedWriter<'a>>),
+            Encoder(VorbisEncoder<SharedWriterWithCursor<'a>>),
 
             /// When the encoding has finished, set this enum to `Finished`
             Finished,
@@ -2645,25 +2644,42 @@ pub mod oggvorbis_enc {
         }
 
         /// ## OggVorbis encoder wrap for `WaveWriter`
-        #[derive(Debug)]
         pub struct OggVorbisEncoderWrap<'a> {
-            /// The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`
-            writer: SharedWriter<'a>,
+            /// * The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`.
+            /// * This `SharedWriterWithCursor` can switch to `cursor_mode` or `writer_mode`, on `cursor_mode`, call `write()` on it will write data into the `Cursor`
+            writer: SharedWriterWithCursor<'a>,
 
-            /// The parameters for the encoder
+            /// * The parameters for the encoder
             params: OggVorbisEncoderParams,
 
-            /// The OggVorbis encoder builder or the built encoder.
+            /// * The OggVorbis encoder builder or the built encoder.
             encoder: OggVorbisEncoderOrBuilder<'a>,
 
-            /// The data offset. The OggVorbis data should be written after here.
+            /// * The data offset. The OggVorbis data should be written after here.
             data_offset: u64,
 
-            /// How many bytes were written. This field is for calculating the bitrate of the Ogg stream.
+            /// * How many bytes were written. This field is for calculating the bitrate of the Ogg stream.
             bytes_written: u64,
 
-            /// How many audio frames were written. This field is for calculating the bitrate of the Ogg stream.
+            /// * How many audio frames were written. This field is for calculating the bitrate of the Ogg stream.
             frames_written: u64,
+
+            /// * The header data that should be written in the `fmt ` chunk extension.
+            oggvorbis_header: Vec<u8>,
+        }
+
+        impl Debug for OggVorbisEncoderWrap<'_> {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                f.debug_struct("OggVorbisEncoderWrap")
+                .field("writer", &self.writer)
+                .field("params", &self.params)
+                .field("encoder", &self.encoder)
+                .field("data_offset", &self.data_offset)
+                .field("bytes_written", &self.bytes_written)
+                .field("frames_written", &self.frames_written)
+                .field("oggvorbis_header", &format_args!("[u8, {}]", self.oggvorbis_header.len()))
+                .finish()
+            }
         }
 
         impl<'a> OggVorbisEncoderWrap<'a> {
@@ -2671,7 +2687,7 @@ pub mod oggvorbis_enc {
                 writer: &'a mut dyn Writer,
                 params: &OggVorbisEncoderParams,
             ) -> Result<Self, AudioWriteError> {
-                let mut writer = SharedWriter::new(writer);
+                let mut writer = SharedWriterWithCursor::new(WriterWithCursor::new(writer, false));
                 let data_offset = writer.stream_position()?;
 
                 let sample_rate = NonZero::new(params.sample_rate).unwrap();
@@ -2695,9 +2711,13 @@ pub mod oggvorbis_enc {
                     data_offset,
                     bytes_written: 0,
                     frames_written: 0,
+                    oggvorbis_header: Vec::new(),
                 };
                 if ret.params.bitrate.is_none() {
                     ret.params.bitrate = Some(VorbisBitrateManagementStrategy::default().into());
+                }
+                if let OggVorbisEncoderOrBuilder::Builder{builder: _, ref mut metadata} = ret.encoder {
+                    metadata.insert("ENCODER".to_string(), "rustwav".to_string());
                 }
                 Ok(ret)
             }
@@ -2829,7 +2849,11 @@ pub mod oggvorbis_enc {
             }
 
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-                self.begin_to_encode()
+                if self.params.mode != OggVorbisMode::HaveIndependentHeader {
+                    self.begin_to_encode()
+                } else {
+                    Ok(())
+                }
             }
 
             fn get_bitrate(&self) -> u32 {
@@ -2842,6 +2866,12 @@ pub mod oggvorbis_enc {
             }
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
+                if self.params.mode == OggVorbisMode::HaveIndependentHeader {
+                    self.writer.switch_to_cursor_mode();
+                    self.begin_to_encode()?;
+                    self.oggvorbis_header = self.writer.get_cursor_data_and_clear();
+                    self.writer.switch_to_writer_mode();
+                }
                 Ok(FmtChunk {
                     format_tag: match self.params.mode {
                         OggVorbisMode::OriginalStreamCompatible => {
@@ -2871,9 +2901,10 @@ pub mod oggvorbis_enc {
                     byte_rate: self.get_bitrate() / 8,
                     block_align: 1,
                     bits_per_sample: 16,
-                    extension: Some(match self.params.mode {
-                        OggVorbisMode::OriginalStreamCompatible | OggVorbisMode::HaveNoCodebookHeader => FmtExtension::new_oggvorbis(OggVorbisData::new()),
-                        OggVorbisMode::HaveIndependentHeader => FmtExtension::new_oggvorbis_with_header(&OggVorbisWithHeaderData::new()),
+                    extension: Some(if self.oggvorbis_header.is_empty() {
+                        FmtExtension::new_oggvorbis(OggVorbisData::new())
+                    } else {
+                        FmtExtension::new_oggvorbis_with_header(&OggVorbisWithHeaderData::new(&self.oggvorbis_header))
                     }),
                 })
             }
