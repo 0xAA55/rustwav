@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
+    cmp::min,
     fmt::Debug,
     io::{self, Read, Seek, SeekFrom, Write},
     rc::Rc,
@@ -195,6 +196,115 @@ impl Seek for SharedReaderOwned {
     }
     fn stream_position(&mut self) -> Result<u64, io::Error> {
         self.0.borrow_mut().stream_position()
+    }
+}
+
+/// ## A Reader that combines two readers into one with the ability to `Read` and `Seek` and `Debug`
+#[derive(Debug)]
+pub struct CombinedReader<R1, R2>
+where
+    R1: Reader,
+    R2: Reader {
+    first: R1,
+    first_data_offset: u64,
+    first_data_length: u64,
+    second: R2,
+    second_data_offset: u64,
+    second_data_length: u64,
+    stream_pos: u64,
+}
+
+impl<R1, R2> CombinedReader<R1, R2>
+where
+    R1: Reader,
+    R2: Reader {
+    pub fn new(
+        mut first: R1,
+        first_data_offset: u64,
+        first_data_length: u64,
+        mut second: R2,
+        second_data_offset: u64,
+        second_data_length: u64,
+    ) -> Result<Self, io::Error> {
+        first.seek(SeekFrom::Start(first_data_offset))?;
+        second.seek(SeekFrom::Start(second_data_offset))?;
+        Ok(Self {
+            first,
+            first_data_offset,
+            first_data_length,
+            second,
+            second_data_offset,
+            second_data_length,
+            stream_pos: 0,
+        })
+    }
+}
+
+impl<R1, R2> Read for CombinedReader<R1, R2>
+where
+    R1: Reader,
+    R2: Reader {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        let remaining = (self.first_data_length + self.second_data_length) - self.stream_pos;
+        if remaining == 0 {
+            return Ok(0);
+        }
+
+        // Choose the reader to use
+        let bytes_read = if self.stream_pos < self.first_data_length {
+            let bytes_to_read = min((self.first_data_length - self.stream_pos) as usize, buf.len());
+            let first_pos = self.stream_pos;
+            self.first.seek(SeekFrom::Start(first_pos + self.first_data_offset))?;
+            let n = self.first.read(&mut buf[..bytes_to_read])?;
+            self.stream_pos += n as u64;
+            n
+        } else {
+            let bytes_to_read = min((self.second_data_length - self.stream_pos) as usize, buf.len());
+            let second_pos = self.stream_pos - self.first_data_length;
+            self.second.seek(SeekFrom::Start(second_pos + self.second_data_offset))?;
+            let n = self.second.read(&mut buf[..bytes_to_read])?;
+            self.stream_pos += n as u64;
+            n
+        };
+
+        Ok(bytes_read)
+    }
+}
+
+impl<R1, R2> Seek for CombinedReader<R1, R2>
+where
+    R1: Reader,
+    R2: Reader {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        let new_pos = match pos {
+            SeekFrom::Start(offset) => offset,
+            SeekFrom::End(offset) => {
+                let total_len = self.first_data_length.checked_add(self.second_data_length).ok_or(io::ErrorKind::InvalidInput)?;
+                if offset > 0 {
+                    total_len.checked_add(offset as u64)
+                } else {
+                    total_len.checked_sub((-offset) as u64)
+                }.ok_or(io::ErrorKind::InvalidInput)?
+            }
+            SeekFrom::Current(offset) => {
+                if offset >= 0 {
+                    self.stream_pos.checked_add(offset as u64)
+                } else {
+                    self.stream_pos.checked_sub((-offset) as u64)
+                }.ok_or(io::ErrorKind::InvalidInput)?
+            }
+        };
+
+        let total_len = self.first_data_length + self.second_data_length;
+        if new_pos > total_len {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Seek position out of bounds"
+            ));
+        }
+
+        self.stream_pos = new_pos;
+        Ok(new_pos)
     }
 }
 
