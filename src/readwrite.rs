@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 use std::{
-    cell::RefCell,
     fmt::Debug,
     io::{self, Read, Seek, SeekFrom, Write},
     rc::Rc,
+    cell::RefCell,
 };
 
 /// ## The `Reader` trait, `Read + Seek + Debug`
@@ -84,7 +84,7 @@ impl Seek for WriteBridge<'_> {
     }
 }
 
-/// ## Encapsulated shared `&mut dyn Reader` (no, I don't like this, I use `force_borrow_mut!()`)
+/// ## Encapsulated shared `&mut dyn Reader`, implemented `Read + Seek + Debug + Clone`
 #[derive(Debug, Clone)]
 pub struct SharedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
 
@@ -105,10 +105,10 @@ impl<'a> SharedReader<'a> {
 
 impl Read for SharedReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-        self.escorted_read(|reader| reader.read(buf))
+        self.0.borrow_mut().read(buf)
     }
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
-        self.escorted_read(|reader| reader.read_exact(buf))
+        self.0.borrow_mut().read_exact(buf)
     }
 }
 
@@ -124,7 +124,7 @@ impl Seek for SharedReader<'_> {
     }
 }
 
-/// ## Encapsulated shared `&mut dyn Writer` (no, I don't like this, I use `force_borrow_mut!()`)
+/// ## Encapsulated shared `&mut dyn Writer`, implemented `Write + Seek + Debug + Clone`
 #[derive(Debug, Clone)]
 pub struct SharedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
 
