@@ -167,6 +167,37 @@ impl Seek for SharedWriter<'_> {
     }
 }
 
+/// ## Encapsulated shared `&mut dyn Reader`, implemented `Read + Seek + Debug + Clone`
+#[derive(Debug, Clone)]
+pub struct SharedReaderOwned(Rc<RefCell<Box<dyn Reader>>>);
+
+impl SharedReaderOwned {
+    pub fn new(reader: Box<dyn Reader>) -> Self {
+        Self(Rc::new(RefCell::new(reader)))
+    }
+}
+
+impl Read for SharedReaderOwned {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.0.borrow_mut().read(buf)
+    }
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+        self.0.borrow_mut().read_exact(buf)
+    }
+}
+
+impl Seek for SharedReaderOwned {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.0.borrow_mut().seek(pos)
+    }
+    fn rewind(&mut self) -> Result<(), io::Error> {
+        self.0.borrow_mut().rewind()
+    }
+    fn stream_position(&mut self) -> Result<u64, io::Error> {
+        self.0.borrow_mut().stream_position()
+    }
+}
+
 /// * Go to an offset without using seek. It's achieved by using dummy reads.
 pub fn goto_offset_without_seek<T>(
     mut reader: T,
