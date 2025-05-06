@@ -31,7 +31,6 @@ use crate::wavcore::{
 };
 use crate::wavcore::{ExtensionData, FmtChunk};
 use crate::{AudioError, AudioReadError};
-use crate::OggVorbisMode;
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;
@@ -778,43 +777,15 @@ where
                 "not implemented for decoding MP3 audio data inside the WAV file",
             )));
         }
-        FORMAT_TAG_OGG_VORBIS1 | FORMAT_TAG_OGG_VORBIS1P => {
+        FORMAT_TAG_OGG_VORBIS1 |
+        FORMAT_TAG_OGG_VORBIS2 |
+        FORMAT_TAG_OGG_VORBIS3 |
+        FORMAT_TAG_OGG_VORBIS1P |
+        FORMAT_TAG_OGG_VORBIS2P |
+        FORMAT_TAG_OGG_VORBIS3P => {
             // OggVorbis
             #[cfg(feature = "oggvorbis")]
             return Ok(Box::new(OggVorbisDecoderWrap::new(
-                OggVorbisMode::OriginalStreamCompatible,
-                reader,
-                data_offset,
-                data_length,
-                fmt,
-                fact_data,
-            )?));
-            #[cfg(not(feature = "oggvorbis"))]
-            return Err(AudioReadError::Unimplemented(String::from(
-                "not implemented for decoding ogg vorbis audio data inside the WAV file",
-            )));
-        }
-        FORMAT_TAG_OGG_VORBIS2 | FORMAT_TAG_OGG_VORBIS2P => {
-            // OggVorbis
-            #[cfg(feature = "oggvorbis")]
-            return Ok(Box::new(OggVorbisDecoderWrap::new(
-                OggVorbisMode::HaveIndependentHeader,
-                reader,
-                data_offset,
-                data_length,
-                fmt,
-                fact_data,
-            )?));
-            #[cfg(not(feature = "oggvorbis"))]
-            return Err(AudioReadError::Unimplemented(String::from(
-                "not implemented for decoding ogg vorbis audio data inside the WAV file",
-            )));
-        }
-        FORMAT_TAG_OGG_VORBIS3 | FORMAT_TAG_OGG_VORBIS3P => {
-            // OggVorbis
-            #[cfg(feature = "oggvorbis")]
-            return Ok(Box::new(OggVorbisDecoderWrap::new(
-                OggVorbisMode::HaveNoCodebookHeader,
                 reader,
                 data_offset,
                 data_length,
