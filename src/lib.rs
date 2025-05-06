@@ -408,13 +408,18 @@ macro_rules! test_fn {
     };
 }
 
-test_fn!(test0, 0);
-test_fn!(test1, 1);
-test_fn!(test2, 2);
-test_fn!(test3, 3);
-test_fn!(test4, 4);
-test_fn!(test5, 5);
-test_fn!(test6, 6);
-test_fn!(test7, 7);
-test_fn!(test8, 8);
-test_fn!(test9, 9);
+test_fn!(test_pcm, 0);
+test_fn!(test_pcm_alaw, 1);
+test_fn!(test_pcm_ulaw, 2);
+test_fn!(test_adpcm_ms, 3);
+test_fn!(test_adpcm_ima, 4);
+test_fn!(test_adpcm_yamaha, 5);
+test_fn!(test_mp3, 6);
+test_fn!(test_opus, 7);
+test_fn!(test_flac, 8);
+test_fn!(test_oggvorbis1, 9);
+test_fn!(test_oggvorbis2, 10);
+test_fn!(test_oggvorbis3, 11);
+test_fn!(test_oggvorbis1p, 12);
+test_fn!(test_oggvorbis2p, 13);
+test_fn!(test_oggvorbis3p, 14);
