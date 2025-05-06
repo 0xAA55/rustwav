@@ -2556,7 +2556,7 @@ pub mod oggvorbis_enc {
         use crate::SharedWriter;
         use crate::Writer;
         use crate::utils::{self, sample_conv, sample_conv_batch};
-        use crate::wavcore::FmtChunk;
+        use crate::wavcore::{FmtChunk, FmtExtension, OggVorbisData, OggVorbisWithHeaderData};
         use crate::wavcore::format_tags::*;
         use crate::{i24, u24};
 
@@ -2870,8 +2870,11 @@ pub mod oggvorbis_enc {
                     sample_rate: self.get_sample_rate(),
                     byte_rate: self.get_bitrate() / 8,
                     block_align: 1,
-                    bits_per_sample: 0,
-                    extension: None,
+                    bits_per_sample: 16,
+                    extension: Some(match self.params.mode {
+                        OggVorbisMode::OriginalStreamCompatible | OggVorbisMode::HaveNoCodebookHeader => FmtExtension::new_oggvorbis(OggVorbisData::new()),
+                        OggVorbisMode::HaveIndependentHeader => FmtExtension::new_oggvorbis_with_header(&OggVorbisWithHeaderData::new()),
+                    }),
                 })
             }
 
