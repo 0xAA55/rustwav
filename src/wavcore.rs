@@ -500,7 +500,7 @@ impl Drop for ChunkWriter<'_> {
 }
 
 /// ## This thing is for reading a chunk
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct ChunkHeader {
     /// * The 4-byte identifier stored in the file (e.g., "RIFF", "fmt ")
     pub flag: [u8; 4],
@@ -567,6 +567,16 @@ impl ChunkHeader {
             cur_pos,
             self.next_chunk_pos(),
         )?)
+    }
+}
+
+impl Debug for ChunkHeader {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("ChunkHeader")
+        .field("flag", &String::from_utf8_lossy(&self.flag).to_owned())
+        .field("size", self.size))
+        .field("chunk_start_pos", self.chunk_start_pos))
+        .finish()
     }
 }
 
