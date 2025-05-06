@@ -406,8 +406,8 @@ impl Debug for ChunkWriter<'_> {
                 "flag",
                 &format_args!("{}", String::from_utf8_lossy(&self.flag)),
             )
-            .field("pos_of_chunk_len", &self.pos_of_chunk_len)
-            .field("chunk_start", &self.chunk_start)
+            .field("pos_of_chunk_len", &format_args!("0x{:x}", self.pos_of_chunk_len))
+            .field("chunk_start", &format_args!("0x{:x}", self.chunk_start))
             .field("ended", &self.ended)
             .finish()
     }
@@ -574,8 +574,8 @@ impl Debug for ChunkHeader {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("ChunkHeader")
         .field("flag", &String::from_utf8_lossy(&self.flag).to_owned())
-        .field("size", &self.size)
-        .field("chunk_start_pos", &self.chunk_start_pos)
+        .field("size", &format_args!("0x{:x}", self.size))
+        .field("chunk_start_pos", &format_args!("0x{:x}", self.chunk_start_pos))
         .finish()
     }
 }
