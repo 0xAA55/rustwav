@@ -186,7 +186,7 @@ impl WaveReader {
             // Loop through the chunks inside the RIFF chunk or RF64 chunk.
             let mut manually_skipped = false;
             let chunk_position = if reader_seekable {
-                assert_eq!(reader.stream_position()?, cur_pos);
+                assert_eq!(reader.stream_position()?, cur_pos, "Check if `cur_pos` is calculated correctly");
                 reader.stream_position()?
             } else {
                 cur_pos
