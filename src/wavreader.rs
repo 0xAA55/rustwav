@@ -14,7 +14,7 @@ use crate::Reader;
 use crate::SampleType;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::xlaw::XLaw;
-use crate::copiablebuf::CopiableBuffer;
+use crate::CopiableBuffer;
 use crate::decoders::{
     AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap,
 };

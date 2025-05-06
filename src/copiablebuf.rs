@@ -2,7 +2,7 @@
 use std::{
     fmt::Debug,
     iter::FromIterator,
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut, Deref, DerefMut},
 };
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
@@ -161,6 +161,28 @@ where
             panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
         &mut self.buffer[index]
+    }
+}
+
+impl<T, const N: usize> Deref for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    type Target = [T];
+
+    #[track_caller]
+    fn deref(&self) -> &Self::Target {
+        &self.buffer[0..self.buf_used]
+    }
+}
+
+impl<T, const N: usize> DerefMut for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    #[track_caller]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buffer[0..self.buf_used]
     }
 }
 
