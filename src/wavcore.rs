@@ -694,7 +694,7 @@ impl Debug for OggVorbisData {
 }
 
 /// ## The another extension data for OggVorbis
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct OggVorbisWithHeaderData {
     /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
     pub codec_version: u32,
@@ -705,6 +705,16 @@ pub struct OggVorbisWithHeaderData {
 
     /// * The OggVorbis header data
     pub header: Vec<u8>,
+}
+
+impl Debug for OggVorbisWithHeaderData {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("OggVorbisWithHeaderData")
+        .field("codec_version", &format_args!("{:x}/{:x}/{:x}", self.codec_version >> 16, (self.codec_version >> 8) & 0xFF, self.codec_version & 0xFF))
+        .field("vorbis_version", &format_args!("{:x}/{:x}/{:x}", self.vorbis_version >> 16, (self.vorbis_version >> 8) & 0xFF, self.vorbis_version & 0xFF))
+        .field("header", &format_args!("[u8; {}]", self.header.len()))
+        .finish()
+    }
 }
 
 /// ## The extension data for extensible.
