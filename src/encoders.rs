@@ -2531,7 +2531,7 @@ pub mod oggvorbis_enc {
 
         /// Constrained ABR mode, selected by a hard maximum bitrate (in bit/s).
         /// The bitrate management engine is enabled to ensure that the instantaneous bitrate never exceeds the specified maximum bitrate,
-        /// which is a hard limit. Internally, the encoder will target an average bitrate that’s slightly lower than the specified maximum bitrate.
+        /// which is a hard limit. Internally, the encoder will target an average bitrate that  s slightly lower than the specified maximum bitrate.
         /// The stream is guaranteed to never go above the specified bitrate, at the cost of a lower bitrate,
         /// and thus lower audio quality, on average.
         ConstrainedAbr(u32),
@@ -2545,7 +2545,7 @@ pub mod oggvorbis_enc {
         use std::{
             collections::BTreeMap,
             fmt::{self, Debug, Formatter},
-            io::Seek,
+            io::{Seek, Write},
             num::NonZero,
         };
 
@@ -2839,6 +2839,64 @@ pub mod oggvorbis_enc {
             }
         }
 
+        fn remove_codebook(data: &[u8]) -> Result<Vec<u8>, AudioWriteError> {
+            let mut packet_pos = 0usize;
+            let mut packets = Vec::<u8>::new();
+
+            while packet_pos < data.len() {
+                let mut packet_size = 0usize;
+                packets.extend(remove_codebook_from_ogg_page(&data[packet_pos..], &mut packet_size)?);
+                packet_pos += packet_size;
+            }
+
+            Ok(packets)
+        }
+
+        fn remove_codebook_from_ogg_page(ogg_packet: &[u8], ogg_packet_len: &mut usize) -> Result<Vec<u8>, AudioWriteError> {
+            use crate::ogg::OggPacket;
+
+            let packet = OggPacket::from_bytes(ogg_packet, ogg_packet_len)?;
+
+            let mut ident_header = Vec::<u8>::new();
+            let mut metadata_header = Vec::<u8>::new();
+            let mut setup_header = Vec::<u8>::new();
+
+            // Parse the body of the Ogg Stream.
+            // The body consists of a table and segments of data. The table describes the length of each segment of data
+            // The Vorbis header must occur at the beginning of a segment
+            // And if the header is long enough, it crosses multiple segments
+            // Find out the `setup header`, find the codebook in the `setup header`, and kill it, that's the mission.
+            let mut cur_segment_type = 0;
+            for segment in packet.get_segments().iter() {
+                if segment[1..7] == *b"vorbis" {
+                    if [1, 3, 5].contains(&segment[0]) {
+                        cur_segment_type = segment[0];
+                    } // Otherwise it's not a Vorbis header
+                }
+                match cur_segment_type {
+                    1 => ident_header.extend(segment),
+                    3 => metadata_header.extend(segment),
+                    5 => setup_header.extend(segment),
+                    _ => return Err(AudioWriteError::InvalidData("vorbis header not found.".to_string())),
+                }
+            }
+
+            // Our target is to kill the codebooks from the `setup_header`
+            // If this packet doesn't have any `setup_header`
+            // We return.
+            if setup_header.is_empty() {
+                return Ok(ogg_packet.to_vec())
+            }
+
+            let mut new_packet = packet.clone();
+            new_packet.clear();
+            new_packet.write(&ident_header);
+            new_packet.write(&metadata_header);
+            new_packet.write(&setup_header);
+
+            Ok(new_packet.to_bytes())
+        }
+
         impl EncoderToImpl for OggVorbisEncoderWrap<'_> {
             fn get_channels(&self) -> u16 {
                 self.params.channels
@@ -2849,10 +2907,15 @@ pub mod oggvorbis_enc {
             }
 
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-                if self.params.mode != OggVorbisMode::HaveIndependentHeader {
-                    self.begin_to_encode()
-                } else {
-                    Ok(())
+                match self.params.mode {
+                    OggVorbisMode::OriginalStreamCompatible => self.begin_to_encode(),
+                    OggVorbisMode::HaveIndependentHeader => Ok(()),
+                    OggVorbisMode::HaveNoCodebookHeader => {
+                        let header = self.writer.get_cursor_data_and_clear();
+                        let header = remove_codebook(&header)?;
+                        self.writer.write_all(&header)?;
+                        Ok(())
+                    }
                 }
             }
 
@@ -2866,11 +2929,20 @@ pub mod oggvorbis_enc {
             }
 
             fn new_fmt_chunk(&mut self) -> Result<FmtChunk, AudioWriteError> {
-                if self.params.mode == OggVorbisMode::HaveIndependentHeader {
-                    self.writer.switch_to_cursor_mode();
-                    self.begin_to_encode()?;
-                    self.oggvorbis_header = self.writer.get_cursor_data_and_clear();
-                    self.writer.switch_to_writer_mode();
+                match self.params.mode {
+                    OggVorbisMode::OriginalStreamCompatible => (),
+                    OggVorbisMode::HaveIndependentHeader => {
+                        // Save the header to `fmt ` chunk
+                        self.writer.switch_to_cursor_mode();
+                        self.begin_to_encode()?;
+                        self.oggvorbis_header = self.writer.get_cursor_data_and_clear();
+                        self.writer.switch_to_writer_mode();
+                    }
+                    OggVorbisMode::HaveNoCodebookHeader => {
+                        self.writer.switch_to_cursor_mode();
+                        self.begin_to_encode()?;
+                        self.writer.switch_to_writer_mode();
+                    }
                 }
                 Ok(FmtChunk {
                     format_tag: match self.params.mode {
