@@ -36,6 +36,12 @@ pub enum AudioReadError {
     OtherReason(String),
 }
 
+impl AudioReadError {
+    fn UnexpectedEof(message: &String) -> Self {
+        Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message))
+    }
+}
+
 impl error::Error for AudioReadError {}
 
 impl Display for AudioReadError {
