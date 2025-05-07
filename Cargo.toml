@@ -1,6 +1,6 @@
 [package]
 name = "rustwav"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 authors = ["0xAA55 <838816058@qq.com>"]
 readme = "Readme.md"
@@ -25,13 +25,14 @@ tempfile = "3.18.0"
 windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [features]
-default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac", "oggvorbis"]
+default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac", "vorbis", "oggvorbis"]
 text_encoding = ["dep:encoding"]
 id3 = ["dep:id3"]
 mp3dec = ["dep:rmp3"]
 mp3enc = ["dep:mp3lame-encoder"]
 opus = ["dep:opus"]
 flac = ["dep:flac-rs"]
+vorbis = ["dep:vorbis_rs"]
 oggvorbis = ["dep:vorbis_rs"]
 
 [profile.release]

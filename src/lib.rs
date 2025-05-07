@@ -11,6 +11,7 @@ mod wavreader;
 mod wavwriter;
 mod xlaw;
 mod adpcm;
+mod ogg;
 
 /// ## The utility for both you and me to convert waveform format.
 pub mod utils;
