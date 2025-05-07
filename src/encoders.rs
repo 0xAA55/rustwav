@@ -2885,7 +2885,7 @@ pub mod oggvorbis_enc {
             // If this packet doesn't have any `setup_header`
             // We return.
             if setup_header.is_empty() {
-                return Ok(ogg_packet.to_vec())
+                return Ok(ogg_packet[..*ogg_packet_len].to_vec())
             }
 
             let mut new_packet = packet.clone();
