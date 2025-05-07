@@ -3126,11 +3126,12 @@ pub mod oggvorbis_enc {
     }
 
     fn ilog(mut v: u32) -> i32 {
-    for i in 0..32 {
-        if v == 0 {return i;}
-        v >>= 1;
+        for i in 0..32 {
+            if v == 0 {return i;}
+            v >>= 1;
+        }
+        32
     }
-    32
 
     impl StaticCodeBook {
         pub fn read(data: &[u8], cursor: &mut usize) -> Result<Self, AudioReadError> {
