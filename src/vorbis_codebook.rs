@@ -75,7 +75,7 @@ impl<'a> BitReader<'a> {
         };
 
         if bits == 0 {
-        	return Ok(0);
+            return Ok(0);
         }
 
         ret = (data_get(0)? as i32) >> self.endbit;
@@ -85,9 +85,9 @@ impl<'a> BitReader<'a> {
                 ret |= (data_get(2)? as i32) << (16 - self.endbit);
                 if bits > 24 {
                     ret |= (data_get(3)? as i32) << (24 - self.endbit);
-	                if bits > 32 && self.endbit != 0 {
-	                    ret |= (data_get(4)? as i32) << (32 - self.endbit);
-	                }
+                    if bits > 32 && self.endbit != 0 {
+                        ret |= (data_get(4)? as i32) << (32 - self.endbit);
+                    }
                 }
             }
         }
