@@ -67,11 +67,13 @@ impl<'a> BitReader<'a> {
 
         let cursor = *self.cursor;
 
-        let data_get = |index: usize| -> Result<u8, AudioReadError> {
-	        fn eof_err() -> AudioReadError {
-	            AudioReadError::UnexpectedEof("UnexpectedEof".to_string())
-	        }
-        	self.data.get(cursor + index).ok_or(eof_err()).copied()
+        // Don't want it panic, and don't want an Option.
+        let data_get = |mut index: usize| -> Result<u8, AudioReadError> {
+            index += cursor;
+            let eof_err = || -> AudioReadError {
+                AudioReadError::UnexpectedEof(format!("UnexpectedEof when trying to read {bits} bits from the input position 0x{:x}", index))
+            };
+            self.data.get(index).ok_or(eof_err()).copied()
         };
 
         if bits == 0 {
