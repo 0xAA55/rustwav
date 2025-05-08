@@ -27,11 +27,12 @@ const MASK: [u32; 33] = [
 ];
 
 fn ilog(mut v: u32) -> i32 {
-    for i in 0..32 {
-        if v == 0 {return i;}
+    let mut ret = 0;
+    while v != 0 {
         v >>= 1;
+        ret += 1;
     }
-    32
+    ret
 }
 
 /// * BitReader: read vorbis data bit by bit
