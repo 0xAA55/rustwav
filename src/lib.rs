@@ -3,7 +3,6 @@ mod downmixer;
 mod errors;
 mod copiablebuf;
 mod filehasher;
-mod hacks;
 mod readwrite;
 mod savagestr;
 mod wavcore;
@@ -12,12 +11,17 @@ mod wavwriter;
 mod xlaw;
 mod adpcm;
 
+#[macro_use]
+mod hacks;
+
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 mod ogg;
 
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 mod vorbis_codebook;
+
 /// ## The utility for both you and me to convert waveform format.
+#[macro_use]
 pub mod utils;
 
 /// ## The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
