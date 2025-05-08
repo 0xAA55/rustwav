@@ -327,6 +327,17 @@ where
     }
 }
 
+/// * Format array in a specific patterns
+#[macro_export]
+macro_rules! format_array {
+    () => {
+        "".to_string()
+    };
+    ($data:expr, $delims:expr, $($arg:tt)*) => {
+        $data.iter().map(|&v|format!($($arg)*, v)).collect::<Vec<_>>().join($delims)
+    }
+}
+
 /// * Use the `Resampler` to resample a mono waveform from original sample rate to a specific sample rate.
 pub fn do_resample_mono<S>(
     resampler: &Resampler,
