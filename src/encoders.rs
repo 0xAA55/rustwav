@@ -2891,7 +2891,28 @@ pub mod oggvorbis_enc {
             // Try to verify if this is the right way to read the codebook
             assert_eq!(&setup_header[0..7], b"\x05vorbis", "Checking the vorbis header that is a `setup_header` or not");
 
+            use crate::vorbis_codebook::*;
 
+            let mut cursor = 0usize;
+            let codebooks = unpack_codebooks(&setup_header[7..], &mut cursor).unwrap();
+            let bytes_before_codebook = &setup_header[0..7];
+            let bytes_after_codebook = &setup_header[7 + cursor..];
+            let codebook_bytes = &setup_header[7..7 + cursor];
+
+            let new_codebook_bytes = pack_codebooks(&codebooks)?;
+
+            let mut new_cursor = 0usize;
+            let new_codebooks = unpack_codebooks(&new_codebook_bytes, &mut new_cursor).unwrap();
+            let new_new_codebook_bytes = pack_codebooks(&new_codebooks)?;
+
+            use std::{fs::File, io::{Write, BufWriter}};
+            let mut dump = BufWriter::new(File::create("codebook_dump.txt").unwrap());
+            writeln!(dump, "{}", format_array!(codebook_bytes, " ", "{:02}")).unwrap();
+            writeln!(dump, "{}", format_array!(new_codebook_bytes, " ", "{:02}")).unwrap();
+            writeln!(dump, "{}", format_array!(new_new_codebook_bytes, " ", "{:02}")).unwrap();
+            drop(dump);
+
+            setup_header = [bytes_before_codebook, &new_codebook_bytes, bytes_after_codebook].into_iter().flatten().copied().collect();
 
             let mut new_packet = packet.clone();
             new_packet.clear();
