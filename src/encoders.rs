@@ -2537,10 +2537,10 @@ pub mod oggvorbis_enc {
         ConstrainedAbr(u32),
     }
 
-    #[cfg(feature = "oggvorbis")]
+    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
     use super::EncoderToImpl;
 
-    #[cfg(feature = "oggvorbis")]
+    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
     mod impl_vorbis {
         use std::{
             collections::BTreeMap,
@@ -3212,7 +3212,7 @@ pub mod oggvorbis_enc {
         }
     }
 
-    #[cfg(feature = "oggvorbis")]
+    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
     pub use impl_vorbis::*;
 }
 

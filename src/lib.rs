@@ -11,8 +11,12 @@ mod wavreader;
 mod wavwriter;
 mod xlaw;
 mod adpcm;
+
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 mod ogg;
 
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+mod vorbis_codebook;
 /// ## The utility for both you and me to convert waveform format.
 pub mod utils;
 

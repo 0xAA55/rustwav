@@ -538,7 +538,7 @@ impl From<&dyn flac::FlacError> for AudioWriteError {
     }
 }
 
-#[cfg(feature = "oggvorbis")]
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 impl From<vorbis_rs::VorbisError> for AudioReadError {
     fn from(err: vorbis_rs::VorbisError) -> Self {
         use vorbis_rs::VorbisError::*;
@@ -593,7 +593,7 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
     }
 }
 
-#[cfg(feature = "oggvorbis")]
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 impl From<vorbis_rs::VorbisError> for AudioWriteError {
     fn from(err: vorbis_rs::VorbisError) -> Self {
         use vorbis_rs::VorbisError::*;

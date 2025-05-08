@@ -21,7 +21,7 @@ use opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use flac_dec::FlacDecoderWrap;
 
-#[cfg(feature = "oggvorbis")]
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 use oggvorbis_dec::OggVorbisDecoderWrap;
 
 /// ## Decodes audio into samples of the caller-provided format `S`.
@@ -152,7 +152,7 @@ impl<S> Decoder<S> for FlacDecoderWrap<'_>
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
 }
 
-#[cfg(feature = "oggvorbis")]
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 impl<S> Decoder<S> for OggVorbisDecoderWrap
     where S: SampleType {
     fn get_channels(&self) -> u16 { OggVorbisDecoderWrap::get_channels(self) }
@@ -1690,7 +1690,7 @@ pub mod flac_dec {
 }
 
 /// ## The OggVorbis decoder for `WaveReader`
-#[cfg(feature = "oggvorbis")]
+#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
