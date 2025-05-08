@@ -37,7 +37,8 @@ pub enum AudioReadError {
 }
 
 impl AudioReadError {
-    fn UnexpectedEof(message: &String) -> Self {
+    #[allow(non_snake_case)]
+    pub fn UnexpectedEof(message: String) -> Self {
         Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message))
     }
 }
