@@ -18,11 +18,14 @@ mod hacks;
 mod ogg;
 
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
-mod vorbis_codebook;
+mod vorbis;
 
 /// ## The utility for both you and me to convert waveform format.
 #[macro_use]
 pub mod utils;
+
+/// ## The utility for both you and me to do bitvise manipulations.
+pub mod bitvise;
 
 /// ## The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
 pub mod encoders;
