@@ -563,5 +563,43 @@ where
     }
 }
 
+/// * Shift an array of bits to the front. In a byte, the lower bits are the front bits.
+pub fn shift_data_to_front(data: &Vec<u8>, bits: usize, total_bits: usize) -> Vec<u8> {
+    if bits == 0 {
+        data.clone()
+    } else if bits >= total_bits {
+        Vec::new()
+    } else {
+        let shifted_total_bits = total_bits - bits;
+        let mut data = {
+            let bytes_moving = bits >> 3;
+            data[bytes_moving..].to_vec()
+        };
+        let bits = bits & 7;
+        if bits == 0 {
+            data
+        } else {
+            data.resize(align(data.len(), ALIGN), 0);
+            let mut to_shift: Vec<Unit> = transmute_vector(data);
+
+            fn combine_bits(data1: Unit, data2: Unit, bits: usize) -> Unit {
+                let move_high = BITS - bits;
+                (data1 >> bits) | (data2 << move_high)
+            }
+
+            for i in 0..(to_shift.len() - 1) {
+                to_shift[i] = combine_bits(to_shift[i], to_shift[i + 1], bits);
+            }
+
+            let last = to_shift.pop().unwrap() >> bits;
+            to_shift.push(last);
+
+            let mut ret = transmute_vector(to_shift);
+            ret.truncate(align(shifted_total_bits, 8) / 8);
+            ret
+        }
+    }
+}
+
     }
 }
