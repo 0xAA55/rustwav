@@ -2894,34 +2894,18 @@ pub mod oggvorbis_enc {
             use crate::vorbis_codebook::*;
 
             let codebooks = CodeBooks::load(&setup_header[7..]).unwrap();
-            let codebooks_size = codebooks.total_bits / 8 + 1;
-            let bytes_before_codebook = &setup_header[0..7];
-            let bytes_after_codebook = &setup_header[7 + codebooks_size..];
-            let codebook_bytes = &setup_header[7..7 + codebooks_size];
+            let bytes_before_codebook = BitviseData::from_bytes(&setup_header[0..7]);
+            let (_codebook_bits, bits_after_codebook) = BitviseData::new(&setup_header[7..], (setup_header.len() - 7) * 8).split(codebooks.total_bits);
 
-            let codebook_packed = codebooks.pack().unwrap();
-            let codebook_packed_splitted = codebook_packed.split().unwrap();
+            // Let's generate the empty codebook.
+            let _empty_codebooks = CodeBooks::default().pack()?.books;
 
-            let codebook_orig_packed = CodeBooksPacked {
-                books: BitviseData::new(&codebook_bytes, codebooks.total_bits),
-                bits_of_books: codebooks.bits_of_books,
-            };
-            let codebook_orig_packed_splitted = codebook_orig_packed.split().unwrap();
+            let mut setup_header = BitviseData::default();
+            setup_header.concat(&bytes_before_codebook);
+            setup_header.concat(&_empty_codebooks);
+            setup_header.concat(&bits_after_codebook);
 
-            use std::{fs::File, io::{Write, BufWriter}};
-            let mut dump = BufWriter::new(File::create("codebook_dump.log").unwrap());
-            writeln!(dump, "{} {}", codebooks.total_bits, codebooks.total_bits & 7).unwrap();
-            for (i, (book1, book2)) in codebook_packed_splitted.iter().zip(codebook_orig_packed_splitted).enumerate() {
-                if book1.data == book2.data {
-                    writeln!(dump, "Book {i}: {}", format_array!(book1.data, " ", "{:02x}")).unwrap();
-                } else {
-                    writeln!(dump, "Book {i}: {}", format_array!(book1.data, " ", "{:02x}")).unwrap();
-                    writeln!(dump, "Book {i}: {}", format_array!(book2.data, " ", "{:02x}")).unwrap();
-                }
-            }
-            drop(dump);
-
-            setup_header = [bytes_before_codebook, &codebook_bytes, bytes_after_codebook].into_iter().flatten().copied().collect();
+            let setup_header = setup_header.to_bytes();
 
             let mut new_packet = packet.clone();
             new_packet.clear();
