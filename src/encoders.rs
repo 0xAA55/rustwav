@@ -2839,83 +2839,6 @@ pub mod oggvorbis_enc {
             }
         }
 
-        fn remove_codebook(data: &[u8]) -> Result<Vec<u8>, AudioWriteError> {
-            let mut packet_pos = 0usize;
-            let mut packets = Vec::<u8>::new();
-
-            while packet_pos < data.len() {
-                let mut packet_size = 0usize;
-                packets.extend(remove_codebook_from_ogg_page(&data[packet_pos..], &mut packet_size)?);
-                packet_pos += packet_size;
-            }
-
-            Ok(packets)
-        }
-
-        fn remove_codebook_from_ogg_page(ogg_packet: &[u8], ogg_packet_len: &mut usize) -> Result<Vec<u8>, AudioWriteError> {
-            use crate::ogg::OggPacket;
-
-            let packet = OggPacket::from_bytes(ogg_packet, ogg_packet_len)?;
-
-            let mut ident_header = Vec::<u8>::new();
-            let mut metadata_header = Vec::<u8>::new();
-            let mut setup_header = Vec::<u8>::new();
-
-            // Parse the body of the Ogg Stream.
-            // The body consists of a table and segments of data. The table describes the length of each segment of data
-            // The Vorbis header must occur at the beginning of a segment
-            // And if the header is long enough, it crosses multiple segments
-            // Find out the `setup header`, find the codebook in the `setup header`, and kill it, that's the mission.
-            let mut cur_segment_type = 0;
-            for segment in packet.get_segments().iter() {
-                if segment[1..7] == *b"vorbis" {
-                    if [1, 3, 5].contains(&segment[0]) {
-                        cur_segment_type = segment[0];
-                    } // Otherwise it's not a Vorbis header
-                }
-                match cur_segment_type {
-                    1 => ident_header.extend(segment),
-                    3 => metadata_header.extend(segment),
-                    5 => setup_header.extend(segment),
-                    _ => return Err(AudioWriteError::InvalidData("vorbis header not found.".to_string())),
-                }
-            }
-
-            // Our target is to kill the codebooks from the `setup_header`
-            // If this packet doesn't have any `setup_header`
-            // We return.
-            if setup_header.is_empty() {
-                return Ok(ogg_packet[..*ogg_packet_len].to_vec())
-            }
-
-            // Try to verify if this is the right way to read the codebook
-            assert_eq!(&setup_header[0..7], b"\x05vorbis", "Checking the vorbis header that is a `setup_header` or not");
-
-            use crate::vorbis_codebook::*;
-
-            let codebooks = CodeBooks::load(&setup_header[7..]).unwrap();
-            let bytes_before_codebook = BitviseData::from_bytes(&setup_header[0..7]);
-            let (_codebook_bits, bits_after_codebook) = BitviseData::new(&setup_header[7..], (setup_header.len() - 7) * 8).split(codebooks.total_bits);
-
-            // Let's generate the empty codebook.
-            let _empty_codebooks = CodeBooks::default().pack()?.books;
-
-            let mut setup_header = BitviseData::default();
-            setup_header.concat(&bytes_before_codebook);
-            setup_header.concat(&_empty_codebooks);
-            setup_header.concat(&bits_after_codebook);
-
-            let setup_header = setup_header.to_bytes();
-
-            let mut new_packet = packet.clone();
-            new_packet.clear();
-            new_packet.write(&ident_header);
-            new_packet.write(&metadata_header);
-            new_packet.write(&setup_header);
-
-            Ok(new_packet.to_bytes())
-        }
-
         impl EncoderToImpl for OggVorbisEncoderWrap<'_> {
             fn get_channels(&self) -> u16 {
                 self.params.channels
@@ -2926,12 +2849,13 @@ pub mod oggvorbis_enc {
             }
 
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
+                use crate::vorbis::remove_codebook_from_ogg_stream;
                 match self.params.mode {
                     OggVorbisMode::OriginalStreamCompatible => self.begin_to_encode(),
                     OggVorbisMode::HaveIndependentHeader => Ok(()),
                     OggVorbisMode::HaveNoCodebookHeader => {
                         let header = self.writer.get_cursor_data_and_clear();
-                        let header = remove_codebook(&header)?;
+                        let header = remove_codebook_from_ogg_stream(&header)?;
                         self.writer.write_all(&header)?;
                         Ok(())
                     }
