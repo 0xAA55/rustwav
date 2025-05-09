@@ -881,7 +881,7 @@ impl CodeBooks {
     pub fn pack(&self) -> Result<CodeBooksPacked, AudioWriteError> {
         let mut bitwriter = BitWriter::new();
         let mut bits_of_books = Vec::<usize>::with_capacity(self.books.len());
-        bitwriter.write((self.books.len() - 1) as u32, 8)?;
+        bitwriter.write((self.books.len().wrapping_sub(1)) as u32, 8)?;
         for book in self.books.iter() {
             let cur_bit_pos = bitwriter.total_bits;
             book.write(&mut bitwriter)?;
