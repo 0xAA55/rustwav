@@ -2642,7 +2642,7 @@ pub mod oggvorbis_enc {
 
         impl Default for OggVorbisBitrateStrategy {
             fn default() -> Self {
-                Self::Vbr(320_000) // I don't know which is best for `default()`.
+                Self::QualityVbr(1.0)
             }
         }
 
