@@ -854,16 +854,6 @@ impl CodeBookPacked {
     pub fn is_aligned_size(&self) -> bool {
         self.book.len() == align(self.book.len(), ALIGN)
     }
-
-    pub fn join(books: &[Self]) -> CodeBooksPacked {
-        let mut ret = CodeBooksPacked::default();
-        ret.books.push((books.len() as u8).wrapping_sub(1));
-        ret.total_bits = 8;
-        for book in books.iter() {
-            ret.append(book);
-        }
-        ret
-    }
 }
 
 impl Default for CodeBookPacked {
