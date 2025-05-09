@@ -2903,9 +2903,8 @@ pub mod oggvorbis_enc {
             let codebook_packed_splitted = codebook_packed.split().unwrap();
 
             let codebook_orig_packed = CodeBooksPacked {
-                books: codebook_bytes.to_vec(),
+                books: BitviseData::new(&codebook_bytes, codebooks.total_bits),
                 bits_of_books: codebooks.bits_of_books,
-                total_bits: codebooks.total_bits,
             };
             let codebook_orig_packed_splitted = codebook_orig_packed.split().unwrap();
 
@@ -2913,27 +2912,11 @@ pub mod oggvorbis_enc {
             let mut dump = BufWriter::new(File::create("codebook_dump.log").unwrap());
             writeln!(dump, "{} {}", codebooks.total_bits, codebooks.total_bits & 7).unwrap();
             for (i, (book1, book2)) in codebook_packed_splitted.iter().zip(codebook_orig_packed_splitted).enumerate() {
-                if book1.book == book2.book {
-                    writeln!(dump, "Book {i}: {}", format_array!(book1.book, " ", "{:02x}")).unwrap();
+                if book1.data == book2.data {
+                    writeln!(dump, "Book {i}: {}", format_array!(book1.data, " ", "{:02x}")).unwrap();
                 } else {
-                    let reunpack1: CodeBooks = CodeBookPacked::join(&[book1.clone()]).into();
-                    let reunpack2: CodeBooks = CodeBookPacked::join(&[book2.clone()]).into();
-                    let repack1 = reunpack1.pack().unwrap();
-                    let repack2 = reunpack2.pack().unwrap();
-                    writeln!(dump, "Book {i} is different: {}", format_array!(book1.book, " ", "{:02x}")).unwrap();
-                    writeln!(dump, "Book {i} is different: {}", format_array!(book2.book, " ", "{:02x}")).unwrap();
-                    writeln!(dump, "Book {i} reunpacked: {:?}", reunpack1.books[0]).unwrap();
-                    writeln!(dump, "Book {i} reunpacked: {:?}", reunpack2.books[0]).unwrap();
-                    writeln!(dump, "Book {i} repacked: {}", format_array!(repack1.books, " ", "{:02x}")).unwrap();
-                    writeln!(dump, "Book {i} repacked: {}", format_array!(repack2.books, " ", "{:02x}")).unwrap();
-                    let reunpack1: CodeBooks = repack1.into();
-                    let reunpack2: CodeBooks = repack2.into();
-                    let repack1 = reunpack1.pack().unwrap();
-                    let repack2 = reunpack2.pack().unwrap();
-                    writeln!(dump, "Book {i} reunpacked: {:?}", reunpack1.books[0]).unwrap();
-                    writeln!(dump, "Book {i} reunpacked: {:?}", reunpack2.books[0]).unwrap();
-                    writeln!(dump, "Book {i} repacked: {}", format_array!(repack1.books, " ", "{:02x}")).unwrap();
-                    writeln!(dump, "Book {i} repacked: {}", format_array!(repack2.books, " ", "{:02x}")).unwrap();
+                    writeln!(dump, "Book {i}: {}", format_array!(book1.data, " ", "{:02x}")).unwrap();
+                    writeln!(dump, "Book {i}: {}", format_array!(book2.data, " ", "{:02x}")).unwrap();
                 }
             }
             drop(dump);
