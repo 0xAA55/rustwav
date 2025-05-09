@@ -195,7 +195,7 @@ impl BitWriter {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CodeBook {
     pub dim: u16,
     pub entries: u32,
@@ -221,6 +221,22 @@ impl Default for CodeBook {
             q_sequencep: 0,
             quantlist: Vec::new(),
         }
+    }
+}
+
+impl Debug for CodeBook {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("CodeBook")
+        .field("dim", &self.dim)
+        .field("entries", &self.entries)
+        .field("lengthlist", &format_args!("[{}]", format_array!(self.lengthlist, " ", "0x{:02x}")))
+        .field("maptype", &self.maptype)
+        .field("q_min", &self.q_min)
+        .field("q_delta", &self.q_delta)
+        .field("q_quant", &self.q_quant)
+        .field("q_sequencep", &self.q_sequencep)
+        .field("quantlist", &format_args!("[{}]", format_array!(self.quantlist, " ", "0x{:04x}")))
+        .finish()
     }
 }
 
