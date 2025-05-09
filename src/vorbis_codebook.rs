@@ -504,22 +504,8 @@ impl CodeBook {
     }
 }
 
-pub fn pack_codebooks(codebooks: &Vec<CodeBook>) -> Result<Vec<u8>, AudioWriteError> {
-    let mut bitwriter = BitWriter::new();
-    bitwriter.write((codebooks.len() - 1) as u32, 8)?;
-    for book in codebooks.iter() {
-        book.write(&mut bitwriter)?;
     }
-    Ok(bitwriter.to_bytes())
 }
 
-pub fn unpack_codebooks(data: &[u8], cursor: &mut usize) -> Result<Vec<CodeBook>, AudioReadError> {
-    let mut bitreader = BitReader::new(data, cursor);
-    let num_books = (bitreader.read(8)? + 1) as usize;
-    let mut ret = Vec::<CodeBook>::with_capacity(num_books);
-    for i in 0..num_books {
-        debugln!("Parsing book {i}");
-        ret.push(CodeBook::read(&mut bitreader)?);
     }
-    Ok(ret)
 }
