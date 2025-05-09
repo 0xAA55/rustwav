@@ -663,7 +663,8 @@ impl CodeBooks {
         let num_books = (bitreader.read(8)? + 1) as usize;
         let mut books = Vec::<CodeBook>::with_capacity(num_books);
         let mut bits_of_books = Vec::<usize>::with_capacity(num_books);
-        for _ in 0..num_books {
+        for i in 0..num_books {
+            debugln!("Reading codebook {i}");
             let cur_bit_pos = bitreader.total_bits;
             books.push(CodeBook::read(&mut bitreader)?);
             bits_of_books.push(bitreader.total_bits - cur_bit_pos);
