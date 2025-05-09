@@ -744,6 +744,12 @@ impl BitviseData {
         }
         self.total_bits += rhs.total_bits;
     }
+
+    /// * Turn to byte array
+    pub fn to_bytes(mut self) -> Vec<u8> {
+        self.shrink_to_fit();
+        self.data
+    }
 }
 
 impl Default for BitviseData {
@@ -827,6 +833,11 @@ impl CodeBooksPacked {
     pub fn concat(&mut self, book: &BitviseData) {
         self.books.concat(book);
         self.bits_of_books.push(book.total_bits);
+    }
+
+    /// * Turn to byte array
+    pub fn to_bytes(self) -> Vec<u8> {
+        self.books.to_bytes()
     }
 }
 
