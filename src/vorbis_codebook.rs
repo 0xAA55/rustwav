@@ -114,42 +114,55 @@ impl<'a> BitReader<'a> {
 
 /// * BitWriter: write vorbis data bit by bit
 pub struct BitWriter {
+    /// * Currently ends at which bit in the last byte
     pub endbit: i32,
+
+    /// * How many bits did we wrote in total
+    pub total_bits: usize,
+
+    /// * We owns the written data
     pub cursor: Cursor<Vec<u8>>,
 }
 
 impl Default for BitWriter {
     fn default() -> Self {
+        // We must have at least one byte written here because we have to add bits to the last byte.
         let mut cursor = Cursor::new(vec![0]);
         cursor.seek(SeekFrom::End(0)).unwrap();
         Self {
             endbit: 0,
+            total_bits: 0,
             cursor,
         }
     }
 }
 
 impl BitWriter {
+    /// * Create a `Cursor<Vec<u8>>` to write
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// * Get the last byte for modifying it
     pub fn last_byte(&mut self) -> &mut u8 {
         let v = self.cursor.get_mut();
         let len = v.len();
         &mut v[len - 1]
     }
 
+    /// * Write data by bytes one by one
     fn write_byte(&mut self, byte: u8) -> Result<(), AudioWriteError> {
         self.cursor.write_all(&[byte])?;
         Ok(())
     }
 
+    /// * Write data in bits, max is 32 bit.
     pub fn write(&mut self, mut value: u32, mut bits: i32) -> Result<(), AudioWriteError> {
         if bits < 0 || bits > 32 {
             return Err(AudioWriteError::InvalidArguments(format!("Invalid bits {bits}")));
         }
         value &= MASK[bits as usize];
+        let origbits = bits;
         bits += self.endbit;
 
         *self.last_byte() |= (value << self.endbit) as u8;
@@ -172,9 +185,11 @@ impl BitWriter {
         }
 
         self.endbit = bits & 7;
+        self.total_bits += origbits as usize;
         Ok(())
     }
 
+    /// * Get the inner byte array and consumes the writer.
     pub fn to_bytes(self) -> Vec<u8> {
         self.cursor.into_inner()
     }
