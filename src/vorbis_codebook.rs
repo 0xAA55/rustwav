@@ -305,9 +305,9 @@ impl CodeBook {
                     }
                     for _ in 0..num {
                         self.lengthlist[i as usize] = length;
-                        length += 1;
                         i += 1;
                     }
+                    length += 1;
                 }
             }
             o => return Err(AudioReadError::FormatError(format!("Unexpected codeword ordering {o}"))),
@@ -441,7 +441,7 @@ impl CodeBook {
         } else {
             /* length random.  Again, we don't code the codeword itself, just
                the length.  This time, though, we have to encode each length */
-            bitwriter.write(1, 1)?; /* unordered */
+            bitwriter.write(0, 1)?; /* unordered */
 
             /* algortihmic mapping has use for 'unused entries', which we tag
                here.  The algorithmic mapping happens as usual, but the unused
