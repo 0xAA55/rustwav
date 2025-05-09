@@ -442,13 +442,15 @@ impl CodeBook {
            length random.  Decide between the two now. */
 
         let mut ordered = false;
-        for i in 1..self.entries as usize {
+        let mut i = 1usize;
+        while i < self.entries as usize {
             if self.lengthlist[i - 1] == 0 || self.lengthlist[i] < self.lengthlist[i - 1] {
-                if i == self.entries as usize {
-                    ordered = true;
-                }
                 break;
             }
+            i += 1;
+        }
+        if i == self.entries as usize {
+            ordered = true;
         }
 
         if ordered {
