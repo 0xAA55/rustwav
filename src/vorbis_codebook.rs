@@ -660,8 +660,12 @@ impl BitviseData {
 
     /// * If there are any `1` bits outside of the byte array, erase them to zeros.
     fn remove_residue(&mut self) {
+        let residue_bits = self.total_bits & 7;
+        if residue_bits == 0 {
+            return;
+        }
         match self.data.pop() {
-            Some(byte) => self.data.push(byte & MASK8[self.total_bits & 7]),
+            Some(byte) => self.data.push(byte & MASK8[residue_bits]),
             None => (),
         }
     }
