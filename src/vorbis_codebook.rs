@@ -642,10 +642,12 @@ pub struct BitviseData {
 
 impl BitviseData {
     pub fn new(data: &[u8], total_bits: usize) -> Self {
-        Self {
+        let mut ret = Self {
             data: data[..Self::calc_total_bytes(total_bits)].to_vec(),
             total_bits,
-        }
+        };
+        ret.remove_residue();
+        ret
     }
 
     /// * Construct from bytes
@@ -653,6 +655,14 @@ impl BitviseData {
         Self {
             data: data.to_vec(),
             total_bits: data.len() * 8,
+        }
+    }
+
+    /// * If there are any `1` bits outside of the byte array, erase them to zeros.
+    fn remove_residue(&mut self) {
+        match self.data.pop() {
+            Some(byte) => self.data.push(byte & MASK8[self.total_bits & 7]),
+            None => (),
         }
     }
 
@@ -679,6 +689,7 @@ impl BitviseData {
     /// * Resize to the number of bytes that are just enough to contain all of the bits.
     pub fn shrink_to_fit(&mut self) {
         self.data.truncate(self.get_total_bytes());
+        self.remove_residue();
     }
 
     /// * Check if the data length is just the aligned size.
@@ -722,9 +733,9 @@ impl BitviseData {
         if shifts == 0 {
             self.data.extend(&rhs.data);
         } else {
-            let last_byte = self.data.pop().unwrap();
             let shift_left = 8 - shifts;
-            self.data.push(last_byte | (rhs.data[0] & !MASK8[8 - shift_left]));
+            let last_byte = self.data.pop().unwrap();
+            self.data.push(last_byte | (rhs.data[0] << shifts));
             self.data.extend(shift_data_to_front(&rhs.data, shift_left, rhs.total_bits));
         }
         self.total_bits += rhs.total_bits;
