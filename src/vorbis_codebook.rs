@@ -622,5 +622,38 @@ pub fn shift_data_to_back(data: &Vec<u8>, bits: usize, total_bits: usize) -> Vec
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct CodeBooks {
+    /// * The unpacked codebooks
+    pub books: Vec<CodeBook>,
+
+    /// * The size of each codebook in bits if they are packed
+    pub bits_of_books: Vec<usize>,
+
+    /// * The total bits of all the books
+    pub total_bits: usize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CodeBooksPacked {
+    /// * The packed code books
+    pub books: Vec<u8>,
+
+    /// * The size of each codebook in bits
+    pub bits_of_books: Vec<usize>,
+
+    /// * The total bits of all the books
+    pub total_bits: usize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CodeBookPacked {
+    /// * One single packed book
+    pub book: Vec<u8>,
+
+    /// * The total bits of the books
+    pub total_bits: usize,
+}
+
     }
 }
