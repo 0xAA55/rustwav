@@ -437,6 +437,48 @@ impl Seek for SharedWriterWithCursor<'_> {
     }
 }
 
+/// ## The shared `Cursor`.
+/// * Because it's shared, when the 3rd library owned it, we still can access to it..
+#[derive(Debug, Clone)]
+pub struct SharedCursor (Rc<RefCell<Cursor<Vec<u8>>>>);
+
+impl SharedCursor {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get_vec(&self) -> Vec<u8> {
+        self.0.borrow().get_ref().to_vec()
+    }
+}
+
+impl Default for SharedCursor {
+    fn default() -> Self {
+        Self(Rc::new(RefCell::new(Cursor::new(Vec::new()))))
+    }
+}
+
+impl Read for SharedCursor {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.0.borrow_mut().read(buf)
+    }
+}
+
+impl Write for SharedCursor {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.0.borrow_mut().write(buf)
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.0.borrow_mut().flush()
+    }
+}
+
+impl Seek for SharedCursor {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.0.borrow_mut().seek(pos)
+    }
+}
+
 /// * Go to an offset without using seek. It's achieved by using dummy reads.
 pub fn goto_offset_without_seek<T>(
     mut reader: T,
