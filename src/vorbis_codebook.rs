@@ -511,6 +511,27 @@ pub fn align(size: usize, alignment: usize) -> usize {
     ((size - 1) / alignment + 1) * alignment
 }
 
+/// * Transmute vector, change its type, but not by cloning it or changing its memory location or capacity.
+/// * Will panic or crash if you don't know what you are doing.
+pub fn transmute_vector<S, D>(vector: Vec<S>) -> Vec<D>
+where
+    S: Sized,
+    D: Sized {
+
+    use std::{any::type_name, mem::{size_of, ManuallyDrop}};
+    let s_size = size_of::<S>();
+    let d_size = size_of::<D>();
+    let s_name = type_name::<S>();
+    let d_name = type_name::<D>();
+    let size_in_bytes = s_size * vector.len();
+    let remain_size = size_in_bytes % d_size;
+    if remain_size != 0 {
+        panic!("Could not transmute from Vec<{s_name}> to Vec<{d_name}>: the number of bytes {size_in_bytes} is not divisible to {d_size}.")
+    } else {
+        let mut s = ManuallyDrop::new(vector);
+        unsafe {
+            Vec::<D>::from_raw_parts(s.as_mut_ptr() as *mut D, size_in_bytes / d_size, s.capacity() * s_size / d_size)
+        }
     }
 }
 
