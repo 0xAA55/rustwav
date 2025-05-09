@@ -30,6 +30,34 @@ const MASK: [u32; 33] = [
     0x1fffffff, 0x3fffffff, 0x7fffffff, 0xffffffff
 ];
 
+macro_rules! define_worksize_consts {
+    () => {
+        const BITS: usize = Unit::BITS as usize;
+        const ALIGN: usize = BITS / 8;
+    }
+}
+
+macro_rules! define_worksize {
+    (8) => {
+        type  Unit = u8;
+        define_worksize_consts!();
+    };
+    (16) => {
+        type  Unit = u16;
+        define_worksize_consts!();
+    };
+    (32) => {
+        type  Unit = u32;
+        define_worksize_consts!();
+    };
+    (64) => {
+        type  Unit = u64;
+        define_worksize_consts!();
+    };
+}
+
+define_worksize!(8);
+
 fn ilog(mut v: u32) -> i32 {
     let mut ret = 0;
     while v != 0 {
