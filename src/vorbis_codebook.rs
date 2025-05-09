@@ -601,5 +601,26 @@ pub fn shift_data_to_front(data: &Vec<u8>, bits: usize, total_bits: usize) -> Ve
     }
 }
 
+/// * Shift an array of bits to the back. In a byte, the higher bits are the back bits.
+pub fn shift_data_to_back(data: &Vec<u8>, bits: usize, total_bits: usize) -> Vec<u8> {
+    if bits == 0 {
+        data.clone()
+    } else {
+        let shifted_total_bits = total_bits + bits;
+        let data = {
+            let bytes_added = align(bits, 8) / 8;
+            let data: Vec<u8> = [vec![0u8; bytes_added], data.clone()].iter().flatten().copied().collect();
+            data
+        };
+        let bits = bits & 7;
+        if bits == 0 {
+            data
+        } else {
+            let lsh = 8 - bits;
+            shift_data_to_front(&data, lsh, shifted_total_bits + lsh)
+        }
+    }
+}
+
     }
 }
