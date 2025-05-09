@@ -2849,14 +2849,11 @@ pub mod oggvorbis_enc {
             }
 
             fn begin_encoding(&mut self) -> Result<(), AudioWriteError> {
-                use crate::vorbis::remove_codebook_from_ogg_stream;
                 match self.params.mode {
                     OggVorbisMode::OriginalStreamCompatible => self.begin_to_encode(),
                     OggVorbisMode::HaveIndependentHeader => Ok(()),
                     OggVorbisMode::HaveNoCodebookHeader => {
-                        let header = self.writer.get_cursor_data_and_clear();
-                        let header = remove_codebook_from_ogg_stream(&header)?;
-                        self.writer.write_all(&header)?;
+                        let _header = self.writer.get_cursor_data_and_clear();
                         Ok(())
                     }
                 }
