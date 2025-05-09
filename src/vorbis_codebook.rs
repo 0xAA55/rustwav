@@ -702,6 +702,15 @@ impl CodeBooks {
     }
 }
 
+impl From<CodeBooksPacked> for CodeBooks {
+    fn from(packed: CodeBooksPacked) -> Self {
+        let ret = Self::load(&packed.books).unwrap();
+        assert_eq!(ret.bits_of_books, packed.bits_of_books, "CodeBooks::from(&CodeBooksPacked), bits_of_books");
+        assert_eq!(ret.total_bits, packed.total_bits, "CodeBooks::from(&CodeBooksPacked), total_bits");
+        ret
+    }
+}
+
 impl Default for CodeBooks {
     fn default() -> Self {
         Self {
