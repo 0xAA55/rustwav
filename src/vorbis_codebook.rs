@@ -859,6 +859,46 @@ impl BitviseData {
         self.data.len() == align(self.data.len(), ALIGN)
     }
 
+    pub fn split(&self, split_at_bit: usize) -> (Self, Self) {
+        if split_at_bit == 0 {
+            (Self::default(), self.clone())
+        } else if split_at_bit >= self.total_bits {
+            (self.clone(), Self::default())
+        } else {
+            let data1 = {
+                let mut data = self.clone();
+                data.total_bits = split_at_bit;
+                data.shrink_to_fit();
+                let last_bits = data.total_bits & 7;
+                if last_bits != 0 {
+                    let last_byte = data.data.pop().unwrap();
+                    data.data.push(last_byte & MASK8[last_bits]);
+                }
+                data
+            };
+            let data2 = Self {
+                data: shift_data_to_front(&self.data, split_at_bit, self.total_bits),
+                total_bits: self.total_bits - split_at_bit,
+            };
+            (data1, data2)
+        }
+    }
+
+    pub fn append(&mut self, rhs: &Self) {
+        if rhs.total_bits == 0 {
+            return;
+        }
+        self.shrink_to_fit();
+        let shifts = self.total_bits & 7;
+        if shifts == 0 {
+            self.data.extend(&rhs.data);
+        } else {
+            let last_byte = self.data.pop().unwrap();
+            let shift_left = 8 - shifts;
+            self.data.push(last_byte | (rhs.data[0] & !MASK8[8 - shift_left]));
+            self.data.extend(shift_data_to_front(&rhs.data, shift_left, rhs.total_bits));
+        }
+        self.total_bits += rhs.total_bits;
     }
 }
 
