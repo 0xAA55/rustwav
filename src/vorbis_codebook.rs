@@ -630,6 +630,112 @@ pub fn shift_data_to_back(data: &Vec<u8>, bits: usize, total_bits: usize) -> Vec
     }
 }
 
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BitviseData {
+    /// * Store as bytes
+    pub data: Vec<u8>,
+
+    /// * The total bits of the books
+    pub total_bits: usize,
+}
+
+impl BitviseData {
+    pub fn new(data: Vec<u8>, total_bits: usize) -> Self {
+        Self {
+            data,
+            total_bits,
+        }
+    }
+
+    /// * Get the number of total bits in the `data` field
+    pub fn get_total_bits(&self) -> usize {
+        self.total_bits
+    }
+
+    /// * Get the number of bytes that are just enough to contain all of the bits.
+    pub fn get_total_bytes(&self) -> usize {
+        align(self.total_bits, 8) / 8
+    }
+
+    /// * Resize to the aligned size. Doing this is for `shift_data_to_front()` and `shift_data_to_back()` to manipulate bits efficiently.
+    pub fn fit_to_aligned_size(&mut self) {
+        self.data.resize(align(self.total_bits, BITS) / 8, 0);
+    }
+
+    /// * Resize to the number of bytes that are just enough to contain all of the bits.
+    pub fn shrink_to_fit(&mut self) {
+        self.data.truncate(self.get_total_bytes());
+    }
+
+    /// * Check if the data length is just the aligned size.
+    pub fn is_aligned_size(&self) -> bool {
+        self.data.len() == align(self.data.len(), ALIGN)
+    }
+
+    /// * Breakdown to 2 parts of the data at the specific bitvise position.
+    pub fn split(&self, split_at_bit: usize) -> (Self, Self) {
+        if split_at_bit == 0 {
+            (Self::default(), self.clone())
+        } else if split_at_bit >= self.total_bits {
+            (self.clone(), Self::default())
+        } else {
+            let data1 = {
+                let mut data = self.clone();
+                data.total_bits = split_at_bit;
+                data.shrink_to_fit();
+                let last_bits = data.total_bits & 7;
+                if last_bits != 0 {
+                    let last_byte = data.data.pop().unwrap();
+                    data.data.push(last_byte & MASK8[last_bits]);
+                }
+                data
+            };
+            let data2 = Self {
+                data: shift_data_to_front(&self.data, split_at_bit, self.total_bits),
+                total_bits: self.total_bits - split_at_bit,
+            };
+            (data1, data2)
+        }
+    }
+
+    /// * Concat another `BitviseData` to the bitstream, without the gap.
+    pub fn concat(&mut self, rhs: &Self) {
+        if rhs.total_bits == 0 {
+            return;
+        }
+        self.shrink_to_fit();
+        let shifts = self.total_bits & 7;
+        if shifts == 0 {
+            self.data.extend(&rhs.data);
+        } else {
+            let last_byte = self.data.pop().unwrap();
+            let shift_left = 8 - shifts;
+            self.data.push(last_byte | (rhs.data[0] & !MASK8[8 - shift_left]));
+            self.data.extend(shift_data_to_front(&rhs.data, shift_left, rhs.total_bits));
+        }
+        self.total_bits += rhs.total_bits;
+    }
+}
+
+impl Default for BitviseData {
+    fn default() -> Self {
+        Self {
+            data: Vec::new(),
+            total_bits: 0,
+        }
+    }
+}
+
+impl Debug for BitviseData {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("BitviseData")
+        .field("data", &format_args!("{}", format_array!(self.data, " ", "{:02x}")))
+        .field("total_bits", &self.total_bits)
+        .finish()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct CodeBooks {
     /// * The unpacked codebooks
@@ -760,30 +866,21 @@ impl CodeBooksPacked {
             return Ok(Vec::new());
         }
         let mut ret = Vec::<BitviseData>::with_capacity(num_books);
-        let mut books = self.books[1..].to_vec();
-        let mut bits_to_split = self.total_bits - 8;
+        let mut books = BitviseData {
+            data: self.books[1..].to_vec(),
+            total_bits: self.total_bits - 8,
+        };
         for i in 0..num_books {
             let cur_book_bits = self.bits_of_books[i];
-            if cur_book_bits == 0 {
-                ret.push(BitviseData::new(Vec::new(), 0));
-                continue;
-            }
-            let cur_book_bytes = align(cur_book_bits, 8) / 8;
-            let mut cur_book = books[..cur_book_bytes].to_vec();
-            let last_bits = cur_book_bits & 7;
-            if last_bits != 0 {
-                let last_byte = cur_book.pop().unwrap();
-                cur_book.push(last_byte & !MASK8[8 - last_bits]);
-            }
-            ret.push(BitviseData::new(cur_book, cur_book_bits));
-            books = shift_data_to_front(&books, cur_book_bits, bits_to_split);
-            bits_to_split -= cur_book_bits
+            let (front, back) = books.split(cur_book_bits);
+            ret.push(front);
+            books = back;
         }
         Ok(ret)
     }
 
-    /// * Append a packed book without bits gap
-    pub fn append(&mut self, book: &BitviseData) {
+    /// * Concat a packed book without bits gap
+    pub fn concat(&mut self, book: &BitviseData) {
         if book.total_bits == 0 {
             return;
         }
@@ -817,104 +914,6 @@ impl Debug for CodeBooksPacked {
         f.debug_struct("CodeBooksPacked")
         .field("books", &format_args!("{}", format_array!(self.books, " ", "{:02x}")))
         .field("bits_of_books", &format_args!("[{}]", format_array!(self.bits_of_books, ", ", "0x{:04x}")))
-        .field("total_bits", &self.total_bits)
-        .finish()
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct BitviseData {
-    /// * Store as bytes
-    pub data: Vec<u8>,
-
-    /// * The total bits of the books
-    pub total_bits: usize,
-}
-
-impl BitviseData {
-    pub fn new(data: Vec<u8>, total_bits: usize) -> Self {
-        Self {
-            data,
-            total_bits,
-        }
-    }
-
-    pub fn get_total_bits(&self) -> usize {
-        self.total_bits
-    }
-
-    pub fn get_total_bytes(&self) -> usize {
-        align(self.total_bits, 8) / 8
-    }
-
-    pub fn fit_to_aligned_size(&mut self) {
-        self.data.resize(align(self.total_bits, BITS) / 8, 0);
-    }
-
-    pub fn shrink_to_fit(&mut self) {
-        self.data.truncate(self.get_total_bytes());
-    }
-
-    pub fn is_aligned_size(&self) -> bool {
-        self.data.len() == align(self.data.len(), ALIGN)
-    }
-
-    pub fn split(&self, split_at_bit: usize) -> (Self, Self) {
-        if split_at_bit == 0 {
-            (Self::default(), self.clone())
-        } else if split_at_bit >= self.total_bits {
-            (self.clone(), Self::default())
-        } else {
-            let data1 = {
-                let mut data = self.clone();
-                data.total_bits = split_at_bit;
-                data.shrink_to_fit();
-                let last_bits = data.total_bits & 7;
-                if last_bits != 0 {
-                    let last_byte = data.data.pop().unwrap();
-                    data.data.push(last_byte & MASK8[last_bits]);
-                }
-                data
-            };
-            let data2 = Self {
-                data: shift_data_to_front(&self.data, split_at_bit, self.total_bits),
-                total_bits: self.total_bits - split_at_bit,
-            };
-            (data1, data2)
-        }
-    }
-
-    pub fn append(&mut self, rhs: &Self) {
-        if rhs.total_bits == 0 {
-            return;
-        }
-        self.shrink_to_fit();
-        let shifts = self.total_bits & 7;
-        if shifts == 0 {
-            self.data.extend(&rhs.data);
-        } else {
-            let last_byte = self.data.pop().unwrap();
-            let shift_left = 8 - shifts;
-            self.data.push(last_byte | (rhs.data[0] & !MASK8[8 - shift_left]));
-            self.data.extend(shift_data_to_front(&rhs.data, shift_left, rhs.total_bits));
-        }
-        self.total_bits += rhs.total_bits;
-    }
-}
-
-impl Default for BitviseData {
-    fn default() -> Self {
-        Self {
-            data: Vec::new(),
-            total_bits: 0,
-        }
-    }
-}
-
-impl Debug for BitviseData {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("BitviseData")
-        .field("data", &format_args!("{}", format_array!(self.data, " ", "{:02x}")))
         .field("total_bits", &self.total_bits)
         .finish()
     }
