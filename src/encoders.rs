@@ -2568,6 +2568,44 @@ pub mod oggvorbis_enc {
                     Self::ConstrainedAbr(_) => false,
                 }
             }
+
+            fn get_bitrate(&self, channels: u16, sample_rate: u32) -> Result<u32, AudioWriteError> {
+                match self {
+                    Self::Vbr(bitrate) => Ok(*bitrate),
+                    Self::QualityVbr(quality) => {
+                        let quality = ((quality * 10.0) as i32).clamp(0, 10);
+                        match sample_rate {
+                            48000 => {
+                                Ok([
+                                    [64000, 80000, 96000, 112000, 128000, 160000, 192000, 240000, 256000, 350000, 450000],
+                                    [48000, 64000, 72000,  80000,  88000,  96000, 112000, 128000, 144000, 192000, 256000],
+                                ][channels as usize][quality as usize])
+                            }
+                            44100 => {
+                                Ok([
+                                    [64000, 80000, 96000, 112000, 128000, 160000, 192000, 240000, 256000, 350000, 450000],
+                                    [48000, 64000, 72000,  80000,  88000,  96000, 112000, 128000, 144000, 192000, 256000],
+                                ][channels as usize][quality as usize])
+                            }
+                            22050 => {
+                                Ok([
+                                    [56000, 72000, 80000,  88000,  96000, 112000, 144000, 176000, 192000, 256000, 320000],
+                                    [36000, 42000, 48000,  52000,  56000,  64000,  80000,  88000,  96000, 128000, 168000],
+                                ][channels as usize][quality as usize])
+                            }
+                            11025 => {
+                                Ok([
+                                    [36000, 44000, 50000,  52000,  56000,  64000,  80000,  96000, 112000, 144000, 168000],
+                                    [22000, 26000, 28000,  30000,  32000,  34000,  40000,  48000,  56000,  72000,  88000],
+                                ][channels as usize][quality as usize])
+                            }
+                            o => Err(AudioWriteError::InvalidArguments(format!("Invalid sample rate {o}. For Vorbis encoding, sample rate must be 48000, 44100, 22050, 11025."))),
+                        }
+                    },
+                    Self::Abr(bitrate) => Ok(*bitrate),
+                    Self::ConstrainedAbr(bitrate) => Ok(*bitrate),
+                }
+            }
         }
 
         impl Into<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
