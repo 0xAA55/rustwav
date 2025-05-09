@@ -641,9 +641,9 @@ pub struct BitviseData {
 }
 
 impl BitviseData {
-    pub fn new(data: Vec<u8>, total_bits: usize) -> Self {
+    pub fn new(data: &[u8], total_bits: usize) -> Self {
         Self {
-            data,
+            data: data.to_vec(),
             total_bits,
         }
     }
@@ -736,24 +736,87 @@ impl Debug for BitviseData {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeBooksPacked {
+    /// * The packed code books
+    pub books: BitviseData,
+
+    /// * The size of each codebook in bits
+    pub bits_of_books: Vec<usize>,
+}
+
+impl CodeBooksPacked {
+    pub fn unpack(&self) -> Result<CodeBooks, AudioReadError> {
+        CodeBooks::load(&self.books.data)
+    }
+
+    /// * Get the number of total bits in the `data` field
+    pub fn get_total_bits(&self) -> usize {
+        self.books.get_total_bits()
+    }
+
+    /// * Get the number of bytes that are just enough to contain all of the bits.
+    pub fn get_total_bytes(&self) -> usize {
+        self.books.get_total_bytes()
+    }
+
+    /// * Resize to the aligned size. Doing this is for `shift_data_to_front()` and `shift_data_to_back()` to manipulate bits efficiently.
+    pub fn fit_to_aligned_size(&mut self) {
+        self.books.fit_to_aligned_size()
+    }
+
+    /// * Resize to the number of bytes that are just enough to contain all of the bits.
+    pub fn shrink_to_fit(&mut self) {
+        self.books.shrink_to_fit()
+    }
+
+    /// * Check if the data length is just the aligned size.
+    pub fn is_aligned_size(&self) -> bool {
+        self.books.is_aligned_size()
+    }
+
+    /// * Breakdown to each book
+    pub fn split(&self) -> Result<Vec<BitviseData>, AudioError> {
+        let num_books = self.bits_of_books.len();
+        if num_books == 0 {
+            return Ok(Vec::new());
+        }
+        let mut ret = Vec::<BitviseData>::with_capacity(num_books);
+        let mut books = BitviseData {
+            data: self.books.data[1..].to_vec(),
+            total_bits: self.books.total_bits - 8,
+        };
+        for i in 0..num_books {
+            let cur_book_bits = self.bits_of_books[i];
+            let (front, back) = books.split(cur_book_bits);
+            ret.push(front);
+            books = back;
+        }
+        Ok(ret)
+    }
+
+    /// * Concat a packed book without a gap
+    pub fn concat(&mut self, book: &BitviseData) {
+        self.books.concat(book);
+        self.bits_of_books.push(book.total_bits);
+    }
+}
+
+impl Default for CodeBooksPacked {
+    fn default() -> Self {
+        Self {
+            books: BitviseData::default(),
+            bits_of_books: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct CodeBooks {
     /// * The unpacked codebooks
     pub books: Vec<CodeBook>,
 
     /// * The size of each codebook in bits if they are packed
-    pub bits_of_books: Vec<usize>,
-
-    /// * The total bits of all the books
-    pub total_bits: usize,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct CodeBooksPacked {
-    /// * The packed code books
-    pub books: Vec<u8>,
-
-    /// * The size of each codebook in bits
     pub bits_of_books: Vec<usize>,
 
     /// * The total bits of all the books
@@ -799,18 +862,17 @@ impl CodeBooks {
         let total_bits = bitwriter.total_bits;
         let books = bitwriter.to_bytes();
         Ok(CodeBooksPacked{
-            books,
+            books: BitviseData::new(&books, total_bits),
             bits_of_books,
-            total_bits,
         })
     }
 }
 
 impl From<CodeBooksPacked> for CodeBooks {
     fn from(packed: CodeBooksPacked) -> Self {
-        let ret = Self::load(&packed.books).unwrap();
+        let ret = Self::load(&packed.books.data).unwrap();
         assert_eq!(ret.bits_of_books, packed.bits_of_books, "CodeBooks::from(&CodeBooksPacked), bits_of_books");
-        assert_eq!(ret.total_bits, packed.total_bits, "CodeBooks::from(&CodeBooksPacked), total_bits");
+        assert_eq!(ret.total_bits, packed.books.total_bits, "CodeBooks::from(&CodeBooksPacked), total_bits");
         ret
     }
 }
@@ -829,90 +891,6 @@ impl Debug for CodeBooks {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("CodeBooks")
         .field("books", &self.books)
-        .field("bits_of_books", &format_args!("[{}]", format_array!(self.bits_of_books, ", ", "0x{:04x}")))
-        .field("total_bits", &self.total_bits)
-        .finish()
-    }
-}
-
-impl CodeBooksPacked {
-    pub fn unpack(&self) -> Result<CodeBooks, AudioReadError> {
-        CodeBooks::load(&self.books)
-    }
-
-    pub fn get_total_bits(&self) -> usize {
-        self.total_bits
-    }
-
-    pub fn get_total_bytes(&self) -> usize {
-        align(self.total_bits, 8) / 8
-    }
-
-    pub fn fit_to_aligned_size(&mut self) {
-        self.books.resize(align(self.total_bits, BITS) / 8, 0);
-    }
-
-    pub fn shrink_to_fit(&mut self) {
-        self.books.truncate(self.get_total_bytes());
-    }
-
-    pub fn is_aligned_size(&self) -> bool {
-        self.books.len() == align(self.books.len(), ALIGN)
-    }
-
-    pub fn split(&self) -> Result<Vec<BitviseData>, AudioError> {
-        let num_books = self.bits_of_books.len();
-        if num_books == 0 {
-            return Ok(Vec::new());
-        }
-        let mut ret = Vec::<BitviseData>::with_capacity(num_books);
-        let mut books = BitviseData {
-            data: self.books[1..].to_vec(),
-            total_bits: self.total_bits - 8,
-        };
-        for i in 0..num_books {
-            let cur_book_bits = self.bits_of_books[i];
-            let (front, back) = books.split(cur_book_bits);
-            ret.push(front);
-            books = back;
-        }
-        Ok(ret)
-    }
-
-    /// * Concat a packed book without bits gap
-    pub fn concat(&mut self, book: &BitviseData) {
-        if book.total_bits == 0 {
-            return;
-        }
-        self.shrink_to_fit();
-        let shifts = self.total_bits & 7;
-        if shifts == 0 {
-            self.books.extend(&book.data);
-        } else {
-            let last_byte = self.books.pop().unwrap();
-            let shift_left = 8 - shifts;
-            self.books.push(last_byte | (book.data[0] & MASK8[shift_left]));
-            self.books.extend(shift_data_to_front(&book.data, shift_left, book.total_bits));
-        }
-        self.bits_of_books.push(book.total_bits);
-        self.total_bits += book.total_bits;
-    }
-}
-
-impl Default for CodeBooksPacked {
-    fn default() -> Self {
-        Self {
-            books: Vec::new(),
-            bits_of_books: Vec::new(),
-            total_bits: 0,
-        }
-    }
-}
-
-impl Debug for CodeBooksPacked {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("CodeBooksPacked")
-        .field("books", &format_args!("{}", format_array!(self.books, " ", "{:02x}")))
         .field("bits_of_books", &format_args!("[{}]", format_array!(self.bits_of_books, ", ", "0x{:04x}")))
         .field("total_bits", &self.total_bits)
         .finish()
