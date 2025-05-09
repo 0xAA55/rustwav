@@ -1701,6 +1701,8 @@ pub mod oggvorbis_dec {
     use crate::SampleType;
     use crate::wavcore::{FmtChunk, ExtensionData};
     use crate::{Reader, SharedReaderOwned, CombinedReader};
+    use crate::{OggVorbisMode, OggVorbisEncoderParams};
+    use crate::SharedCursor;
     use vorbis_rs::VorbisDecoder;
 
     /// ## The OggVorbis decoder for `WaveReader`
@@ -1751,10 +1753,22 @@ pub mod oggvorbis_dec {
                         if [
                             FORMAT_TAG_OGG_VORBIS1,
                             FORMAT_TAG_OGG_VORBIS1P,
+                        ].contains(&fmt.format_tag) {
+                            Vec::new()
+                        } else if [
                             FORMAT_TAG_OGG_VORBIS3,
                             FORMAT_TAG_OGG_VORBIS3P,
                         ].contains(&fmt.format_tag) {
-                            Vec::new()
+                            let header = SharedCursor::new();
+                            OggVorbisEncoderParams {
+                                mode: OggVorbisMode::HaveNoCodebookHeader,
+                                channels: fmt.channels,
+                                sample_rate: fmt.sample_rate,
+                                stream_serial: None,
+                                bitrate: None,
+                                minimum_page_data_size: None
+                            }.create_vorbis_builder(header.clone()).unwrap().build()?;
+                            header.get_vec()
                         } else {
                             return Err(AudioReadError::FormatError(format!("For `format_tag` is `FORMAT_TAG_OGG_VORBIS2` or `FORMAT_TAG_OGG_VORBIS2P`, the `fmt ` chunk must provide the Ogg Vorbis header data.")));
                         }
