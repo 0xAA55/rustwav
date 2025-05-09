@@ -2921,7 +2921,7 @@ pub mod oggvorbis_enc {
                     (self.bytes_written * 8 * self.get_sample_rate() as u64 / self.frames_written)
                         as u32
                 } else {
-                    320_000
+                    self.params.get_bitrate()
                 }
             }
 
@@ -2967,7 +2967,7 @@ pub mod oggvorbis_enc {
                     },
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
-                    byte_rate: self.get_bitrate() / 8,
+                    byte_rate: self.params.get_bitrate() / 8,
                     block_align: 1,
                     bits_per_sample: 16,
                     extension: Some(if self.oggvorbis_header.is_empty() {
