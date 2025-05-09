@@ -39,9 +39,17 @@ fn ilog(mut v: u32) -> i32 {
 
 /// * BitReader: read vorbis data bit by bit
 pub struct BitReader<'a> {
+    /// * Currently ends at which bit in the last byte
     pub endbit: i32,
-    pub cursor: &'a mut usize,
+
+    /// * How many bits did we read in total
+    pub total_bits: usize,
+
+    /// * Borrowed a slice of data
     pub data: &'a [u8],
+
+    /// * Current byte index
+    pub cursor: usize,
 }
 
 impl<'a> BitReader<'a> {
@@ -49,10 +57,11 @@ impl<'a> BitReader<'a> {
     /// * `cursor` is the read position of the `BitReader`
     /// * Pass `data` as a slice that begins from the part you want to read,
     ///   Then you'll get the `cursor` to indicate how many bytes this part of data takes.
-    pub fn new(data: &'a [u8], cursor: &'a mut usize) -> Self {
+    pub fn new(data: &'a [u8]) -> Self {
         Self {
             endbit: 0,
-            cursor,
+            total_bits: 0,
+            cursor: 0,
             data,
         }
     }
@@ -96,8 +105,9 @@ impl<'a> BitReader<'a> {
             }
         }
         ret &= m as i32;
-        *self.cursor += (bits / 8) as usize;
+        self.cursor += (bits / 8) as usize;
         self.endbit = bits & 7;
+        self.total_bits += origbits as usize;
         Ok(ret)
     }
 }
