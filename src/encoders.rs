@@ -2647,7 +2647,7 @@ pub mod oggvorbis_enc {
         }
 
         /// ## The OggVorbis encoder or builder enum, the builder one has metadata to put in the builder.
-        enum OggVorbisEncoderOrBuilder<'a> {
+        pub enum OggVorbisEncoderOrBuilder<'a> {
             /// The OggVorbis encoder builder
             Builder {
                 /// The builder that has our shared writer.
