@@ -39,7 +39,7 @@ pub use sampletypes::{i24, u24};
 pub use downmixer::{Downmixer, DownmixerParams};
 pub use errors::{AudioError, AudioReadError, AudioWriteError};
 pub use readwrite::{
-    ReadBridge, Reader, SharedReader, SharedReaderOwned, CombinedReader, SharedWriter, SharedWriterWithCursor, WriterWithCursor, WriteBridge, Writer, string_io,
+    ReadBridge, Reader, SharedReader, SharedReaderOwned, CombinedReader, SharedCursor, SharedWriter, SharedWriterWithCursor, WriterWithCursor, WriteBridge, Writer, string_io,
 };
 pub use resampler::Resampler;
 pub use sampletypes::{SampleFrom, SampleType};
