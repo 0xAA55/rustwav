@@ -655,7 +655,12 @@ impl BitviseData {
 
     /// * Get the number of bytes that are just enough to contain all of the bits.
     pub fn get_total_bytes(&self) -> usize {
-        align(self.total_bits, 8) / 8
+        Self::calc_total_bytes(self.total_bits)
+    }
+
+    /// * Get the number of bytes that are just enough to contain all of the bits.
+    pub fn calc_total_bytes(total_bits: usize) -> usize {
+        align(total_bits, 8) / 8
     }
 
     /// * Resize to the aligned size. Doing this is for `shift_data_to_front()` and `shift_data_to_back()` to manipulate bits efficiently.
