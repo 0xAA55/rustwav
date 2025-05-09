@@ -74,32 +74,32 @@ impl<'a> BitReader<'a> {
         }
         let mut ret: i32;
         let m = MASK[bits as usize];
-        bits += self.endbit;
-
-        let cursor = *self.cursor;
+        let origbits = bits;
+        let cursor = self.cursor;
 
         // Don't want it panic, and don't want an Option.
-        let data_get = |mut index: usize| -> Result<u8, AudioReadError> {
+        let ptr_index = |mut index: usize| -> Result<u8, AudioReadError> {
             index += cursor;
             let eof_err = || -> AudioReadError {
-                AudioReadError::UnexpectedEof(format!("UnexpectedEof when trying to read {bits} bits from the input position 0x{:x}", index))
+                AudioReadError::UnexpectedEof(format!("UnexpectedEof when trying to read {origbits} bits from the input position 0x{:x}", index))
             };
             self.data.get(index).ok_or(eof_err()).copied()
         };
 
+        bits += self.endbit;
         if bits == 0 {
             return Ok(0);
         }
 
-        ret = (data_get(0)? as i32) >> self.endbit;
+        ret = (ptr_index(0)? as i32) >> self.endbit;
         if bits > 8 {
-            ret |= (data_get(1)? as i32) << (8 - self.endbit);
+            ret |= (ptr_index(1)? as i32) << (8 - self.endbit);
             if bits > 16 {
-                ret |= (data_get(2)? as i32) << (16 - self.endbit);
+                ret |= (ptr_index(2)? as i32) << (16 - self.endbit);
                 if bits > 24 {
-                    ret |= (data_get(3)? as i32) << (24 - self.endbit);
+                    ret |= (ptr_index(3)? as i32) << (24 - self.endbit);
                     if bits > 32 && self.endbit != 0 {
-                        ret |= (data_get(4)? as i32) << (32 - self.endbit);
+                        ret |= (ptr_index(4)? as i32) << (32 - self.endbit);
                     }
                 }
             }
