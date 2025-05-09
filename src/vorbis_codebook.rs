@@ -3,7 +3,7 @@ use std::{fmt::{self, Debug, Formatter}, io::{Seek, Write, Cursor, SeekFrom}};
 use crate::{AudioReadError, AudioError, AudioWriteError};
 use crate::format_array;
 
-const SHOW_DEBUG: bool = true;
+const SHOW_DEBUG: bool = false;
 #[allow(unused_macros)]
 macro_rules! debugln {
     () => {
