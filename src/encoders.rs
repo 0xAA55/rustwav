@@ -2758,22 +2758,11 @@ pub mod oggvorbis_enc {
                 let mut writer = SharedWriterWithCursor::new(WriterWithCursor::new(writer, false));
                 let data_offset = writer.stream_position()?;
 
-                let sample_rate = NonZero::new(params.sample_rate).unwrap();
-                let channels = NonZero::new(params.channels as u8).unwrap();
-
-                let mut builder = VorbisEncoderBuilder::new(sample_rate, channels, writer.clone())?;
-                if let Some(serial) = params.stream_serial {
-                    builder.stream_serial(serial);
-                }
-                if let Some(bitrate) = params.bitrate {
-                    builder.bitrate_management_strategy(bitrate.into());
-                }
-                builder.minimum_page_data_size(params.minimum_page_data_size);
                 let mut ret = Self {
-                    writer,
+                    writer: writer.clone(),
                     params: *params,
                     encoder: OggVorbisEncoderOrBuilder::Builder {
-                        builder,
+                        builder: params.create_vorbis_builder(writer.clone())?,
                         metadata: BTreeMap::new(),
                     },
                     data_offset,
