@@ -1,8 +1,10 @@
-use std::io::{Seek, Write, Cursor, SeekFrom};
-use crate::{AudioReadError, AudioWriteError};
+#![allow(dead_code)]
+use std::{fmt::{self, Debug, Formatter}, io::{Seek, Write, Cursor, SeekFrom}};
+use crate::{AudioReadError, AudioError, AudioWriteError};
 use crate::format_array;
 
 const SHOW_DEBUG: bool = true;
+#[allow(unused_macros)]
 macro_rules! debugln {
     () => {
         if SHOW_DEBUG {
@@ -502,6 +504,11 @@ impl CodeBook {
 
         Ok(())
     }
+}
+
+/// * Alignment calculation
+pub fn align(size: usize, alignment: usize) -> usize {
+    ((size - 1) / alignment + 1) * alignment
 }
 
     }
