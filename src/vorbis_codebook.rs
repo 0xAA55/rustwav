@@ -540,7 +540,11 @@ impl CodeBook {
 
 /// * Alignment calculation
 pub fn align(size: usize, alignment: usize) -> usize {
-    ((size - 1) / alignment + 1) * alignment
+    if size != 0 {
+        ((size - 1) / alignment + 1) * alignment
+    } else {
+        0
+    }
 }
 
 /// * Transmute vector, change its type, but not by cloning it or changing its memory location or capacity.
