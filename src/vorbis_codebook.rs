@@ -643,7 +643,7 @@ pub struct BitviseData {
 impl BitviseData {
     pub fn new(data: &[u8], total_bits: usize) -> Self {
         Self {
-            data: data.to_vec(),
+            data: data[..Self::calc_total_bytes(total_bits)].to_vec(),
             total_bits,
         }
     }
