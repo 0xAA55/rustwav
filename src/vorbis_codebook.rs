@@ -648,6 +648,14 @@ impl BitviseData {
         }
     }
 
+    /// * Construct from bytes
+    pub fn from_bytes(data: &[u8]) -> Self {
+        Self {
+            data: data.to_vec(),
+            total_bits: data.len() * 8,
+        }
+    }
+
     /// * Get the number of total bits in the `data` field
     pub fn get_total_bits(&self) -> usize {
         self.total_bits
