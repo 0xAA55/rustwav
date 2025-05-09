@@ -2681,6 +2681,36 @@ pub mod oggvorbis_enc {
             }
         }
 
+        impl OggVorbisEncoderParams {
+            pub fn create_vorbis_builder<W>(&self, writer: W) -> Result<VorbisEncoderBuilder<W>, AudioWriteError>
+            where
+                W: Write {
+                let sample_rate = NonZero::new(self.sample_rate).unwrap();
+                let channels = NonZero::new(self.channels as u8).unwrap();
+
+                let mut builder = VorbisEncoderBuilder::new(sample_rate, channels, writer)?;
+
+                match self.mode {
+                    OggVorbisMode::HaveNoCodebookHeader => (),
+                    _ => {
+                        if let Some(serial) = self.stream_serial {
+                            builder.stream_serial(serial);
+                        }
+                        if let Some(bitrate) = self.bitrate {
+                            builder.bitrate_management_strategy(bitrate.into());
+                        }
+                    }
+                }
+
+                builder.minimum_page_data_size(self.minimum_page_data_size);
+                Ok(builder)
+            }
+
+            pub fn get_bitrate(&self) -> u32 {
+                self.bitrate.unwrap_or(OggVorbisBitrateStrategy::default()).get_bitrate(self.channels, self.sample_rate).unwrap()
+            }
+        }
+
         /// ## OggVorbis encoder wrap for `WaveWriter`
         pub struct OggVorbisEncoderWrap<'a> {
             /// * The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`.
