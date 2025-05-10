@@ -20,9 +20,9 @@ mod ogg;
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 mod vorbis;
 
-/// ## The utility for both you and me to convert waveform format.
+/// ## The utility for both you and me to convert waveform format and do resampling and convert sample types.
 #[macro_use]
-pub mod utils;
+pub mod audioutils;
 
 /// ## The utility for both you and me to do bitvise manipulations.
 pub mod bitvise;
@@ -219,7 +219,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(
+                let block = audioutils::do_resample_mono(
                     &resampler,
                     &block,
                     decode_sample_rate,
@@ -235,7 +235,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(
+                let block = audioutils::do_resample_stereo(
                     &resampler,
                     &block,
                     decode_sample_rate,
@@ -251,7 +251,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(
+                let block = audioutils::do_resample_frames(
                     &resampler,
                     &block,
                     decode_sample_rate,

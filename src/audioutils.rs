@@ -2,9 +2,9 @@
 
 use std::{any::TypeId, borrow::Cow, slice};
 
-use crate::AudioWriteError;
-use crate::Resampler;
+use resampler::Resampler;
 use crate::SampleType;
+use crate::errors::AudioWriteError;
 
 /// * Turns a stereo audio into two individual mono waveforms.
 pub fn stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)

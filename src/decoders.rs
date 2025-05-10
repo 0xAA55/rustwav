@@ -829,8 +829,8 @@ pub mod mp3 {
     use crate::Reader;
     use crate::Resampler;
     use crate::SampleType;
-    use crate::utils;
     use crate::wavcore::FmtChunk;
+    use crate::audioutils;
 
     use rmp3::{DecoderOwned, Frame};
 
@@ -930,7 +930,7 @@ pub mod mp3 {
                 src_sample_rate,
                 self.target_sample_rate,
             );
-            let mut monos = utils::interleaved_samples_to_monos(samples, channels).unwrap();
+            let mut monos = audioutils::interleaved_samples_to_monos(samples, channels).unwrap();
             for mono in monos.iter_mut() {
                 let mut iter = mem::take(mono).into_iter();
                 loop {
@@ -938,7 +938,7 @@ pub mod mp3 {
                     if block.is_empty() {
                         break;
                     }
-                    mono.extend(&utils::do_resample_mono(
+                    mono.extend(&audioutils::do_resample_mono(
                         &self.resampler,
                         &block,
                         src_sample_rate,
@@ -946,7 +946,7 @@ pub mod mp3 {
                     ));
                 }
             }
-            utils::monos_to_interleaved_samples(&monos).unwrap()
+            audioutils::monos_to_interleaved_samples(&monos).unwrap()
         }
 
         fn get_next_frame(&mut self) -> Option<Mp3AudioData> {
@@ -1418,7 +1418,7 @@ pub mod flac_dec {
     use crate::Reader;
     use crate::SampleType;
     use crate::readwrite::ReadBridge;
-    use crate::utils::{do_resample_frames, sample_conv, sample_conv_batch};
+    use crate::audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
     use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
     use flac::{
         FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo,

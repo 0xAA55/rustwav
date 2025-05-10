@@ -236,7 +236,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_mono(
+                let block = audioutils::do_resample_mono(
                     &resampler,
                     &block,
                     decode_sample_rate,
@@ -252,7 +252,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_stereo(
+                let block = audioutils::do_resample_stereo(
                     &resampler,
                     &block,
                     decode_sample_rate,
@@ -268,7 +268,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
                 if block.is_empty() {
                     break;
                 }
-                let block = utils::do_resample_frames(
+                let block = audioutils::do_resample_frames(
                     &resampler,
                     &block,
                     decode_sample_rate,
