@@ -170,34 +170,42 @@ impl Seek for SharedBorrowedWriter<'_> {
     }
 }
 
-/// ## Encapsulated shared `&mut dyn Reader`, implemented `Read + Seek + Debug + Clone`
-#[derive(Debug, Clone)]
-pub struct SharedReaderOwned(Rc<RefCell<Box<dyn Reader>>>);
+/// ## Encapsulated shared `Read`, implemented `Read` only, but the actual reader is a generic typr
+#[derive(Debug)]
+pub struct SharedReader<T> (Rc<RefCell<T>>) where T: Read + Seek + Debug;
 
-impl SharedReaderOwned {
-    pub fn new(reader: Box<dyn Reader>) -> Self {
+impl<T> SharedReader<T>
+where
+    T: Read + Seek + Debug {
+    pub fn new(reader: T) -> Self {
         Self(Rc::new(RefCell::new(reader)))
     }
 }
 
-impl Read for SharedReaderOwned {
+impl<T> Read for SharedReader<T>
+where
+    T: Read + Seek + Debug {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         self.0.borrow_mut().read(buf)
     }
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
-        self.0.borrow_mut().read_exact(buf)
-    }
 }
 
-impl Seek for SharedReaderOwned {
+impl<T> Seek for SharedReader<T>
+where
+    T: Read + Seek + Debug {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.0.borrow_mut().seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
-        self.0.borrow_mut().rewind()
+}
+
+impl<T> Clone for SharedReader<T>
+where
+    T: Read + Seek + Debug {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
-        self.0.borrow_mut().stream_position()
+}
+
     }
 }
 
