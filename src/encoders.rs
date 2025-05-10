@@ -2735,7 +2735,7 @@ pub mod oggvorbis_enc {
             frames_written: u64,
 
             /// * The header data that should be written in the `fmt ` chunk extension.
-            oggvorbis_header: Vec<u8>,
+            vorbis_header: Vec<u8>,
         }
 
         impl Debug for OggVorbisEncoderWrap<'_> {
@@ -2747,7 +2747,7 @@ pub mod oggvorbis_enc {
                 .field("data_offset", &self.data_offset)
                 .field("bytes_written", &self.bytes_written)
                 .field("frames_written", &self.frames_written)
-                .field("oggvorbis_header", &format_args!("[u8, {}]", self.oggvorbis_header.len()))
+                .field("vorbis_header", &format_args!("[u8, {}]", self.vorbis_header.len()))
                 .finish()
             }
         }
@@ -2770,7 +2770,7 @@ pub mod oggvorbis_enc {
                     data_offset,
                     bytes_written: 0,
                     frames_written: 0,
-                    oggvorbis_header: Vec::new(),
+                    vorbis_header: Vec::new(),
                 };
                 if ret.params.bitrate.is_none() {
                     ret.params.bitrate = Some(VorbisBitrateManagementStrategy::default().into());
@@ -2842,7 +2842,7 @@ pub mod oggvorbis_enc {
                     match OggPacket::from_bytes(&data[cursor..], &mut packet_length) {
                         Ok(oggpacket) => {
                             self.writer.switch_to_writer_mode();
-                            self.writer.write_all(&oggpacket.to_bytes())?;
+                            self.writer.write_all(&oggpacket.get_inner_data())?;
                             self.writer.switch_to_cursor_mode();
                             cursor += packet_length;
                         }
@@ -2970,7 +2970,7 @@ pub mod oggvorbis_enc {
                         // Save the header to `fmt ` chunk
                         self.writer.switch_to_cursor_mode();
                         self.begin_to_encode()?;
-                        self.oggvorbis_header = self.writer.get_cursor_data_and_clear();
+                        self.vorbis_header = self.writer.get_cursor_data_and_clear();
                         self.writer.switch_to_writer_mode();
                     }
                     OggVorbisMode::HaveNoCodebookHeader => {
@@ -2986,7 +2986,7 @@ pub mod oggvorbis_enc {
                         let mut packet_length = 0usize;
                         let mut cursor = 0usize;
                         while cursor < header.len() {
-                            self.oggvorbis_header.extend(OggPacket::from_bytes(&header[cursor..], &mut packet_length)?.to_bytes());
+                            self.vorbis_header.extend(OggPacket::from_bytes(&header[cursor..], &mut packet_length)?.get_inner_data());
                             cursor += packet_length;
                         }
                     }
@@ -3021,10 +3021,12 @@ pub mod oggvorbis_enc {
                     byte_rate: self.params.get_bitrate() / 8,
                     block_align: 1,
                     bits_per_sample: 16,
-                    extension: Some(if self.oggvorbis_header.is_empty() {
+                    extension: Some(if self.vorbis_header.is_empty() {
                         FmtExtension::new_oggvorbis(OggVorbisData::new())
+                    } else if self.params.mode != OggVorbisMode::NakedVorbis {
+                        FmtExtension::new_oggvorbis_with_header(OggVorbisWithHeaderData::new(&self.vorbis_header))
                     } else {
-                        FmtExtension::new_oggvorbis_with_header(&OggVorbisWithHeaderData::new(&self.oggvorbis_header))
+                        FmtExtension::new_vorbis(VorbisHeaderData::new(&self.vorbis_header))
                     }),
                 })
             }
