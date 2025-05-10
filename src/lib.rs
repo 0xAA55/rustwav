@@ -48,9 +48,12 @@ pub use wavwriter::WaveWriter;
 
 pub mod io_utils {
     pub use crate::readwrite::{
-        Reader, Writer,
-        ReadBridge, WriteBridge,
+        Reader,
+        Writer,
+        ReadBridge,
+        WriteBridge,
         SharedReader,
+        CursorVecU8,
         SharedCursor,
         CombinedReader,
         DishonestReader,

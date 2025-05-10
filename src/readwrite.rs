@@ -2,7 +2,7 @@
 
 use std::{
     cmp::min,
-    fmt::{self, Debug, Formatter},
+    fmt::{self, Debug, Display, Formatter},
     mem,
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
@@ -400,6 +400,88 @@ where
     }
 }
 
+/// ## A better `Cursor<Vec<u8>>` which has a friendlier `Debug` trait implementation
+#[derive(Clone)]
+pub struct CursorVecU8(Cursor<Vec<u8>>);
+
+impl CursorVecU8 {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(Cursor::new(data))
+    }
+
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0.into_inner()
+    }
+}
+
+impl Default for CursorVecU8 {
+    fn default() -> Self {
+        Self(Cursor::new(Vec::new()))
+    }
+}
+
+impl From<Cursor<Vec<u8>>> for CursorVecU8 {
+    fn from(cursor: Cursor<Vec<u8>>) -> Self {
+        Self(cursor)
+    }
+}
+
+impl Into<Cursor<Vec<u8>>> for CursorVecU8 {
+    fn into(self) -> Cursor<Vec<u8>> {
+        self.0
+    }
+}
+
+impl Deref for CursorVecU8 {
+    type Target = Cursor<Vec<u8>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for CursorVecU8 {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Read for CursorVecU8 {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.0.read(buf)
+    }
+}
+
+impl Write for CursorVecU8 {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.0.write(buf)
+    }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.0.flush()
+    }
+}
+
+impl Seek for CursorVecU8 {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        self.0.seek(pos)
+    }
+}
+
+impl Debug for CursorVecU8 {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("Cursor")
+        .field("inner", &format_args!("[u8; {}]", self.0.get_ref().len()))
+        .field("pos", &self.0.position())
+        .finish()
+    }
+}
+
+impl Display for CursorVecU8 {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        <Self as Debug>::fmt(self, f)
+    }
+}
+
 /// ## A writer for some libraries that asks for a `Write`, but we want to separate the data it writes.
 /// * So we have a borrowed `Writer` that writes things to our target (a file, or something else)
 /// * And we have a `cursor` to capture the data that we want to store somewhere else.
@@ -407,7 +489,7 @@ where
 #[derive(Debug)]
 pub struct WriterWithCursor<'a> {
     writer: &'a mut dyn Writer,
-    cursor: Cursor<Vec<u8>>,
+    cursor: CursorVecU8,
     pub cursor_mode: bool,
 }
 
@@ -415,7 +497,7 @@ impl<'a> WriterWithCursor<'a> {
     pub fn new(writer: &'a mut dyn Writer, cursor_mode: bool) -> Self {
         Self {
             writer,
-            cursor: Cursor::new(Vec::new()),
+            cursor: CursorVecU8::default(),
             cursor_mode,
         }
     }
@@ -441,7 +523,7 @@ impl<'a> WriterWithCursor<'a> {
     }
 
     pub fn clear_cursor_data(&mut self) {
-        self.cursor = Cursor::default();
+        self.cursor = CursorVecU8::default();
     }
 
     pub fn get_cursor_data_and_clear(&mut self) -> Vec<u8> {
@@ -536,7 +618,7 @@ impl Clone for SharedWriterWithCursor<'_> {
 /// ## The shared `Cursor`.
 /// * Because it's shared, when the 3rd library owned it, we still can access to it..
 #[derive(Debug)]
-pub struct SharedCursor (Rc<RefCell<Cursor<Vec<u8>>>>);
+pub struct SharedCursor (Rc<RefCell<CursorVecU8>>);
 
 impl SharedCursor {
     pub fn new() -> Self {
@@ -552,19 +634,19 @@ impl SharedCursor {
     }
 
     pub fn set_vec(&mut self, data: &[u8], rw_pos: u64) {
-        let mut new_cursor = Cursor::new(data.to_vec());
+        let mut new_cursor = CursorVecU8::new(data.to_vec());
         new_cursor.set_position(rw_pos);
         *self.0.borrow_mut() = new_cursor;
     }
 
     pub fn clear(&mut self) {
-        *self.0.borrow_mut() = Cursor::new(Vec::new());
+        *self.0.borrow_mut() = CursorVecU8::default();
     }
 }
 
 impl Default for SharedCursor {
     fn default() -> Self {
-        Self(Rc::new(RefCell::new(Cursor::new(Vec::new()))))
+        Self(Rc::new(RefCell::new(CursorVecU8::default())))
     }
 }
 
