@@ -25,7 +25,7 @@ mod vorbis;
 pub mod audioutils;
 
 /// ## The utility for both you and me to do bitvise manipulations.
-pub mod bitvise;
+pub mod bitwise;
 
 /// ## The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
 pub mod encoders;
