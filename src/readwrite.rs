@@ -2,7 +2,7 @@
 
 use std::{
     cmp::min,
-    fmt::Debug,
+    fmt::{self, Debug, Formatter},
     mem,
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
@@ -206,6 +206,76 @@ where
     }
 }
 
+/// ## Dishonest reader, a reader that reads data but modifies it.
+pub struct DishonestReader<T>
+where
+    T: Read + Seek + Debug {
+    reader: T,
+    on_read: Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>,
+    on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>,
+    cache: Vec<u8>,
+}
+
+impl<T> DishonestReader<T>
+where
+    T: Read + Seek + Debug {
+    pub fn new(
+        reader: T,
+        on_read: Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>,
+        on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>,
+    ) -> Self {
+        Self {
+            reader,
+            on_read,
+            on_seek,
+            cache: Vec::new(),
+        }
+    }
+}
+
+impl<T> Read for DishonestReader<T>
+where
+    T: Read + Seek + Debug {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        let write_buf_and_cache = |data: &[u8], buf: &mut [u8], cache: &mut Vec<u8>| -> usize {
+            let len = min(data.len(), buf.len());
+            buf[..len].copy_from_slice(&data[..len]);
+            if len < data.len() {
+                *cache = data[len..].to_vec();
+            }
+            len
+        };
+        if self.cache.is_empty() {
+            match (self.on_read)(&mut self.reader, buf.len()) {
+                Ok(data) => Ok(write_buf_and_cache(&data, buf, &mut self.cache)),
+                Err(e) => Err(e),
+            }
+        } else {
+            let to_write = self.cache.clone();
+            Ok(write_buf_and_cache(&to_write, buf, &mut self.cache))
+        }
+    }
+}
+
+impl<T> Seek for DishonestReader<T>
+where
+    T: Read + Seek + Debug {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+        (self.on_seek)(&mut self.reader, pos)
+    }
+}
+
+impl<T> Debug for DishonestReader<T>
+where
+    T: Read + Seek + Debug {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let typename = std::any::type_name::<T>();
+        f.debug_struct(&format!("DishonestReader<{typename}>"))
+        .field("reader", &self.reader)
+        .field("on_read", &format_args!("Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>"))
+        .field("on_seek", &format_args!("Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>"))
+        .field("cache", &format_args!("[u8; {}]", self.cache.len()))
+        .finish()
     }
 }
 
