@@ -1713,10 +1713,10 @@ pub mod oggvorbis_dec {
     /// ## The OggVorbis decoder for `WaveReader`
     pub struct OggVorbisDecoderWrap {
         /// The shared reader for the decoder to use
-        reader: SharedReaderOwned,
+        reader: OggVorbisDecoderReader,
 
         /// Let the decoder use the shared reader. Because the decoder did't need the reader to implement the `Seek` trait, we can control where to let it decode from.
-        decoder: VorbisDecoder<SharedReaderOwned>,
+        decoder: VorbisDecoder<OggVorbisDecoderReader>,
 
         /// The data offset of the OggVorbis data in the WAV file.
         data_offset: u64,
@@ -1789,8 +1789,17 @@ pub mod oggvorbis_dec {
             total_samples: u64,
         ) -> Result<Self, AudioReadError> {
             use crate::wavcore::format_tags::*;
+            let mut ogg_stream_writer: Option<SharedOggStreamWriteToCursor> = None;
             let ogg_vorbis_header = if let Some(extension) = &fmt.extension {
                 match &extension.data {
+                    ExtensionData::Vorbis(data) => {
+                        if fmt.format_tag == FORMAT_TAG_VORBIS {
+                            ogg_stream_writer = Some(SharedOggStreamWriteToCursor::new(0xAA55));
+                            data.header.clone()
+                        } else {
+                            return Err(AudioReadError::FormatError(format!("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.")));
+                        }
+                    }
                     ExtensionData::OggVorbis(_) => {
                         if [
                             FORMAT_TAG_OGG_VORBIS1,
@@ -1831,8 +1840,35 @@ pub mod oggvorbis_dec {
                 Vec::new()
             };
             let ogg_vorbis_header_len = ogg_vorbis_header.len() as u64;
-            let cursor = Cursor::new(ogg_vorbis_header);
-            let reader = SharedReaderOwned::new(Box::new(CombinedReader::new(cursor, 0, ogg_vorbis_header_len, SharedReaderOwned::new(reader), data_offset, data_length)?));
+            let cursor = CursorVecU8::new(ogg_vorbis_header);
+            let combined_reader = CombinedReader::new(cursor, 0, ogg_vorbis_header_len, SharedReader::new(reader), data_offset, data_length)?;
+            let ogg_encapsulator = DishonestReader::new(combined_reader,
+                Box::new(move |reader: &mut OggVorbisHeaderToBodyReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
+                    if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {
+                        // There's an Ogg stream encapsulator.
+                        // The data read from the reader is the naked Vorbis data.
+                        // Feed the data to the Ogg stream encapsulator, whatever it excretes Ogg packet, return the buffer anyway.
+                        const BUFFER_SIZE: usize = 2048;
+                        let mut buf = vec![0u8; BUFFER_SIZE];
+                        let len = reader.read(&mut buf)?;
+                        if len > 0 {
+                            buf.truncate(len);
+                            ogg_stream_writer.write_all(&buf)?;
+                        }
+                        Ok(ogg_stream_writer.get_cursor_data_and_clear())
+                    } else {
+                        // The data is the Ogg encapsulated Vorbis audio, just feed them to the decoder.
+                        let mut buf = vec![0u8; buflen];
+                        let len = reader.read(&mut buf)?;
+                        buf.truncate(len);
+                        Ok(buf)
+                    }
+                }),
+                Box::new(move |reader: &mut OggVorbisHeaderToBodyReader, pos: SeekFrom| -> Result<u64, io::Error>{
+                    reader.seek(pos)
+                })
+            );
+            let reader = SharedReader::new(ogg_encapsulator);
             let decoder = VorbisDecoder::new(reader.clone())?;
             let channels = decoder.channels().get() as u16;
             let sample_rate = decoder.sampling_frequency().get();
