@@ -137,6 +137,7 @@ pub mod chunks {
             AdpcmMsData,
             AdpcmImaData,
             Mp3Data,
+            VorbisHeaderData,
             OggVorbisData,
             OggVorbisWithHeaderData,
             ExtensibleData,

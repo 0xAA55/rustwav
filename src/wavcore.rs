@@ -634,6 +634,9 @@ pub enum ExtensionData {
     /// * MP3 specified extension data.
     Mp3(Mp3Data),
 
+    /// * Naked Vorbis header data
+    Vorbis(VorbisHeaderData),
+
     /// * OggVorbis specified extension data.
     OggVorbis(OggVorbisData),
 
@@ -666,6 +669,52 @@ pub struct Mp3Data {
     pub block_size: u16,
     pub frames_per_block: u16,
     pub codec_delay: u16,
+}
+
+/// ## The extension data for Naked vorbis audio without Ogg stream encapsulation
+#[derive(Clone)]
+pub struct VorbisHeaderData {
+    /// The header for the Vorbis audio
+    pub header: Vec<u8>,
+}
+
+impl VorbisHeaderData {
+    pub fn new(header: &[u8]) -> Self {
+        Self {
+            header: header.to_vec(),
+        }
+    }
+
+    pub fn sizeof(&self) -> usize {
+        self.header.len()
+    }
+
+    pub fn read(reader: &mut impl Reader, ext_len: u16) -> Result<Self, AudioReadError> {
+        let mut buf = vec![0u8; ext_len as usize];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::new(&buf))
+    }
+
+    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
+        writer.write_all(&self.header)?;
+        Ok(())
+    }
+}
+
+impl Default for VorbisHeaderData {
+    fn default() -> Self {
+        Self {
+            header: Vec::new(),
+        }
+    }
+}
+
+impl Debug for VorbisHeaderData {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("VorbisHeaderData")
+        .field("header", &format_args!("[u8; {}]", self.header.len()))
+        .finish()
+    }
 }
 
 /// ## The extension data for OggVorbis
@@ -835,6 +884,13 @@ impl FmtExtension {
         }
     }
 
+    pub fn new_vorbis(vorbis: VorbisHeaderData) -> Self {
+        Self {
+            ext_len: vorbis.sizeof() as u16,
+            data: ExtensionData::Vorbis(vorbis),
+        }
+    }
+
     pub fn new_oggvorbis(oggvorbis: OggVorbisData) -> Self {
         Self {
             ext_len: OggVorbisData::sizeof() as u16,
@@ -842,10 +898,10 @@ impl FmtExtension {
         }
     }
 
-    pub fn new_oggvorbis_with_header(oggvorbis_with_header: &OggVorbisWithHeaderData) -> Self {
+    pub fn new_oggvorbis_with_header(oggvorbis_with_header: OggVorbisWithHeaderData) -> Self {
         Self {
             ext_len: oggvorbis_with_header.sizeof() as u16,
-            data: ExtensionData::OggVorbisWithHeader(oggvorbis_with_header.clone()),
+            data: ExtensionData::OggVorbisWithHeader(oggvorbis_with_header),
         }
     }
 
@@ -895,15 +951,8 @@ impl FmtExtension {
                         )))
                     }
                 }
-                FORMAT_TAG_OGG_VORBIS1 | FORMAT_TAG_OGG_VORBIS3 | FORMAT_TAG_OGG_VORBIS1P | FORMAT_TAG_OGG_VORBIS3P => {
-                    if ext_len as usize >= OggVorbisData::sizeof() {
-                        Ok(ExtensionData::OggVorbis(OggVorbisData::read(reader)?))
-                    } else {
-                        Err(AudioReadError::IncompleteData(format!(
-                            "The extension data for OggVorbis should be bigger than {}, got {ext_len}",
-                            OggVorbisData::sizeof()
-                        )))
-                    }
+                FORMAT_TAG_VORBIS => {
+                    Ok(ExtensionData::Vorbis(VorbisHeaderData::read(reader, ext_len)?))
                 }
                 FORMAT_TAG_OGG_VORBIS2 | FORMAT_TAG_OGG_VORBIS2P => {
                     if ext_len as usize >= OggVorbisWithHeaderData::sizeof_min() {
@@ -912,6 +961,16 @@ impl FmtExtension {
                         Err(AudioReadError::IncompleteData(format!(
                             "The extension data for OggVorbis should be bigger than {}, got {ext_len}",
                             OggVorbisWithHeaderData::sizeof_min()
+                        )))
+                    }
+                }
+                FORMAT_TAG_OGG_VORBIS1 | FORMAT_TAG_OGG_VORBIS3 | FORMAT_TAG_OGG_VORBIS1P | FORMAT_TAG_OGG_VORBIS3P => {
+                    if ext_len as usize >= OggVorbisData::sizeof() {
+                        Ok(ExtensionData::OggVorbis(OggVorbisData::read(reader)?))
+                    } else {
+                        Err(AudioReadError::IncompleteData(format!(
+                            "The extension data for OggVorbis should be bigger than {}, got {ext_len}",
+                            OggVorbisData::sizeof()
                         )))
                     }
                 }
@@ -943,6 +1002,7 @@ impl FmtExtension {
                 ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
                 ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
                 ExtensionData::Mp3(data) => Ok(data.write(writer)?),
+                ExtensionData::Vorbis(data) => Ok(data.write(writer)?),
                 ExtensionData::OggVorbis(data) => Ok(data.write(writer)?),
                 ExtensionData::OggVorbisWithHeader(data) => Ok(data.write(writer)?),
                 ExtensionData::Extensible(data) => Ok(data.write(writer)?),

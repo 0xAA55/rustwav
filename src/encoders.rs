@@ -2556,7 +2556,7 @@ pub mod oggvorbis_enc {
         use crate::errors::AudioWriteError;
         use crate::io_utils::{SharedWriterWithCursor, WriterWithCursor, Writer};
         use crate::audioutils::{self, sample_conv, sample_conv_batch};
-        use crate::chunks::{FmtChunk, ext::{FmtExtension, OggVorbisData, OggVorbisWithHeaderData}};
+        use crate::chunks::{FmtChunk, ext::{FmtExtension, VorbisHeaderData, OggVorbisData, OggVorbisWithHeaderData}};
         use crate::format_specs::format_tags::*;
         use crate::{i24, u24};
         use crate::ogg::OggPacket;
