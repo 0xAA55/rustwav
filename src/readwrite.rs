@@ -128,10 +128,10 @@ impl Seek for SharedBorrowedReader<'_> {
 }
 
 /// ## Encapsulated shared `&mut dyn Writer`, implemented `Write + Seek + Debug + Clone`
-#[derive(Debug, Clone)]
-pub struct SharedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
+#[derive(Debug)]
+pub struct SharedBorrowedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
 
-impl<'a> SharedWriter<'a> {
+impl<'a> SharedBorrowedWriter<'a> {
     pub fn new(writer: &'a mut dyn Writer) -> Self {
         Self(Rc::new(RefCell::new(writer)))
     }
@@ -146,7 +146,7 @@ impl<'a> SharedWriter<'a> {
     }
 }
 
-impl Write for SharedWriter<'_> {
+impl Write for SharedBorrowedWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         self.0.borrow_mut().write(buf)
     }
@@ -158,7 +158,7 @@ impl Write for SharedWriter<'_> {
     }
 }
 
-impl Seek for SharedWriter<'_> {
+impl Seek for SharedBorrowedWriter<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.0.borrow_mut().seek(pos)
     }
