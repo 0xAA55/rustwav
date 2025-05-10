@@ -88,10 +88,10 @@ impl Seek for WriteBridge<'_> {
 }
 
 /// ## Encapsulated shared `&mut dyn Reader`, implemented `Read + Seek + Debug + Clone`
-#[derive(Debug, Clone)]
-pub struct SharedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
+#[derive(Debug)]
+pub struct SharedBorrowedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
 
-impl<'a> SharedReader<'a> {
+impl<'a> SharedBorrowedReader<'a> {
     pub fn new(reader: &'a mut dyn Reader) -> Self {
         Self(Rc::new(RefCell::new(reader)))
     }
@@ -106,7 +106,7 @@ impl<'a> SharedReader<'a> {
     }
 }
 
-impl Read for SharedReader<'_> {
+impl Read for SharedBorrowedReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         self.0.borrow_mut().read(buf)
     }
@@ -115,7 +115,7 @@ impl Read for SharedReader<'_> {
     }
 }
 
-impl Seek for SharedReader<'_> {
+impl Seek for SharedBorrowedReader<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.0.borrow_mut().seek(pos)
     }
