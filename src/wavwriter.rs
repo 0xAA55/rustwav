@@ -10,23 +10,19 @@ use std::{
 
 use crate::SampleType;
 use crate::WaveReader;
-use crate::Writer;
+use crate::io_utils::Writer;
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
 use crate::encoders::{AdpcmEncoderWrap, Encoder, PcmEncoder, PcmXLawEncoderWrap};
 use crate::hacks;
-use crate::readwrite::string_io::*;
+use crate::io_utils::string_io::*;
 use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
-use crate::wavcore;
 use crate::wavcore::ChunkWriter;
-use crate::wavcore::FmtChunk;
-use crate::wavcore::FullInfoCuePoint;
-use crate::wavcore::{
-    AcidChunk, BextChunk, CueChunk, Id3, InstChunk, JunkChunk, ListChunk, PlstChunk, SlntChunk,
-    SmplChunk, TrknChunk,
-};
+use crate::chunks::*;
+use crate::format_specs::*;
+
 use crate::wavcore::{AdpcmSubFormat, DataFormat, SampleFormat, Spec};
 use crate::xlaw::XLaw;
-use crate::{AudioError, AudioWriteError};
+use crate::errors::{AudioError, AudioWriteError};
 
 #[cfg(feature = "mp3enc")]
 use crate::encoders::mp3::Mp3Encoder;
@@ -540,7 +536,7 @@ impl<'a> WaveWriter<'a> {
         for list_chunk in self.list_chunk.iter() {
             if let ListChunk::Adtl(adtl) = list_chunk {
                 return if let Some(ref cue__chunk) = self.cue__chunk {
-                    wavcore::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
+                    crate::utils::create_full_info_cue_data(cue__chunk, adtl, &self.plst_chunk)
                 } else {
                     Err(AudioError::NoSuchData(
                         "You don't have a `cue ` chunk.".to_owned(),

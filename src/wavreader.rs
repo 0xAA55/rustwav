@@ -10,27 +10,21 @@ use std::{
     path::PathBuf,
 };
 
-use crate::Reader;
 use crate::SampleType;
+use crate::io_utils::Reader;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::xlaw::XLaw;
-use crate::CopiableBuffer;
-use crate::decoders::{
-    AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap,
-};
+use crate::utils::CopiableBuffer;
+use crate::decoders::{AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap};
 use crate::filehasher::FileHasher;
 use crate::readwrite::{self, string_io::*};
 use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
 use crate::wavcore;
 use crate::wavcore::ChunkHeader;
-use crate::wavcore::FullInfoCuePoint;
 use crate::wavcore::Spec;
-use crate::wavcore::{
-    AcidChunk, BextChunk, CueChunk, Id3, InstChunk, JunkChunk, ListChunk, PlstChunk, SlntChunk,
-    SmplChunk, TrknChunk,
-};
-use crate::wavcore::{ExtensionData, FmtChunk};
-use crate::{AudioError, AudioReadError};
+use crate::chunks::*;
+use crate::wavcore::{ExtensionData};
+use crate::errors::{AudioError, AudioReadError};
 
 #[cfg(feature = "mp3dec")]
 use crate::decoders::mp3::Mp3Decoder;

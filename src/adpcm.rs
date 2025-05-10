@@ -1,4 +1,4 @@
-use crate::wavcore::FmtChunk;
+use crate::chunks::FmtChunk;
 use std::{fmt::Debug, io};
 
 /// * This is used for the encoder to decide while the new sample arrives, which channel the sample should be put in
@@ -131,8 +131,8 @@ pub mod ima {
     use std::{cmp::min, io, mem};
 
     use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
-    use crate::CopiableBuffer;
-    use crate::wavcore::{AdpcmImaData, ExtensionData, FmtChunk, FmtExtension};
+    use crate::utils::CopiableBuffer;
+    use crate::chunks::{FmtChunk, ext::{FmtExtension, ExtensionData, AdpcmImaData}};
 
     #[derive(Debug)]
     pub enum ImaAdpcmError {
@@ -724,8 +724,8 @@ pub mod ms {
     use std::io;
 
     use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
-    use crate::CopiableBuffer;
-    use crate::wavcore::{AdpcmMsData, ExtensionData, FmtChunk, FmtExtension};
+    use crate::utils::CopiableBuffer;
+    use crate::chunks::{FmtChunk, ext::{FmtExtension, AdpcmMsData, ExtensionData}};
 
     const ADAPTATIONTABLE: [i16; 16] = [
         230, 230, 230, 230, 307, 409, 512, 614,
@@ -1534,8 +1534,8 @@ pub mod yamaha {
     use std::{cmp::min, io};
 
     use super::{AdpcmDecoder, AdpcmEncoder};
-    use crate::CopiableBuffer;
-    use crate::wavcore::FmtChunk;
+    use crate::utils::CopiableBuffer;
+    use crate::chunks::FmtChunk;
 
     const BLOCK_SIZE: usize = 1024;
 

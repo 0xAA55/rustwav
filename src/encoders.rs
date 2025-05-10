@@ -3,12 +3,12 @@
 
 use std::fmt::Debug;
 
-use crate::AudioWriteError;
-use crate::Writer;
+use crate::errors::AudioWriteError;
+use crate::io_utils::Writer;
 use crate::adpcm;
 use crate::audioutils::{self, sample_conv, sample_conv_batch, stereo_conv, stereos_conv};
-use crate::wavcore::format_tags::*;
-use crate::wavcore::guids::*;
+use crate::format_specs::format_tags::*;
+use crate::format_specs::guids::*;
 use crate::wavcore::{ExtensibleData, FmtChunk, FmtExtension};
 use crate::wavcore::{Spec, WaveSampleType};
 use crate::xlaw::{PcmXLawEncoder, XLaw};
@@ -1157,8 +1157,8 @@ pub mod mp3 {
     #[cfg(feature = "mp3enc")]
     pub mod impl_mp3 {
         use super::*;
-        use crate::AudioWriteError;
-        use crate::Writer;
+        use crate::errors::AudioWriteError;
+        use crate::io_utils::Writer;
         use crate::audioutils::{self, sample_conv, stereos_conv};
         use crate::wavcore::format_tags::*;
         use crate::wavcore::{FmtChunk, FmtExtension, Mp3Data, Spec};
@@ -1287,7 +1287,7 @@ pub mod mp3 {
             sample_rate: u32,
             bitrate: u32,
             encoder: SharedMp3Encoder,
-            encoder_options: Mp3EncoderOptions,
+            options: Mp3EncoderOptions,
             buffers: ChannelBuffers<'a, S>,
         }
 
@@ -1352,7 +1352,7 @@ pub mod mp3 {
                     sample_rate: spec.sample_rate,
                     bitrate: mp3_options.get_bitrate(),
                     encoder: encoder.clone(),
-                    encoder_options: mp3_options.clone(),
+                    options: mp3_options.clone(),
                     buffers: match channels {
                         1 | 2 => ChannelBuffers::<'a, S>::new(
                             writer,
@@ -1380,7 +1380,7 @@ pub mod mp3 {
                     1 => self.buffers.add_mono_channel(&sample_conv::<T, S>(samples)),
                     2 => self
                         .buffers
-                        .add_stereos(&utils::interleaved_samples_to_stereos(
+                        .add_stereos(&audioutils::interleaved_samples_to_stereos(
                             &sample_conv::<T, S>(samples),
                         )?),
                     o => Err(AudioWriteError::Unsupported(format!(
@@ -1924,8 +1924,8 @@ pub mod opus {
         };
 
         use super::*;
-        use crate::AudioWriteError;
-        use crate::Writer;
+        use crate::errors::AudioWriteError;
+        use crate::io_utils::Writer;
         use crate::audioutils::sample_conv;
         use crate::wavcore::format_tags::*;
         use crate::wavcore::{FmtChunk, Spec};
@@ -2144,8 +2144,8 @@ pub mod flac_enc {
 
     use super::EncoderToImpl;
 
-    use crate::AudioWriteError;
-    use crate::Writer;
+    use crate::errors::AudioWriteError;
+    use crate::io_utils::Writer;
     use crate::readwrite::WriteBridge;
     use crate::audioutils::{sample_conv, sample_conv_batch, stereos_conv};
     use crate::wavcore::format_tags::*;
@@ -2552,12 +2552,13 @@ pub mod oggvorbis_enc {
         use super::*;
         use vorbis_rs::*;
 
-        use crate::AudioWriteError;
-        use crate::{SharedWriterWithCursor, WriterWithCursor, Writer};
-        use crate::wavcore::{FmtChunk, FmtExtension, OggVorbisData, OggVorbisWithHeaderData};
-        use crate::wavcore::format_tags::*;
+        use crate::errors::AudioWriteError;
+        use crate::io_utils::{SharedWriterWithCursor, WriterWithCursor, Writer};
         use crate::audioutils::{self, sample_conv, sample_conv_batch};
+        use crate::chunks::{FmtChunk, ext::{FmtExtension, OggVorbisData, OggVorbisWithHeaderData}};
+        use crate::format_specs::format_tags::*;
         use crate::{i24, u24};
+        use crate::ogg::OggPacket;
 
         impl OggVorbisBitrateStrategy {
             fn is_vbr(&self) -> bool {

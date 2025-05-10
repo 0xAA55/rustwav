@@ -62,24 +62,11 @@
 ## 用法（示例代码）
 
 ```rust
-use sampletypes::{i24, u24};
-
-use rustwav::{Downmixer, DownmixerParams};
-use rustwav::{AudioError, AudioReadError, AudioWriteError};
-use rustwav::{ReadBridge, Reader, SharedReader, SharedReaderOwned, CombinedReader, SharedWriter, SharedWriterWithCursor, WriterWithCursor, WriteBridge, Writer, string_io};
-use rustwav::Resampler;
-use rustwav::{SampleFrom, SampleType};
-use rustwav::AdpcmSubFormat;
-use rustwav::{DataFormat, SampleFormat, Spec};
-use rustwav::{FlacCompression, FlacEncoderParams};
-use rustwav::{FrameIntoIter, FrameIter, MonoIntoIter, MonoIter, StereoIntoIter, StereoIter, WaveDataSource,WaveReader};
-use rustwav::{FileSizeOption, WaveWriter};
-use rustwav::CopiableBuffer;
-use rustwav::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
-use rustwav::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
-use rustwav::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
-
 use std::{env::args, error::Error, process::ExitCode};
+
+use format_specs::*;
+use options::*;
+use resampler::Resampler;
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 15] = [

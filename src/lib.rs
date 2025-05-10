@@ -1,6 +1,3 @@
-
-mod downmixer;
-mod errors;
 mod copiablebuf;
 mod filehasher;
 mod readwrite;
@@ -33,36 +30,122 @@ pub mod encoders;
 /// ## The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
 pub mod decoders;
 
+/// ## Errors returned from most of the function in this library.
+pub mod errors;
+
+/// ## The downmixer
+pub mod downmixer;
+
+/// ## The resampler
+pub use resampler;
+
 #[doc(hidden)]
 pub use sampletypes::{i24, u24};
 
-pub use downmixer::{Downmixer, DownmixerParams};
-pub use errors::{AudioError, AudioReadError, AudioWriteError};
-pub use readwrite::{
-    ReadBridge, Reader, SharedReader, SharedReaderOwned, CombinedReader, SharedCursor, SharedWriter, SharedWriterWithCursor, WriterWithCursor, WriteBridge, Writer, string_io,
-};
-pub use resampler::Resampler;
 pub use sampletypes::{SampleFrom, SampleType};
-pub use wavcore::AdpcmSubFormat;
-pub use wavcore::{DataFormat, SampleFormat, Spec};
-pub use wavcore::{FlacCompression, FlacEncoderParams};
-pub use wavreader::{
-    FrameIntoIter, FrameIter, MonoIntoIter, MonoIter, StereoIntoIter, StereoIter, WaveDataSource,
-    WaveReader,
-};
-pub use wavwriter::{FileSizeOption, WaveWriter};
-pub use copiablebuf::CopiableBuffer;
+pub use wavreader::{WaveDataSource, WaveReader};
+pub use wavwriter::WaveWriter;
 
-#[doc(inline)]
-pub use encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
+pub mod io_utils {
+    pub use crate::readwrite::{
+        Reader, Writer,
+        ReadBridge, WriteBridge,
+        SharedReader,
+        SharedCursor,
+        CombinedReader,
+        DishonestReader,
+        WriterWithCursor,
+        SharedBorrowedReader,
+        SharedBorrowedWriter,
+        SharedWriterWithCursor,
+        string_io,
+    };
+}
 
-#[doc(inline)]
-pub use encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
+pub mod utils {
+    pub use crate::copiablebuf::CopiableBuffer;
+    pub use crate::filehasher::FileHasher;
+    pub use crate::bitwise::BitwiseData;
+    pub use crate::wavcore::create_full_info_cue_data;
+}
 
-#[doc(inline)]
-pub use encoders::{OggVorbisBitrateStrategy, OggVorbisEncoderParams, OggVorbisMode};
+pub mod iterators {
+    pub use crate::wavreader::{FrameIntoIter, FrameIter, MonoIntoIter, MonoIter, StereoIntoIter, StereoIter};
+}
+
+pub mod format_specs {
+    pub use crate::wavcore::{DataFormat, SampleFormat, Spec, WaveSampleType};
+    pub mod format_tags {
+        pub use crate::wavcore::format_tags::*;
+    }
+    pub mod guids {
+        pub use crate::wavcore::guids::*;
+    }
+}
+
+pub mod options {
+    pub use crate::wavwriter::FileSizeOption;
+
+    pub use crate::wavcore::AdpcmSubFormat;
+
+    #[cfg(feature = "flac")]
+    pub use flac::{FlacCompression, FlacEncoderParams};
+
+    #[cfg(not(feature = "flac"))]
+    pub use crate::wavcore::flac::{FlacCompression, FlacEncoderParams};
+
+    #[doc(inline)]
+    pub use crate::encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
+
+    #[doc(inline)]
+    pub use crate::encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
+
+    #[doc(inline)]
+    pub use crate::encoders::{OggVorbisEncoderParams, OggVorbisMode, OggVorbisBitrateStrategy};
+
+}
+
+pub mod chunks {
+    pub use crate::wavcore::{
+        FmtChunk,
+        SlntChunk,
+        BextChunk,
+        InstChunk,
+        AcidChunk,
+        TrknChunk,
+        CueChunk,
+        PlstChunk,
+        SmplChunk,
+        ListChunk,
+        Id3,
+        JunkChunk,
+        FullInfoCuePoint,
+        ListInfo,
+        AdtlChunk,
+        LablChunk,
+        NoteChunk,
+        LtxtChunk,
+        FileChunk,
+    };
+    pub mod ext {
+        pub use crate::wavcore::{
+            FmtExtension,
+            ExtensionData,
+            AdpcmMsData,
+            AdpcmImaData,
+            Mp3Data,
+            OggVorbisData,
+            OggVorbisWithHeaderData,
+            ExtensibleData,
+        };
+    }
+}
 
 use std::{env::args, error::Error, process::ExitCode};
+
+use format_specs::*;
+use options::*;
+use resampler::Resampler;
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 15] = [
@@ -333,7 +416,7 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
 
     // Just to let you know, WAV file can be larger than 4 GB
     #[allow(unused_imports)]
-    use FileSizeOption::{AllowLargerThan4GB, ForceUse4GBFormat, NeverLargerThan4GB};
+    use options::FileSizeOption::{AllowLargerThan4GB, ForceUse4GBFormat, NeverLargerThan4GB};
 
     // This is the encoder
     let mut wavewriter = WaveWriter::create(arg3, spec, data_format, NeverLargerThan4GB).unwrap();

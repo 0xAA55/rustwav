@@ -3,14 +3,14 @@
 
 use std::{cmp::min, fmt::Debug, io::SeekFrom, marker::PhantomData};
 
-use crate::Reader;
 use crate::adpcm;
-use crate::get_rounded_up_fft_size;
-use crate::wavcore::format_tags::*;
-use crate::wavcore::{ExtensibleData, ExtensionData, FmtChunk, Spec, WaveSampleType};
-use crate::xlaw::{PcmXLawDecoder, XLaw};
-use crate::{AudioError, AudioReadError};
 use crate::{SampleType, i24, u24};
+use crate::io_utils::Reader;
+use crate::get_rounded_up_fft_size;
+use crate::format_specs::{Spec, WaveSampleType, format_tags::*};
+use crate::chunks::{FmtChunk, ext::{ExtensibleData, ExtensionData}};
+use crate::xlaw::{PcmXLawDecoder, XLaw};
+use crate::errors::{AudioError, AudioReadError};
 
 #[cfg(feature = "mp3dec")]
 use mp3::Mp3Decoder;
@@ -825,13 +825,13 @@ pub mod mp3 {
     };
 
     use super::get_rounded_up_fft_size;
-    use crate::AudioReadError;
-    use crate::Reader;
-    use crate::Resampler;
     use crate::SampleType;
-    use crate::wavcore::FmtChunk;
+    use crate::errors::AudioReadError;
+    use crate::io_utils::Reader;
     use crate::audioutils;
+    use crate::chunks::FmtChunk;
 
+    use resampler::Resampler;
     use rmp3::{DecoderOwned, Frame};
 
     /// ## The `Mp3Decoder`, decodes the MP3 file encapsulated in the WAV file.
@@ -1155,10 +1155,10 @@ pub mod opus {
         io::SeekFrom,
     };
 
-    use crate::AudioReadError;
-    use crate::Reader;
     use crate::SampleType;
-    use crate::wavcore::FmtChunk;
+    use crate::errors::AudioReadError;
+    use crate::chunks::FmtChunk;
+    use crate::io_utils::Reader;
 
     use opus::{Channels, Decoder};
 
@@ -1414,15 +1414,14 @@ pub mod flac_dec {
     };
 
     use super::get_rounded_up_fft_size;
-    use crate::AudioReadError;
-    use crate::Reader;
     use crate::SampleType;
+    use crate::errors::AudioReadError;
+    use crate::io_utils::Reader;
     use crate::readwrite::ReadBridge;
     use crate::audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
-    use crate::wavcore::{FmtChunk, ListChunk, ListInfo, get_listinfo_flacmeta};
-    use flac::{
-        FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo,
-    };
+    use crate::chunks::{FmtChunk, ListChunk, ListInfo};
+    use crate::wavcore::get_listinfo_flacmeta;
+    use flac::{FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo};
     use resampler::Resampler;
 
     pub struct FlacDecoderWrap<'a> {
@@ -1697,12 +1696,12 @@ pub mod oggvorbis_dec {
         io::{Seek, Cursor, SeekFrom},
     };
 
-    use crate::AudioReadError;
     use crate::SampleType;
-    use crate::wavcore::{FmtChunk, ExtensionData};
-    use crate::{Reader, SharedReaderOwned, CombinedReader};
-    use crate::{OggVorbisMode, OggVorbisEncoderParams};
-    use crate::SharedCursor;
+    use crate::errors::AudioReadError;
+    use crate::chunks::{FmtChunk, ext::ExtensionData};
+    use crate::io_utils::{Reader, SharedReader, CombinedReader, SharedCursor, DishonestReader};
+    use crate::options::{OggVorbisMode, OggVorbisEncoderParams};
+    use crate::ogg::OggStreamWriter;
     use vorbis_rs::VorbisDecoder;
 
     /// ## The OggVorbis decoder for `WaveReader`

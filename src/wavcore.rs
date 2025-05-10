@@ -11,16 +11,10 @@ use crate::SampleType;
 use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::readwrite::{self, string_io::*};
 use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
-use crate::{AudioError, AudioReadError, AudioWriteError};
-use crate::{Mp3EncoderOptions, OpusEncoderOptions};
-use crate::{Reader, Writer};
+use crate::errors::{AudioError, AudioReadError, AudioWriteError};
+use crate::options::*;
+use crate::io_utils::{Reader, Writer};
 use crate::downmixer;
-
-#[allow(unused_imports)]
-pub use flac::{FlacCompression, FlacEncoderParams};
-
-#[allow(unused_imports)]
-pub use crate::{OggVorbisBitrateStrategy, OggVorbisEncoderParams};
 
 /// ## Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
