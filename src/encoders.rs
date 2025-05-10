@@ -2480,6 +2480,7 @@ pub mod oggvorbis_enc {
         OriginalStreamCompatible = 1,
         HaveIndependentHeader = 2,
         HaveNoCodebookHeader = 3,
+        NakedVorbis = 4
     }
 
     /// ## OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
@@ -2832,6 +2833,35 @@ pub mod oggvorbis_enc {
                 }
             }
 
+            /// Peel off the Ogg skin from the `Cursor` data, and write the naked data to the `Writer`
+            fn peel_ogg(&mut self) -> Result<(), AudioWriteError> {
+                let mut cursor = 0usize;
+                let mut packet_length = 0usize;
+                let data = self.writer.get_cursor_data().clone();
+                while cursor < data.len() {
+                    match OggPacket::from_bytes(&data[cursor..], &mut packet_length) {
+                        Ok(oggpacket) => {
+                            self.writer.switch_to_writer_mode();
+                            self.writer.write_all(&oggpacket.to_bytes())?;
+                            self.writer.switch_to_cursor_mode();
+                            cursor += packet_length;
+                        }
+                        Err(ioerr) => {
+                            match ioerr.kind() {
+                                ErrorKind::UnexpectedEof => {
+                                    let remains = data[cursor..].to_vec();
+                                    self.writer.clear_cursor_data();
+                                    self.writer.write_all(&remains)?;
+                                    break;
+                                }
+                                _ => return Err(ioerr.into()),
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
+
             /// Write the interleaved samples to the encoder. The interleaved samples were interleaved by channels.
             /// The encoder actually takes the waveform array. Conversion performed during this function.
             pub fn write_interleaved_samples(&mut self, samples: &[f32]) -> Result<(), AudioWriteError> {
@@ -2844,8 +2874,11 @@ pub mod oggvorbis_enc {
                         "Must call `begin_to_encode()` before encoding.".to_string(),
                     )),
                     OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
-                        let frames = utils::interleaved_samples_to_monos(samples, channels)?;
+                        let frames = audioutils::interleaved_samples_to_monos(samples, channels)?;
                         encoder.encode_audio_block(&frames)?;
+                        if self.params.mode == OggVorbisMode::NakedVorbis {
+                            self.peel_ogg()?;
+                        }
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += frames[0].len() as u64;
                         Ok(())
@@ -2868,6 +2901,9 @@ pub mod oggvorbis_enc {
                     )),
                     OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
                         encoder.encode_audio_block(monos)?;
+                        if self.params.mode == OggVorbisMode::NakedVorbis {
+                            self.peel_ogg()?;
+                        }
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += monos.len() as u64;
                         Ok(())
@@ -2914,6 +2950,7 @@ pub mod oggvorbis_enc {
                         let _header = self.writer.get_cursor_data_and_clear();
                         Ok(())
                     }
+                    OggVorbisMode::NakedVorbis => Ok(())
                 }
             }
 
@@ -2941,6 +2978,18 @@ pub mod oggvorbis_enc {
                         self.begin_to_encode()?;
                         self.writer.switch_to_writer_mode();
                     }
+                    OggVorbisMode::NakedVorbis => {
+                        // Save the header to `fmt ` chunk
+                        self.writer.switch_to_cursor_mode();
+                        self.begin_to_encode()?;
+                        let header = self.writer.get_cursor_data_and_clear();
+                        let mut packet_length = 0usize;
+                        let mut cursor = 0usize;
+                        while cursor < header.len() {
+                            self.oggvorbis_header.extend(OggPacket::from_bytes(&header[cursor..], &mut packet_length)?.to_bytes());
+                            cursor += packet_length;
+                        }
+                    }
                 }
                 Ok(FmtChunk {
                     format_tag: match self.params.mode {
@@ -2965,6 +3014,7 @@ pub mod oggvorbis_enc {
                                 FORMAT_TAG_OGG_VORBIS3P
                             }
                         }
+                        OggVorbisMode::NakedVorbis => FORMAT_TAG_VORBIS,
                     },
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),

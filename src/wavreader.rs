@@ -780,6 +780,7 @@ where
                 "not implemented for decoding MP3 audio data inside the WAV file",
             )));
         }
+        FORMAT_TAG_VORBIS |
         FORMAT_TAG_OGG_VORBIS1 |
         FORMAT_TAG_OGG_VORBIS2 |
         FORMAT_TAG_OGG_VORBIS3 |

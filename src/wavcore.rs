@@ -121,6 +121,7 @@ pub mod format_tags {
     pub const FORMAT_TAG_OGG_VORBIS1P : u16 = ('o' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_OGG_VORBIS2P : u16 = ('p' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_OGG_VORBIS3P : u16 = ('q' as u16) | (('g' as u16) << 8);
+    pub const FORMAT_TAG_VORBIS       : u16 = ('o' as u16) | (('V' as u16) << 8);
     pub const FORMAT_TAG_FLAC         : u16 = 0xF1AC;
     pub const FORMAT_TAG_EXTENSIBLE   : u16 = 0xFFFE;
 }

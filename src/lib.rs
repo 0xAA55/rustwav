@@ -148,7 +148,7 @@ use options::*;
 use resampler::Resampler;
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
-pub const FORMATS: [(&str, DataFormat); 15] = [
+pub const FORMATS: [(&str, DataFormat); 16] = [
     ("pcm", DataFormat::Pcm),
     ("pcm-alaw", DataFormat::PcmALaw),
     ("pcm-ulaw", DataFormat::PcmMuLaw),
@@ -182,6 +182,17 @@ pub const FORMATS: [(&str, DataFormat); 15] = [
             sample_rate: 44100,
             bits_per_sample: 32,
             total_samples_estimate: 0,
+        }),
+    ),
+    (
+        "vorbis",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::NakedVorbis,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
         }),
     ),
     (
@@ -512,9 +523,10 @@ test_fn!(test_adpcm_yamaha, 5);
 test_fn!(test_mp3, 6);
 test_fn!(test_opus, 7);
 test_fn!(test_flac, 8);
-test_fn!(test_oggvorbis1, 9);
-test_fn!(test_oggvorbis2, 10);
-test_fn!(test_oggvorbis3, 11);
-test_fn!(test_oggvorbis1p, 12);
-test_fn!(test_oggvorbis2p, 13);
-test_fn!(test_oggvorbis3p, 14);
+test_fn!(test_vorbis, 9);
+test_fn!(test_oggvorbis1, 10);
+test_fn!(test_oggvorbis2, 11);
+test_fn!(test_oggvorbis3, 12);
+test_fn!(test_oggvorbis1p, 13);
+test_fn!(test_oggvorbis2p, 14);
+test_fn!(test_oggvorbis3p, 15);

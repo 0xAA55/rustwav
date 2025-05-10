@@ -68,7 +68,7 @@ use options::*;
 use resampler::Resampler;
 
 /// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
-pub const FORMATS: [(&str, DataFormat); 15] = [
+pub const FORMATS: [(&str, DataFormat); 16] = [
     ("pcm", DataFormat::Pcm),
     ("pcm-alaw", DataFormat::PcmALaw),
     ("pcm-ulaw", DataFormat::PcmMuLaw),
@@ -102,6 +102,17 @@ pub const FORMATS: [(&str, DataFormat); 15] = [
             sample_rate: 44100,
             bits_per_sample: 32,
             total_samples_estimate: 0,
+        }),
+    ),
+    (
+        "vorbis",
+        DataFormat::OggVorbis(OggVorbisEncoderParams {
+            mode: OggVorbisMode::NakedVorbis,
+            channels: 2,
+            sample_rate: 44100,
+            stream_serial: None,
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            minimum_page_data_size: None,
         }),
     ),
     (
