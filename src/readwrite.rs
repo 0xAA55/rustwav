@@ -127,6 +127,12 @@ impl Seek for SharedBorrowedReader<'_> {
     }
 }
 
+impl Clone for SharedBorrowedReader<'_> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 /// ## Encapsulated shared `&mut dyn Writer`, implemented `Write + Seek + Debug + Clone`
 #[derive(Debug)]
 pub struct SharedBorrowedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
@@ -167,6 +173,12 @@ impl Seek for SharedBorrowedWriter<'_> {
     }
     fn stream_position(&mut self) -> Result<u64, io::Error> {
         self.0.borrow_mut().stream_position()
+    }
+}
+
+impl Clone for SharedBorrowedWriter<'_> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -468,7 +480,7 @@ impl Seek for WriterWithCursor<'_> {
 
 /// ## The shared version of the `WriterWithCursor`.
 /// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to cursor mode.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SharedWriterWithCursor<'a> (Rc<RefCell<WriterWithCursor<'a>>>);
 
 impl<'a> SharedWriterWithCursor<'a> {
@@ -515,9 +527,15 @@ impl Seek for SharedWriterWithCursor<'_> {
     }
 }
 
+impl Clone for SharedWriterWithCursor<'_> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 /// ## The shared `Cursor`.
 /// * Because it's shared, when the 3rd library owned it, we still can access to it..
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SharedCursor (Rc<RefCell<Cursor<Vec<u8>>>>);
 
 impl SharedCursor {
@@ -568,6 +586,12 @@ impl Write for SharedCursor {
 impl Seek for SharedCursor {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
         self.0.borrow_mut().seek(pos)
+    }
+}
+
+impl Clone for SharedCursor {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
