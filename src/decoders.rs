@@ -1693,13 +1693,16 @@ pub mod flac_dec {
 pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
-        io::{Seek, Cursor, SeekFrom},
+        io::{self, Read, Write, Seek, SeekFrom},
+        rc::Rc,
+        cell::RefCell,
+        ops::{Deref, DerefMut},
     };
 
     use crate::SampleType;
     use crate::errors::AudioReadError;
     use crate::chunks::{FmtChunk, ext::ExtensionData};
-    use crate::io_utils::{Reader, SharedReader, CombinedReader, SharedCursor, DishonestReader};
+    use crate::io_utils::{Reader, SharedReader, CombinedReader, CursorVecU8, SharedCursor, DishonestReader};
     use crate::options::{OggVorbisMode, OggVorbisEncoderParams};
     use crate::ogg::OggStreamWriter;
     use vorbis_rs::VorbisDecoder;
@@ -1735,6 +1738,43 @@ pub mod oggvorbis_dec {
 
         /// Current block frame index. The start index of the decoded samples.
         cur_block_frame_index: u64,
+    }
+
+    /// ## An ogg packet as a stream container
+    #[derive(Debug)]
+    pub struct OggStreamWriteToCursor {
+        pub ogg_stream_writer: OggStreamWriter<SharedCursor>,
+        pub cursor: SharedCursor,
+    }
+
+    // ## An shared `OggStreamWriteToCursor`
+    #[derive(Debug)]
+    pub struct SharedOggStreamWriteToCursor(Rc<RefCell<OggStreamWriteToCursor>>);
+
+    impl SharedOggStreamWriteToCursor {
+        pub fn new(stream_id: u32) -> Self {
+            Self(Rc::new(RefCell::new(OggStreamWriteToCursor::new(stream_id))))
+        }
+    }
+
+    impl Clone for SharedOggStreamWriteToCursor {
+        fn clone(&self) -> Self {
+            Self(self.0.clone())
+        }
+    }
+
+    impl Deref for SharedOggStreamWriteToCursor {
+        type Target = OggStreamWriteToCursor;
+
+        fn deref(&self) -> &Self::Target {
+            unsafe{&*self.0.as_ptr()}
+        }
+    }
+
+    impl DerefMut for SharedOggStreamWriteToCursor {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            unsafe{&mut *self.0.as_ptr()}
+        }
     }
 
     impl OggVorbisDecoderWrap {
@@ -1940,6 +1980,62 @@ pub mod oggvorbis_dec {
                 .field("cur_frame_index", &self.cur_frame_index)
                 .field("cur_block_frame_index", &self.cur_block_frame_index)
                 .finish()
+        }
+    }
+
+    impl OggStreamWriteToCursor {
+        pub fn new(stream_id: u32) -> Self {
+            let cursor = SharedCursor::new();
+            Self {
+                ogg_stream_writer: OggStreamWriter::new(cursor.clone(), stream_id),
+                cursor,
+            }
+        }
+
+        pub fn set_granule_position(&mut self, position: u64) {
+            self.ogg_stream_writer.set_granule_position(position)
+        }
+
+        pub fn get_granule_position(&self) -> u64 {
+            self.ogg_stream_writer.get_granule_position()
+        }
+
+        pub fn get_cursor_data_len(&self) -> usize {
+            self.cursor.len()
+        }
+
+        pub fn get_cursor_data(&self) -> Vec<u8> {
+            self.cursor.get_vec()
+        }
+
+        pub fn get_cursor_data_and_clear(&mut self) -> Vec<u8> {
+            let data = self.cursor.get_vec();
+            self.cursor.clear();
+            data
+        }
+    }
+
+    impl Read for OggStreamWriteToCursor {
+        fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+            let data = self.cursor.get_vec();
+            let len = std::cmp::min(buf.len(), data.len());
+            if len > 0 {
+                buf[..len].copy_from_slice(&data[..len]);
+                let data = data[len..].to_vec();
+                self.cursor.set_vec(&data, data.len() as u64);
+            }
+            Ok(len)
+        }
+    }
+
+    impl Write for OggStreamWriteToCursor {
+        fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+            self.cursor.seek(SeekFrom::End(0))?;
+            self.ogg_stream_writer.write(buf)
+        }
+        fn flush(&mut self) -> Result<(), io::Error> {
+            self.cursor.seek(SeekFrom::End(0))?;
+            self.ogg_stream_writer.flush()
         }
     }
 }
