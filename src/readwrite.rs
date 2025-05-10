@@ -525,8 +525,22 @@ impl SharedCursor {
         Self::default()
     }
 
+    pub fn len(&self) -> usize {
+        self.0.borrow().get_ref().len()
+    }
+
     pub fn get_vec(&self) -> Vec<u8> {
         self.0.borrow().get_ref().to_vec()
+    }
+
+    pub fn set_vec(&mut self, data: &[u8], rw_pos: u64) {
+        let mut new_cursor = Cursor::new(data.to_vec());
+        new_cursor.set_position(rw_pos);
+        *self.0.borrow_mut() = new_cursor;
+    }
+
+    pub fn clear(&mut self) {
+        *self.0.borrow_mut() = Cursor::new(Vec::new());
     }
 }
 
