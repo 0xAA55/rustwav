@@ -627,17 +627,100 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    pub streams: Vec<StreamType<R, W, RW>>,
+    pub cur_stream: usize,
+}
+
+impl<R, W, RW> Default for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn default() -> Self {
+        Self {
+            streams: Vec::new(),
+            cur_stream: 0,
+        }
     }
 }
 
+impl<R, W, RW> MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
 
     pub fn new() -> Self {
         Self::default()
     }
 
+    pub fn get_cur_stream(&self) -> &StreamType<R, W, RW> {
+        &self.streams[self.cur_stream]
     }
 
+    pub fn get_cur_stream_mut(&mut self) -> &mut StreamType<R, W, RW> {
+        &mut self.streams[self.cur_stream]
     }
+
+    pub fn get_stream(&self, index: usize) -> &StreamType<R, W, RW> {
+        &self.streams[index]
+    }
+
+    pub fn get_stream_mut(&mut self, index: usize) -> &mut StreamType<R, W, RW> {
+        &mut self.streams[index]
+    }
+
+    pub fn push_stream(&mut self, stream: StreamType<R, W, RW>) {
+        self.streams.push(stream);
+    }
+
+    pub fn pop_stream(&mut self) -> Option<StreamType<R, W, RW>> {
+        self.streams.pop()
+    }
+
+    pub fn set_stream(&mut self, index: usize) {
+        self.cur_stream = index;
+    }
+}
+
+impl<R, W, RW> Read for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.get_cur_stream_mut().read(buf)
+    }
+}
+
+impl<R, W, RW> Write for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.get_cur_stream_mut().write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.get_cur_stream_mut().flush()
+    }
+}
+
+impl<R, W, RW> Seek for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.get_cur_stream_mut().seek(pos)
+    }
+}
 
     }
 
