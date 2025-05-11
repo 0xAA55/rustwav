@@ -2711,7 +2711,7 @@ pub mod oggvorbis_enc {
             }
 
             pub fn get_bitrate(&self) -> u32 {
-                self.bitrate.unwrap_or(OggVorbisBitrateStrategy::default()).get_bitrate(self.channels, self.sample_rate).unwrap()
+                self.bitrate.unwrap_or_default().get_bitrate(self.channels, self.sample_rate).unwrap()
             }
         }
 

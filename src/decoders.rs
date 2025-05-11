@@ -300,11 +300,7 @@ where
             cache: Vec::with_capacity(Self::CACHE_SIZE),
             cache_position: 0,
             frame_index: 0,
-            downmixer: Downmixer::new(spec.channel_mask, if let Some(params) = downmixer_params {
-                params
-            } else {
-                DownmixerParams::default()
-            }),
+            downmixer: Downmixer::new(spec.channel_mask, downmixer_params.unwrap_or_default()),
         })
     }
 
@@ -348,8 +344,8 @@ where
     where
         T: SampleType,
     {
-        for i in 0..buf.len() {
-            buf[i] = S::scale_from(T::read_le(r)?);
+        for sample in buf.iter_mut() {
+            *sample = S::scale_from(T::read_le(r)?);
         }
         Ok(())
     }
