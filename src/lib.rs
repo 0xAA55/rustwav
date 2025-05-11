@@ -50,11 +50,16 @@ pub mod io_utils {
     pub use crate::readwrite::{
         Reader,
         Writer,
-        SharedReader,
+        ReadWrite,
         CursorVecU8,
+        SharedReader,
+        SharedWriter,
         SharedCursor,
         CombinedReader,
         DishonestReader,
+        MultistreamIO,
+        SharedMultistreamIO,
+        StreamType,
         string_io,
     };
 }

@@ -722,19 +722,62 @@ where
     }
 }
 
-    }
+/// ## The shared version of the `MultistreamIO`.
+/// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to cursor mode.
+#[derive(Debug)]
+pub struct SharedMultistreamIO<R, W, RW> (Rc<RefCell<MultistreamIO<R, W, RW>>>)
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug;
 
+impl<R, W, RW> SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    pub fn new(writer_with_cursor: MultistreamIO<R, W, RW>) -> Self {
+        Self(Rc::new(RefCell::new(writer_with_cursor)))
     }
 }
 
+impl<R, W, RW> Deref for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Target = MultistreamIO<R, W, RW>;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*(self.0.as_ptr() as *const MultistreamIO<R, W, RW>) }
     }
 }
 
+impl<R, W, RW> DerefMut for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *(self.0.as_ptr() as *mut MultistreamIO<R, W, RW>) }
+    }
+}
+
+impl<R, W, RW> Read for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.borrow_mut().read(buf)
     }
 }
 
+impl<R, W, RW> Write for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.borrow_mut().write(buf)
     }
@@ -743,13 +786,33 @@ where
     }
 }
 
+impl<R, W, RW> Seek for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.borrow_mut().seek(pos)
     }
 }
 
+impl<R, W, RW> Clone for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+
+impl<R, W, RW> Default for SharedMultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn default() -> Self {
+        Self(Rc::new(RefCell::new(MultistreamIO::new())))
     }
 }
 
