@@ -1858,10 +1858,10 @@ pub mod oggvorbis_dec {
                         // https://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-132000A.2
                         ogg_stream_writer.reset();
                         ogg_stream_writer.write_all(&identification_header)?;
-                        ogg_stream_writer.flush()?;
+                        ogg_stream_writer.seal_packet(0, false)?;
                         ogg_stream_writer.write_all(&comment_header)?;
                         ogg_stream_writer.write_all(&setup_header)?;
-                        ogg_stream_writer.flush()?;
+                        ogg_stream_writer.seal_packet(0, false)?;
                         let data = ogg_stream_writer.get_cursor_data_and_clear();
                         debug_file.write_all(&data)?;
                         debug_file.flush()?;
@@ -1878,9 +1878,8 @@ pub mod oggvorbis_dec {
                                 ogg_stream_writer.set_to_end_of_stream();
                             }
                             buf.truncate(len);
-                            ogg_stream_writer.set_granule_position(granule_position);
                             ogg_stream_writer.write_all(&buf)?;
-                            ogg_stream_writer.flush()?;
+                            ogg_stream_writer.seal_packet(granule_position, false)?;
                         }
                         let data = ogg_stream_writer.get_cursor_data_and_clear();
                         debug_file.write_all(&data)?;
@@ -2099,6 +2098,10 @@ pub mod oggvorbis_dec {
 
         pub fn set_to_end_of_stream(&mut self) {
             self.ogg_stream_writer.set_to_end_of_stream();
+        }
+
+        pub fn seal_packet(&mut self, granule_position: u64, is_end_of_stream: bool) -> io::Result<()> {
+            self.ogg_stream_writer.seal_packet(granule_position, is_end_of_stream)
         }
     }
 
