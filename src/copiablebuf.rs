@@ -2,7 +2,7 @@
 use std::{
     fmt::Debug,
     iter::FromIterator,
-    ops::{Index, IndexMut, Deref, DerefMut},
+    ops::{Index, IndexMut, Deref, DerefMut, Range, RangeFrom, RangeTo},
 };
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
@@ -161,6 +161,96 @@ where
             panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
         &mut self.buffer[index]
+    }
+}
+
+impl<T, const N: usize> Index<Range<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    type Output = [T];
+
+    #[track_caller]
+    fn index(&self, range: Range<usize>) -> &[T] {
+        if range.start >= self.buf_used {
+            panic!("Index out of bounds: {} >= {}", range.start, self.buf_used);
+        }
+        if range.end > self.buf_used {
+            panic!("Index out of bounds: {} >= {}", range.end, self.buf_used);
+        }
+        &self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> IndexMut<Range<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    #[track_caller]
+    fn index_mut<'a>(&mut self, range: Range<usize>) -> &mut [T] {
+        if range.start >= self.buf_used {
+            panic!("Slice start is out of bounds: {} >= {}", range.start, self.buf_used);
+        }
+        if range.end > self.buf_used {
+            panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
+        }
+        &mut self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> Index<RangeFrom<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    type Output = [T];
+
+    #[track_caller]
+    fn index(&self, range: RangeFrom<usize>) -> &[T] {
+        if range.start >= self.buf_used {
+            panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
+        }
+        &self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> IndexMut<RangeFrom<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    #[track_caller]
+    fn index_mut<'a>(&mut self, range: RangeFrom<usize>) -> &mut [T] {
+        if range.start >= self.buf_used {
+            panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
+        }
+        &mut self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> Index<RangeTo<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    type Output = [T];
+
+    #[track_caller]
+    fn index(&self, range: RangeTo<usize>) -> &[T] {
+        if range.end > self.buf_used {
+            panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
+        }
+        &self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> IndexMut<RangeTo<usize>> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    #[track_caller]
+    fn index_mut<'a>(&mut self, range: RangeTo<usize>) -> &mut [T] {
+        if range.end > self.buf_used {
+            panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
+        }
+        &mut self.buffer[range]
     }
 }
 
