@@ -2146,7 +2146,6 @@ pub mod flac_enc {
 
     use crate::errors::AudioWriteError;
     use crate::io_utils::Writer;
-    use crate::readwrite::WriteBridge;
     use crate::audioutils::{sample_conv, sample_conv_batch, stereos_conv};
     use crate::wavcore::format_tags::*;
     use crate::wavcore::{FmtChunk, ListChunk, get_listinfo_flacmeta};
@@ -2155,7 +2154,7 @@ pub mod flac_enc {
 
     #[derive(Debug)]
     pub struct FlacEncoderWrap<'a> {
-        encoder: Box<FlacEncoderUnmovable<'a, WriteBridge<'a>>>,
+        encoder: Box<FlacEncoderUnmovable<'a, &'a mut dyn Writer>>,
         params: FlacEncoderParams,
         write_offset: u64,
         frames_written: u64,
@@ -2173,20 +2172,20 @@ pub mod flac_enc {
             // Let the closures capture the pointer of the boxed variables, then use these pointers to update the variables.
             Ok(Self {
                 encoder: Box::new(FlacEncoderUnmovable::new(
-                    WriteBridge::new(writer),
+                    writer,
                     Box::new(
-                        move |writer: &mut WriteBridge, data: &[u8]| -> io::Result<()> {
+                        move |writer: &mut &'a mut dyn Writer, data: &[u8]| -> io::Result<()> {
                             unsafe { *bytes_written_ptr += data.len() as u64 };
                             writer.write_all(data)
                         },
                     ),
                     Box::new(
-                        move |writer: &mut WriteBridge, position: u64| -> io::Result<()> {
+                        move |writer: &mut &'a mut dyn Writer, position: u64| -> io::Result<()> {
                             writer.seek(SeekFrom::Start(write_offset + position))?;
                             Ok(())
                         },
                     ),
-                    Box::new(move |writer: &mut WriteBridge| -> io::Result<u64> {
+                    Box::new(move |writer: &mut &'a mut dyn Writer| -> io::Result<u64> {
                         Ok(write_offset + writer.stream_position()?)
                     }),
                     params,
