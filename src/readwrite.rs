@@ -3,8 +3,8 @@
 use std::{
     any::type_name,
     cmp::min,
-    fmt::{self, Debug, Display, Formatter},
     mem,
+    fmt::{self, Debug, Display, Formatter},
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
     cell::RefCell,
@@ -478,10 +478,73 @@ impl Clone for SharedCursor {
 }
 
 #[derive(Debug)]
+pub enum StreamType<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    Reader(R),
+    Writer(W),
+    ReadWrite(RW),
+    CursorU8(CursorVecU8)
+}
 
+impl<R, W, RW> StreamType<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+
+    pub fn as_reader(&mut self) -> &mut R {
+        let name_r = type_name::<R>();
+        let name_w = type_name::<W>();
+        let name_rw = type_name::<RW>();
+        match self {
+            Self::Reader(reader) => reader,
+            o => panic!("The `StreamType<{name_r}, {name_w}, {name_rw}>` is {:?}", o),
+        }
     }
 
+    pub fn as_writer(&mut self) -> &mut W {
+        let name_r = type_name::<R>();
+        let name_w = type_name::<W>();
+        let name_rw = type_name::<RW>();
+        match self {
+            Self::Writer(writer) => writer,
+            o => panic!("The `StreamType<{name_r}, {name_w}, {name_rw}>` is {:?}", o),
+        }
+    }
 
+    pub fn as_readwrite(&mut self) -> &mut RW {
+        let name_r = type_name::<R>();
+        let name_w = type_name::<W>();
+        let name_rw = type_name::<RW>();
+        match self {
+            Self::ReadWrite(readwrite) => readwrite,
+            o => panic!("The `StreamType<{name_r}, {name_w}, {name_rw}>` is {:?}", o),
+        }
+    }
+
+    pub fn as_cursor(&mut self) -> &mut CursorVecU8 {
+        let name_r = type_name::<R>();
+        let name_w = type_name::<W>();
+        let name_rw = type_name::<RW>();
+        match self {
+            Self::CursorU8(cursor) => cursor,
+            o => panic!("The `StreamType<{name_r}, {name_w}, {name_rw}>` is {:?}", o),
+        }
+    }
+
+    pub fn take_cursor_data(&mut self) -> Vec<u8> {
+        let name_r = type_name::<R>();
+        let name_w = type_name::<W>();
+        let name_rw = type_name::<RW>();
+        match self {
+            Self::CursorU8(cursor) => {
+                mem::take(cursor).into_inner()
+            }
+            o => panic!("The `StreamType<{name_r}, {name_w}, {name_rw}>` is {:?}", o),
+        }
     }
 }
 
