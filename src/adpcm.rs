@@ -26,7 +26,7 @@ pub trait AdpcmEncoder: Debug {
         &mut self,
         input: impl FnMut() -> Option<i16>,
         output: impl FnMut(u8),
-    ) -> Result<(), io::Error>;
+    ) -> io::Result<()>;
 
     /// * Call this method if you want to create a `fmt ` chunk for a WAV file.
     /// * The `fmt ` chunk is new and it's without any statistics data inside it.
@@ -50,13 +50,13 @@ pub trait AdpcmEncoder: Debug {
     }
 
     /// * After encoding, call this function to update the `fmt ` chunk for the encoder to save some statistics data.
-    fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+    fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> io::Result<()> {
         Ok(())
     }
 
     /// * Flush the encoder. The encoder may have some half-bytes (nibbles) in the cache, or the encoded data size is not a full block.
     /// * Normally the `flush()` method will feed zero samples for the encoder to let it excrete.
-    fn flush(&mut self, _output: impl FnMut(u8)) -> Result<(), io::Error> {
+    fn flush(&mut self, _output: impl FnMut(u8)) -> io::Result<()> {
         Ok(())
     }
 }
@@ -87,10 +87,10 @@ pub trait AdpcmDecoder: Debug {
         &mut self,
         input: impl FnMut() -> Option<u8>,
         output: impl FnMut(i16),
-    ) -> Result<(), io::Error>;
+    ) -> io::Result<()>;
 
     /// * The `flush()` function causes the decoder to excrete the last samples.
-    fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
+    fn flush(&mut self, _output: impl FnMut(i16)) -> io::Result<()> {
         Ok(())
     }
 }
@@ -98,7 +98,7 @@ pub trait AdpcmDecoder: Debug {
 /// ### An example test function to test the `AdpcmEncoder` and the `AdpcmDecoder`.
 /// * Normally it won't be called by you, but if you want to test how lossy the ADPCM algorithm is, this can help.
 #[allow(dead_code)]
-pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> io::Result<()> {
     encoder.encode(
         ||-> Option<i16> { input() },
         |code: u8| {
@@ -232,7 +232,7 @@ pub mod ima {
             &mut self,
             mut input: impl FnMut() -> Option<i16>,
             mut output: impl FnMut(u8),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(sample) = input() {
                 if !self.header_written {
                     // Write the four bytes header
@@ -264,7 +264,7 @@ pub mod ima {
         }
 
         /// * Continue feeding zeroes to the encoder until it finishes processing a whole block of data.
-        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> io::Result<()> {
             let aligned_size = ((self.num_outputs - 1) / INTERLEAVE_BYTES + 1) * INTERLEAVE_BYTES;
             let pad_size = aligned_size - self.num_outputs;
             if pad_size != 0 {
@@ -322,7 +322,7 @@ pub mod ima {
             &mut self,
             mut input: impl FnMut() -> Option<i16>,
             mut output: impl FnMut(u8),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(sample) = input() {
                 match self.current_channel {
                     CurrentChannel::Left => {
@@ -351,7 +351,7 @@ pub mod ima {
         }
 
         /// * Let the encoder excrete all of the data, finish encoding.
-        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        pub fn flush(&mut self, mut output: impl FnMut(u8)) -> io::Result<()> {
             while !self.sample_l.is_empty() || !self.sample_r.is_empty() {
                 let mut iter = [0i16].into_iter();
                 self.encode(
@@ -381,14 +381,14 @@ pub mod ima {
             }
         }
 
-        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn encode(&mut self, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(u8)) -> io::Result<()> {
             match self {
                 Encoder::Mono(enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
                 Encoder::Stereo(enc) => enc.encode(|| -> Option<i16> {input()}, |nibble:u8|{output(nibble)}),
             }
         }
 
-        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> io::Result<()> {
             match self {
                 Encoder::Mono(enc) => enc.flush(|nibble: u8| output(nibble)),
                 Encoder::Stereo(enc) => enc.flush(|nibble: u8| output(nibble)),
@@ -416,7 +416,7 @@ pub mod ima {
             })
         }
 
-        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> io::Result<()> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
             fmt_chunk.byte_rate = fmt_chunk.sample_rate * 8
@@ -496,7 +496,7 @@ pub mod ima {
             &mut self,
             mut input: impl FnMut() -> Option<u8>,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(byte) = input() {
                 if !self.ready {
                     // Consumes 4 bytes to initialize the decoder state and generates the first decoded sample.
@@ -558,7 +558,7 @@ pub mod ima {
         }
 
         /// * Continuous feeding the decoder zero data until it finished decoding a whole block.
-        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> io::Result<()> {
             while !self.on_new_block() {
                 let mut iter = [0u8].into_iter();
                 self.decode(|| -> Option<u8> {iter.next()}, |sample: i16| {output(sample)})?;
@@ -619,7 +619,7 @@ pub mod ima {
             &mut self,
             mut input: impl FnMut() -> Option<u8>,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(nibble) = input() {
                 match self.current_channel {
                     CurrentChannel::Left => {
@@ -654,7 +654,7 @@ pub mod ima {
 
         /// * Flush both decoder cores.
         ///   Continuous feeding the decoder zero data until it finished decoding a whole block.
-        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        pub fn flush(&mut self, mut output: impl FnMut(i16)) -> io::Result<()> {
             while !self.core_l.on_new_block() || !self.core_r.on_new_block() {
                 let mut iter = [0u8].into_iter();
                 self.decode(|| -> Option<u8> {iter.next()}, |sample: i16| {output(sample)})?;
@@ -702,13 +702,13 @@ pub mod ima {
             &mut self,
             mut input: impl FnMut() -> Option<u8>,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             match self {
                 Decoder::Mono(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
                 Decoder::Stereo(dec) => dec.decode(|| -> Option<u8> {input()}, |sample:i16|{output(sample)}),
             }
         }
-        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(i16)) -> io::Result<()> {
             match self {
                 Decoder::Mono(dec) => dec.flush(|sample: i16| output(sample)),
                 Decoder::Stereo(dec) => dec.flush(|sample: i16| output(sample)),
@@ -995,7 +995,7 @@ pub mod ms {
             &mut self,
             mut input: impl FnMut() -> Option<i16>,
             mut output: impl FnMut(u8),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(sample) = input() {
                 self.buffer.push(sample);
                 if !self.is_ready() {
@@ -1105,7 +1105,7 @@ pub mod ms {
         }
 
         /// * When encoding is ended, call this to update statistics data for the `fmt ` chunk.
-        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+        fn modify_fmt_chunk(&self, fmt_chunk: &mut FmtChunk) -> io::Result<()> {
             fmt_chunk.block_align = BLOCK_SIZE as u16 * fmt_chunk.channels;
             fmt_chunk.bits_per_sample = 4;
             fmt_chunk.byte_rate = fmt_chunk.sample_rate
@@ -1137,7 +1137,7 @@ pub mod ms {
         }
 
         /// * Excrete the last data.
-        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> io::Result<()> {
             while self.bytes_yield != 0 {
                 let mut iter = [0i16].into_iter();
                 self.encode(|| -> Option<i16> {iter.next()}, |nibble: u8| {output(nibble)})?;
@@ -1252,7 +1252,7 @@ pub mod ms {
             &mut self,
             breakfast: &DecoderBreakfast,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             if breakfast.predictor > 6 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -1349,7 +1349,7 @@ pub mod ms {
             breakfast_l: &DecoderBreakfast,
             breakfast_r: &DecoderBreakfast,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             let mut sample_buffer = CopiableBuffer::<i16, 4>::new();
             self.core_l.get_ready(breakfast_l, |sample:i16|{sample_buffer.push(sample);})?;
             self.core_r.get_ready(breakfast_r, |sample:i16|{sample_buffer.push(sample);})?;
@@ -1447,7 +1447,7 @@ pub mod ms {
             &mut self,
             mut input: impl FnMut() -> Option<u8>,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             while let Some(byte) = input() {
                 match self {
                     Self::Mono(mono) => {
@@ -1502,7 +1502,7 @@ pub mod ms {
             Ok(())
         }
 
-        fn flush(&mut self, mut output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(i16)) -> io::Result<()> {
             match self {
                 Self::Mono(mono) => {
                     if mono.bytes_eaten > 0 && mono.bytes_eaten < mono.max_bytes_can_eat {
@@ -1743,7 +1743,7 @@ pub mod yamaha {
             &mut self,
             mut input: impl FnMut() -> Option<i16>,
             mut output: impl FnMut(u8),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             match self {
                 Self::Mono(enc) => enc.encode(&mut input, &mut output),
                 Self::Stereo(enc) => enc.encode(&mut input, &mut output),
@@ -1775,11 +1775,11 @@ pub mod yamaha {
             })
         }
 
-        fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> Result<(), io::Error> {
+        fn modify_fmt_chunk(&self, _fmt_chunk: &mut FmtChunk) -> io::Result<()> {
             Ok(())
         }
 
-        fn flush(&mut self, mut output: impl FnMut(u8)) -> Result<(), io::Error> {
+        fn flush(&mut self, mut output: impl FnMut(u8)) -> io::Result<()> {
             match self {
                 Self::Mono(enc) => enc.flush(&mut output),
                 Self::Stereo(enc) => enc.flush(&mut output),
@@ -1922,7 +1922,7 @@ pub mod yamaha {
             &mut self,
             mut input: impl FnMut() -> Option<u8>,
             mut output: impl FnMut(i16),
-        ) -> Result<(), io::Error> {
+        ) -> io::Result<()> {
             match self {
                 Self::Mono(dec) => dec.decode(&mut input, &mut output),
                 Self::Stereo(dec) => dec.decode(&mut input, &mut output),
@@ -1930,7 +1930,7 @@ pub mod yamaha {
             Ok(())
         }
 
-        fn flush(&mut self, _output: impl FnMut(i16)) -> Result<(), io::Error> {
+        fn flush(&mut self, _output: impl FnMut(i16)) -> io::Result<()> {
             Ok(())
         }
     }

@@ -2175,18 +2175,18 @@ pub mod flac_enc {
                 encoder: Box::new(FlacEncoderUnmovable::new(
                     WriteBridge::new(writer),
                     Box::new(
-                        move |writer: &mut WriteBridge, data: &[u8]| -> Result<(), io::Error> {
+                        move |writer: &mut WriteBridge, data: &[u8]| -> io::Result<()> {
                             unsafe { *bytes_written_ptr += data.len() as u64 };
                             writer.write_all(data)
                         },
                     ),
                     Box::new(
-                        move |writer: &mut WriteBridge, position: u64| -> Result<(), io::Error> {
+                        move |writer: &mut WriteBridge, position: u64| -> io::Result<()> {
                             writer.seek(SeekFrom::Start(write_offset + position))?;
                             Ok(())
                         },
                     ),
-                    Box::new(move |writer: &mut WriteBridge| -> Result<u64, io::Error> {
+                    Box::new(move |writer: &mut WriteBridge| -> io::Result<u64> {
                         Ok(write_offset + writer.stream_position()?)
                     }),
                     params,

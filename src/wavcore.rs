@@ -268,7 +268,7 @@ impl GUID {
         ))
     }
 
-    pub fn write<T>(&self, w: &mut T) -> Result<(), io::Error>
+    pub fn write<T>(&self, w: &mut T) -> io::Result<()>
     where
         T: Write + ?Sized,
     {

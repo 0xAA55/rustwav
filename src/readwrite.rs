@@ -31,22 +31,22 @@ impl<'a> ReadBridge<'a> {
 }
 
 impl Read for ReadBridge<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.reader.read(buf)
     }
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         self.reader.read_exact(buf)
     }
 }
 
 impl Seek for ReadBridge<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.reader.seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.reader.rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.reader.stream_position()
     }
 }
@@ -64,25 +64,25 @@ impl<'a> WriteBridge<'a> {
 }
 
 impl Write for WriteBridge<'_> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.writer.write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()
     }
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.writer.write_all(buf)
     }
 }
 
 impl Seek for WriteBridge<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.writer.seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.writer.rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.writer.stream_position()
     }
 }
@@ -107,22 +107,22 @@ impl<'a> SharedBorrowedReader<'a> {
 }
 
 impl Read for SharedBorrowedReader<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.borrow_mut().read(buf)
     }
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), io::Error> {
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         self.0.borrow_mut().read_exact(buf)
     }
 }
 
 impl Seek for SharedBorrowedReader<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.borrow_mut().seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.0.borrow_mut().rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.0.borrow_mut().stream_position()
     }
 }
@@ -153,25 +153,25 @@ impl<'a> SharedBorrowedWriter<'a> {
 }
 
 impl Write for SharedBorrowedWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.borrow_mut().write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.0.borrow_mut().flush()
     }
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.0.borrow_mut().write_all(buf)
     }
 }
 
 impl Seek for SharedBorrowedWriter<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.borrow_mut().seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.0.borrow_mut().rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.0.borrow_mut().stream_position()
     }
 }
@@ -182,7 +182,7 @@ impl Clone for SharedBorrowedWriter<'_> {
     }
 }
 
-/// ## Encapsulated shared `Read`, implemented `Read` only, but the actual reader is a generic typr
+/// ## Encapsulated shared `Read + Seek + Debug`
 #[derive(Debug)]
 pub struct SharedReader<T> (Rc<RefCell<T>>) where T: Read + Seek + Debug;
 
@@ -197,7 +197,7 @@ where
 impl<T> Read for SharedReader<T>
 where
     T: Read + Seek + Debug {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.borrow_mut().read(buf)
     }
 }
@@ -205,7 +205,7 @@ where
 impl<T> Seek for SharedReader<T>
 where
     T: Read + Seek + Debug {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.borrow_mut().seek(pos)
     }
 }
@@ -224,7 +224,7 @@ where
     T: Read + Seek + Debug {
     reader: T,
     on_read: Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>,
-    on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>,
+    on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> io::Result<u64>>,
     cache: Vec<u8>,
 }
 
@@ -234,7 +234,7 @@ where
     pub fn new(
         reader: T,
         on_read: Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>,
-        on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>,
+        on_seek: Box<dyn FnMut(&mut T, SeekFrom) -> io::Result<u64>>,
     ) -> Self {
         Self {
             reader,
@@ -248,7 +248,7 @@ where
 impl<T> Read for DishonestReader<T>
 where
     T: Read + Seek + Debug {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let write_buf_and_cache = |data: &[u8], buf: &mut [u8], cache: &mut Vec<u8>| -> usize {
             let len = min(data.len(), buf.len());
             buf[..len].copy_from_slice(&data[..len]);
@@ -274,7 +274,7 @@ where
 impl<T> Seek for DishonestReader<T>
 where
     T: Read + Seek + Debug {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         (self.on_seek)(&mut self.reader, pos)
     }
 }
@@ -287,7 +287,7 @@ where
         f.debug_struct(&format!("DishonestReader<{typename}>"))
         .field("reader", &self.reader)
         .field("on_read", &format_args!("Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>"))
-        .field("on_seek", &format_args!("Box<dyn FnMut(&mut T, SeekFrom) -> Result<u64, io::Error>>"))
+        .field("on_seek", &format_args!("Box<dyn FnMut(&mut T, SeekFrom) -> io::Result<u64>>"))
         .field("cache", &format_args!("[u8; {}]", self.cache.len()))
         .finish()
     }
@@ -338,7 +338,7 @@ impl<R1, R2> Read for CombinedReader<R1, R2>
 where
     R1: Reader,
     R2: Reader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let remaining = (self.first_data_length + self.second_data_length) - self.stream_pos;
         if remaining == 0 {
             return Ok(0);
@@ -369,7 +369,7 @@ impl<R1, R2> Seek for CombinedReader<R1, R2>
 where
     R1: Reader,
     R2: Reader {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let new_pos = match pos {
             SeekFrom::Start(offset) => offset,
             SeekFrom::End(offset) => {
@@ -449,22 +449,22 @@ impl DerefMut for CursorVecU8 {
 }
 
 impl Read for CursorVecU8 {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
 }
 
 impl Write for CursorVecU8 {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
     }
 }
 
 impl Seek for CursorVecU8 {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.seek(pos)
     }
 }
@@ -532,32 +532,32 @@ impl<'a> WriterWithCursor<'a> {
         mem::take(&mut self.cursor).into_inner()
     }
 
-    pub fn flush_cursor_data_to_writer(&mut self) -> Result<(), io::Error> {
+    pub fn flush_cursor_data_to_writer(&mut self) -> io::Result<()> {
         self.writer.write_all(&mem::take(&mut self.cursor).into_inner())?;
         Ok(())
     }
 }
 
 impl Write for WriterWithCursor<'_> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.get_writer().write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.get_writer().flush()
     }
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.get_writer().write_all(buf)
     }
 }
 
 impl Seek for WriterWithCursor<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.get_writer().seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.get_writer().rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.get_writer().stream_position()
     }
 }
@@ -588,25 +588,25 @@ impl<'a> DerefMut for SharedWriterWithCursor<'a> {
 }
 
 impl Write for SharedWriterWithCursor<'_> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.get_writer().write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.get_writer().flush()
     }
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.get_writer().write_all(buf)
     }
 }
 
 impl Seek for SharedWriterWithCursor<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.get_writer().seek(pos)
     }
-    fn rewind(&mut self) -> Result<(), io::Error> {
+    fn rewind(&mut self) -> io::Result<()> {
         self.get_writer().rewind()
     }
-    fn stream_position(&mut self) -> Result<u64, io::Error> {
+    fn stream_position(&mut self) -> io::Result<u64> {
         self.get_writer().stream_position()
     }
 }
@@ -653,22 +653,22 @@ impl Default for SharedCursor {
 }
 
 impl Read for SharedCursor {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.borrow_mut().read(buf)
     }
 }
 
 impl Write for SharedCursor {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.borrow_mut().write(buf)
     }
-    fn flush(&mut self) -> Result<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.0.borrow_mut().flush()
     }
 }
 
 impl Seek for SharedCursor {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, io::Error> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.borrow_mut().seek(pos)
     }
 }
@@ -684,7 +684,7 @@ pub fn goto_offset_without_seek<T>(
     mut reader: T,
     cur_pos: &mut u64,
     position: u64,
-) -> Result<u64, io::Error>
+) -> io::Result<u64>
 where
     T: Read,
 {
@@ -712,7 +712,7 @@ where
 }
 
 /// * Copy data from a reader to a writer from the current position.
-pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> Result<(), io::Error>
+pub fn copy<R, W>(reader: &mut R, writer: &mut W, bytes_to_copy: u64) -> io::Result<()>
 where
     R: Read,
     W: Write,
@@ -819,7 +819,7 @@ pub mod string_io {
         data: &str,
         size: usize,
         text_encoding: &StringCodecMaps,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let mut data = text_encoding.encode(data);
         data.resize(size, 0);
         w.write_all(&data)?;
@@ -831,7 +831,7 @@ pub mod string_io {
         w: &mut T,
         data: &str,
         text_encoding: &StringCodecMaps,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let data = text_encoding.encode(data);
         w.write_all(&data)?;
         Ok(())
@@ -843,7 +843,7 @@ pub mod string_io {
         data: &str,
         text_encoding: &StringCodecMaps,
         code_page: u32,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let data = text_encoding.encode_strings_by_code_page(data, code_page);
         w.write_all(&data)?;
         Ok(())

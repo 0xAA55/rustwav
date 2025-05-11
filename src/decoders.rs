@@ -1459,17 +1459,17 @@ pub mod flac_dec {
                 ),
                 // on_seek
                 Box::new(
-                    move |reader: &mut ReadBridge, position: u64| -> Result<(), io::Error> {
+                    move |reader: &mut ReadBridge, position: u64| -> io::Result<()> {
                         reader.seek(SeekFrom::Start(data_offset + position))?;
                         Ok(())
                     },
                 ),
                 // on_tell
-                Box::new(move |reader: &mut ReadBridge| -> Result<u64, io::Error> {
+                Box::new(move |reader: &mut ReadBridge| -> io::Result<u64> {
                     Ok(reader.stream_position()? - data_offset)
                 }),
                 // on_length
-                Box::new(move |_reader: &mut ReadBridge| -> Result<u64, io::Error> {
+                Box::new(move |_reader: &mut ReadBridge| -> io::Result<u64> {
                     Ok(data_length)
                 }),
                 // on_eof
@@ -1480,7 +1480,7 @@ pub mod flac_dec {
                 Box::new(
                     move |frames: &[Vec<i32>],
                           sample_info: &SamplesInfo|
-                          -> Result<(), io::Error> {
+                          -> io::Result<()> {
                         // Before `on_write()` was called, make sure `self_ptr` was updated to the `self` pointer of `FlacDecoderWrap`
                         let this = unsafe { &mut *(*self_ptr_ptr).cast::<Self>() };
                         this.decoded_frames_index = 0;
@@ -1897,7 +1897,7 @@ pub mod oggvorbis_dec {
                     Ok(buf)
                 }
             };
-            let on_seek = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, pos: SeekFrom| -> Result<u64, io::Error>{
+            let on_seek = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, pos: SeekFrom| -> io::Result<u64>{
                 reader.seek(pos)
             };
             let ogg_encapsulator = DishonestReader::new(combined_reader,
@@ -2103,7 +2103,7 @@ pub mod oggvorbis_dec {
     }
 
     impl Read for OggStreamWriteToCursor {
-        fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let data = self.cursor.get_vec();
             let len = std::cmp::min(buf.len(), data.len());
             if len > 0 {
@@ -2116,11 +2116,11 @@ pub mod oggvorbis_dec {
     }
 
     impl Write for OggStreamWriteToCursor {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             self.cursor.seek(SeekFrom::End(0))?;
             self.ogg_stream_writer.write(buf)
         }
-        fn flush(&mut self) -> Result<(), io::Error> {
+        fn flush(&mut self) -> io::Result<()> {
             self.cursor.seek(SeekFrom::End(0))?;
             self.ogg_stream_writer.flush()
         }
