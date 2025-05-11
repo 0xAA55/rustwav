@@ -34,20 +34,11 @@ impl Read for ReadBridge<'_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.reader.read(buf)
     }
-    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-        self.reader.read_exact(buf)
-    }
 }
 
 impl Seek for ReadBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.reader.seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.reader.rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.reader.stream_position()
     }
 }
 
@@ -70,115 +61,11 @@ impl Write for WriteBridge<'_> {
     fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()
     }
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.writer.write_all(buf)
-    }
 }
 
 impl Seek for WriteBridge<'_> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.writer.seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.writer.rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.writer.stream_position()
-    }
-}
-
-/// ## Encapsulated shared `&mut dyn Reader`, implemented `Read + Seek + Debug + Clone`
-#[derive(Debug)]
-pub struct SharedBorrowedReader<'a>(Rc<RefCell<&'a mut dyn Reader>>);
-
-impl<'a> SharedBorrowedReader<'a> {
-    pub fn new(reader: &'a mut dyn Reader) -> Self {
-        Self(Rc::new(RefCell::new(reader)))
-    }
-
-    /// * Let the reader work in your closure with a mutex lock guard.
-    pub fn escorted_read<T, F, E>(&self, mut action: F) -> Result<T, E>
-    where
-        F: FnMut(&mut dyn Reader) -> Result<T, E>,
-    {
-        let mut reader = &mut *self.0.borrow_mut();
-        (action)(&mut reader)
-    }
-}
-
-impl Read for SharedBorrowedReader<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.borrow_mut().read(buf)
-    }
-    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-        self.0.borrow_mut().read_exact(buf)
-    }
-}
-
-impl Seek for SharedBorrowedReader<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.0.borrow_mut().seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.0.borrow_mut().rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.0.borrow_mut().stream_position()
-    }
-}
-
-impl Clone for SharedBorrowedReader<'_> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-/// ## Encapsulated shared `&mut dyn Writer`, implemented `Write + Seek + Debug + Clone`
-#[derive(Debug)]
-pub struct SharedBorrowedWriter<'a>(Rc<RefCell<&'a mut dyn Writer>>);
-
-impl<'a> SharedBorrowedWriter<'a> {
-    pub fn new(writer: &'a mut dyn Writer) -> Self {
-        Self(Rc::new(RefCell::new(writer)))
-    }
-
-    /// * Let the writer work in your closure with a mutex lock guard.
-    pub fn escorted_write<T, F, E>(&self, mut action: F) -> Result<T, E>
-    where
-        F: FnMut(&mut dyn Writer) -> Result<T, E>,
-    {
-        let mut writer = &mut *self.0.borrow_mut();
-        (action)(&mut writer)
-    }
-}
-
-impl Write for SharedBorrowedWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.borrow_mut().write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.borrow_mut().flush()
-    }
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.0.borrow_mut().write_all(buf)
-    }
-}
-
-impl Seek for SharedBorrowedWriter<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.0.borrow_mut().seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.0.borrow_mut().rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.0.borrow_mut().stream_position()
-    }
-}
-
-impl Clone for SharedBorrowedWriter<'_> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 
