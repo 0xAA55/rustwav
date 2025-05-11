@@ -728,6 +728,7 @@ where
             data_length,
             spec,
             fmt,
+            None,
         )?)),
         FORMAT_TAG_ALAW => Ok(Box::new(PcmXLawDecoderWrap::new(
             reader,
@@ -836,6 +837,7 @@ where
             data_length,
             spec,
             fmt,
+            None,
         )?),
         other => Err(AudioReadError::Unimplemented(format!(
             "Not implemented for format_tag 0x{:x}",
