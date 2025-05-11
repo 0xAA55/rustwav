@@ -9,7 +9,7 @@ use std::{
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
     cell::RefCell,
-    ops::{Deref, DerefMut}
+    ops::{Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeTo}
 };
 
 /// * The `Reader` trait, `Read + Seek + Debug`
@@ -720,6 +720,94 @@ where
     RW: Read + Write + Seek + Debug {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.get_cur_stream_mut().seek(pos)
+    }
+}
+
+impl<R, W, RW> Index<usize> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Output = StreamType<R, W, RW>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.streams[index]
+    }
+}
+
+impl<R, W, RW> IndexMut<usize> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.streams[index]
+    }
+}
+
+impl<R, W, RW> Index<Range<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Output = [StreamType<R, W, RW>];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.streams[index]
+    }
+}
+
+impl<R, W, RW> IndexMut<Range<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        &mut self.streams[index]
+    }
+}
+
+impl<R, W, RW> Index<RangeFrom<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Output = [StreamType<R, W, RW>];
+
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        &self.streams[index]
+    }
+}
+
+impl<R, W, RW> IndexMut<RangeFrom<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
+        &mut self.streams[index]
+    }
+}
+
+impl<R, W, RW> Index<RangeTo<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Output = [StreamType<R, W, RW>];
+
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        &self.streams[index]
+    }
+}
+
+impl<R, W, RW> IndexMut<RangeTo<usize>> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
+        &mut self.streams[index]
     }
 }
 
