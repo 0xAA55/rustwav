@@ -55,8 +55,6 @@ pub mod io_utils {
         SharedCursor,
         CombinedReader,
         DishonestReader,
-        WriterWithCursor,
-        SharedWriterWithCursor,
         string_io,
     };
 }

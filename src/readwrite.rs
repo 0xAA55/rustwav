@@ -411,139 +411,6 @@ impl Display for CursorVecU8 {
     }
 }
 
-/// ## A writer for some libraries that asks for a `Write`, but we want to separate the data it writes.
-/// * So we have a borrowed `Writer` that writes things to our target (a file, or something else)
-/// * And we have a `cursor` to capture the data that we want to store somewhere else.
-/// * Then we have this struct to pretend it is a `Write`, but we can control when it switches to write mode to write data directly or switch to cursor mode to capture the data that we don't want it to write now.
-#[derive(Debug)]
-pub struct WriterWithCursor<'a> {
-    writer: &'a mut dyn Writer,
-    cursor: CursorVecU8,
-    pub cursor_mode: bool,
-}
-
-impl<'a> WriterWithCursor<'a> {
-    pub fn new(writer: &'a mut dyn Writer, cursor_mode: bool) -> Self {
-        Self {
-            writer,
-            cursor: CursorVecU8::default(),
-            cursor_mode,
-        }
-    }
-
-    pub fn switch_to_cursor_mode(&mut self) {
-        self.cursor_mode = true;
-    }
-
-    pub fn switch_to_writer_mode(&mut self) {
-        self.cursor_mode = false;
-    }
-
-    fn get_writer(&mut self) -> &mut dyn Writer {
-        if self.cursor_mode {
-            &mut self.cursor
-        } else {
-            &mut self.writer
-        }
-    }
-
-    pub fn get_cursor_data(&self) -> &Vec<u8> {
-        self.cursor.get_ref()
-    }
-
-    pub fn discard_cursor_data(&mut self) {
-        self.cursor = CursorVecU8::default();
-    }
-
-    pub fn get_cursor_data_and_clear(&mut self) -> Vec<u8> {
-        mem::take(&mut self.cursor).into_inner()
-    }
-
-    pub fn flush_cursor_data_to_writer(&mut self) -> io::Result<()> {
-        self.writer.write_all(&mem::take(&mut self.cursor).into_inner())?;
-        Ok(())
-    }
-}
-
-impl Write for WriterWithCursor<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.get_writer().write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.get_writer().flush()
-    }
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.get_writer().write_all(buf)
-    }
-}
-
-impl Seek for WriterWithCursor<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.get_writer().seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.get_writer().rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.get_writer().stream_position()
-    }
-}
-
-/// ## The shared version of the `WriterWithCursor`.
-/// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to cursor mode.
-#[derive(Debug)]
-pub struct SharedWriterWithCursor<'a> (Rc<RefCell<WriterWithCursor<'a>>>);
-
-impl<'a> SharedWriterWithCursor<'a> {
-    pub fn new(writer_with_cursor: WriterWithCursor<'a>) -> Self {
-        Self(Rc::new(RefCell::new(writer_with_cursor)))
-    }
-}
-
-impl<'a> Deref for SharedWriterWithCursor<'a> {
-    type Target = WriterWithCursor<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe{&*self.0.as_ptr()}
-    }
-}
-
-impl<'a> DerefMut for SharedWriterWithCursor<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe{&mut *self.0.as_ptr()}
-    }
-}
-
-impl Write for SharedWriterWithCursor<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.get_writer().write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.get_writer().flush()
-    }
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.get_writer().write_all(buf)
-    }
-}
-
-impl Seek for SharedWriterWithCursor<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.get_writer().seek(pos)
-    }
-    fn rewind(&mut self) -> io::Result<()> {
-        self.get_writer().rewind()
-    }
-    fn stream_position(&mut self) -> io::Result<u64> {
-        self.get_writer().stream_position()
-    }
-}
-
-impl Clone for SharedWriterWithCursor<'_> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 /// ## The shared `Cursor`.
 /// * Because it's shared, when the 3rd library owned it, we still can access to it..
 #[derive(Debug)]
@@ -554,20 +421,24 @@ impl SharedCursor {
         Self::default()
     }
 
+    /// * Get the inner data size
     pub fn len(&self) -> usize {
         self.0.borrow().get_ref().len()
     }
 
+    /// * Get the inner data as `Vec<u8>`
     pub fn get_vec(&self) -> Vec<u8> {
         self.0.borrow().get_ref().to_vec()
     }
 
+    /// * Discard current inner data, replace it with new data, and set the read/write position to the end of the data
     pub fn set_vec(&mut self, data: &[u8], rw_pos: u64) {
         let mut new_cursor = CursorVecU8::new(data.to_vec());
         new_cursor.set_position(rw_pos);
         *self.0.borrow_mut() = new_cursor;
     }
 
+    /// * Discard the inner data, set the read/write position to 0
     pub fn clear(&mut self) {
         *self.0.borrow_mut() = CursorVecU8::default();
     }
@@ -601,6 +472,70 @@ impl Seek for SharedCursor {
 }
 
 impl Clone for SharedCursor {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+#[derive(Debug)]
+
+    }
+
+
+    }
+}
+
+    }
+}
+
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    }
+    fn flush(&mut self) -> io::Result<()> {
+    }
+}
+
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+    }
+}
+
+    }
+}
+
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    }
+
+    }
+
+    }
+
+    }
+}
+
+    }
+}
+
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.borrow_mut().read(buf)
+    }
+}
+
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.borrow_mut().write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.borrow_mut().flush()
+    }
+}
+
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.0.borrow_mut().seek(pos)
+    }
+}
+
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
