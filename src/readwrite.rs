@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
+    any::type_name,
     cmp::min,
     fmt::{self, Debug, Display, Formatter},
     mem,
@@ -206,7 +207,7 @@ impl<T> Debug for DishonestReader<T>
 where
     T: Read + Seek + Debug {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let typename = std::any::type_name::<T>();
+        let typename = type_name::<T>();
         f.debug_struct(&format!("DishonestReader<{typename}>"))
         .field("reader", &self.reader)
         .field("on_read", &format_args!("Box<dyn FnMut(&mut T, usize) -> Result<Vec<u8>, io::Error>>"))
