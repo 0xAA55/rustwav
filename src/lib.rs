@@ -65,9 +65,10 @@ pub mod io_utils {
 }
 
 pub mod utils {
+    #[doc(inline)]
+    pub use crate::bitwise::BitwiseData;
     pub use crate::copiablebuf::CopiableBuffer;
     pub use crate::filehasher::FileHasher;
-    pub use crate::bitwise::BitwiseData;
     pub use crate::wavcore::create_full_info_cue_data;
 }
 
