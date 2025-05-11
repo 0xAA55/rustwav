@@ -6,6 +6,7 @@ use std::{
     io::{self, ErrorKind},
 };
 
+/// * The error info from `std::io::Error` but this must contains the message
 #[derive(Debug, Clone)]
 pub struct IOErrorInfo {
     pub kind: ErrorKind,

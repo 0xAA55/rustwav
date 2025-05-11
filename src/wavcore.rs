@@ -1927,6 +1927,7 @@ pub fn get_list_info_map() -> BTreeMap<&'static str, &'static str> {
     ].iter().copied().collect()
 }
 
+/// * A trait for conveniently get the metadata fields.
 pub trait ListInfo {
     fn get_is_list_info(&self) -> bool;
     fn get(&self, key: &str) -> Option<&String>;

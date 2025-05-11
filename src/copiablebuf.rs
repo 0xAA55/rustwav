@@ -8,6 +8,7 @@ use std::{
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
 impl<T> CopiableItem for T where T: Default + Clone + Copy + Debug + Sized {}
 
+/// * Copiable buffer, a tinier `Vec`, uses a fixed-size array to store a variable number of items.
 #[derive(Clone, Copy)]
 pub struct CopiableBuffer<T, const N: usize>
 where
@@ -17,6 +18,7 @@ where
     buf_used: usize,
 }
 
+/// * The iterator for the copiable buffer
 #[derive(Debug)]
 pub struct CopiableBufferIter<'a, T, const N: usize>
 where
@@ -26,6 +28,7 @@ where
     iter_index: usize,
 }
 
+/// * The mutable iterator for the copiable buffer
 #[derive(Debug)]
 pub struct CopiableBufferIterMut<'a, T, const N: usize>
 where
@@ -35,6 +38,7 @@ where
     iter_index: usize,
 }
 
+/// * The iterator with owned data for the copiable buffer
 #[derive(Clone, Copy)]
 pub struct CopiableBufferIntoIter<T, const N: usize>
 where

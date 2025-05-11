@@ -5,6 +5,7 @@ use std::{
 
 use crate::readwrite;
 
+/// * File hasher to calculate the hash for a section of a file, the hash is `u64` size. The `Write` trait was implemented for it.
 #[derive(Debug, Clone)]
 pub struct FileHasher {
     hasher: DefaultHasher,
@@ -17,6 +18,7 @@ impl FileHasher {
         }
     }
 
+    /// * Calculate the hash of the data from the `reader` with offset `from_byte` and length `length`
     pub fn hash<R>(&mut self, reader: &mut R, from_byte: u64, length: u64) -> Result<u64, Error>
     where
         R: Read + Seek,

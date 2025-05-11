@@ -46,6 +46,7 @@ pub use sampletypes::{SampleFrom, SampleType};
 pub use wavreader::{WaveDataSource, WaveReader};
 pub use wavwriter::WaveWriter;
 
+/// * Utilities for IO
 pub mod io_utils {
     pub use crate::readwrite::{
         Reader,
@@ -64,28 +65,44 @@ pub mod io_utils {
     };
 }
 
+/// * Misc utilities
 pub mod utils {
+    /// * A utility for you to manipulate data bitwise, mainly to concatenate data in bits or to split data from a specific bit position.
     #[doc(inline)]
     pub use crate::bitwise::BitwiseData;
+
+    /// * Copiable buffer, a tinier `Vec`, uses a fixed-size array to store a variable number of items.
     pub use crate::copiablebuf::CopiableBuffer;
+
+    /// * File hasher to calculate the hash for a section of a file, the hash is `u64` size. The `Write` trait was implemented for it.
     pub use crate::filehasher::FileHasher;
+
+    /// * A function to gather all of the needed chunks from a `WaveReader` and constructs the `cue` data full of the info.
+    /// * WAV files seldom contain the `cue` data, normally the cue data is separated into a `.cue` file.
     pub use crate::wavcore::create_full_info_cue_data;
 }
 
+/// * Iterators for `WaveReader` to decode audio samples.
 pub mod iterators {
     pub use crate::wavreader::{FrameIntoIter, FrameIter, MonoIntoIter, MonoIter, StereoIntoIter, StereoIter};
 }
 
+/// * WAV file format specs
 pub mod format_specs {
     pub use crate::wavcore::{DataFormat, SampleFormat, Spec, WaveSampleType};
+
+    /// * All of the supported WAV format tags
     pub mod format_tags {
         pub use crate::wavcore::format_tags::*;
     }
+
+    /// * All of the supported WAV format GUIDs from the extensible data from the `fmt ` chunk.
     pub mod guids {
         pub use crate::wavcore::guids::*;
     }
 }
 
+/// * Encoder creation options
 pub mod options {
     pub use crate::wavwriter::FileSizeOption;
 
@@ -108,6 +125,7 @@ pub mod options {
 
 }
 
+/// * WAV chunks
 pub mod chunks {
     pub use crate::wavcore::{
         FmtChunk,
@@ -130,6 +148,8 @@ pub mod chunks {
         LtxtChunk,
         FileChunk,
     };
+
+    /// * WAV `fmt ` chunk extension data
     pub mod ext {
         pub use crate::wavcore::{
             FmtExtension,

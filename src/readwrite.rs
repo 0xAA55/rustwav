@@ -483,15 +483,25 @@ impl Clone for SharedCursor {
     }
 }
 
+/// * The `StreamType<R, W, RW>` is for the `MultistreamIO<R, W, RW>` to manage multiple IO objects.
+/// * A stream can be a reader, writer, reader + writer, or cursor.
+/// * By using the `MultistreamIO<R, W, RW>` you can control the 3rd party library to write data into different streams and manipulate them.
 #[derive(Debug)]
 pub enum StreamType<R, W, RW>
 where
     R: Read + Seek + Debug,
     W: Write + Seek + Debug,
     RW: Read + Write + Seek + Debug {
+    /// * The `Read + Seek + Debug`
     Reader(R),
+
+    /// * The `Write + Seek + Debug`
     Writer(W),
+
+    /// * The `Read + Write + Seek + Debug`, better use it with the `tempfile()`
     ReadWrite(RW),
+
+    /// * The `Read + Write + Seek + Debug` cursor.
     CursorU8(CursorVecU8)
 }
 
@@ -541,6 +551,7 @@ where
         }
     }
 
+    /// * Take the cursor data, leaving an empty cursor here.
     pub fn take_cursor_data(&mut self) -> Vec<u8> {
         let name_r = type_name::<R>();
         let name_w = type_name::<W>();
@@ -633,6 +644,9 @@ where
     }
 }
 
+/// * The `MultistreamIO<R, W, RW>` is for managing multiple IO objects.
+/// * This thing itself implements `Read + Write + Seek + Debug`, when these traits methods are called, the selected stream is manipulated.
+/// * by using this, you can control the 3rd party library to read or write data from/into different stream objects, and you can manipulate these data or streams.
 #[derive(Debug)]
 pub struct MultistreamIO<R, W, RW>
 where
@@ -666,30 +680,37 @@ where
         Self::default()
     }
 
+    /// * Get the current selected stream object
     pub fn get_cur_stream(&self) -> &StreamType<R, W, RW> {
         &self.streams[self.cur_stream]
     }
 
+    /// * Get the current selected stream object as mutable
     pub fn get_cur_stream_mut(&mut self) -> &mut StreamType<R, W, RW> {
         &mut self.streams[self.cur_stream]
     }
 
+    /// * Get a stream object using an index
     pub fn get_stream(&self, index: usize) -> &StreamType<R, W, RW> {
         &self.streams[index]
     }
 
+    /// * Get a mutable stream object using an index
     pub fn get_stream_mut(&mut self, index: usize) -> &mut StreamType<R, W, RW> {
         &mut self.streams[index]
     }
 
+    /// * Add a new stream
     pub fn push_stream(&mut self, stream: StreamType<R, W, RW>) {
         self.streams.push(stream);
     }
 
+    /// * Pop out the last stream
     pub fn pop_stream(&mut self) -> Option<StreamType<R, W, RW>> {
         self.streams.pop()
     }
 
+    /// * Set the current stream index
     pub fn set_stream(&mut self, index: usize) {
         self.cur_stream = index;
     }
