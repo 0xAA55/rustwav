@@ -1786,7 +1786,7 @@ pub mod oggvorbis_dec {
         ) -> Result<Self, AudioReadError> {
             use crate::wavcore::format_tags::*;
             let mut ogg_stream_writer: Option<SharedOggStreamWriteToCursor> = None;
-            let ogg_vorbis_header = if let Some(extension) = &fmt.extension {
+            let vorbis_header = if let Some(extension) = &fmt.extension {
                 match &extension.data {
                     ExtensionData::Vorbis(data) => {
                         if fmt.format_tag == FORMAT_TAG_VORBIS {
