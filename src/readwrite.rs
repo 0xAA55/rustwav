@@ -548,16 +548,82 @@ where
     }
 }
 
+impl<R, W, RW> Read for StreamType<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Reader(reader) => {
+                reader.read(buf)
+            }
+            Self::ReadWrite(readwrite) => {
+                readwrite.read(buf)
+            }
+            Self::CursorU8(cursor) => {
+                cursor.read(buf)
+            }
+            Self::Writer(_) => Err(io::Error::new(io::ErrorKind::Unsupported, "`StreamType::Writer()` can't read.")),
+        }
     }
 }
 
+impl<R, W, RW> Write for StreamType<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Writer(writer) => {
+                writer.write(buf)
+            }
+            Self::ReadWrite(readwrite) => {
+                readwrite.write(buf)
+            }
+            Self::CursorU8(cursor) => {
+                cursor.write(buf)
+            }
+            Self::Reader(_) => Err(io::Error::new(io::ErrorKind::Unsupported, "`StreamType::Reader()` can't write.")),
+        }
     }
     fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Writer(writer) => {
+                writer.flush()
+            }
+            Self::ReadWrite(readwrite) => {
+                readwrite.flush()
+            }
+            Self::CursorU8(cursor) => {
+                cursor.flush()
+            }
+            Self::Reader(_) => Err(io::Error::new(io::ErrorKind::Unsupported, "`StreamType::Reader()` can't flush.")),
+        }
     }
 }
 
+impl<R, W, RW> Seek for StreamType<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        match self {
+            Self::Reader(reader) => {
+                reader.seek(pos)
+            }
+            Self::Writer(writer) => {
+                writer.seek(pos)
+            }
+            Self::ReadWrite(readwrite) => {
+                readwrite.seek(pos)
+            }
+            Self::CursorU8(cursor) => {
+                cursor.seek(pos)
+            }
+        }
     }
 }
 
