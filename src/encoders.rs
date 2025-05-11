@@ -2612,20 +2612,20 @@ pub mod oggvorbis_enc {
             }
         }
 
-        impl Into<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
-            fn into(self) -> VorbisBitrateManagementStrategy {
-                match self {
-                    Self::Vbr(bitrate) => VorbisBitrateManagementStrategy::Vbr {
+        impl From<OggVorbisBitrateStrategy> for VorbisBitrateManagementStrategy {
             /// * Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
+            fn from(val: OggVorbisBitrateStrategy) -> Self {
+                match val {
+                    OggVorbisBitrateStrategy::Vbr(bitrate) => VorbisBitrateManagementStrategy::Vbr {
                         target_bitrate: NonZero::new(bitrate).unwrap(),
                     },
-                    Self::QualityVbr(quality) => VorbisBitrateManagementStrategy::QualityVbr {
+                    OggVorbisBitrateStrategy::QualityVbr(quality) => VorbisBitrateManagementStrategy::QualityVbr {
                         target_quality: quality,
                     },
-                    Self::Abr(bitrate) => VorbisBitrateManagementStrategy::Abr {
+                    OggVorbisBitrateStrategy::Abr(bitrate) => VorbisBitrateManagementStrategy::Abr {
                         average_bitrate: NonZero::new(bitrate).unwrap(),
                     },
-                    Self::ConstrainedAbr(bitrate) => VorbisBitrateManagementStrategy::ConstrainedAbr {
+                    OggVorbisBitrateStrategy::ConstrainedAbr(bitrate) => VorbisBitrateManagementStrategy::ConstrainedAbr {
                         maximum_bitrate: NonZero::new(bitrate).unwrap(),
                     },
                 }

@@ -356,9 +356,9 @@ impl From<Cursor<Vec<u8>>> for CursorVecU8 {
     }
 }
 
-impl Into<Cursor<Vec<u8>>> for CursorVecU8 {
-    fn into(self) -> Cursor<Vec<u8>> {
-        self.0
+impl From<CursorVecU8> for Cursor<Vec<u8>> {
+    fn from(val: CursorVecU8) -> Self {
+        val.0
     }
 }
 
