@@ -37,6 +37,7 @@ pub mod errors;
 pub mod downmixer;
 
 /// * The resampler
+#[doc(inline)]
 pub use resampler;
 
 #[doc(hidden)]
