@@ -2981,15 +2981,18 @@ pub mod oggvorbis_enc {
                     }
                     OggVorbisMode::NakedVorbis => {
                         // Save the header to `fmt ` chunk
+                        use crate::vorbis::get_vorbis_headers_from_ogg_packet_bytes;
                         self.writer.switch_to_cursor_mode();
                         self.begin_to_encode()?;
                         let header = self.writer.get_cursor_data_and_clear();
-                        let mut packet_length = 0usize;
-                        let mut cursor = 0usize;
-                        while cursor < header.len() {
-                            self.vorbis_header.extend(OggPacket::from_bytes(&header[cursor..], &mut packet_length)?.get_inner_data());
-                            cursor += packet_length;
-                        }
+                        let (identification_header, comments_header, setup_header, _stream_id) = get_vorbis_headers_from_ogg_packet_bytes(&header)?;
+                        self.vorbis_header.clear();
+                        self.vorbis_header.push(2); // Two field of the header size
+                        self.vorbis_header.push(identification_header.len() as u8);
+                        self.vorbis_header.push(comments_header.len() as u8);
+                        self.vorbis_header.extend(identification_header);
+                        self.vorbis_header.extend(comments_header);
+                        self.vorbis_header.extend(setup_header);
                     }
                 }
                 Ok(FmtChunk {
@@ -3020,7 +3023,7 @@ pub mod oggvorbis_enc {
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
                     byte_rate: self.params.get_bitrate() / 8,
-                    block_align: 1,
+                    block_align: 4,
                     bits_per_sample: 16,
                     extension: Some(if self.vorbis_header.is_empty() {
                         FmtExtension::new_oggvorbis(OggVorbisData::new())
