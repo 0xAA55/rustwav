@@ -2475,10 +2475,25 @@ pub mod oggvorbis_enc {
     /// * OggVorbis encoder mode
     #[derive(Debug, Clone, Copy, Default, PartialEq)]
     pub enum OggVorbisMode {
+        /// * Please use this mode, it works well because it just uses the WAV `data` chunk to encapsulate the whole Ogg Vorbis audio stream.
         #[default]
         OriginalStreamCompatible = 1,
+
+        /// * This mode works on some players. It separates the Ogg Vorbis header into the `fmt ` chunk extension data.
+        /// * Some players with the Ogg Vorbis decoder for the WAV file may fail because the header is separated.
         HaveIndependentHeader = 2,
+
+        /// * Please don't use this mode. The encoder strips the Ogg Vorbis header in this mode, and to decode it, the decoder should use another encoder to create an Ogg Vorbis header for the audio stream to be decoded.
+        /// * What if the decoder has a different version of `libvorbis`, the header info is misaligned to the audio body, then BAM, it's unable to play.
+        /// * I'm still wondering why the Japanese developer invented this mode. to reduce the audio file size? Or to use the `fmt ` chunk info to create the header?
+        /// * The result is that you can't control the bitrate, thus the file would be very large at full bitrate settings by default.
         HaveNoCodebookHeader = 3,
+
+        /// * Another mode that exists but doesn't work.
+        /// * The naked Vorbis audio without Ogg encapsulation, invented by the author of FFmpeg? I guess.
+        /// * Without the Ogg packet header `granule position` field, `libvorbis` is unable to decode it correctly.
+        /// * The decoder will try to fake the Ogg encapsulation, and if you are lucky enough, it still has some chance to decode correctly.
+        /// * BTW. FFmpeg can encode audio into this format, but can't decode it correctly.
         NakedVorbis = 4
     }
 
