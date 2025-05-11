@@ -11,6 +11,7 @@ use crate::format_specs::{Spec, WaveSampleType, format_tags::*};
 use crate::chunks::{FmtChunk, ext::{ExtensibleData, ExtensionData}};
 use crate::xlaw::{PcmXLawDecoder, XLaw};
 use crate::errors::{AudioError, AudioReadError};
+use crate::downmixer::{Downmixer, DownmixerParams};
 
 #[cfg(feature = "mp3dec")]
 use mp3::Mp3Decoder;
@@ -182,6 +183,7 @@ where
         data_length: u64,
         spec: Spec,
         fmt: &FmtChunk,
+        downmixer_params: Option<DownmixerParams>
     ) -> Result<Box<dyn Decoder<S>>, AudioError> {
         if fmt.format_tag != FORMAT_TAG_EXTENSIBLE {
             Err(AudioError::InvalidArguments(
@@ -200,6 +202,7 @@ where
                         data_length,
                         spec,
                         fmt,
+                        downmixer_params,
                     )?))
                 }
                 Some(extension) => match &extension.data {
@@ -214,6 +217,7 @@ where
                                 data_length,
                                 spec,
                                 fmt,
+                                downmixer_params,
                             )?))
                         } else {
                             let spec = Spec {
@@ -232,6 +236,7 @@ where
                                         data_length,
                                         spec,
                                         fmt,
+                                        downmixer_params,
                                     )?))
                                 }
                                 o => Err(AudioError::Unimplemented(format!(
@@ -393,42 +398,19 @@ where
     }
 
     pub fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
-        if self.is_end_of_data()? {
-            Ok(None)
-        } else {
-            match self.spec.channels {
-                1 => {
-                    let sample = (self.sample_decoder)(&mut self.reader)?;
-                    Ok(Some((sample, sample)))
-                }
-                2 => {
-                    let sample_l = (self.sample_decoder)(&mut self.reader)?;
-                    let sample_r = (self.sample_decoder)(&mut self.reader)?;
-                    Ok(Some((sample_l, sample_r)))
-                }
-                o => Err(AudioReadError::Unsupported(format!(
-                    "Unsupported to merge {o} channels to 2 channels."
-                ))),
+        match self.decode_frame()? {
+            None => Ok(None),
+            Some(frame) => {
+                Ok(Some(self.downmixer.downmix_frame_to_stereo(&frame)))
             }
         }
     }
 
     pub fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
-        if self.is_end_of_data()? {
-            Ok(None)
-        } else {
-            match self.get_channels() {
-                1 => Ok(Some((self.sample_decoder)(&mut self.reader)?)),
-                2 => {
-                    let sample_l = (self.sample_decoder)(&mut self.reader)?;
-                    let sample_r = (self.sample_decoder)(&mut self.reader)?;
-                    Ok(Some(
-                        sample_l / S::scale_from(2) + sample_r / S::scale_from(2),
-                    ))
-                }
-                o => Err(AudioReadError::Unsupported(format!(
-                    "Unsupported to merge {o} channels to 1 channels."
-                ))),
+        match self.decode_frame()? {
+            None => Ok(None),
+            Some(frame) => {
+                Ok(Some(self.downmixer.downmix_frame_to_mono(&frame)))
             }
         }
     }
