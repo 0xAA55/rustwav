@@ -524,7 +524,7 @@ impl<'a> WriterWithCursor<'a> {
         self.cursor.get_ref()
     }
 
-    pub fn clear_cursor_data(&mut self) {
+    pub fn discard_cursor_data(&mut self) {
         self.cursor = CursorVecU8::default();
     }
 

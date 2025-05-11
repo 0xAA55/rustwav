@@ -2850,7 +2850,7 @@ pub mod oggvorbis_enc {
                             match ioerr.kind() {
                                 ErrorKind::UnexpectedEof => {
                                     let remains = data[cursor..].to_vec();
-                                    self.writer.clear_cursor_data();
+                                    self.writer.discard_cursor_data();
                                     self.writer.write_all(&remains)?;
                                     break;
                                 }
@@ -2976,6 +2976,7 @@ pub mod oggvorbis_enc {
                     OggVorbisMode::HaveNoCodebookHeader => {
                         self.writer.switch_to_cursor_mode();
                         self.begin_to_encode()?;
+                        self.writer.discard_cursor_data();
                         self.writer.switch_to_writer_mode();
                     }
                     OggVorbisMode::NakedVorbis => {
