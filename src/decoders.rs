@@ -1857,6 +1857,7 @@ pub mod oggvorbis_dec {
                         ogg_stream_writer.write_all(&comment_header)?;
                         ogg_stream_writer.write_all(&setup_header)?;
                         ogg_stream_writer.seal_packet(0, false)?;
+                        ogg_stream_writer.flush()?;
                         let data = ogg_stream_writer.get_cursor_data_and_clear();
                         debug_file.write_all(&data)?;
                         debug_file.flush()?;
@@ -1875,6 +1876,7 @@ pub mod oggvorbis_dec {
                             buf.truncate(len);
                             ogg_stream_writer.write_all(&buf)?;
                             ogg_stream_writer.seal_packet(granule_position, false)?;
+                            ogg_stream_writer.flush()?;
                         }
                         let data = ogg_stream_writer.get_cursor_data_and_clear();
                         debug_file.write_all(&data)?;
