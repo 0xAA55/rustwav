@@ -2048,7 +2048,7 @@ pub mod oggvorbis_dec {
         }
 
         pub fn get_cursor_data_and_clear(&mut self) -> Vec<u8> {
-            let data = self.cursor.get_vec();
+            let data = self.get_cursor_data();
             self.cursor.clear();
             data
         }
