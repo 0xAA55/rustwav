@@ -672,7 +672,7 @@ pub struct Mp3Data {
 }
 
 /// * The extension data for Naked vorbis audio without Ogg stream encapsulation
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct VorbisHeaderData {
     /// The header for the Vorbis audio
     pub header: Vec<u8>,
@@ -698,14 +698,6 @@ impl VorbisHeaderData {
     pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
         writer.write_all(&self.header)?;
         Ok(())
-    }
-}
-
-impl Default for VorbisHeaderData {
-    fn default() -> Self {
-        Self {
-            header: Vec::new(),
-        }
     }
 }
 
@@ -1150,6 +1142,12 @@ impl OggVorbisData {
         self.codec_version.write_le(writer)?;
         self.vorbis_version.write_le(writer)?;
         Ok(())
+    }
+}
+
+impl Default for OggVorbisData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
