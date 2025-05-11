@@ -1743,13 +1743,6 @@ pub mod oggvorbis_dec {
         cur_block_frame_index: u64,
     }
 
-    /// ## An ogg packet as a stream container
-    #[derive(Debug)]
-    pub struct OggStreamWriteToCursor {
-        pub ogg_stream_writer: OggStreamWriter<SharedCursor>,
-        pub cursor: SharedCursor,
-    }
-
     // ## An shared `OggStreamWriteToCursor`
     #[derive(Debug)]
     pub struct SharedOggStreamWriteToCursor(Rc<RefCell<OggStreamWriteToCursor>>);
@@ -2020,6 +2013,13 @@ pub mod oggvorbis_dec {
                 .field("cur_block_frame_index", &self.cur_block_frame_index)
                 .finish()
         }
+    }
+
+    /// ## An ogg packet as a stream container
+    #[derive(Debug)]
+    pub struct OggStreamWriteToCursor {
+        pub ogg_stream_writer: OggStreamWriter<SharedCursor>,
+        pub cursor: SharedCursor,
     }
 
     impl OggStreamWriteToCursor {
