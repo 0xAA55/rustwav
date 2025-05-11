@@ -1707,8 +1707,8 @@ pub mod oggvorbis_dec {
     use crate::ogg::OggStreamWriter;
     use vorbis_rs::VorbisDecoder;
 
-    type OggVorbisHeaderToBodyReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
-    type OggVorbisDecoderReader = SharedReader<DishonestReader<OggVorbisHeaderToBodyReader>>;
+    type OggVorbisHeaderToBodyCombinedReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
+    type OggVorbisDecoderReader = SharedReader<DishonestReader<OggVorbisHeaderToBodyCombinedReader>>;
 
     /// ## The OggVorbis decoder for `WaveReader`
     pub struct OggVorbisDecoderWrap {
