@@ -1402,7 +1402,6 @@ pub mod flac_dec {
     use crate::SampleType;
     use crate::errors::AudioReadError;
     use crate::io_utils::Reader;
-    use crate::readwrite::ReadBridge;
     use crate::audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
     use crate::chunks::{FmtChunk, ListChunk, ListInfo};
     use crate::wavcore::get_listinfo_flacmeta;
@@ -1410,8 +1409,7 @@ pub mod flac_dec {
     use resampler::Resampler;
 
     pub struct FlacDecoderWrap<'a> {
-        reader: Box<dyn Reader>,
-        decoder: Box<FlacDecoderUnmovable<'a, ReadBridge<'a>>>,
+        decoder: Box<FlacDecoderUnmovable<'a, Box<dyn Reader>>>,
         resampler: Resampler,
         channels: u16,
         sample_rate: u32,
@@ -1435,12 +1433,11 @@ pub mod flac_dec {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
             let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
             let self_ptr_ptr = (&mut *self_ptr) as *mut *mut Self;
-            let reader_ptr = Box::into_raw(reader); // On the fly reader
             let decoder = Box::new(FlacDecoderUnmovable::new(
-                ReadBridge::new(unsafe { &mut *reader_ptr }),
+                reader,
                 // on_read
                 Box::new(
-                    move |reader: &mut ReadBridge, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
+                    move |reader: &mut Box<dyn Reader>, buffer: &mut [u8]| -> (usize, FlacReadStatus) {
                         let to_read = buffer.len();
                         match reader.read(buffer) {
                             Ok(size) => match size.cmp(&to_read) {
@@ -1459,21 +1456,21 @@ pub mod flac_dec {
                 ),
                 // on_seek
                 Box::new(
-                    move |reader: &mut ReadBridge, position: u64| -> io::Result<()> {
+                    move |reader: &mut Box<dyn Reader>, position: u64| -> io::Result<()> {
                         reader.seek(SeekFrom::Start(data_offset + position))?;
                         Ok(())
                     },
                 ),
                 // on_tell
-                Box::new(move |reader: &mut ReadBridge| -> io::Result<u64> {
+                Box::new(move |reader: &mut Box<dyn Reader>| -> io::Result<u64> {
                     Ok(reader.stream_position()? - data_offset)
                 }),
                 // on_length
-                Box::new(move |_reader: &mut ReadBridge| -> io::Result<u64> {
+                Box::new(move |_reader: &mut Box<dyn Reader>| -> io::Result<u64> {
                     Ok(data_length)
                 }),
                 // on_eof
-                Box::new(move |reader: &mut ReadBridge| -> bool {
+                Box::new(move |reader: &mut Box<dyn Reader>| -> bool {
                     reader.stream_position().unwrap() >= data_offset + data_length
                 }),
                 // on_write
@@ -1525,7 +1522,6 @@ pub mod flac_dec {
                 FlacAudioForm::FrameArray,
             )?);
             let mut ret = Self {
-                reader: unsafe { Box::from_raw(reader_ptr) },
                 decoder,
                 resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
                 channels: fmt.channels,
@@ -1653,7 +1649,6 @@ pub mod flac_dec {
     impl Debug for FlacDecoderWrap<'_> {
         fn fmt(&self, f: &mut Formatter) -> fmt::Result {
             f.debug_struct("FlacDecoderWrap")
-                .field("reader", &self.reader)
                 .field("decoder", &self.decoder)
                 .field("resampler", &self.resampler)
                 .field("channels", &self.channels)
