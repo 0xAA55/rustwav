@@ -267,7 +267,7 @@ where
     block_align: u16,
     total_frames: u64,
     spec: Spec,
-    sample_decoder: fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>,
+    sample_decoder: fn(&mut dyn Reader, &mut [S]) -> Result<(), AudioReadError>,
     cache: Vec<S>,
     cache_position: u64,
     frame_index: u64,
@@ -297,7 +297,7 @@ where
             total_frames: data_length / fmt.block_align as u64,
             spec,
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
-            cache: Vec::new(),
+            cache: Vec::with_capacity(Self::CACHE_SIZE),
             cache_position: 0,
             frame_index: 0,
             downmixer: Downmixer::new(spec.channel_mask, if let Some(params) = downmixer_params {
@@ -344,19 +344,18 @@ where
         Ok(())
     }
 
-    fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
+    fn decode_samples_to<T>(r: &mut dyn Reader, buf: &mut [S]) -> Result<(), AudioReadError>
     where
         T: SampleType,
     {
-        let mut samples = Vec::with_capacity(num_samples_to_read);
-        for _ in 0..num_samples_to_read {
-            samples.push(S::scale_from(T::read_le(r)?))
+        for i in 0..buf.len() {
+            buf[i] = S::scale_from(T::read_le(r)?);
         }
-        Ok(samples)
+        Ok(())
     }
 
     #[allow(clippy::type_complexity)]
-    fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>, AudioError> {
+    fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, &mut [S]) -> Result<(), AudioReadError>, AudioError> {
         use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         match wave_sample_type {
             S8 =>  Ok(Self::decode_samples_to::<i8 >),
@@ -387,7 +386,8 @@ where
             }
             if self.cache.is_empty() {
                 let num_samples_to_read = min(Self::CACHE_SIZE, (self.total_frames - self.cache_position) as usize) * self.spec.channels as usize;
-                self.cache = (self.sample_decoder)(&mut self.reader, num_samples_to_read)?;
+                self.cache.resize(num_samples_to_read, S::new());
+                (self.sample_decoder)(&mut self.reader, &mut self.cache)?;
             }
             let sample_start = ((self.frame_index - self.cache_position) * self.spec.channels as u64) as usize;
             let sample_end = sample_start + self.spec.channels as usize;
