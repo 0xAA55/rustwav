@@ -759,7 +759,7 @@ where
     W: Write + Seek + Debug,
     RW: Read + Write + Seek + Debug {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *(self.0.as_ptr() as *mut MultistreamIO<R, W, RW>) }
+        unsafe { &mut *self.0.as_ptr() }
     }
 }
 

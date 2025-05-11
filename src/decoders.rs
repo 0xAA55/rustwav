@@ -1770,7 +1770,7 @@ pub mod oggvorbis_dec {
                             ogg_stream_writer = Some(SharedOggStreamWriteToCursor::new(0xAA55));
                             data.header.clone()
                         } else {
-                            return Err(AudioReadError::FormatError(format!("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.")));
+                            return Err(AudioReadError::FormatError("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.".to_string()));
                         }
                     }
                     ExtensionData::OggVorbis(_) => {
@@ -1794,7 +1794,7 @@ pub mod oggvorbis_dec {
                             }.create_vorbis_builder(header.clone()).unwrap().build()?;
                             header.get_vec()
                         } else {
-                            return Err(AudioReadError::FormatError(format!("For `format_tag` is `FORMAT_TAG_OGG_VORBIS2` or `FORMAT_TAG_OGG_VORBIS2P`, the `fmt ` chunk must provide the Ogg Vorbis header data.")));
+                            return Err(AudioReadError::FormatError("For `format_tag` is `FORMAT_TAG_OGG_VORBIS2` or `FORMAT_TAG_OGG_VORBIS2P`, the `fmt ` chunk must provide the Ogg Vorbis header data.".to_string()));
                         }
                     }
                     ExtensionData::OggVorbisWithHeader(data) => {
@@ -1804,7 +1804,7 @@ pub mod oggvorbis_dec {
                         ].contains(&fmt.format_tag) {
                             data.header.clone()
                         } else {
-                            return Err(AudioReadError::FormatError(format!("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.")));
+                            return Err(AudioReadError::FormatError("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.".to_string()));
                         }
                     }
                     o => return Err(AudioReadError::FormatError(format!("The extension data type is not for Ogg Vorbis, it is {:?}", o))),
@@ -1826,7 +1826,7 @@ pub mod oggvorbis_dec {
                 let mut debug_file = debug_file.borrow_mut();
                 let fmt = fmtdata.borrow();
                 let sample_rate = fmt.sample_rate;
-                let byte_rate = fmt.byte_rate as u32;
+                let byte_rate = fmt.byte_rate;
                 if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {
                     // There's an Ogg stream encapsulator.
                     // The data read from the reader is the naked Vorbis data.

@@ -2637,7 +2637,7 @@ pub mod oggvorbis_enc {
             fn from(vbms: VorbisBitrateManagementStrategy) -> Self {
                 match vbms {
                     VorbisBitrateManagementStrategy::Vbr{target_bitrate} => Self::Vbr(target_bitrate.into()),
-                    VorbisBitrateManagementStrategy::QualityVbr{target_quality} => Self::QualityVbr(target_quality.into()),
+                    VorbisBitrateManagementStrategy::QualityVbr{target_quality} => Self::QualityVbr(target_quality),
                     VorbisBitrateManagementStrategy::Abr{average_bitrate} => Self::Abr(average_bitrate.into()),
                     VorbisBitrateManagementStrategy::ConstrainedAbr{maximum_bitrate} => Self::ConstrainedAbr(maximum_bitrate.into()),
                 }
