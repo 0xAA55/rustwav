@@ -254,6 +254,8 @@ where
             buf[..len].copy_from_slice(&data[..len]);
             if len < data.len() {
                 *cache = data[len..].to_vec();
+            } else {
+                *cache = Vec::new();
             }
             len
         };
