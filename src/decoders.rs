@@ -91,7 +91,7 @@ where
 impl<S> Decoder<S> for PcmDecoder<S>
     where S: SampleType {
     fn get_channels(&self) -> u16 { self.spec.channels }
-    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { PcmDecoder::<S>::get_cur_frame_index(self) }
+    fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> { Ok(PcmDecoder::<S>::get_cur_frame_index(self)) }
     fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> { self.seek(seek_from) }
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
@@ -262,19 +262,26 @@ where
     block_align: u16,
     total_frames: u64,
     spec: Spec,
-    sample_decoder: fn(&mut dyn Reader) -> Result<S, AudioReadError>,
+    sample_decoder: fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>,
+    cache: Vec<S>,
+    cache_position: u64,
+    frame_index: u64,
+    downmixer: Downmixer,
 }
 
 impl<S> PcmDecoder<S>
 where
     S: SampleType,
 {
+    const CACHE_SIZE: usize = 4096;
+
     pub fn new(
         reader: Box<dyn Reader>,
         data_offset: u64,
         data_length: u64,
         spec: Spec,
         fmt: &FmtChunk,
+        downmixer_params: Option<DownmixerParams>,
     ) -> Result<Self, AudioError> {
         let wave_sample_type = spec.get_sample_type();
         Ok(Self {
@@ -285,91 +292,80 @@ where
             total_frames: data_length / fmt.block_align as u64,
             spec,
             sample_decoder: Self::choose_sample_decoder(wave_sample_type)?,
+            cache: Vec::new(),
+            cache_position: 0,
+            frame_index: 0,
+            downmixer: Downmixer::new(spec.channel_mask, if let Some(params) = downmixer_params {
+                params
+            } else {
+                DownmixerParams::default()
+            }),
         })
     }
 
-    fn is_end_of_data(&mut self) -> Result<bool, AudioReadError> {
-        Ok(self.reader.stream_position()? >= self.data_offset + self.data_length)
+    fn is_end_of_data(&mut self) -> bool {
+        self.frame_index >= self.total_frames
     }
 
-    pub fn get_cur_frame_index(&mut self) -> Result<u64, AudioReadError> {
-        Ok((self.reader.stream_position()? - self.data_offset) / (self.block_align as u64))
-    } 
+    fn get_num_cached_frames(&self) -> usize {
+        self.cache.len() / self.spec.channels as usize
+    }
+
+    fn clear_cache(&mut self) {
+        self.cache_position = self.frame_index;
+        self.cache.clear();
+    }
+
+    fn is_frame_index_out_of_cache(&self) -> bool {
+        self.frame_index < self.cache_position || self.frame_index >= self.cache_position + self.get_num_cached_frames() as u64
+    }
+
+    pub fn get_cur_frame_index(&mut self) -> u64 {
+        self.frame_index
+    }
 
     pub fn seek(&mut self, seek_from: SeekFrom) -> Result<(), AudioReadError> {
-        let frame_index = match seek_from {
+        self.frame_index = match seek_from {
             SeekFrom::Start(fi) => fi,
-            SeekFrom::Current(cur) => (self.get_cur_frame_index()? as i64 + cur) as u64,
+            SeekFrom::Current(cur) => (self.frame_index as i64 + cur) as u64,
             SeekFrom::End(end) => (self.total_frames as i64 + end) as u64,
         };
-        if frame_index > self.total_frames {
-            self.reader
-                .seek(SeekFrom::Start(self.data_offset + self.data_length))?;
-            Ok(())
+        if self.frame_index > self.total_frames {
+            self.frame_index = self.total_frames;
+            self.reader.seek(SeekFrom::Start(self.data_offset + self.data_length))?;
         } else {
-            self.reader.seek(SeekFrom::Start(
-                self.data_offset + frame_index * self.block_align as u64,
-            ))?;
-            Ok(())
+            self.reader.seek(SeekFrom::Start(self.data_offset + self.frame_index * self.block_align as u64))?;
         }
+        Ok(())
     }
 
-    fn decode_sample<T>(&mut self) -> Result<Option<S>, AudioReadError>
+    fn decode_samples_to<T>(r: &mut dyn Reader, num_samples_to_read: usize) -> Result<Vec<S>, AudioReadError>
     where
         T: SampleType,
     {
-        if self.is_end_of_data()? {
-            Ok(None)
-        } else {
-            Ok(Some(S::scale_from(T::read_le(&mut self.reader)?)))
-        }
-    }
-
-    fn decode_sample_to<T>(r: &mut dyn Reader) -> Result<S, AudioReadError>
-    where
-        T: SampleType,
-    {
-        Ok(S::scale_from(T::read_le(r)?))
-    }
-
-    fn decode_samples_to<T>(
-        r: &mut dyn Reader,
-        num_samples_to_read: usize,
-    ) -> Result<Vec<S>, AudioReadError>
-    where
-        T: SampleType,
-    {
-        let mut ret = Vec::<S>::with_capacity(num_samples_to_read);
+        let mut samples = Vec::with_capacity(num_samples_to_read);
         for _ in 0..num_samples_to_read {
-            ret.push(Self::decode_sample_to::<T>(r)?);
+            samples.push(S::scale_from(T::read_le(r)?))
         }
-        Ok(ret)
+        Ok(samples)
     }
 
-    /// ## The decoder returned by this function has two exclusive responsibilities:
-    /// 1. Read raw bytes from the input stream.
-    /// 2. Convert them into samples of the target format `S`.
-    ///
-    /// It does NOT handle end-of-stream detection — the caller must implement
-    /// termination logic (e.g., check input.is_empty() or external duration tracking).
     #[allow(clippy::type_complexity)]
-    fn choose_sample_decoder(
-        wave_sample_type: WaveSampleType,
-    ) -> Result<fn(&mut dyn Reader) -> Result<S, AudioReadError>, AudioError> {
+    fn choose_sample_decoder(wave_sample_type: WaveSampleType) -> Result<fn(&mut dyn Reader, usize) -> Result<Vec<S>, AudioReadError>, AudioError> {
         use WaveSampleType::{F32, F64, S8, S16, S24, S32, S64, U8, U16, U24, U32, U64, Unknown};
         match wave_sample_type {
-            S8 =>  Ok(Self::decode_sample_to::<i8 >),
-            S16 => Ok(Self::decode_sample_to::<i16>),
-            S24 => Ok(Self::decode_sample_to::<i24>),
-            S32 => Ok(Self::decode_sample_to::<i32>),
-            S64 => Ok(Self::decode_sample_to::<i64>),
-            U8 =>  Ok(Self::decode_sample_to::<u8 >),
-            U16 => Ok(Self::decode_sample_to::<u16>),
-            U24 => Ok(Self::decode_sample_to::<u24>),
-            U32 => Ok(Self::decode_sample_to::<u32>),
-            U64 => Ok(Self::decode_sample_to::<u64>),
-            F32 => Ok(Self::decode_sample_to::<f32>),
-            F64 => Ok(Self::decode_sample_to::<f64>),
+            S8 =>  Ok(Self::decode_samples_to::<i8 >),
+            S16 => Ok(Self::decode_samples_to::<i16>),
+            S24 => Ok(Self::decode_samples_to::<i24>),
+            S32 => Ok(Self::decode_samples_to::<i32>),
+            S64 => Ok(Self::decode_samples_to::<i64>),
+            U8 =>  Ok(Self::decode_samples_to::<u8 >),
+            U16 => Ok(Self::decode_samples_to::<u16>),
+            U24 => Ok(Self::decode_samples_to::<u24>),
+            U32 => Ok(Self::decode_samples_to::<u32>),
+            U64 => Ok(Self::decode_samples_to::<u64>),
+            F32 => Ok(Self::decode_samples_to::<f32>),
+            F64 => Ok(Self::decode_samples_to::<f64>),
             Unknown => Err(AudioError::InvalidArguments(format!(
                 "unknown sample type \"{:?}\"",
                 wave_sample_type
@@ -378,13 +374,20 @@ where
     }
 
     pub fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> {
-        if self.is_end_of_data()? {
+        if self.is_end_of_data() {
             Ok(None)
         } else {
-            let mut frame = Vec::<S>::with_capacity(self.spec.channels as usize);
-            for _ in 0..self.spec.channels {
-                frame.push((self.sample_decoder)(&mut self.reader)?);
+            if self.is_frame_index_out_of_cache() {
+                self.clear_cache();
             }
+            if self.cache.is_empty() {
+                let num_samples_to_read = min(Self::CACHE_SIZE, (self.total_frames - self.cache_position) as usize) * self.spec.channels as usize;
+                self.cache = (self.sample_decoder)(&mut self.reader, num_samples_to_read)?;
+            }
+            let sample_start = ((self.frame_index - self.cache_position) * self.spec.channels as u64) as usize;
+            let sample_end = sample_start + self.spec.channels as usize;
+            let frame = self.cache[sample_start..sample_end].to_vec();
+            self.frame_index += 1;
             Ok(Some(frame))
         }
     }
