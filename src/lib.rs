@@ -527,7 +527,7 @@ test_fn!(test_adpcm_yamaha, 5);
 test_fn!(test_mp3, 6);
 test_fn!(test_opus, 7);
 test_fn!(test_flac, 8);
-test_fn!(test_vorbis, 9);
+test_fn!(test_nakedvorbis, 9);
 test_fn!(test_oggvorbis1, 10);
 test_fn!(test_oggvorbis2, 11);
 test_fn!(test_oggvorbis3, 12);
