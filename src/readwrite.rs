@@ -427,6 +427,11 @@ impl SharedCursor {
         self.0.borrow().get_ref().len()
     }
 
+    /// * Check if the inner data is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// * Get the inner data as `Vec<u8>`
     pub fn get_vec(&self) -> Vec<u8> {
         self.0.borrow().get_ref().to_vec()
@@ -687,6 +692,16 @@ where
 
     pub fn set_stream(&mut self, index: usize) {
         self.cur_stream = index;
+    }
+
+    /// * The number of streams in total
+    pub fn len(&self) -> usize {
+        self.streams.len()
+    }
+
+    /// * Is there no stream objects?
+    pub fn is_empty(&self) -> bool {
+        self.streams.is_empty()
     }
 }
 
