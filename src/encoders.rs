@@ -2553,12 +2553,15 @@ pub mod oggvorbis_enc {
         use vorbis_rs::*;
 
         use crate::errors::AudioWriteError;
-        use crate::io_utils::{SharedWriterWithCursor, WriterWithCursor, Writer};
+        use crate::io_utils::{Reader, Writer, ReadWrite, CursorVecU8, SharedMultistreamIO, StreamType};
         use crate::audioutils::{self, sample_conv, sample_conv_batch};
         use crate::chunks::{FmtChunk, ext::{FmtExtension, VorbisHeaderData, OggVorbisData, OggVorbisWithHeaderData}};
         use crate::format_specs::format_tags::*;
         use crate::{i24, u24};
         use crate::ogg::OggPacket;
+
+        type SharedAlterIO<'a> = SharedMultistreamIO<Box<dyn Reader>, &'a mut dyn Writer, &'a mut dyn ReadWrite>;
+        type SharedIO<'a> = StreamType<Box<dyn Reader>, &'a mut dyn Writer, &'a mut dyn ReadWrite>;
 
         impl OggVorbisBitrateStrategy {
             fn is_vbr(&self) -> bool {
@@ -2652,14 +2655,14 @@ pub mod oggvorbis_enc {
             /// The OggVorbis encoder builder
             Builder {
                 /// The builder that has our shared writer.
-                builder: VorbisEncoderBuilder<SharedWriterWithCursor<'a>>,
+                builder: VorbisEncoderBuilder<SharedAlterIO<'a>>,
 
                 /// The metadata to be added to the OggVorbis file. Before the encoder was built, add all of the comments here.
                 metadata: BTreeMap<String, String>,
             },
 
             /// The built encoder. It has our shared writer. Use this to encode PCM waveform to OggVorbis format.
-            Encoder(VorbisEncoder<SharedWriterWithCursor<'a>>),
+            Encoder(VorbisEncoder<SharedAlterIO<'a>>),
 
             /// When the encoding has finished, set this enum to `Finished`
             Finished,
@@ -2716,7 +2719,7 @@ pub mod oggvorbis_enc {
         pub struct OggVorbisEncoderWrap<'a> {
             /// * The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`.
             /// * This `SharedWriterWithCursor` can switch to `cursor_mode` or `writer_mode`, on `cursor_mode`, call `write()` on it will write data into the `Cursor`
-            writer: SharedWriterWithCursor<'a>,
+            writer: SharedAlterIO<'a>,
 
             /// * The parameters for the encoder
             params: OggVorbisEncoderParams,
@@ -2756,14 +2759,16 @@ pub mod oggvorbis_enc {
                 writer: &'a mut dyn Writer,
                 params: &OggVorbisEncoderParams,
             ) -> Result<Self, AudioWriteError> {
-                let mut writer = SharedWriterWithCursor::new(WriterWithCursor::new(writer, false));
-                let data_offset = writer.stream_position()?;
+                let mut shared_writer = SharedAlterIO::default();
+                shared_writer.push_stream(SharedIO::Writer(writer));
+                shared_writer.push_stream(SharedIO::CursorU8(CursorVecU8::default()));
+                let data_offset = shared_writer.stream_position()?;
 
                 let mut ret = Self {
-                    writer: writer.clone(),
+                    writer: shared_writer.clone(),
                     params: *params,
                     encoder: OggVorbisEncoderOrBuilder::Builder {
-                        builder: params.create_vorbis_builder(writer.clone())?,
+                        builder: params.create_vorbis_builder(shared_writer.clone())?,
                         metadata: BTreeMap::new(),
                     },
                     data_offset,
@@ -2836,20 +2841,20 @@ pub mod oggvorbis_enc {
             fn peel_ogg(&mut self) -> Result<(), AudioWriteError> {
                 let mut cursor = 0usize;
                 let mut packet_length = 0usize;
-                let data = self.writer.get_cursor_data().clone();
+                let data = self.writer.get_stream_mut(1).as_cursor().get_ref().clone();
                 while cursor < data.len() {
                     match OggPacket::from_bytes(&data[cursor..], &mut packet_length) {
                         Ok(oggpacket) => {
-                            self.writer.switch_to_writer_mode();
+                            self.writer.set_stream(0);
                             self.writer.write_all(&oggpacket.get_inner_data())?;
-                            self.writer.switch_to_cursor_mode();
+                            self.writer.set_stream(1);
                             cursor += packet_length;
                         }
                         Err(ioerr) => {
                             match ioerr.kind() {
                                 ErrorKind::UnexpectedEof => {
                                     let remains = data[cursor..].to_vec();
-                                    self.writer.discard_cursor_data();
+                                    let _data = self.writer.get_stream_mut(1).take_cursor_data();
                                     self.writer.write_all(&remains)?;
                                     break;
                                 }
@@ -2946,7 +2951,7 @@ pub mod oggvorbis_enc {
                     OggVorbisMode::OriginalStreamCompatible => self.begin_to_encode(),
                     OggVorbisMode::HaveIndependentHeader => Ok(()),
                     OggVorbisMode::HaveNoCodebookHeader => {
-                        let _header = self.writer.get_cursor_data_and_clear();
+                        let _header = self.writer.get_stream_mut(1).take_cursor_data();
                         Ok(())
                     }
                     OggVorbisMode::NakedVorbis => Ok(())
@@ -2967,23 +2972,23 @@ pub mod oggvorbis_enc {
                     OggVorbisMode::OriginalStreamCompatible => (),
                     OggVorbisMode::HaveIndependentHeader => {
                         // Save the header to `fmt ` chunk
-                        self.writer.switch_to_cursor_mode();
+                        self.writer.set_stream(1);
                         self.begin_to_encode()?;
-                        self.vorbis_header = self.writer.get_cursor_data_and_clear();
-                        self.writer.switch_to_writer_mode();
+                        self.vorbis_header = self.writer.get_cur_stream_mut().take_cursor_data();
+                        self.writer.set_stream(0);
                     }
                     OggVorbisMode::HaveNoCodebookHeader => {
-                        self.writer.switch_to_cursor_mode();
+                        self.writer.set_stream(1);
                         self.begin_to_encode()?;
-                        self.writer.discard_cursor_data();
-                        self.writer.switch_to_writer_mode();
+                        let _header = self.writer.get_cur_stream_mut().take_cursor_data();
+                        self.writer.set_stream(0);
                     }
                     OggVorbisMode::NakedVorbis => {
                         // Save the header to `fmt ` chunk
                         use crate::vorbis::get_vorbis_headers_from_ogg_packet_bytes;
-                        self.writer.switch_to_cursor_mode();
+                        self.writer.set_stream(1);
                         self.begin_to_encode()?;
-                        let header = self.writer.get_cursor_data_and_clear();
+                        let header = self.writer.get_cur_stream_mut().take_cursor_data();
                         let (identification_header, comments_header, setup_header, _stream_id) = get_vorbis_headers_from_ogg_packet_bytes(&header)?;
                         self.vorbis_header.clear();
                         self.vorbis_header.push(2); // Two field of the header size
