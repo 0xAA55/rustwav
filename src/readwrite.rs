@@ -18,32 +18,6 @@ impl<T> Reader for T where T: Read + Seek + Debug {}
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
-/// ## The `WriteBridge` hides a `dyn Writer` and acts like a struct that implements `Write + Seek + Debug`.
-#[derive(Debug)]
-pub struct WriteBridge<'a> {
-    writer: &'a mut dyn Writer,
-}
-
-impl<'a> WriteBridge<'a> {
-    pub fn new(writer: &'a mut dyn Writer) -> Self {
-        Self { writer }
-    }
-}
-
-impl Write for WriteBridge<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
-    }
-}
-
-impl Seek for WriteBridge<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.writer.seek(pos)
-    }
-}
 
 /// ## Encapsulated shared `Read + Seek + Debug`
 #[derive(Debug)]
