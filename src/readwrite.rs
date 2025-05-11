@@ -19,6 +19,9 @@ impl<T> Reader for T where T: Read + Seek + Debug {}
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
+/// ## The `ReadWrite` trait, `Read + Write + Seek + Debug`
+pub trait ReadWrite: Read + Write + Seek + Debug {}
+impl<T> ReadWrite for T where T: Read + Write + Seek + Debug {}
 
 /// ## Encapsulated shared `Read + Seek + Debug`
 #[derive(Debug)]
