@@ -218,6 +218,92 @@ where
     }
 }
 
+/// ## Encapsulated shared `Write + Seek + Debug`
+#[derive(Debug)]
+pub struct SharedWriter<T> (Rc<RefCell<T>>) where T: Write + Seek + Debug;
+
+impl<T> SharedWriter<T>
+where
+    T: Write + Seek + Debug {
+    pub fn new(reader: T) -> Self {
+        Self(Rc::new(RefCell::new(reader)))
+    }
+}
+
+impl<T> Write for SharedWriter<T>
+where
+    T: Write + Seek + Debug {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.borrow_mut().write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.borrow_mut().flush()
+    }
+}
+
+impl<T> Seek for SharedWriter<T>
+where
+    T: Write + Seek + Debug {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.0.borrow_mut().seek(pos)
+    }
+}
+
+impl<T> Clone for SharedWriter<T>
+where
+    T: Write + Seek + Debug {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+/// ## Encapsulated shared `Read + Write + Seek + Debug`
+#[derive(Debug)]
+pub struct SharedReadWrite<T> (Rc<RefCell<T>>) where T: Read + Write + Seek + Debug;
+
+impl<T> SharedReadWrite<T>
+where
+    T: Read + Write + Seek + Debug {
+    pub fn new(readwrite: T) -> Self {
+        Self(Rc::new(RefCell::new(readwrite)))
+    }
+}
+
+impl<T> Read for SharedReadWrite<T>
+where
+    T: Read + Write + Seek + Debug {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.borrow_mut().read(buf)
+    }
+}
+
+impl<T> Write for SharedReadWrite<T>
+where
+    T: Read + Write + Seek + Debug {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.borrow_mut().write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.borrow_mut().flush()
+    }
+}
+
+impl<T> Seek for SharedReadWrite<T>
+where
+    T: Read + Write + Seek + Debug {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.0.borrow_mut().seek(pos)
+    }
+}
+
+impl<T> Clone for SharedReadWrite<T>
+where
+    T: Read + Write + Seek + Debug {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 /// ## Dishonest reader, a reader that reads data but modifies it.
 pub struct DishonestReader<T>
 where
