@@ -173,6 +173,7 @@ use options::*;
 use resampler::Resampler;
 
 /// * The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
+#[allow(clippy::large_const_arrays)]
 pub const FORMATS: [(&str, DataFormat); 16] = [
     ("pcm", DataFormat::Pcm),
     ("pcm-alaw", DataFormat::PcmALaw),
