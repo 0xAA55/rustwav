@@ -1832,34 +1832,92 @@ pub mod oggvorbis_dec {
             } else {
                 Vec::new()
             };
-            let ogg_vorbis_header_len = ogg_vorbis_header.len() as u64;
-            let cursor = CursorVecU8::new(ogg_vorbis_header);
-            let combined_reader = CombinedReader::new(cursor, 0, ogg_vorbis_header_len, SharedReader::new(reader), data_offset, data_length)?;
-            let ogg_encapsulator = DishonestReader::new(combined_reader,
-                Box::new(move |reader: &mut OggVorbisHeaderToBodyReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
-                    if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {
-                        // There's an Ogg stream encapsulator.
-                        // The data read from the reader is the naked Vorbis data.
-                        // Feed the data to the Ogg stream encapsulator, whatever it excretes Ogg packet, return the buffer anyway.
-                        const BUFFER_SIZE: usize = 2048;
-                        let mut buf = vec![0u8; BUFFER_SIZE];
-                        let len = reader.read(&mut buf)?;
-                        if len > 0 {
-                            buf.truncate(len);
-                            ogg_stream_writer.write_all(&buf)?;
+
+            use std::fs::File;
+            let debug_file = RefCell::new(File::create("test.ogg")?);
+            let fmtdata = RefCell::new(fmt.clone());
+
+            let vorbis_header_len = vorbis_header.len();
+            let cursor = CursorVecU8::new(vorbis_header);
+            let combined_reader = CombinedReader::new(cursor, 0, vorbis_header_len as u64, SharedReader::new(reader), data_offset, data_length)?;
+            let data_offset = 0;
+            let data_length = vorbis_header_len as u64 + data_length;
+            let on_read = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
+                let mut debug_file = debug_file.borrow_mut();
+                let fmt = fmtdata.borrow();
+                let sample_rate = fmt.sample_rate;
+                let byte_rate = fmt.byte_rate as u32;
+                if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {
+                    // There's an Ogg stream encapsulator.
+                    // The data read from the reader is the naked Vorbis data.
+                    // There should check if the decoder wants to parse the Vorbis header.
+                    let current_position = reader.stream_position()?;
+                    if current_position == 0 {
+                        // When reading the header, ignore the size of bytes the decoder asked for.
+                        // Just excrete all of the header packets, and the `DishonestReader` will cache the extra data for the decoder to read.
+                        // After all of the cached data is read by the decoder, it will ask for more data, then this closure will be called again, and we just excrete data normally as it asks for the size.
+                        let fields = u8::read_le(reader)?;
+                        if fields != 2 {
+                            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("There should be 2 fields of data at the beginning of the header indicating the size of the Vorbis headers, but we got {fields} of fields.")));
                         }
-                        Ok(ogg_stream_writer.get_cursor_data_and_clear())
-                    } else {
-                        // The data is the Ogg encapsulated Vorbis audio, just feed them to the decoder.
+                        let size_of_identification_header = u8::read_le(reader)?;
+                        let size_of_comment_header = u8::read_le(reader)?;
+                        let size_of_setup_header = vorbis_header_len - size_of_comment_header as usize - size_of_identification_header as usize - 3;
+                        let mut identification_header = vec![0u8; size_of_identification_header as usize];
+                        let mut comment_header = vec![0u8; size_of_comment_header as usize];
+                        let mut setup_header = vec![0u8; size_of_setup_header as usize];
+                        reader.read_exact(&mut identification_header)?;
+                        reader.read_exact(&mut comment_header)?;
+                        reader.read_exact(&mut setup_header)?;
+                        assert_eq!(reader.stream_position()?, vorbis_header_len as u64);
+                        // https://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-132000A.2
+                        ogg_stream_writer.reset();
+                        ogg_stream_writer.write_all(&identification_header)?;
+                        ogg_stream_writer.flush()?;
+                        ogg_stream_writer.write_all(&comment_header)?;
+                        ogg_stream_writer.write_all(&setup_header)?;
+                        ogg_stream_writer.flush()?;
+                        let data = ogg_stream_writer.get_cursor_data_and_clear();
+                        debug_file.write_all(&data)?;
+                        debug_file.flush()?;
+                        Ok(data)
+                    } else if current_position >= vorbis_header_len as u64 {
                         let mut buf = vec![0u8; buflen];
                         let len = reader.read(&mut buf)?;
-                        buf.truncate(len);
-                        Ok(buf)
+                        if len > 0 {
+                            let current_position = current_position + len as u64;
+                            let data_position = current_position - vorbis_header_len as u64;
+                            let granule_position = data_position * sample_rate as u64 / byte_rate as u64;
+                            println!("{data_position}, {data_length}, {byte_rate}, granule_position: {granule_position}");
+                            if current_position >= data_length {
+                                ogg_stream_writer.set_to_end_of_stream();
+                            }
+                            buf.truncate(len);
+                            ogg_stream_writer.set_granule_position(granule_position);
+                            ogg_stream_writer.write_all(&buf)?;
+                            ogg_stream_writer.flush()?;
+                        }
+                        let data = ogg_stream_writer.get_cursor_data_and_clear();
+                        debug_file.write_all(&data)?;
+                        debug_file.flush()?;
+                        Ok(data)
+                    } else {
+                        panic!("Unexpected read position that's in the middle of the Vorbis header.");
                     }
-                }),
-                Box::new(move |reader: &mut OggVorbisHeaderToBodyReader, pos: SeekFrom| -> Result<u64, io::Error>{
-                    reader.seek(pos)
-                })
+                } else {
+                    // The data is the Ogg encapsulated Vorbis audio, just feed them to the decoder.
+                    let mut buf = vec![0u8; buflen];
+                    let len = reader.read(&mut buf)?;
+                    buf.truncate(len);
+                    Ok(buf)
+                }
+            };
+            let on_seek = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, pos: SeekFrom| -> Result<u64, io::Error>{
+                reader.seek(pos)
+            };
+            let ogg_encapsulator = DishonestReader::new(combined_reader,
+                Box::new(on_read),
+                Box::new(on_seek),
             );
             let reader = SharedReader::new(ogg_encapsulator);
             let decoder = VorbisDecoder::new(reader.clone())?;
@@ -1879,7 +1937,6 @@ pub mod oggvorbis_dec {
             };
             assert_eq!(fmt.channels, ret.channels);
             assert_eq!(fmt.sample_rate, ret.sample_rate);
-            std::hint::black_box(&mut ret);
             ret.decode()?;
             Ok(ret)
         }
