@@ -11,19 +11,19 @@ use std::{
     ops::{Deref, DerefMut}
 };
 
-/// ## The `Reader` trait, `Read + Seek + Debug`
+/// * The `Reader` trait, `Read + Seek + Debug`
 pub trait Reader: Read + Seek + Debug {}
 impl<T> Reader for T where T: Read + Seek + Debug {}
 
-/// ## The `Writer` trait, `Write + Seek + Debug`
+/// * The `Writer` trait, `Write + Seek + Debug`
 pub trait Writer: Write + Seek + Debug {}
 impl<T> Writer for T where T: Write + Seek + Debug {}
 
-/// ## The `ReadWrite` trait, `Read + Write + Seek + Debug`
+/// * The `ReadWrite` trait, `Read + Write + Seek + Debug`
 pub trait ReadWrite: Read + Write + Seek + Debug {}
 impl<T> ReadWrite for T where T: Read + Write + Seek + Debug {}
 
-/// ## Encapsulated shared `Read + Seek + Debug`
+/// * Encapsulated shared `Read + Seek + Debug`
 #[derive(Debug)]
 pub struct SharedReader<T> (Rc<RefCell<T>>) where T: Read + Seek + Debug;
 
@@ -59,7 +59,7 @@ where
     }
 }
 
-/// ## Encapsulated shared `Write + Seek + Debug`
+/// * Encapsulated shared `Write + Seek + Debug`
 #[derive(Debug)]
 pub struct SharedWriter<T> (Rc<RefCell<T>>) where T: Write + Seek + Debug;
 
@@ -98,7 +98,7 @@ where
     }
 }
 
-/// ## Encapsulated shared `Read + Write + Seek + Debug`
+/// * Encapsulated shared `Read + Write + Seek + Debug`
 #[derive(Debug)]
 pub struct SharedReadWrite<T> (Rc<RefCell<T>>) where T: Read + Write + Seek + Debug;
 
@@ -145,7 +145,7 @@ where
     }
 }
 
-/// ## Dishonest reader, a reader that reads data but modifies it.
+/// * Dishonest reader, a reader that reads data but modifies it.
 pub struct DishonestReader<T>
 where
     T: Read + Seek + Debug {
@@ -220,7 +220,7 @@ where
     }
 }
 
-/// ## A Reader that combines two readers into one with the ability to `Read` and `Seek` and `Debug`
+/// * A Reader that combines two readers into one with the ability to `Read` and `Seek` and `Debug`
 #[derive(Debug)]
 pub struct CombinedReader<R1, R2>
 where
@@ -329,7 +329,7 @@ where
     }
 }
 
-/// ## A better `Cursor<Vec<u8>>` which has a friendlier `Debug` trait implementation
+/// * A better `Cursor<Vec<u8>>` which has a friendlier `Debug` trait implementation
 #[derive(Clone)]
 pub struct CursorVecU8(Cursor<Vec<u8>>);
 
@@ -411,7 +411,7 @@ impl Display for CursorVecU8 {
     }
 }
 
-/// ## The shared `Cursor`.
+/// * The shared `Cursor`.
 /// * Because it's shared, when the 3rd library owned it, we still can access to it..
 #[derive(Debug)]
 pub struct SharedCursor (Rc<RefCell<CursorVecU8>>);
@@ -722,8 +722,8 @@ where
     }
 }
 
-/// ## The shared version of the `MultistreamIO`.
-/// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to cursor mode.
+/// * The shared version of the `MultistreamIO`.
+/// * Because it's shared, when the 3rd library owned it, we still can access to it, e.g. switch it to a cursor stream to capture some data.
 #[derive(Debug)]
 pub struct SharedMultistreamIO<R, W, RW> (Rc<RefCell<MultistreamIO<R, W, RW>>>)
 where
@@ -870,7 +870,7 @@ where
     Ok(())
 }
 
-/// ## This is for read/write strings from/to file with specific encoding and size, or read/write as NUL-terminated strings.
+/// * This is for read/write strings from/to file with specific encoding and size, or read/write as NUL-terminated strings.
 pub mod string_io {
     use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
     use std::io::{self, Read, Write};

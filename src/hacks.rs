@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-/// ## Not for you to use. Force borrow a thing while cheating the compiler.
+/// * Not for you to use. Force borrow a thing while cheating the compiler.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! force_borrow {
@@ -11,7 +11,7 @@ macro_rules! force_borrow {
     }};
 }
 
-/// ## Not for you to use. Force borrow a thing as mutable while cheating the compiler.
+/// * Not for you to use. Force borrow a thing as mutable while cheating the compiler.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! force_borrow_mut {

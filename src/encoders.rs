@@ -167,11 +167,11 @@ pub trait EncoderToImpl: Debug {
     fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f64(&audioutils::stereos_to_interleaved_samples(stereos))}
 }
 
-/// ## The `DummyEncoder` is not for you to use, it allows me to implement `Default` for `Encoder<'a>`
+/// * The `DummyEncoder` is not for you to use, it allows me to implement `Default` for `Encoder<'a>`
 #[derive(Debug, Clone, Copy)]
 pub struct DummyEncoder;
 
-/// ## Default implementations: all functions are `panic!`
+/// * Default implementations: all functions are `panic!`
 impl EncoderToImpl for DummyEncoder {
     fn get_channels(&self) -> u16 {
         panic!("Encoder creation failed.");
@@ -218,7 +218,7 @@ impl EncoderToImpl for DummyEncoder {
     fn write_interleaved_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f32(&sample_conv(samples))}
 }
 
-/// ## The `Encoder` struct contains all of the encoder types and provides convenient functions that have generic type parameters.
+/// * The `Encoder` struct contains all of the encoder types and provides convenient functions that have generic type parameters.
 /// * It just translates the API to the inner encoder API.
 #[derive(Debug)]
 pub struct Encoder<'a> {
@@ -545,7 +545,7 @@ impl<'a> Encoder<'a> {
     }
 }
 
-/// ## `PcmEncoderFrom<S>`: Transcodes samples from type `S` into the target format.
+/// * `PcmEncoderFrom<S>`: Transcodes samples from type `S` into the target format.
 /// * This is a component for the `PcmEncoder`
 #[derive(Debug, Clone, Copy)]
 struct PcmEncoderFrom<S>
@@ -625,7 +625,7 @@ where
     }
 }
 
-/// ## `PcmEncoder`: convert various formats of PCM samples to the WAV file specific sample type
+/// * `PcmEncoder`: convert various formats of PCM samples to the WAV file specific sample type
 #[derive(Debug)]
 pub struct PcmEncoder<'a> {
     spec: Spec,
@@ -760,7 +760,7 @@ impl EncoderToImpl for PcmEncoder<'_> {
     fn write_interleaved_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.writer_from_f64.write_interleaved_samples(self.writer, samples)}
 }
 
-/// ## `AdpcmEncoderWrap<E>`: encode `i16` audio samples to ADPCM nibbles
+/// * `AdpcmEncoderWrap<E>`: encode `i16` audio samples to ADPCM nibbles
 #[derive(Debug)]
 pub struct AdpcmEncoderWrap<'a, E>
 where
@@ -900,7 +900,7 @@ where
     fn write_stereos_f64(&mut self, stereos: &[(f64, f64)]) -> Result<(), AudioWriteError> {self.write_stereos(&stereos_conv(stereos))}
 }
 
-/// ## `PcmXLawEncoderWrap`: encode `i16` audio samples to bytes
+/// * `PcmXLawEncoderWrap`: encode `i16` audio samples to bytes
 #[derive(Debug)]
 pub struct PcmXLawEncoderWrap<'a> {
     writer: &'a mut dyn Writer,
@@ -986,7 +986,7 @@ impl EncoderToImpl for PcmXLawEncoderWrap<'_> {
     fn write_interleaved_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples(&sample_conv(samples))}
 }
 
-/// ## The MP3 encoder for `WaveWriter`
+/// * The MP3 encoder for `WaveWriter`
 pub mod mp3 {
     /// * MP3 supports two channels in multiple ways.
     #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1082,7 +1082,7 @@ pub mod mp3 {
         pub comment: [u8; ID3_FIELD_LENGTH],
     }
 
-    /// ## The encoder options for MP3
+    /// * The encoder options for MP3
     #[derive(Debug, Clone, PartialEq)]
     pub struct Mp3EncoderOptions {
         /// * MP3 channels, not just mono and stereo. MP3 supports two channels in multiple ways.
@@ -1819,7 +1819,7 @@ pub mod mp3 {
 
 pub use mp3::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
 
-/// ## The Opus encoder for `WaveWriter`
+/// * The Opus encoder for `WaveWriter`
 pub mod opus {
     const OPUS_ALLOWED_SAMPLE_RATES: [u32; 5] = [8000, 12000, 16000, 24000, 48000];
     const OPUS_MIN_SAMPLE_RATE: u32 = 8000;
@@ -1839,7 +1839,7 @@ pub mod opus {
         MilliSec60,
     }
 
-    /// ## The bitrate option for the Opus encoder, the higher the better for audio quality.
+    /// * The bitrate option for the Opus encoder, the higher the better for audio quality.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
     pub enum OpusBitrate {
         Bits(i32),
@@ -1861,7 +1861,7 @@ pub mod opus {
         }
     }
 
-    /// ## The encoder options for Opus
+    /// * The encoder options for Opus
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct OpusEncoderOptions {
         /// * The tier 1 factor for Opus audio quality, bigger bitrate means better audio quality.
@@ -2134,7 +2134,7 @@ pub mod opus {
 
 pub use opus::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 
-/// ## The FLAC encoder for `WaveWriter`
+/// * The FLAC encoder for `WaveWriter`
 #[cfg(feature = "flac")]
 pub mod flac_enc {
     use std::{
@@ -2468,11 +2468,11 @@ pub mod flac_enc {
     }
 }
 
-/// ## The OggVorbis encoder
+/// * The OggVorbis encoder
 /// * Microsoft says this should be supported: see <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h#L2321>
 /// * FFmpeg does not support this format: see <https://git.ffmpeg.org/gitweb/ffmpeg.git/blob/refs/heads/release/7.1:/libavformat/riff.c>
 pub mod oggvorbis_enc {
-    /// ## OggVorbis encoder mode
+    /// * OggVorbis encoder mode
     #[derive(Debug, Clone, Copy, Default, PartialEq)]
     pub enum OggVorbisMode {
         #[default]
@@ -2482,7 +2482,7 @@ pub mod oggvorbis_enc {
         NakedVorbis = 4
     }
 
-    /// ## OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
+    /// * OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
     #[derive(Debug, Clone, Copy, Default, PartialEq)]
     pub struct OggVorbisEncoderParams {
         /// OggVorbis encoder mode
@@ -2507,7 +2507,7 @@ pub mod oggvorbis_enc {
         pub minimum_page_data_size: Option<u16>,
     }
 
-    /// ## OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
+    /// * OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum OggVorbisBitrateStrategy {
         /// * Pure VBR quality mode, selected by a target bitrate (in bit/s).
@@ -2613,10 +2613,10 @@ pub mod oggvorbis_enc {
         }
 
         impl Into<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
-            /// ## Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
             fn into(self) -> VorbisBitrateManagementStrategy {
                 match self {
                     Self::Vbr(bitrate) => VorbisBitrateManagementStrategy::Vbr {
+            /// * Convert to the `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
                         target_bitrate: NonZero::new(bitrate).unwrap(),
                     },
                     Self::QualityVbr(quality) => VorbisBitrateManagementStrategy::QualityVbr {
@@ -2633,7 +2633,7 @@ pub mod oggvorbis_enc {
         }
 
         impl From<VorbisBitrateManagementStrategy> for OggVorbisBitrateStrategy {
-            /// ## Convert from `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
+            /// * Convert from `VorbisBitrateManagementStrategy` from `vorbis_rs` crate
             fn from(vbms: VorbisBitrateManagementStrategy) -> Self {
                 match vbms {
                     VorbisBitrateManagementStrategy::Vbr{target_bitrate} => Self::Vbr(target_bitrate.into()),
@@ -2650,7 +2650,7 @@ pub mod oggvorbis_enc {
             }
         }
 
-        /// ## The OggVorbis encoder or builder enum, the builder one has metadata to put in the builder.
+        /// * The OggVorbis encoder or builder enum, the builder one has metadata to put in the builder.
         pub enum OggVorbisEncoderOrBuilder<'a> {
             /// The OggVorbis encoder builder
             Builder {
@@ -2715,7 +2715,7 @@ pub mod oggvorbis_enc {
             }
         }
 
-        /// ## OggVorbis encoder wrap for `WaveWriter`
+        /// * OggVorbis encoder wrap for `WaveWriter`
         pub struct OggVorbisEncoderWrap<'a> {
             /// * The writer for the encoder. Since the encoder only asks for a `Write` trait, we can control where should it write data to by using `seek()`.
             /// * This `SharedWriterWithCursor` can switch to `cursor_mode` or `writer_mode`, on `cursor_mode`, call `write()` on it will write data into the `Cursor`

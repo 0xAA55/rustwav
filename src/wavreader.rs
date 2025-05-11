@@ -38,7 +38,7 @@ use crate::decoders::flac_dec::FlacDecoderWrap;
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 use crate::decoders::oggvorbis_dec::OggVorbisDecoderWrap;
 
-/// ## The data source for the `WaveReader`, currently we have a file reader or a file path.
+/// * The data source for the `WaveReader`, currently we have a file reader or a file path.
 #[derive(Debug)]
 pub enum WaveDataSource {
     Reader(Box<dyn Reader>),
@@ -46,7 +46,7 @@ pub enum WaveDataSource {
     Unknown,
 }
 
-/// # The `WaveReader` is dedicated to reading a WAV file and provides you with samples as you want.
+/// * The `WaveReader` is dedicated to reading a WAV file and provides you with samples as you want.
 /// Usage:
 /// * Open a WAV file
 /// * Get the iterator
@@ -573,7 +573,7 @@ impl WaveReader {
         }
     }
 
-    /// ## Create an iterator for iterating through each audio frame, excretes multi-channel audio frames.
+    /// * Create an iterator for iterating through each audio frame, excretes multi-channel audio frames.
     /// * Every audio frame is an array that includes one sample for every channel.
     /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
     /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
@@ -592,7 +592,7 @@ impl WaveReader {
         )
     }
 
-    /// ## Create an iterator for iterating through each audio frame, excretes mono-channel samples.
+    /// * Create an iterator for iterating through each audio frame, excretes mono-channel samples.
     /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_iter<S>(&mut self) -> Result<MonoIter<S>, AudioReadError>
@@ -609,7 +609,7 @@ impl WaveReader {
         )
     }
 
-    /// ## Create an iterator for iterating through each audio frame, excretes two-channel stereo frames.
+    /// * Create an iterator for iterating through each audio frame, excretes two-channel stereo frames.
     /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_iter<S>(&mut self) -> Result<StereoIter<S>, AudioReadError>
@@ -626,7 +626,7 @@ impl WaveReader {
         )
     }
 
-    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes multi-channel audio frames.
+    /// * Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes multi-channel audio frames.
     /// * Every audio frame is an array that includes one sample for every channel.
     /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
     /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
@@ -645,7 +645,7 @@ impl WaveReader {
         )
     }
 
-    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes mono-channel samples.
+    /// * Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes mono-channel samples.
     /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn mono_intoiter<S>(mut self) -> Result<MonoIntoIter<S>, AudioReadError>
@@ -662,7 +662,7 @@ impl WaveReader {
         )
     }
 
-    /// ## Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes two-channel stereo frames.
+    /// * Create an iterator for iterating through each audio frame and consumes the `WaveReader`, excretes two-channel stereo frames.
     /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
     /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
     pub fn stereo_intoiter<S>(mut self) -> Result<StereoIntoIter<S>, AudioReadError>
@@ -708,7 +708,7 @@ fn expect_flag<T: Read>(
     }
 }
 
-/// ## Create the decoder for each specific `format_tag` in the `fmt` chunk.
+/// * Create the decoder for each specific `format_tag` in the `fmt` chunk.
 fn create_decoder<S>(
     reader: Box<dyn Reader>,
     data_offset: u64,
@@ -950,7 +950,7 @@ impl Default for FileDataSource {
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the audio frames.
+/// * The audio frame iterator was created from the `WaveReader` to decode the audio frames.
 /// * Every audio frame is an array that includes one sample for every channel.
 /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
 /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
@@ -1027,7 +1027,7 @@ where
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the mono audio.
+/// * The audio frame iterator was created from the `WaveReader` to decode the mono audio.
 /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
@@ -1102,7 +1102,7 @@ where
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
+/// * The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
 /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 #[derive(Debug)]
@@ -1177,7 +1177,7 @@ where
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the audio frames.
+/// * The audio frame iterator was created from the `WaveReader` to decode the audio frames.
 /// * Every audio frame is an array that includes one sample for every channel.
 /// * This iterator supports multi-channel audio files e.g. 5.1 stereo or 7.1 stereo audio files.
 /// * Since each audio frame is a `Vec` , it's expensive in memory and slow.
@@ -1255,7 +1255,7 @@ where
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the mono audio.
+/// * The audio frame iterator was created from the `WaveReader` to decode the mono audio.
 /// * This iterator is dedicated to mono audio, it combines every channel into one channel and excretes every single sample as an audio frame.
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 /// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.
@@ -1331,7 +1331,7 @@ where
     }
 }
 
-/// ## The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
+/// * The audio frame iterator was created from the `WaveReader` to decode the stereo audio.
 /// * This iterator is dedicated to two-channel stereo audio, if the source audio is mono, it duplicates the sample to excrete stereo frames for you. If the source audio is multi-channel audio, this iterator can't be created.
 /// * Besides it's an iterator, the struct itself provides `decode_frames()` for batch decode multiple samples.
 /// * After the iterator was created, the `WaveReader` was consumed and couldn't be used anymore.

@@ -25,7 +25,7 @@ use flac_dec::FlacDecoderWrap;
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 use oggvorbis_dec::OggVorbisDecoderWrap;
 
-/// ## Decodes audio into samples of the caller-provided format `S`.
+/// * Decodes audio into samples of the caller-provided format `S`.
 pub trait Decoder<S>: Debug
 where
     S: SampleType,
@@ -255,7 +255,7 @@ where
     }
 }
 
-/// ## The `PcmDecoder<S>` to decode WAV PCM samples to your specific format
+/// * The `PcmDecoder<S>` to decode WAV PCM samples to your specific format
 #[derive(Debug)]
 pub struct PcmDecoder<S>
 where
@@ -416,7 +416,7 @@ where
     }
 }
 
-/// ## The `AdpcmDecoderWrap` to decode ADPCM blocks to your specific format samples
+/// * The `AdpcmDecoderWrap` to decode ADPCM blocks to your specific format samples
 #[derive(Debug)]
 pub struct AdpcmDecoderWrap<D>
 where
@@ -654,7 +654,7 @@ where
     }
 }
 
-/// ## The `PcmXLawDecoderWrap` to decode aLaw or MuLaw PCM data to your specific format samples
+/// * The `PcmXLawDecoderWrap` to decode aLaw or MuLaw PCM data to your specific format samples
 #[derive(Debug)]
 pub struct PcmXLawDecoderWrap {
     reader: Box<dyn Reader>,
@@ -800,7 +800,7 @@ impl PcmXLawDecoderWrap {
     }
 }
 
-/// ## The MP3 decoder for `WaveReader`
+/// * The MP3 decoder for `WaveReader`
 #[cfg(feature = "mp3dec")]
 pub mod mp3 {
     use std::{
@@ -819,7 +819,7 @@ pub mod mp3 {
     use resampler::Resampler;
     use rmp3::{DecoderOwned, Frame};
 
-    /// ## The `Mp3Decoder`, decodes the MP3 file encapsulated in the WAV file.
+    /// * The `Mp3Decoder`, decodes the MP3 file encapsulated in the WAV file.
     pub struct Mp3Decoder {
         target_sample_rate: u32,
         target_channels: u16,
@@ -844,7 +844,7 @@ pub mod mp3 {
         }
     }
 
-    /// ## The `Mp3AudioData` for a MP3 frame.
+    /// * The `Mp3AudioData` for a MP3 frame.
     /// **NOTE:** Some people like to concat MP3 files savagely just like concat binary files, and the MP3 format actually supports this kind of operation.
     /// If the concat MP3 files have different sample rates, this will cause the sample rate to change while you are just normally parsing and decoding the MP3 file.
     /// This can be done by using a resampler here but I personally don't want to support this variable sample rate audio file.
@@ -1132,7 +1132,7 @@ pub mod mp3 {
     }
 }
 
-/// ## The Opus decoder for `WaveReader`
+/// * The Opus decoder for `WaveReader`
 #[cfg(feature = "opus")]
 pub mod opus {
     use std::{
@@ -1387,7 +1387,7 @@ pub mod opus {
     }
 }
 
-/// ## The FLAC decoder for `WaveReader`
+/// * The FLAC decoder for `WaveReader`
 #[cfg(feature = "flac")]
 pub mod flac_dec {
     use std::{
@@ -1668,7 +1668,7 @@ pub mod flac_dec {
     }
 }
 
-/// ## The OggVorbis decoder for `WaveReader`
+/// * The OggVorbis decoder for `WaveReader`
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 pub mod oggvorbis_dec {
     use std::{
@@ -1690,7 +1690,7 @@ pub mod oggvorbis_dec {
     type OggVorbisHeaderToBodyCombinedReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
     type OggVorbisDecoderReader = SharedReader<DishonestReader<OggVorbisHeaderToBodyCombinedReader>>;
 
-    /// ## The OggVorbis decoder for `WaveReader`
+    /// * The OggVorbis decoder for `WaveReader`
     pub struct OggVorbisDecoderWrap {
         /// The shared reader for the decoder to use
         reader: OggVorbisDecoderReader,
@@ -2050,7 +2050,7 @@ pub mod oggvorbis_dec {
         }
     }
 
-    /// ## An ogg packet as a stream container
+    /// * An ogg packet as a stream container
     #[derive(Debug)]
     pub struct OggStreamWriteToCursor {
         pub ogg_stream_writer: OggStreamWriter<SharedCursor>,

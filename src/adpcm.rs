@@ -8,7 +8,7 @@ pub enum CurrentChannel {
     Right,
 }
 
-/// ## The `AdpcmEncoder` trait for all of the ADPCM encoders to implement
+/// * The `AdpcmEncoder` trait for all of the ADPCM encoders to implement
 /// * This thing is able to encode samples, write the `fmt ` chunk, update statistics, and finish encoding.
 pub trait AdpcmEncoder: Debug {
     fn new(channels: u16) -> Result<Self, io::Error>
@@ -61,7 +61,7 @@ pub trait AdpcmEncoder: Debug {
     }
 }
 
-/// ## The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
+/// * The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
 /// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
     fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
@@ -95,7 +95,7 @@ pub trait AdpcmDecoder: Debug {
     }
 }
 
-/// ### An example test function to test the `AdpcmEncoder` and the `AdpcmDecoder`.
+/// * An example test function to test the `AdpcmEncoder` and the `AdpcmDecoder`.
 /// * Normally it won't be called by you, but if you want to test how lossy the ADPCM algorithm is, this can help.
 #[allow(dead_code)]
 pub fn test(encoder: &mut impl AdpcmEncoder, decoder: &mut impl AdpcmDecoder, mut input: impl FnMut() -> Option<i16>, mut output: impl FnMut(i16)) -> io::Result<()> {
@@ -175,7 +175,7 @@ pub mod ima {
     const INTERLEAVE_SAMPLES: usize = INTERLEAVE_BYTES * 2;
     const NIBBLE_BUFFER_SIZE: usize = HEADER_SIZE + INTERLEAVE_BYTES;
 
-    /// ## The core encoder of ADPCM-IMA for mono-channel
+    /// * The core encoder of ADPCM-IMA for mono-channel
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
         prev_sample: i16,
@@ -225,7 +225,7 @@ pub mod ima {
             nibble
         }
 
-        /// ### Encoder logic:
+        /// * Encoder logic:
         /// 1. Initially outputs 4 bytes of the decoder's state machine register values.
         /// 2. Processes samples by converting two raw samples into one encoded unit combined by two nibbles (a byte).
         pub fn encode(
@@ -284,7 +284,7 @@ pub mod ima {
     type EncoderSampleBuffer = CopiableBuffer<i16, INTERLEAVE_SAMPLES>;
     type EncoderNibbleBuffer = CopiableBuffer<u8, NIBBLE_BUFFER_SIZE>;
 
-    /// ### A wrapper for the `EncoderCore` to encode stereo audio.
+    /// * A wrapper for the `EncoderCore` to encode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoEncoder {
         current_channel: CurrentChannel,
@@ -296,7 +296,7 @@ pub mod ima {
         nibble_r: EncoderNibbleBuffer,
     }
 
-    /// ## The ADPCM-IMA Encoder for you to use.
+    /// * The ADPCM-IMA Encoder for you to use.
     #[derive(Debug, Clone)]
     pub enum Encoder {
         Mono(EncoderCore),
@@ -446,7 +446,7 @@ pub mod ima {
     type DecoderNibbleBuffer = CopiableBuffer<u8, INTERLEAVE_BYTES>;
     type DecoderSampleBuffer = CopiableBuffer<i16, INTERLEAVE_SAMPLES>;
 
-    /// ### Decoder logic:
+    /// * Decoder logic:
     /// * Data is stored as interleaved u32 values across channels.
     /// * For each channel, the first u32 initializes the decoder state.
     /// * Each subsequent u32 (4 bytes) decodes into 8 compressed nibbles (4-bit samples).
@@ -567,7 +567,7 @@ pub mod ima {
         }
     }
 
-    /// ### A wrapper for the `DecoderCore` to decode stereo audio.
+    /// * A wrapper for the `DecoderCore` to decode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoDecoder {
         current_channel: CurrentChannel,
@@ -580,7 +580,7 @@ pub mod ima {
         block_size: usize,
     }
 
-    /// ## The ADPCM-IMA Decoder for you to use.
+    /// * The ADPCM-IMA Decoder for you to use.
     #[derive(Debug, Clone, Copy)]
     pub enum Decoder {
         Mono(DecoderCore),
@@ -774,7 +774,7 @@ pub mod ms {
         }
     }
 
-    /// ## The core encoder of ADPCM-MS for mono-channel
+    /// * The core encoder of ADPCM-MS for mono-channel
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderCore {
         sample1: i16,
@@ -863,7 +863,7 @@ pub mod ms {
         output(bytes[1]);
     }
 
-    /// ### A wrapper for the `EncoderCore` to encode stereo audio.
+    /// * A wrapper for the `EncoderCore` to encode stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoEncoder {
         core_l: EncoderCore,
@@ -938,7 +938,7 @@ pub mod ms {
 
     type EncoderBuffer = CopiableBuffer<i16, 4>;
 
-    /// ## The encoder is for your use
+    /// * The encoder is for your use
     #[derive(Debug, Clone, Copy)]
     pub struct Encoder {
         channels: Channels,
@@ -1146,7 +1146,7 @@ pub mod ms {
         }
     }
 
-    /// ## This is the decoder core for mono-channel decoding
+    /// * This is the decoder core for mono-channel decoding
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderCore {
         sample1: i16,
@@ -1291,7 +1291,7 @@ pub mod ms {
         }
     }
 
-    /// ## The decoder with two cores to decode the stereo audio.
+    /// * The decoder with two cores to decode the stereo audio.
     #[derive(Debug, Clone, Copy)]
     pub struct StereoDecoder {
         core_l: DecoderCore,
@@ -1301,7 +1301,7 @@ pub mod ms {
         ready: bool,
     }
 
-    /// ## The decoder is for your use
+    /// * The decoder is for your use
     #[derive(Debug, Clone, Copy)]
     pub enum Decoder {
         Mono(DecoderCore),
@@ -1599,7 +1599,7 @@ pub mod yamaha {
         }
     }
 
-    /// ## The mono-channel encoder
+    /// * The mono-channel encoder
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderMono {
         core: YamahaCodecCore,
@@ -1655,7 +1655,7 @@ pub mod yamaha {
         }
     }
 
-    /// ## The stereo-channel encoder
+    /// * The stereo-channel encoder
     #[derive(Debug, Clone, Copy)]
     pub struct EncoderStereo {
         core_l: YamahaCodecCore,
@@ -1788,7 +1788,7 @@ pub mod yamaha {
         }
     }
 
-    /// ## The mono-channel decoder
+    /// * The mono-channel decoder
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderMono {
         core: YamahaCodecCore,
@@ -1828,7 +1828,7 @@ pub mod yamaha {
         }
     }
 
-    /// ## The stereo-channel decoder
+    /// * The stereo-channel decoder
     #[derive(Debug, Clone, Copy)]
     pub struct DecoderStereo {
         core_l: YamahaCodecCore,

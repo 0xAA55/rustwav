@@ -17,26 +17,26 @@ mod ogg;
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 mod vorbis;
 
-/// ## The utility for both you and me to convert waveform format and do resampling and convert sample types.
+/// * The utility for both you and me to convert waveform format and do resampling and convert sample types.
 #[macro_use]
 pub mod audioutils;
 
-/// ## The utility for both you and me to do bitvise manipulations.
+/// * The utility for both you and me to do bitvise manipulations.
 pub mod bitwise;
 
-/// ## The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
+/// * The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
 pub mod encoders;
 
-/// ## The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
+/// * The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
 pub mod decoders;
 
-/// ## Errors returned from most of the function in this library.
+/// * Errors returned from most of the function in this library.
 pub mod errors;
 
-/// ## The downmixer
+/// * The downmixer
 pub mod downmixer;
 
-/// ## The resampler
+/// * The resampler
 pub use resampler;
 
 #[doc(hidden)]
@@ -150,7 +150,7 @@ use format_specs::*;
 use options::*;
 use resampler::Resampler;
 
-/// ## The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
+/// * The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
 pub const FORMATS: [(&str, DataFormat); 16] = [
     ("pcm", DataFormat::Pcm),
     ("pcm-alaw", DataFormat::PcmALaw),
@@ -266,7 +266,7 @@ pub const FORMATS: [(&str, DataFormat); 16] = [
     ),
 ];
 
-/// ## The fft size can be any number greater than the sample rate of the encoder or the decoder.
+/// * The fft size can be any number greater than the sample rate of the encoder or the decoder.
 /// * It is for the resampler. A greater number results in better resample quality, but the process could be slower.
 /// * In most cases, the audio sampling rate is about `11025` to `48000`, so `65536` is the best number for the resampler.
 pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
@@ -279,7 +279,7 @@ pub fn get_rounded_up_fft_size(sample_rate: u32) -> usize {
     0x1_00000000_usize
 }
 
-/// ## Transfer audio from the decoder to the encoder with resampling.
+/// * Transfer audio from the decoder to the encoder with resampling.
 /// * This allows to transfer of audio from the decoder to a different sample rate encoder.
 pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder: &mut WaveWriter) {
     // The decoding audio spec
@@ -360,7 +360,7 @@ pub fn transfer_audio_from_decoder_to_encoder(decoder: &mut WaveReader, encoder:
     }
 }
 
-/// ## The `test()` function
+/// * The `test()` function
 /// * arg1: the format, e.g. "pcm"
 /// * arg2: the input file to parse and decode, tests the decoder for the input file.
 /// * arg3: the output file to encode, test the encoder.
@@ -477,7 +477,7 @@ pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dy
     Ok(())
 }
 
-/// ## A function dedicated to testing WAV encoding and decoding. This function is actually a `main()` function for a command-line program that parses `args` and returns an `ExitCode`.
+/// * A function dedicated to testing WAV encoding and decoding. This function is actually a `main()` function for a command-line program that parses `args` and returns an `ExitCode`.
 /// * The usage is `arg0 [format] [test.wav] [output.wav] [output2.wav]`
 /// * It decodes the `test.wav` and encodes it to `output.wav` by `format`
 /// * Then it re-decode `output.wav` to `output2.wav`

@@ -36,7 +36,7 @@ use crate::encoders::flac_enc::FlacEncoderWrap;
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
 use crate::encoders::oggvorbis_enc::OggVorbisEncoderWrap;
 
-/// ## These options are used to specify what type of WAV file you want to create.
+/// * These options are used to specify what type of WAV file you want to create.
 #[derive(Debug)]
 pub enum FileSizeOption {
     /// * You specify the WAV file will never be larger than 4 GB. If the WAV file is about to exceed 4 GB and you continue to write data into it, errors occur.
@@ -52,7 +52,7 @@ pub enum FileSizeOption {
     ForceUse4GBFormat,
 }
 
-/// # The `WaveWriter` is dedicated to creating a WAV file.
+/// * The `WaveWriter` is dedicated to creating a WAV file.
 /// Usage:
 /// * Choose one of the internal formats by specifying `DataFormat` and use the `WaveWriter` to create the WAV file.
 /// * Use the methods, like `write_samples()`, `write_mono_channel()`, `write_monos()`, `write_stereos()`, etc, to write your PCM samples to the `WaveWriter`, it will encode.
@@ -90,7 +90,7 @@ pub struct WaveWriter<'a> {
 }
 
 impl<'a> WaveWriter<'a> {
-    /// ## Create WAV file through a file path.
+    /// * Create WAV file through a file path.
     pub fn create<P: AsRef<Path>>(
         filename: P,
         spec: Spec,
@@ -103,7 +103,7 @@ impl<'a> WaveWriter<'a> {
         Ok(wave_writer)
     }
 
-    /// ## Write the WAV file to the writer.
+    /// * Write the WAV file to the writer.
     pub fn from(
         writer: Box<dyn Writer + 'a>,
         spec: Spec,

@@ -16,7 +16,7 @@ use crate::options::*;
 use crate::io_utils::{Reader, Writer};
 use crate::downmixer;
 
-/// ## Specify the audio codecs of the WAV file.
+/// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum DataFormat {
@@ -129,7 +129,7 @@ pub mod format_tags {
 #[allow(unused_imports)]
 pub use format_tags::*;
 
-/// ## The rough type of the sample format.
+/// * The rough type of the sample format.
 #[derive(Debug, Clone, Copy)]
 pub enum SampleFormat {
     Unknown,
@@ -155,7 +155,7 @@ impl Display for SampleFormat {
     }
 }
 
-/// ## The concrete type of the sample format.
+/// * The concrete type of the sample format.
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum WaveSampleType {
     Unknown,
@@ -289,7 +289,7 @@ pub mod guids {
 
 pub use guids::*;
 
-/// ## The spec info for a generic audio file.
+/// * The spec info for a generic audio file.
 #[derive(Debug, Clone, Copy)]
 pub struct Spec {
     /// * Num channels
@@ -382,7 +382,7 @@ impl Spec {
     }
 }
 
-/// ## The WAV chunk writer used by `WaveWriter`
+/// * The WAV chunk writer used by `WaveWriter`
 /// * It remembers the chunk header field positions.
 /// * When it gets out of the scope or to be dropped, it updates the field of the chunk header.
 pub struct ChunkWriter<'a> {
@@ -494,7 +494,7 @@ impl Drop for ChunkWriter<'_> {
     }
 }
 
-/// ## This thing is for reading a chunk
+/// * This thing is for reading a chunk
 #[derive(Clone, Copy)]
 pub struct ChunkHeader {
     /// * The 4-byte identifier stored in the file (e.g., "RIFF", "fmt ")
@@ -581,7 +581,7 @@ impl Default for ChunkHeader {
     }
 }
 
-/// ## The `fmt ` chunk for the WAV file.
+/// * The `fmt ` chunk for the WAV file.
 #[derive(Debug, Clone)]
 pub struct FmtChunk {
     /// * See <https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/mmreg.h>
@@ -609,7 +609,7 @@ pub struct FmtChunk {
     pub extension: Option<FmtExtension>,
 }
 
-/// ## The `fmt ` chunk extension block
+/// * The `fmt ` chunk extension block
 #[derive(Debug, Clone)]
 pub struct FmtExtension {
     /// * Extension block size
@@ -619,7 +619,7 @@ pub struct FmtExtension {
     pub data: ExtensionData,
 }
 
-/// ## Extension block data
+/// * Extension block data
 #[derive(Debug, Clone)]
 pub enum ExtensionData {
     /// * If the extension block size is zero, here we have `Nodata` for it.
@@ -647,7 +647,7 @@ pub enum ExtensionData {
     Extensible(ExtensibleData),
 }
 
-/// ## The extension data for ADPCM-MS
+/// * The extension data for ADPCM-MS
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmMsData {
     pub samples_per_block: u16,
@@ -655,13 +655,13 @@ pub struct AdpcmMsData {
     pub coeffs: [AdpcmCoeffSet; 7],
 }
 
-/// ## The extension data for ADPCM-IMA
+/// * The extension data for ADPCM-IMA
 #[derive(Debug, Clone, Copy)]
 pub struct AdpcmImaData {
     pub samples_per_block: u16,
 }
 
-/// ## The extension data for MP3
+/// * The extension data for MP3
 #[derive(Debug, Clone, Copy)]
 pub struct Mp3Data {
     pub id: u16,
@@ -671,7 +671,7 @@ pub struct Mp3Data {
     pub codec_delay: u16,
 }
 
-/// ## The extension data for Naked vorbis audio without Ogg stream encapsulation
+/// * The extension data for Naked vorbis audio without Ogg stream encapsulation
 #[derive(Clone)]
 pub struct VorbisHeaderData {
     /// The header for the Vorbis audio
@@ -717,7 +717,7 @@ impl Debug for VorbisHeaderData {
     }
 }
 
-/// ## The extension data for OggVorbis
+/// * The extension data for OggVorbis
 #[derive(Clone, Copy)]
 pub struct OggVorbisData {
     /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
@@ -737,7 +737,7 @@ impl Debug for OggVorbisData {
     }
 }
 
-/// ## The another extension data for OggVorbis
+/// * The another extension data for OggVorbis
 #[derive(Clone)]
 pub struct OggVorbisWithHeaderData {
     /// * The codec version. I'm coding this thing at 2025/5/6, so this filed for our encoded WAV file should be 0x20250506
@@ -761,7 +761,7 @@ impl Debug for OggVorbisWithHeaderData {
     }
 }
 
-/// ## The extension data for extensible.
+/// * The extension data for extensible.
 #[derive(Debug, Clone, Copy)]
 pub struct ExtensibleData {
     /// * Valid bits per sample
@@ -2127,7 +2127,7 @@ pub fn get_language_dialect_code_map() -> HashMap<LanguageDialect, LanguageSpeci
     ].iter().copied().collect()
 }
 
-/// ## The fully assembled cue point data from various of chunks in the WAV file.
+/// * The fully assembled cue point data from various of chunks in the WAV file.
 #[derive(Debug, Clone, Default)]
 pub struct FullInfoCuePoint {
     pub data_chunk_id: [u8; 4],
@@ -2246,7 +2246,7 @@ impl FullInfoCuePoint {
     }
 }
 
-/// ## Create a fully assembled cue point data from various of chunks in the WAV file.
+/// * Create a fully assembled cue point data from various of chunks in the WAV file.
 pub fn create_full_info_cue_data(
     cue_chunk: &CueChunk,
     adtl_chunks: &BTreeMap<u32, AdtlChunk>,
@@ -2422,7 +2422,7 @@ pub fn get_listinfo_flacmeta() -> &'static BTreeMap<&'static str, &'static str> 
 
 #[cfg(not(feature = "flac"))]
 pub mod flac {
-    /// ## The compression level of the FLAC file
+    /// * The compression level of the FLAC file
     /// A higher number means less file size. Default compression level is 5
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum FlacCompression {
@@ -2440,7 +2440,7 @@ pub mod flac {
         Level8 = 8,
     }
 
-    /// ## Parameters for the encoder to encode the audio.
+    /// * Parameters for the encoder to encode the audio.
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct FlacEncoderParams {
         /// * If set to true, the FLAC encoder will send the encoded data to a decoder to verify if the encoding is successful, and the encoding process will be slower.
@@ -2465,7 +2465,7 @@ pub mod flac {
     }
 }
 
-/// ## If the `id3` feature is enabled, use it to read ID3 data.
+/// * If the `id3` feature is enabled, use it to read ID3 data.
 #[cfg(feature = "id3")]
 #[allow(non_snake_case)]
 pub mod Id3 {
@@ -2520,7 +2520,7 @@ pub mod Id3 {
     }
 }
 
-/// ## If the `id3` feature is disabled, read the raw bytes.
+/// * If the `id3` feature is disabled, read the raw bytes.
 #[cfg(not(feature = "id3"))]
 #[allow(non_snake_case)]
 pub mod Id3 {
