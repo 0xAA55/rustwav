@@ -1926,9 +1926,7 @@ pub mod oggvorbis_dec {
                 self.cur_block_frame_index = 0;
             }
             self.cur_frame_index = frame_index;
-            while self.cur_block_frame_index + (self.cur_block_frames() as u64)
-                < self.cur_frame_index
-            {
+            while self.cur_block_frame_index + (self.cur_block_frames() as u64) < self.cur_frame_index {
                 self.decode()?;
                 if self.decoded_samples.is_none() {
                     return Ok(());
@@ -1945,8 +1943,7 @@ pub mod oggvorbis_dec {
             match self.decoded_samples {
                 None => Ok(None),
                 Some(ref samples) => {
-                    let cache_frame_index =
-                        (self.cur_frame_index - self.cur_block_frame_index) as usize;
+                    let cache_frame_index = (self.cur_frame_index - self.cur_block_frame_index) as usize;
                     if cache_frame_index < samples[0].len() {
                         let ret: Vec<S> = (0..self.channels)
                             .map(|channel| {
