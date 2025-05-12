@@ -217,7 +217,7 @@ pub const FORMATS: [(&str, DataFormat); 16] = [
             channels: 2,
             sample_rate: 44100,
             stream_serial: None,
-            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
+            bitrate: Some(OggVorbisBitrateStrategy::Vbr(160000)),
             minimum_page_data_size: None,
         }),
     ),
