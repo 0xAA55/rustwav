@@ -2089,8 +2089,8 @@ pub mod oggvorbis_dec {
             self.cursor.clear();
         }
 
-        pub fn set_to_end_of_stream(&mut self) {
-            self.ogg_stream_writer.set_to_end_of_stream();
+        pub fn mark_cur_packet_as_end_of_stream(&mut self) {
+            self.ogg_stream_writer.mark_cur_packet_as_end_of_stream();
         }
 
         pub fn seal_packet(&mut self, granule_position: u64, is_end_of_stream: bool) -> io::Result<()> {
