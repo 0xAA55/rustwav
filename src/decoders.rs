@@ -1815,7 +1815,7 @@ pub mod oggvorbis_dec {
 
             let vorbis_header_len = vorbis_header.len();
             let cursor = CursorVecU8::new(vorbis_header);
-            let combined_reader = CombinedReader::new(cursor, 0, vorbis_header_len as u64, SharedReader::new(reader), data_offset, data_length)?;
+            let combined_reader = CombinedReader::new(cursor, 0, vorbis_header_len as u64, SharedReader::new(reader), data_offset, data_length);
             let data_offset = 0;
             let data_length = vorbis_header_len as u64 + data_length;
             let on_read = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
