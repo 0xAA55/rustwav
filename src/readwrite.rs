@@ -234,6 +234,7 @@ where
     second_data_offset: u64,
     second_data_length: u64,
     stream_pos: u64,
+    total_length: u64,
 }
 
 impl<R1, R2> CombinedReader<R1, R2>
@@ -247,6 +248,8 @@ where
         second: R2,
         second_data_offset: u64,
         second_data_length: u64,
+    ) -> Self {
+        Self {
             first,
             first_data_offset,
             first_data_length,
@@ -254,7 +257,10 @@ where
             second_data_offset,
             second_data_length,
             stream_pos: 0,
-        })
+            total_length: first_data_length + second_data_length,
+        }
+    }
+
     }
 }
 
