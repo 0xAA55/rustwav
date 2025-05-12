@@ -175,6 +175,7 @@ pub enum AudioError {
     ChannelNotMatchMask,
     ChannekMaskNotMatch(String),
     Unparseable(String),
+    InvalidData(String),
     NoSuchData(String),
     Unimplemented(String),
     InvalidArguments(String),
@@ -191,6 +192,7 @@ impl Display for AudioError {
            Self::ChannekMaskNotMatch(info) => write!(f, "The channel mask does not match: {info}"),
            Self::Unparseable(data) => write!(f, "Could not parse {data}"),
            Self::NoSuchData(data) => write!(f, "Could not find data \"{data}\""),
+           Self::InvalidData(info) => write!(f, "Invalid data {info}"),
            Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
            Self::WrongExtensionData(info) => write!(f, "Wrong extension data: {info}"),
@@ -209,6 +211,7 @@ impl From<AudioError> for AudioReadError {
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
             AudioError::WrongExtensionData(info) => Self::DataCorrupted(info),
+            AudioError::InvalidData(_) => Self::DataCorrupted(format!("{:?}", err)),
         }
     }
 }
@@ -224,6 +227,7 @@ impl From<AudioError> for AudioWriteError {
             AudioError::Unimplemented(info) => Self::Unimplemented(info),
             AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
             AudioError::WrongExtensionData(info) => Self::InvalidData(info),
+            AudioError::InvalidData(_) => Self::InvalidData(format!("{:?}", err)),
         }
     }
 }
