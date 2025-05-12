@@ -1680,7 +1680,7 @@ pub mod oggvorbis_dec {
     use crate::chunks::{FmtChunk, ext::ExtensionData};
     use crate::io_utils::{Reader, SharedReader, CombinedReader, CursorVecU8, SharedCursor, DishonestReader};
     use crate::options::{OggVorbisMode, OggVorbisEncoderParams};
-    use crate::ogg::OggStreamWriter;
+    use crate::ogg::{OggPacket, OggStreamWriter};
     use vorbis_rs::VorbisDecoder;
 
     type OggVorbisHeaderToBodyCombinedReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
@@ -1811,7 +1811,7 @@ pub mod oggvorbis_dec {
 
             use std::fs::File;
             let debug_file = RefCell::new(File::create("test.ogg")?);
-            let fmtdata = RefCell::new(fmt.clone());
+            let total_frames = total_samples / fmt.channels as u64;
 
             let vorbis_header_len = vorbis_header.len();
             let cursor = CursorVecU8::new(vorbis_header);
@@ -1820,9 +1820,7 @@ pub mod oggvorbis_dec {
             let data_length = vorbis_header_len as u64 + data_length;
             let on_read = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
                 let mut debug_file = debug_file.borrow_mut();
-                let fmt = fmtdata.borrow();
-                let sample_rate = fmt.sample_rate;
-                let byte_rate = fmt.byte_rate;
+                let mut body_bytes_written = 0u64;
                 if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {
                     // There's an Ogg stream encapsulator.
                     // The data read from the reader is the naked Vorbis data.
@@ -1860,21 +1858,46 @@ pub mod oggvorbis_dec {
                         Ok(data)
                     } else if current_position < vorbis_header_len as u64 {
                         panic!("Unexpected read position that's in the middle of the Vorbis header.")
+                    } else if current_position >= vorbis_header_len as u64 && current_position < data_length {
+
+                        let body_length = data_length - vorbis_header_len as u64;
+                        let buflen = body_length as usize;
+
                         let mut buf = vec![0u8; buflen];
                         let len = reader.read(&mut buf)?;
-                        if len > 0 {
-                            let current_position = current_position + len as u64;
-                            let data_position = current_position - vorbis_header_len as u64;
-                            let granule_position = data_position * sample_rate as u64 / byte_rate as u64;
-                            println!("{data_position}, {data_length}, {byte_rate}, granule_position: {granule_position}");
-                            if current_position >= data_length {
-                                ogg_stream_writer.set_to_end_of_stream();
-                            }
+
+                        let current_position = current_position + len as u64;
+                        let data_position = current_position - vorbis_header_len as u64;
+
+                        let granule_position;
+                        let is_eos;
+
+                        if len < buflen || current_position == data_length {
+                            is_eos = true;
                             buf.truncate(len);
-                            ogg_stream_writer.write_all(&buf)?;
-                            ogg_stream_writer.seal_packet(granule_position, false)?;
-                            ogg_stream_writer.flush()?;
+                            granule_position = total_frames;
+                        } else {
+                            is_eos = false;
+                            granule_position = data_position * body_length as u64 / total_frames as u64;
                         }
+                        let mut ogg_stream_writer_cb = ogg_stream_writer.clone();
+                        ogg_stream_writer.set_on_seal_callback(Box::new(move |cur_packet_size| -> u64 {
+                            *&mut body_bytes_written += cur_packet_size as u64;
+                            let granule_position = body_bytes_written * body_length as u64 / total_frames as u64;
+                            let is_eos = granule_position == total_frames;
+                            if is_eos {
+                                ogg_stream_writer_cb.mark_cur_packet_as_end_of_stream();
+                            }
+                            granule_position
+                        }));
+                        ogg_stream_writer.write_all(&buf)?;
+                        if is_eos {
+                            if ogg_stream_writer.get_cur_packet().get_inner_data_size() > 0 {
+                                ogg_stream_writer.seal_packet(granule_position, is_eos)?;
+                            }
+                        }
+                        ogg_stream_writer.flush()?;
+
                         let data = ogg_stream_writer.get_cursor_data_and_clear();
                         debug_file.write_all(&data)?;
                         debug_file.flush()?;
@@ -1906,7 +1929,7 @@ pub mod oggvorbis_dec {
                 decoder,
                 data_offset,
                 data_length,
-                total_frames: total_samples / fmt.channels as u64,
+                total_frames,
                 channels,
                 sample_rate,
                 decoded_samples: None,
