@@ -2995,6 +2995,7 @@ pub mod oggvorbis_enc {
                     OggVorbisMode::HaveNoCodebookHeader => {
                         self.writer.set_stream(1);
                         self.begin_to_encode()?;
+                        // Discard the header. When to decode, the decoder generates the header by using an encoder.
                         let _header = self.writer.get_cur_stream_mut().take_cursor_data();
                         self.writer.set_stream(0);
                     }
