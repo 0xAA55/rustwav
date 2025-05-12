@@ -2085,6 +2085,10 @@ pub mod oggvorbis_dec {
             data
         }
 
+        pub fn set_on_seal_callback(&mut self, on_seal: Box<dyn FnMut(usize) -> u64>) {
+            self.ogg_stream_writer.set_on_seal_callback(on_seal)
+        }
+
         pub fn reset(&mut self) {
             self.ogg_stream_writer.reset();
             self.cursor.clear();
