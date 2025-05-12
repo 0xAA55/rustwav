@@ -190,9 +190,9 @@ impl Display for AudioError {
            Self::GuessChannelMaskFailed(channels) => write!(f, "Can't guess channel mask for channels = {channels}"),
            Self::ChannelNotMatchMask => write!(f, "The number of the channels doesn't match the channel mask."),
            Self::ChannekMaskNotMatch(info) => write!(f, "The channel mask does not match: {info}"),
-           Self::Unparseable(data) => write!(f, "Could not parse {data}"),
-           Self::NoSuchData(data) => write!(f, "Could not find data \"{data}\""),
+           Self::Unparseable(info) => write!(f, "Could not parse {info}"),
            Self::InvalidData(info) => write!(f, "Invalid data {info}"),
+           Self::NoSuchData(info) => write!(f, "Could not find data \"{info}\""),
            Self::Unimplemented(info) => write!(f, "Unimplemented behavior: {info}"),
            Self::InvalidArguments(info) => write!(f, "Invalid arguments: {info}"),
            Self::WrongExtensionData(info) => write!(f, "Wrong extension data: {info}"),
@@ -203,15 +203,15 @@ impl Display for AudioError {
 impl From<AudioError> for AudioReadError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
-            AudioError::ChannelNotMatchMask => Self::DataCorrupted("the channel number does not match the channel mask".to_owned()),
-            AudioError::ChannekMaskNotMatch(info) => Self::InvalidArguments(info),
-            AudioError::Unparseable(data) => Self::DataCorrupted(format!("The data \"{data}\" is not parseable")),
-            AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
-            AudioError::Unimplemented(info) => Self::Unimplemented(info),
-            AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
-            AudioError::WrongExtensionData(info) => Self::DataCorrupted(info),
+            AudioError::GuessChannelMaskFailed(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::ChannelNotMatchMask => Self::DataCorrupted(format!("{:?}", err)),
+            AudioError::ChannekMaskNotMatch(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::Unparseable(_) => Self::DataCorrupted(format!("{:?}", err)),
             AudioError::InvalidData(_) => Self::DataCorrupted(format!("{:?}", err)),
+            AudioError::NoSuchData(_) => Self::MissingData(format!("{:?}", err)),
+            AudioError::Unimplemented(_) => Self::Unimplemented(format!("{:?}", err)),
+            AudioError::InvalidArguments(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::WrongExtensionData(_) => Self::DataCorrupted(format!("{:?}", err)),
         }
     }
 }
@@ -219,15 +219,15 @@ impl From<AudioError> for AudioReadError {
 impl From<AudioError> for AudioWriteError {
     fn from(err: AudioError) -> Self {
         match err {
-            AudioError::GuessChannelMaskFailed(channels) => Self::InvalidArguments(format!("can't guess channel mask by channel number {channels}")),
-            AudioError::ChannelNotMatchMask => Self::InvalidArguments("the channel number does not match the channel mask".to_owned()),
-            AudioError::ChannekMaskNotMatch(info) => Self::InvalidArguments(info),
-            AudioError::Unparseable(data) => Self::InvalidInput(format!("The input data is unparseable: \"{data}\"")),
-            AudioError::NoSuchData(data) => Self::MissingData(format!("Missing data: \"{data}\"")),
-            AudioError::Unimplemented(info) => Self::Unimplemented(info),
-            AudioError::InvalidArguments(info) => Self::InvalidArguments(info),
-            AudioError::WrongExtensionData(info) => Self::InvalidData(info),
+            AudioError::GuessChannelMaskFailed(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::ChannelNotMatchMask => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::ChannekMaskNotMatch(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::Unparseable(_) => Self::InvalidInput(format!("{:?}", err)),
             AudioError::InvalidData(_) => Self::InvalidData(format!("{:?}", err)),
+            AudioError::NoSuchData(_) => Self::MissingData(format!("{:?}", err)),
+            AudioError::Unimplemented(_) => Self::Unimplemented(format!("{:?}", err)),
+            AudioError::InvalidArguments(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioError::WrongExtensionData(_) => Self::InvalidData(format!("{:?}", err)),
         }
     }
 }
