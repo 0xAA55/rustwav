@@ -302,35 +302,21 @@ where
     R1: Reader,
     R2: Reader {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let new_pos = match pos {
-            SeekFrom::Start(offset) => offset,
-            SeekFrom::End(offset) => {
-                let total_len = self.first_data_length.checked_add(self.second_data_length).ok_or(io::ErrorKind::InvalidInput)?;
-                if offset > 0 {
-                    total_len.checked_add(offset as u64)
-                } else {
-                    total_len.checked_sub((-offset) as u64)
-                }.ok_or(io::ErrorKind::InvalidInput)?
+        self.stream_pos = min(match pos {
+            SeekFrom::Start(position) => position,
+            relative => {
+                let ipos = match relative {
+                    SeekFrom::End(offset) => self.total_length as i64 + offset,
+                    SeekFrom::Current(offset) => self.stream_pos as i64 + offset,
+                    _absolute => unreachable!(),
+                };
+                if ipos < 0 {
+                    return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Seek position out of bounds: {ipos}")))
+                }
+                ipos as u64
             }
-            SeekFrom::Current(offset) => {
-                if offset >= 0 {
-                    self.stream_pos.checked_add(offset as u64)
-                } else {
-                    self.stream_pos.checked_sub((-offset) as u64)
-                }.ok_or(io::ErrorKind::InvalidInput)?
-            }
-        };
-
-        let total_len = self.first_data_length + self.second_data_length;
-        if new_pos > total_len {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Seek position out of bounds"
-            ));
-        }
-
-        self.stream_pos = new_pos;
-        Ok(new_pos)
+        }, self.total_length);
+        Ok(self.stream_pos)
     }
 }
 
