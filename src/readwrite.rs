@@ -261,6 +261,12 @@ where
         }
     }
 
+    fn default_read<R>(reader: &mut R, buf: &mut [u8], reader_position: u64, reader_offset: u64, reader_length: u64) -> io::Result<usize>
+    where
+        R: Reader {
+        let bytes_to_read = min((reader_length - reader_position) as usize, buf.len());
+        reader.seek(SeekFrom::Start(reader_offset + reader_position))?;
+        reader.read(&mut buf[..bytes_to_read])
     }
 }
 
