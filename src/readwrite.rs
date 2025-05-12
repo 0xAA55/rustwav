@@ -275,29 +275,25 @@ where
     R1: Reader,
     R2: Reader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let remaining = (self.first_data_length + self.second_data_length) - self.stream_pos;
-        if remaining == 0 {
-            return Ok(0);
-        }
-
-        // Choose the reader to use
-        let bytes_read = if self.stream_pos < self.first_data_length {
-            let bytes_to_read = min((self.first_data_length - self.stream_pos) as usize, buf.len());
-            let first_pos = self.stream_pos;
-            self.first.seek(SeekFrom::Start(first_pos + self.first_data_offset))?;
-            let n = self.first.read(&mut buf[..bytes_to_read])?;
+        if self.stream_pos < self.first_data_length {
+            let reader = &mut self.first;
+            let reader_position = self.stream_pos;
+            let reader_offset = self.first_data_offset;
+            let reader_length = self.first_data_length;
+            let n = Self::default_read(reader, buf, reader_position, reader_offset, reader_length)?;
             self.stream_pos += n as u64;
-            n
+            Ok(n)
+        } else if self.stream_pos < self.total_length {
+            let reader = &mut self.second;
+            let reader_position = self.stream_pos - self.first_data_length;
+            let reader_offset = self.second_data_offset;
+            let reader_length = self.second_data_length;
+            let n = Self::default_read(reader, buf, reader_position, reader_offset, reader_length)?;
+            self.stream_pos += n as u64;
+            Ok(n)
         } else {
-            let bytes_to_read = min((self.second_data_length - self.stream_pos) as usize, buf.len());
-            let second_pos = self.stream_pos - self.first_data_length;
-            self.second.seek(SeekFrom::Start(second_pos + self.second_data_offset))?;
-            let n = self.second.read(&mut buf[..bytes_to_read])?;
-            self.stream_pos += n as u64;
-            n
-        };
-
-        Ok(bytes_read)
+            return Ok(0)
+        }
     }
 }
 
