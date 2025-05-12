@@ -241,16 +241,12 @@ where
     R1: Reader,
     R2: Reader {
     pub fn new(
-        mut first: R1,
+        first: R1,
         first_data_offset: u64,
         first_data_length: u64,
-        mut second: R2,
+        second: R2,
         second_data_offset: u64,
         second_data_length: u64,
-    ) -> Result<Self, io::Error> {
-        first.seek(SeekFrom::Start(first_data_offset))?;
-        second.seek(SeekFrom::Start(second_data_offset))?;
-        Ok(Self {
             first,
             first_data_offset,
             first_data_length,
