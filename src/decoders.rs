@@ -1858,7 +1858,8 @@ pub mod oggvorbis_dec {
                         debug_file.write_all(&data)?;
                         debug_file.flush()?;
                         Ok(data)
-                    } else if current_position >= vorbis_header_len as u64 {
+                    } else if current_position < vorbis_header_len as u64 {
+                        panic!("Unexpected read position that's in the middle of the Vorbis header.")
                         let mut buf = vec![0u8; buflen];
                         let len = reader.read(&mut buf)?;
                         if len > 0 {
@@ -1879,7 +1880,7 @@ pub mod oggvorbis_dec {
                         debug_file.flush()?;
                         Ok(data)
                     } else {
-                        panic!("Unexpected read position that's in the middle of the Vorbis header.");
+                        Ok(Vec::new())
                     }
                 } else {
                     // The data is the Ogg encapsulated Vorbis audio, just feed them to the decoder.
