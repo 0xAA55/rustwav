@@ -1877,12 +1877,12 @@ pub mod oggvorbis_dec {
                             granule_position = total_frames;
                         } else {
                             is_eos = false;
-                            granule_position = data_position * body_length as u64 / total_frames as u64;
+                            granule_position = data_position * body_length as u64 / total_frames;
                         }
                         let mut ogg_stream_writer_cb = ogg_stream_writer.clone();
                         ogg_stream_writer.set_on_seal_callback(Box::new(move |cur_packet_size| -> u64 {
-                            *&mut body_bytes_written += cur_packet_size as u64;
-                            let granule_position = body_bytes_written * body_length as u64 / total_frames as u64;
+                            body_bytes_written += cur_packet_size as u64;
+                            let granule_position = body_bytes_written * body_length as u64 / total_frames;
                             let is_eos = granule_position == total_frames;
                             if is_eos {
                                 ogg_stream_writer_cb.mark_cur_packet_as_end_of_stream();
@@ -1890,10 +1890,8 @@ pub mod oggvorbis_dec {
                             granule_position
                         }));
                         ogg_stream_writer.write_all(&buf)?;
-                        if is_eos {
-                            if ogg_stream_writer.get_cur_packet().get_inner_data_size() > 0 {
-                                ogg_stream_writer.seal_packet(granule_position, is_eos)?;
-                            }
+                        if is_eos && ogg_stream_writer.get_cur_packet().get_inner_data_size() > 0 {
+                            ogg_stream_writer.seal_packet(granule_position, is_eos)?;
                         }
                         ogg_stream_writer.flush()?;
 
