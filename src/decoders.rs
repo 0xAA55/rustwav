@@ -2106,7 +2106,7 @@ pub mod oggvorbis_dec {
         }
 
         pub fn get_cur_packet(&self) -> &OggPacket {
-            self.ogg_stream_writer.cur_packet
+            &self.ogg_stream_writer.cur_packet
         }
 
         pub fn set_on_seal_callback(&mut self, on_seal: Box<dyn FnMut(usize) -> u64>) {
