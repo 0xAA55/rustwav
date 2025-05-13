@@ -3,7 +3,7 @@ use std::{
     cmp::PartialEq,
     fmt::Debug,
     iter::FromIterator,
-    ops::{Index, IndexMut, Deref, DerefMut, Range, RangeFrom, RangeTo},
+    ops::{Index, IndexMut, Deref, DerefMut, Range, RangeFrom, RangeTo, RangeFull},
 };
 
 pub trait CopiableItem: Default + Clone + Copy + Debug + Sized + PartialEq {}
@@ -266,6 +266,28 @@ where
             panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
         }
         &mut self.buffer[range]
+    }
+}
+
+impl<T, const N: usize> Index<RangeFull> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    type Output = [T];
+
+    #[track_caller]
+    fn index(&self, _range: RangeFull) -> &[T] {
+        &self.buffer[..self.buf_used]
+    }
+}
+
+impl<T, const N: usize> IndexMut<RangeFull> for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    #[track_caller]
+    fn index_mut<'a>(&mut self, _range: RangeFull) -> &mut [T] {
+        &mut self.buffer[..self.buf_used]
     }
 }
 
