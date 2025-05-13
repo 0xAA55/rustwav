@@ -332,6 +332,19 @@ impl CursorVecU8 {
     pub fn into_inner(self) -> Vec<u8> {
         self.0.into_inner()
     }
+
+    pub fn len(&self) -> usize {
+        self.0.get_ref().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.get_ref().is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.get_mut().clear();
+        self.0.set_position(0);
+    }
 }
 
 impl Default for CursorVecU8 {
@@ -399,6 +412,71 @@ impl Debug for CursorVecU8 {
 impl Display for CursorVecU8 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         <Self as Debug>::fmt(self, f)
+    }
+}
+
+impl Index<usize> for CursorVecU8 {
+    type Output = u8;
+    fn index(&self, index: usize) -> &u8 {
+        &self.0.get_ref()[index]
+    }
+}
+
+impl IndexMut<usize> for CursorVecU8 {
+    fn index_mut(&mut self, index: usize) -> &mut u8 {
+        &mut self.0.get_mut()[index]
+    }
+}
+
+impl Index<Range<usize>> for CursorVecU8 {
+    type Output = [u8];
+    fn index(&self, range: Range<usize>) -> &[u8] {
+        &self.0.get_ref()[range]
+    }
+}
+
+impl IndexMut<Range<usize>> for CursorVecU8 {
+    fn index_mut(&mut self, range: Range<usize>) -> &mut [u8] {
+        &mut self.0.get_mut()[range]
+    }
+}
+
+impl Index<RangeFrom<usize>> for CursorVecU8 {
+    type Output = [u8];
+    fn index(&self, range: RangeFrom<usize>) -> &[u8] {
+        &self.0.get_ref()[range]
+    }
+}
+
+impl IndexMut<RangeFrom<usize>> for CursorVecU8 {
+    fn index_mut(&mut self, range: RangeFrom<usize>) -> &mut [u8] {
+        &mut self.0.get_mut()[range]
+    }
+}
+
+impl Index<RangeTo<usize>> for CursorVecU8 {
+    type Output = [u8];
+    fn index(&self, range: RangeTo<usize>) -> &[u8] {
+        &self.0.get_ref()[range]
+    }
+}
+
+impl IndexMut<RangeTo<usize>> for CursorVecU8 {
+    fn index_mut(&mut self, range: RangeTo<usize>) -> &mut [u8] {
+        &mut self.0.get_mut()[range]
+    }
+}
+
+impl Index<RangeFull> for CursorVecU8 {
+    type Output = [u8];
+    fn index(&self, _range: RangeFull) -> &[u8] {
+        &self.0.get_ref()[..]
+    }
+}
+
+impl IndexMut<RangeFull> for CursorVecU8 {
+    fn index_mut(&mut self, _range: RangeFull) -> &mut [u8] {
+        &mut self.0.get_mut()[..]
     }
 }
 
