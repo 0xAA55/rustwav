@@ -3005,7 +3005,8 @@ pub mod oggvorbis_enc {
                         self.writer.set_stream(1);
                         self.begin_to_encode()?;
                         let header = self.writer.get_cur_stream_mut().take_cursor_data();
-                        let (identification_header, comments_header, setup_header, _stream_id) = get_vorbis_headers_from_ogg_packet_bytes(&header)?;
+                        let mut _stream_id = 0u32;
+                        let (identification_header, comments_header, setup_header) = get_vorbis_headers_from_ogg_packet_bytes(&header, &mut _stream_id)?;
                         self.vorbis_header.clear();
                         self.vorbis_header.push(2); // Two field of the header size
                         self.vorbis_header.push(identification_header.len() as u8);
