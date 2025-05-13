@@ -9,7 +9,7 @@ use std::{
     io::{self, Read, Seek, Write, Cursor, SeekFrom},
     rc::Rc,
     cell::RefCell,
-    ops::{Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeTo}
+    ops::{Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeTo, RangeFull}
 };
 
 /// * The `Reader` trait, `Read + Seek + Debug`
@@ -834,6 +834,28 @@ where
     RW: Read + Write + Seek + Debug {
     fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
         &mut self.streams[index]
+    }
+}
+
+impl<R, W, RW> Index<RangeFull> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    type Output = [StreamType<R, W, RW>];
+
+    fn index(&self, _range: RangeFull) -> &Self::Output {
+        &self.streams[..]
+    }
+}
+
+impl<R, W, RW> IndexMut<RangeFull> for MultistreamIO<R, W, RW>
+where
+    R: Read + Seek + Debug,
+    W: Write + Seek + Debug,
+    RW: Read + Write + Seek + Debug {
+    fn index_mut(&mut self, _range: RangeFull) -> &mut Self::Output {
+        &mut self.streams[..]
     }
 }
 
