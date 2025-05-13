@@ -1,15 +1,16 @@
 #![allow(dead_code)]
 use std::{
+    cmp::PartialEq,
     fmt::Debug,
     iter::FromIterator,
     ops::{Index, IndexMut, Deref, DerefMut, Range, RangeFrom, RangeTo},
 };
 
-pub trait CopiableItem: Default + Clone + Copy + Debug + Sized {}
-impl<T> CopiableItem for T where T: Default + Clone + Copy + Debug + Sized {}
+pub trait CopiableItem: Default + Clone + Copy + Debug + Sized + PartialEq {}
+impl<T> CopiableItem for T where T: Default + Clone + Copy + Debug + Sized + PartialEq {}
 
 /// * Copiable buffer, a tinier `Vec`, uses a fixed-size array to store a variable number of items.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq)]
 pub struct CopiableBuffer<T, const N: usize>
 where
     T: CopiableItem,
@@ -137,6 +138,16 @@ where
 {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T, const N: usize> PartialEq for CopiableBuffer<T, N>
+where
+    T: CopiableItem,
+{
+    // Required method
+    fn eq(&self, other: &Self) -> bool {
+        self[..] == other[..]
     }
 }
 
