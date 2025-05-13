@@ -240,12 +240,12 @@ impl WaveReader {
                 }
                 b"ds64" => {
                     if ds64_read {
-                        return Err(AudioReadError::DataCorrupted(String::from(
+                        return Err(AudioReadError::InvalidData(String::from(
                             "Duplicated \"ds64\" chunk appears",
                         )));
                     }
                     if chunk.size < 28 {
-                        return Err(AudioReadError::DataCorrupted(String::from(
+                        return Err(AudioReadError::InvalidData(String::from(
                             "the size of \"ds64\" chunk is too small to contain enough data",
                         )));
                     }
@@ -261,7 +261,7 @@ impl WaveReader {
                 }
                 b"data" => {
                     if data_offset != 0 {
-                        return Err(AudioReadError::DataCorrupted(format!(
+                        return Err(AudioReadError::InvalidData(format!(
                             "Duplicated chunk '{}' in the WAV file",
                             String::from_utf8_lossy(&chunk.flag)
                         )));
@@ -385,7 +385,7 @@ impl WaveReader {
         }
 
         if isRF64 && !ds64_read {
-            return Err(AudioReadError::DataCorrupted(String::from(
+            return Err(AudioReadError::InvalidData(String::from(
                 "the WAV file is a RF64 file but doesn't provide the \"ds64\" chunk",
             )));
         }
@@ -393,7 +393,7 @@ impl WaveReader {
         let fmt__chunk = match fmt__chunk {
             Some(fmt__chunk) => fmt__chunk,
             None => {
-                return Err(AudioReadError::DataCorrupted(String::from(
+                return Err(AudioReadError::InvalidData(String::from(
                     "the whole WAV file doesn't provide the \"data\" chunk",
                 )));
             }
@@ -549,7 +549,7 @@ impl WaveReader {
     /// * To verify if a chunk had not read. Some chunks should not be duplicated.
     fn no_duplication<T>(o: &Option<T>, flag: &[u8; 4]) -> Result<(), AudioReadError> {
         if o.is_some() {
-            Err(AudioReadError::DataCorrupted(format!(
+            Err(AudioReadError::InvalidData(format!(
                 "Duplicated chunk '{}' in the WAV file",
                 String::from_utf8_lossy(flag)
             )))

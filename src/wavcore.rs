@@ -2495,8 +2495,8 @@ pub mod Id3 {
                 }),
                 id3::ErrorKind::StringDecoding(bytes) => AudioReadError::StringDecodeError(bytes),
                 id3::ErrorKind::NoTag => AudioReadError::FormatError(err.description),
-                id3::ErrorKind::Parsing => AudioReadError::DataCorrupted(err.description),
-                id3::ErrorKind::InvalidInput => AudioReadError::DataCorrupted(err.description),
+                id3::ErrorKind::Parsing => AudioReadError::InvalidData(err.description),
+                id3::ErrorKind::InvalidInput => AudioReadError::InvalidData(err.description),
                 id3::ErrorKind::UnsupportedFeature => AudioReadError::Unsupported(err.description),
             }
         }

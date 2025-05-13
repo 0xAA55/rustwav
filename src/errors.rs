@@ -29,7 +29,7 @@ pub enum AudioReadError {
     IOError(IOErrorInfo),
     MissingData(String),
     FormatError(String),
-    DataCorrupted(String),
+    InvalidData(String),
     Unimplemented(String),
     Unsupported(String),
     UnexpectedFlag(String, String),
@@ -60,7 +60,7 @@ impl Display for AudioReadError {
             Self::IOError(ioerror) => write!(f, "IO error: {:?}", ioerror),
             Self::MissingData(data) => write!(f, "Missing data: \"{data}\""),
             Self::FormatError(info) => write!(f, "Invalid format: {info}"),
-            Self::DataCorrupted(info) => write!(f, "Data corrupted: {info}"),
+            Self::InvalidData(info) => write!(f, "Data corrupted: {info}"),
             Self::Unimplemented(info) => write!(f, "Unimplemented for the file format: {info}"),
             Self::Unsupported(feature) => write!(f, "Unsupported feature: {feature}"),
             Self::UnexpectedFlag(expected, got) => write!(f, "Expect \"{expected}\", got \"{got}\"."),
@@ -204,14 +204,14 @@ impl From<AudioError> for AudioReadError {
     fn from(err: AudioError) -> Self {
         match err {
             AudioError::GuessChannelMaskFailed(_) => Self::InvalidArguments(format!("{:?}", err)),
-            AudioError::ChannelNotMatchMask => Self::DataCorrupted(format!("{:?}", err)),
+            AudioError::ChannelNotMatchMask => Self::InvalidData(format!("{:?}", err)),
             AudioError::ChannekMaskNotMatch(_) => Self::InvalidArguments(format!("{:?}", err)),
-            AudioError::Unparseable(_) => Self::DataCorrupted(format!("{:?}", err)),
-            AudioError::InvalidData(_) => Self::DataCorrupted(format!("{:?}", err)),
+            AudioError::Unparseable(_) => Self::InvalidData(format!("{:?}", err)),
+            AudioError::InvalidData(_) => Self::InvalidData(format!("{:?}", err)),
             AudioError::NoSuchData(_) => Self::MissingData(format!("{:?}", err)),
             AudioError::Unimplemented(_) => Self::Unimplemented(format!("{:?}", err)),
             AudioError::InvalidArguments(_) => Self::InvalidArguments(format!("{:?}", err)),
-            AudioError::WrongExtensionData(_) => Self::DataCorrupted(format!("{:?}", err)),
+            AudioError::WrongExtensionData(_) => Self::InvalidData(format!("{:?}", err)),
         }
     }
 }
@@ -277,7 +277,7 @@ impl From<opus::Error> for AudioReadError {
             opus::ErrorCode::BadArg => Self::InvalidArguments(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::BufferTooSmall => Self::BufferTooSmall(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::InternalError => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
-            opus::ErrorCode::InvalidPacket => Self::DataCorrupted(format!("On calling `{}`: {}", err.function(), err.description())),
+            opus::ErrorCode::InvalidPacket => Self::InvalidData(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::Unimplemented => Self::Unimplemented(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::InvalidState => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
             opus::ErrorCode::AllocFail => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
@@ -558,7 +558,7 @@ impl From<vorbis_rs::VorbisError> for AudioReadError {
                 use vorbis_rs::VorbisLibraryErrorKind::*;
                 match kind {
                     False | InternalFault => Self::OtherReason(message),
-                    NotVorbis | BadHeader | BadPacket | BadLink => Self::DataCorrupted(message),
+                    NotVorbis | BadHeader | BadPacket | BadLink => Self::InvalidData(message),
                     BadVorbisVersion | NotAudio => Self::FormatError(message),
                     Hole => Self::IOError(IOErrorInfo::new(ErrorKind::Interrupted, message)),
                     Eof => Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message)),

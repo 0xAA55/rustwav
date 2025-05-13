@@ -1053,7 +1053,7 @@ pub mod mp3 {
                         }
                         Ok(Some(((l as i32 + r as i32) / 2i32) as i16))
                     }
-                    o => Err(AudioReadError::DataCorrupted(format!(
+                    o => Err(AudioReadError::InvalidData(format!(
                         "Unknown channel count {o}."
                     ))),
                 },
@@ -1081,7 +1081,7 @@ pub mod mp3 {
                         }
                         Ok(Some((l, r)))
                     }
-                    o => Err(AudioReadError::DataCorrupted(format!(
+                    o => Err(AudioReadError::InvalidData(format!(
                         "Unknown channel count {o}."
                     ))),
                 },
@@ -1118,7 +1118,7 @@ pub mod mp3 {
                 Some((l, r)) => match self.target_channels {
                     1 => Ok(Some(vec![S::scale_from(l)])),
                     2 => Ok(Some(vec![S::scale_from(l), S::scale_from(r)])),
-                    o => Err(AudioReadError::DataCorrupted(format!(
+                    o => Err(AudioReadError::InvalidData(format!(
                         "Unknown channel count {o}."
                     ))),
                 },
@@ -1333,7 +1333,7 @@ pub mod opus {
                         Ok(None)
                     }
                 }
-                o => Err(AudioReadError::DataCorrupted(format!(
+                o => Err(AudioReadError::InvalidData(format!(
                     "Can't convert {o} channel audio to stereo channel audio"
                 ))),
             }
