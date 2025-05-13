@@ -841,10 +841,9 @@ pub mod mp3 {
     }
 
     /// * The `Mp3AudioData` for a MP3 frame.
-    /// **NOTE:** Some people like to concat MP3 files savagely just like concat binary files, and the MP3 format actually supports this kind of operation.
-    /// If the concat MP3 files have different sample rates, this will cause the sample rate to change while you are just normally parsing and decoding the MP3 file.
-    /// This can be done by using a resampler here but I personally don't want to support this variable sample rate audio file.
-    /// The `resampler` crate is here, ready to use, if you want to support variable sample rate audio files, create a pull request from your repo.
+    ///   **NOTE:** Some people like to concat MP3 files savagely just like concat binary files, and the MP3 format actually supports this kind of operation.
+    ///   If the concat MP3 files have different sample rates, this will cause the sample rate to change while you are just normally parsing and decoding the MP3 file.
+    ///   This was done by using a resampler here.
     #[derive(Clone)]
     pub struct Mp3AudioData {
         pub bitrate: u32,

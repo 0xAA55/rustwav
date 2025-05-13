@@ -53,7 +53,7 @@ pub enum FileSizeOption {
 }
 
 /// * The `WaveWriter` is dedicated to creating a WAV file.
-/// Usage:
+///   Usage:
 /// * Choose one of the internal formats by specifying `DataFormat` and use the `WaveWriter` to create the WAV file.
 /// * Use the methods, like `write_samples()`, `write_mono_channel()`, `write_monos()`, `write_stereos()`, etc, to write your PCM samples to the `WaveWriter`, it will encode.
 /// * Call `finalize()` or just let the `WaveWriter` get out of the scope.

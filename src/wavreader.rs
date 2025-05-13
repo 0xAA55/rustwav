@@ -47,7 +47,7 @@ pub enum WaveDataSource {
 }
 
 /// * The `WaveReader` is dedicated to reading a WAV file and provides you with samples as you want.
-/// Usage:
+///   Usage:
 /// * Open a WAV file
 /// * Get the iterator
 /// * The iterator excretes the PCM samples with the format you specified.
