@@ -160,7 +160,7 @@ where
     T: CopiableItem,
 {
     #[track_caller]
-    fn index_mut<'a>(&mut self, index: usize) -> &mut T {
+    fn index_mut(&mut self, index: usize) -> &mut T {
         if index >= self.buf_used {
             panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
