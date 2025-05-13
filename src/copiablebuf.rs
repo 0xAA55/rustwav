@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::{
-    cmp::PartialEq,
+    cmp::{min, PartialEq},
     fmt::Debug,
     iter::FromIterator,
     ops::{Index, IndexMut, Deref, DerefMut, Range, RangeFrom, RangeTo, RangeFull},
@@ -65,8 +65,21 @@ where
         self.buf_used
     }
 
-    pub fn set_len(&mut self, new_len: usize) {
+    pub unsafe fn set_len(&mut self, new_len: usize) {
         self.buf_used = new_len;
+    }
+
+    pub fn resize(&mut self, new_len: usize, val: T) {
+        if new_len > self.buf_used {
+            for i in self.buf_used..new_len {
+                self.buffer[i] = val;
+            }
+        }
+        self.buf_used = new_len;
+    }
+
+    pub fn truncate(&mut self, new_len: usize) {
+        self.buf_used = min(self.buf_used, new_len);
     }
 
     pub fn last(&mut self) -> &mut T {
@@ -106,7 +119,7 @@ where
     }
 
     pub fn clear(&mut self) {
-        self.set_len(0)
+        unsafe{self.set_len(0)}
     }
 
     pub fn capacity(&self) -> usize {
