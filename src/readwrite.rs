@@ -778,8 +778,8 @@ where
     RW: Read + Write + Seek + Debug {
     type Output = [StreamType<R, W, RW>];
 
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.streams[index]
+    fn index(&self, range: Range<usize>) -> &Self::Output {
+        &self.streams[range]
     }
 }
 
@@ -788,8 +788,8 @@ where
     R: Read + Seek + Debug,
     W: Write + Seek + Debug,
     RW: Read + Write + Seek + Debug {
-    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.streams[index]
+    fn index_mut(&mut self, range: Range<usize>) -> &mut Self::Output {
+        &mut self.streams[range]
     }
 }
 
@@ -800,8 +800,8 @@ where
     RW: Read + Write + Seek + Debug {
     type Output = [StreamType<R, W, RW>];
 
-    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
-        &self.streams[index]
+    fn index(&self, range: RangeFrom<usize>) -> &Self::Output {
+        &self.streams[range]
     }
 }
 
@@ -810,8 +810,8 @@ where
     R: Read + Seek + Debug,
     W: Write + Seek + Debug,
     RW: Read + Write + Seek + Debug {
-    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
-        &mut self.streams[index]
+    fn index_mut(&mut self, range: RangeFrom<usize>) -> &mut Self::Output {
+        &mut self.streams[range]
     }
 }
 
@@ -822,8 +822,8 @@ where
     RW: Read + Write + Seek + Debug {
     type Output = [StreamType<R, W, RW>];
 
-    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
-        &self.streams[index]
+    fn index(&self, range: RangeTo<usize>) -> &Self::Output {
+        &self.streams[range]
     }
 }
 
@@ -832,8 +832,8 @@ where
     R: Read + Seek + Debug,
     W: Write + Seek + Debug,
     RW: Read + Write + Seek + Debug {
-    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
-        &mut self.streams[index]
+    fn index_mut(&mut self, range: RangeTo<usize>) -> &mut Self::Output {
+        &mut self.streams[range]
     }
 }
 
