@@ -7,7 +7,7 @@ license-file.workspace = true
 repository.workspace = true
 
 [dependencies]
-readwrite.workspace = true
+io_utils.workspace = true
 
 [lib]
 name = "filehasher"

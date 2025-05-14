@@ -25,7 +25,7 @@ ogg.workspace = true
 xlaw.workspace = true
 vorbis.workspace = true
 bitwise.workspace = true
-readwrite.workspace = true
+io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
 audioutils.workspace = true
@@ -42,7 +42,7 @@ ogg = { version = "*", path = "packages/ogg" }
 xlaw = { version = "*", path = "packages/xlaw" }
 vorbis = { version = "*", path = "packages/vorbis" }
 bitwise = { version = "*", path = "packages/bitwise" }
-readwrite = { version = "*", path = "packages/readwrite" }
+io_utils = { version = "*", path = "packages/io_utils" }
 downmixer = { version = "*", path = "packages/downmixer" }
 savagestr = { version = "*", path = "packages/savagestr" }
 audioutils = { version = "*", path = "packages/audioutils" }

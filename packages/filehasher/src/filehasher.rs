@@ -22,7 +22,7 @@ impl FileHasher {
         R: Read + Seek,
     {
         reader.seek(SeekFrom::Start(from_byte))?;
-        readwrite::copy(reader, self, length)?;
+        io_utils::copy(reader, self, length)?;
         Ok(self.hasher.finish())
     }
 }

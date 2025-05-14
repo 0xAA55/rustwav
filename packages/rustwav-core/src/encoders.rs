@@ -4,11 +4,11 @@
 use std::fmt::Debug;
 
 use xlaw::{PcmXLawEncoder, XLaw};
+use io_utils::Writer;
 use audioutils::{sample_conv, sample_conv_batch, stereo_conv, stereos_conv};
 use sampletypes::{SampleType, i24, u24};
 use crate::adpcm;
 use crate::errors::AudioWriteError;
-use crate::io_utils::Writer;
 use crate::format_specs::format_tags::*;
 use crate::format_specs::guids::*;
 use crate::wavcore::{ExtensibleData, FmtChunk, FmtExtension};

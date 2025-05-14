@@ -27,23 +27,8 @@ pub use wavwriter::WaveWriter;
 pub mod errors;
 
 /// * Utilities for IO
-pub mod io_utils {
-    pub use readwrite::{
-        Reader,
-        Writer,
-        ReadWrite,
-        CursorVecU8,
-        SharedReader,
-        SharedWriter,
-        SharedCursor,
-        CombinedReader,
-        DishonestReader,
-        MultistreamIO,
-        SharedMultistreamIO,
-        StreamType,
-        string_io,
-    };
-}
+pub use io_utils;
+
 /// * The utility for both you and me to convert waveform format and do resampling and convert sample types.
 pub use audioutils;
 

@@ -10,11 +10,10 @@ use std::{
 use sampletypes::SampleType;
 use savagestr::{SavageStringCodecs, StringCodecMaps};
 use downmixer::*;
+use io_utils::{Reader, Writer, string_io::*};
 use crate::adpcm::ms::AdpcmCoeffSet;
-use crate::io_utils::string_io::*;
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 use crate::options::*;
-use crate::io_utils::{Reader, Writer};
 
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
@@ -557,7 +556,7 @@ impl ChunkHeader {
         reader: &mut impl Reader,
         cur_pos: &mut u64,
     ) -> Result<u64, AudioReadError> {
-        Ok(readwrite::goto_offset_without_seek(
+        Ok(io_utils::goto_offset_without_seek(
             reader,
             cur_pos,
             self.next_chunk_pos(),

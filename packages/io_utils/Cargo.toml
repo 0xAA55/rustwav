@@ -1,5 +1,5 @@
 [package]
-name = "readwrite"
+name = "io_utils"
 version = "0.0.1"
 edition.workspace = true
 authors.workspace = true
@@ -10,5 +10,5 @@ repository.workspace = true
 savagestr.workspace = true
 
 [lib]
-name = "readwrite"
-path = "src/readwrite.rs"
+name = "io_utils"
+path = "src/io_utils.rs"

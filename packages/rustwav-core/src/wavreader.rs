@@ -11,13 +11,13 @@ use std::{
 };
 
 use xlaw::XLaw;
+use io_utils::string_io::*;
 use crate::SampleType;
 use crate::io_utils::Reader;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
 use crate::utils::{CopiableBuffer, SavageStringCodecs, StringCodecMaps};
 use crate::decoders::{AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap};
 use crate::utils::FileHasher;
-use crate::io_utils::string_io::*;
 use crate::wavcore;
 use crate::wavcore::ChunkHeader;
 use crate::wavcore::Spec;
@@ -292,7 +292,7 @@ impl WaveReader {
                     if reader_seekable {
                         reader.seek(SeekFrom::Start(chunk_end))?;
                     } else {
-                        readwrite::goto_offset_without_seek(&mut reader, &mut cur_pos, chunk_end)?;
+                        io_utils::goto_offset_without_seek(&mut reader, &mut cur_pos, chunk_end)?;
                     }
                     manually_skipped = true;
                 }
@@ -893,9 +893,9 @@ impl FileDataSource {
             if reader_seekable {
                 reader.seek(SeekFrom::Start(data_offset))?;
             } else {
-                readwrite::goto_offset_without_seek(&mut *reader, reader_cur_pos, data_offset)?;
+                io_utils::goto_offset_without_seek(&mut *reader, reader_cur_pos, data_offset)?;
             }
-            readwrite::copy(&mut *reader, &mut writer, data_size)?;
+            io_utils::copy(&mut *reader, &mut writer, data_size)?;
             let file: File = writer.into_inner().unwrap();
 
             #[cfg(debug_assertions)]

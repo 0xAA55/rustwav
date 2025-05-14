@@ -7,7 +7,7 @@ use std::{
     ops::{Index, IndexMut, Range, RangeFrom, RangeTo, RangeFull},
 };
 use ogg::{OggPacket, OggPacketType};
-use readwrite::{Writer, CursorVecU8};
+use io_utils::{Writer, CursorVecU8};
 use bitwise::{BitwiseData, format_array};
 use copiablebuf::CopiableBuffer;
 

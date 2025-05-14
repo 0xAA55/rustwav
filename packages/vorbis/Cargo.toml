@@ -9,7 +9,7 @@ repository.workspace = true
 [dependencies]
 ogg.workspace = true
 bitwise.workspace = true
-readwrite.workspace = true
+io_utils.workspace = true
 copiablebuf.workspace = true
 
 [lib]

@@ -4,10 +4,10 @@
 use std::{cmp::min, fmt::Debug, io::SeekFrom, marker::PhantomData};
 
 use xlaw::{PcmXLawDecoder, XLaw};
+use io_utils::Reader;
 use downmixer::{Downmixer, DownmixerParams};
 use sampletypes::{SampleType, i24, u24};
 use crate::adpcm;
-use crate::io_utils::Reader;
 use crate::get_rounded_up_fft_size;
 use crate::format_specs::{Spec, WaveSampleType, format_tags::*};
 use crate::chunks::{FmtChunk, ext::{ExtensibleData, ExtensionData}};
