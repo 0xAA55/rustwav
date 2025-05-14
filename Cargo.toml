@@ -26,6 +26,7 @@ xlaw.workspace = true
 vorbis.workspace = true
 bitwise.workspace = true
 readwrite.workspace = true
+downmixer.workspace = true
 savagestr.workspace = true
 filehasher.workspace = true
 copiablebuf.workspace = true
@@ -41,6 +42,7 @@ xlaw = { version = "*", path = "packages/xlaw" }
 vorbis = { version = "*", path = "packages/vorbis" }
 bitwise = { version = "*", path = "packages/bitwise" }
 readwrite = { version = "*", path = "packages/readwrite" }
+downmixer = { version = "*", path = "packages/downmixer" }
 savagestr = { version = "*", path = "packages/savagestr" }
 filehasher = { version = "*", path = "packages/filehasher" }
 copiablebuf = { version = "*", path = "packages/copiablebuf" }

@@ -9,12 +9,12 @@ use std::{
 
 use sampletypes::SampleType;
 use savagestr::{SavageStringCodecs, StringCodecMaps};
+use downmixer::*;
 use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::io_utils::string_io::*;
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 use crate::options::*;
 use crate::io_utils::{Reader, Writer};
-use crate::downmixer;
 
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
@@ -350,17 +350,17 @@ impl Spec {
 
     /// * Guess the channel mask
     pub fn guess_channel_mask(&self) -> Result<u32, AudioError> {
-        downmixer::speaker_positions::guess_channel_mask(self.channels)
+        Ok(speaker_positions::guess_channel_mask(self.channels)?)
     }
 
     /// * Break down a channel mask to the speaker positions.
     pub fn channel_mask_to_speaker_positions(&self) -> Vec<u32> {
-        downmixer::speaker_positions::channel_mask_to_speaker_positions(self.channel_mask)
+        speaker_positions::channel_mask_to_speaker_positions(self.channel_mask)
     }
 
     /// * Break down a channel mask to the speaker position description strings.
     pub fn channel_mask_to_speaker_positions_descs(&self) -> Vec<&'static str> {
-        downmixer::speaker_positions::channel_mask_to_speaker_positions_descs(self.channel_mask)
+        speaker_positions::channel_mask_to_speaker_positions_descs(self.channel_mask)
     }
 
     /// * Check if this spec is good for encoding PCM format.
@@ -378,7 +378,7 @@ impl Spec {
 
     /// * Check if the channel mask matches the channel number.
     pub fn is_channel_mask_valid(&self) -> bool {
-        downmixer::speaker_positions::is_channel_mask_valid(self.channels, self.channel_mask)
+        speaker_positions::is_channel_mask_valid(self.channels, self.channel_mask)
     }
 }
 
@@ -2561,6 +2561,14 @@ pub mod Id3 {
     impl std::fmt::Debug for Tag {
         fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
             fmt.debug_struct("Tag").finish_non_exhaustive()
+        }
+    }
+}
+
+impl From<DownmixerError> for AudioError {
+    fn from(err: DownmixerError) -> AudioError {
+        match err {
+            DownmixerError::InvalidInput(info) => AudioError::InvalidArguments(info),
         }
     }
 }

@@ -12,6 +12,7 @@ xlaw.workspace = true
 vorbis.workspace = true
 bitwise.workspace = true
 readwrite.workspace = true
+downmixer.workspace = true
 savagestr.workspace = true
 filehasher.workspace = true
 copiablebuf.workspace = true

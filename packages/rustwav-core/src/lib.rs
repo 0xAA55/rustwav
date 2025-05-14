@@ -15,9 +15,6 @@ pub mod encoders;
 /// * The decoders for the `WaveReader`, each of these provides the same API for it to use. You can use it too.
 pub mod decoders;
 
-/// * The downmixer
-pub mod downmixer;
-
 /// * The resampler
 #[doc(inline)]
 pub use resampler;
@@ -50,6 +47,8 @@ pub mod io_utils {
         string_io,
     };
 }
+/// * The downmixer
+pub use downmixer;
 
 /// * Misc utilities
 pub mod utils {

@@ -19,10 +19,14 @@
 /// Documents: <https://trac.ffmpeg.org/wiki/AudioChannelManipulation>
 use std::collections::BTreeMap;
 
-use crate::SampleType;
-use crate::errors::AudioError;
-use crate::audioutils;
-use crate::utils::CopiableBuffer;
+use sampletypes::SampleType;
+use copiablebuf::CopiableBuffer;
+
+/// * Error info for the downmixer
+#[derive(Debug, Clone)]
+pub enum DownmixerError {
+    InvalidInput(String),
+}
 
 /// * Convert dB modification to gain
 #[inline(always)]
@@ -59,7 +63,7 @@ where
 /// * This also be used on single-channel audio or double-channel audio.
 #[allow(non_upper_case_globals)]
 pub mod speaker_positions {
-    use crate::errors::AudioError;
+    use super::DownmixerError;
 
     pub const FRONT_LEFT: u32 = 0x1;
     pub const FRONT_RIGHT: u32 = 0x2;
@@ -285,9 +289,9 @@ pub mod speaker_positions {
     }
 
     /// * Guess the channel mask by the given channel number.
-    pub fn guess_channel_mask(channels: u16) -> Result<u32, AudioError> {
+    pub fn guess_channel_mask(channels: u16) -> Result<u32, DownmixerError> {
         match channels {
-            0 => Err(AudioError::GuessChannelMaskFailed(channels)),
+            0 => Err(DownmixerError::InvalidInput("The channel number is 0".to_string())),
             1 => Ok(MONO_LAYOUT),
             2 => Ok(STEREO_LAYOUT),
             3 => Ok(DOLBY_2_1_LAYOUT),
@@ -301,7 +305,7 @@ pub mod speaker_positions {
                 for i in 0..o {
                     let bit = 1 << i;
                     if bit > 0x20000 {
-                        return Err(AudioError::GuessChannelMaskFailed(channels));
+                        return Err(DownmixerError::InvalidInput(format!("Too many channels: {channels}")));
                     }
                     mask |= bit;
                 }
@@ -484,17 +488,10 @@ impl Downmixer {
     }
 
     /// Downmix multiple audio frames to stereo frames
-    pub fn downmix_frame_to_stereos<S>(&self, channel_mask: u32, frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioError>
+    pub fn downmix_frame_to_stereos<S>(&self, frames: &[Vec<S>]) -> Vec<(S, S)>
     where
         S: SampleType {
-        if self.channel_mask != channel_mask {
-            Err(AudioError::ChannekMaskNotMatch(format!(
-            "The given `channel_mask` 0x{:x} does not match the `channel_mask` 0x{:x} when the downmixer was initialized",
-            channel_mask, self.channel_mask
-            )))
-        } else {
-            Ok(frames.iter().map(|frame|self.downmix_frame_to_stereo(frame)).collect())
-        }
+        frames.iter().map(|frame|self.downmix_frame_to_stereo(frame)).collect()
     }
 
     /// * Downmix an audio frame to a mono frame.
@@ -503,13 +500,5 @@ impl Downmixer {
         S: SampleType {
         let (l, r) = self.downmix_frame_to_stereo(frame);
         S::average(l, r)
-    }
-
-    /// Downmix multiple audio frames to mono frames
-    pub fn downmix_frame_to_monos<S>(&self, channel_mask: u32, frames: &[Vec<S>]) -> Result<Vec<S>, AudioError>
-    where
-        S: SampleType {
-        let stereos = self.downmix_frame_to_stereos(channel_mask, frames)?;
-        Ok(audioutils::stereos_to_mono_channel(&stereos))
     }
 }
