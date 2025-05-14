@@ -39,7 +39,7 @@ pub use downmixer;
 pub mod utils {
     /// * A utility for you to manipulate data bitwise, mainly to concatenate data in bits or to split data from a specific bit position.
     #[doc(inline)]
-    pub use bitwise::BitwiseData;
+    pub use revorbis::bitwise::BitwiseData;
 
     /// * Copiable buffer, a tinier `Vec`, uses a fixed-size array to store a variable number of items.
     pub use copiablebuf::CopiableBuffer;
