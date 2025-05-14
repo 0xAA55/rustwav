@@ -75,7 +75,9 @@ where
         }
         if new_len > self.buf_used {
             for i in self.buf_used..new_len {
-                self.buffer[i] = val;
+                unsafe {
+                    *self.buffer.get_unchecked_mut(i) = val;
+                }
             }
         }
         self.buf_used = new_len;
@@ -92,7 +94,7 @@ where
                 std::any::type_name::<T>()
             );
         }
-        &mut self.buffer[self.buf_used - 1]
+        unsafe{self.buffer.get_unchecked_mut(self.buf_used - 1)}
     }
 
     pub fn push(&mut self, data: T) {
@@ -102,7 +104,7 @@ where
                 std::any::type_name::<T>()
             );
         } else {
-            self.buffer[self.buf_used] = data;
+            unsafe{*self.buffer.get_unchecked_mut(self.buf_used) = data;}
             self.buf_used += 1;
         }
     }
@@ -175,7 +177,7 @@ where
         if index >= self.buf_used {
             panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
-        &self.buffer[index]
+        unsafe{self.buffer.get_unchecked(index)}
     }
 }
 
@@ -187,7 +189,7 @@ where
         if index >= self.buf_used {
             panic!("Index out of bounds: {} >= {}", index, self.buf_used);
         }
-        &mut self.buffer[index]
+        unsafe{self.buffer.get_unchecked_mut(index)}
     }
 }
 
@@ -204,7 +206,7 @@ where
         if range.end > self.buf_used {
             panic!("Index out of bounds: {} >= {}", range.end, self.buf_used);
         }
-        &self.buffer[range]
+        unsafe{self.buffer.get_unchecked(range)}
     }
 }
 
@@ -219,7 +221,7 @@ where
         if range.end > self.buf_used {
             panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
         }
-        &mut self.buffer[range]
+        unsafe{self.buffer.get_unchecked_mut(range)}
     }
 }
 
@@ -233,7 +235,7 @@ where
         if range.start >= self.buf_used {
             panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
         }
-        &self.buffer[range]
+        unsafe{self.buffer.get_unchecked(range)}
     }
 }
 
@@ -245,7 +247,7 @@ where
         if range.start >= self.buf_used {
             panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
         }
-        &mut self.buffer[range]
+        unsafe{self.buffer.get_unchecked_mut(range)}
     }
 }
 
@@ -259,7 +261,7 @@ where
         if range.end > self.buf_used {
             panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
         }
-        &self.buffer[range]
+        unsafe{self.buffer.get_unchecked(range)}
     }
 }
 
@@ -271,7 +273,7 @@ where
         if range.end > self.buf_used {
             panic!("Slice end is out of bounds: {} >= {}", range.end, self.buf_used);
         }
-        &mut self.buffer[range]
+        unsafe{self.buffer.get_unchecked_mut(range)}
     }
 }
 
@@ -282,7 +284,7 @@ where
     type Output = [T];
 
     fn index(&self, _range: RangeFull) -> &[T] {
-        &self.buffer[..self.buf_used]
+        unsafe{self.buffer.get_unchecked(..self.buf_used)}
     }
 }
 
@@ -291,7 +293,7 @@ where
     T: CopiableItem,
 {
     fn index_mut<'a>(&mut self, _range: RangeFull) -> &mut [T] {
-        &mut self.buffer[..self.buf_used]
+        unsafe{self.buffer.get_unchecked_mut(..self.buf_used)}
     }
 }
 
@@ -302,7 +304,7 @@ where
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        &self.buffer[0..self.buf_used]
+        unsafe{self.buffer.get_unchecked(..self.buf_used)}
     }
 }
 
@@ -311,7 +313,7 @@ where
     T: CopiableItem,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.buffer[0..self.buf_used]
+        unsafe{self.buffer.get_unchecked_mut(..self.buf_used)}
     }
 }
 
@@ -337,7 +339,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.iter_index < self.refbuf.len() {
-            let r = &self.refbuf.buffer[self.iter_index];
+            let r = unsafe{self.refbuf.buffer.get_unchecked(self.iter_index)};
             self.iter_index += 1;
             Some(r)
         } else {
@@ -383,7 +385,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.iter_index < self.buf_used {
-            let ret = Some(self.buffer[self.iter_index]);
+            let ret = Some(unsafe{*self.buffer.get_unchecked(self.iter_index)});
             self.iter_index += 1;
             ret
         } else {
