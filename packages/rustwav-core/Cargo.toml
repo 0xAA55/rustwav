@@ -9,13 +9,13 @@ repository.workspace = true
 [dependencies]
 xlaw.workspace = true
 tinyogg.workspace = true
-io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
 audioutils.workspace = true
 filehasher.workspace = true
 revorbis-rs.workspace = true
 copiablebuf.workspace = true
+shared_io_utils.workspace = true
 
 tempfile.workspace = true
 sampletypes.workspace = true
