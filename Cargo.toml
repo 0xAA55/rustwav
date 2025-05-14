@@ -23,7 +23,6 @@ keywords = ["audio", "WAV", "codec", "RIFF"]
 [dependencies]
 ogg.workspace = true
 xlaw.workspace = true
-bitwise.workspace = true
 io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
@@ -40,7 +39,6 @@ resampler-rs.workspace = true
 [workspace.dependencies]
 ogg = { version = "*", path = "packages/ogg" }
 xlaw = { version = "*", path = "packages/xlaw" }
-bitwise = { version = "*", path = "packages/bitwise" }
 io_utils = { version = "*", path = "packages/io_utils" }
 downmixer = { version = "*", path = "packages/downmixer" }
 savagestr = { version = "*", path = "packages/savagestr" }

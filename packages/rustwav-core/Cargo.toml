@@ -9,7 +9,6 @@ repository.workspace = true
 [dependencies]
 ogg.workspace = true
 xlaw.workspace = true
-bitwise.workspace = true
 io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
