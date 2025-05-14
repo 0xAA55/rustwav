@@ -1123,7 +1123,7 @@ impl OggVorbisData {
     pub fn new() -> Self {
         Self {
             codec_version: 0x20250506,
-            vorbis_version: 0x20200704,
+            vorbis_version: 0x20110424,
         }
     }
 
