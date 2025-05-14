@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 ogg.workspace = true
+xlaw.workspace = true
 vorbis.workspace = true
 bitwise.workspace = true
 readwrite.workspace = true

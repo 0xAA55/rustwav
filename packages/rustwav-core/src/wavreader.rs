@@ -10,10 +10,10 @@ use std::{
     path::PathBuf,
 };
 
+use xlaw::XLaw;
 use crate::SampleType;
 use crate::io_utils::Reader;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
-use crate::xlaw::XLaw;
 use crate::utils::{CopiableBuffer, SavageStringCodecs, StringCodecMaps};
 use crate::decoders::{AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap};
 use crate::utils::FileHasher;

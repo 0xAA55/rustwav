@@ -22,6 +22,7 @@ keywords = ["audio", "WAV", "codec", "RIFF"]
 
 [dependencies]
 ogg.workspace = true
+xlaw.workspace = true
 vorbis.workspace = true
 bitwise.workspace = true
 readwrite.workspace = true
@@ -36,6 +37,7 @@ resampler-rs.workspace = true
 
 [workspace.dependencies]
 ogg = { version = "*", path = "packages/ogg" }
+xlaw = { version = "*", path = "packages/xlaw" }
 vorbis = { version = "*", path = "packages/vorbis" }
 bitwise = { version = "*", path = "packages/bitwise" }
 readwrite = { version = "*", path = "packages/readwrite" }

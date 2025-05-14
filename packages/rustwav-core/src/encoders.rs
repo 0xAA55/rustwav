@@ -3,6 +3,7 @@
 
 use std::fmt::Debug;
 
+use xlaw::{PcmXLawEncoder, XLaw};
 use crate::adpcm;
 use crate::errors::AudioWriteError;
 use crate::io_utils::Writer;
@@ -11,7 +12,6 @@ use crate::format_specs::format_tags::*;
 use crate::format_specs::guids::*;
 use crate::wavcore::{ExtensibleData, FmtChunk, FmtExtension};
 use crate::wavcore::{Spec, WaveSampleType};
-use crate::xlaw::{PcmXLawEncoder, XLaw};
 use crate::{SampleType, i24, u24};
 
 /// An encoder that accepts samples of type `S` and encodes them into the file's target format.

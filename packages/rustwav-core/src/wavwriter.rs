@@ -8,6 +8,7 @@ use std::{
     path::Path,
 };
 
+use xlaw::XLaw;
 use crate::SampleType;
 use crate::WaveReader;
 use crate::io_utils::Writer;
@@ -21,7 +22,6 @@ use crate::chunks::*;
 use crate::format_specs::*;
 
 use crate::wavcore::{AdpcmSubFormat, DataFormat, SampleFormat, Spec};
-use crate::xlaw::XLaw;
 use crate::errors::{AudioError, AudioWriteError};
 
 #[cfg(feature = "mp3enc")]

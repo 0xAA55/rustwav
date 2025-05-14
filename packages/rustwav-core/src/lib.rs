@@ -2,7 +2,6 @@ mod wavcore;
 mod wavreader;
 mod wavwriter;
 mod adpcm;
-mod xlaw;
 
 #[macro_use]
 mod hacks;
