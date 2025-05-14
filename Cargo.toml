@@ -26,10 +26,10 @@ tinyogg.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
 audioutils.workspace = true
-filehasher.workspace = true
 copiablebuf.workspace = true
 revorbis-rs.workspace = true
 rustwav-core.workspace = true
+fileparthasher.workspace = true
 shared_io_utils.workspace = true
 
 tempfile.workspace = true
@@ -42,10 +42,10 @@ tinyogg = { version = "^0.0.1", path = "packages/tinyogg" }
 downmixer = { version = "^0.0.1", path = "packages/downmixer" }
 savagestr = { version = "^0.0.1", path = "packages/savagestr" }
 audioutils = { version = "^0.0.1", path = "packages/audioutils" }
-filehasher = { version = "^0.0.1", path = "packages/filehasher" }
 copiablebuf = { version = "^0.0.1", path = "packages/copiablebuf" }
 revorbis-rs = { version = "^0.0.1", path = "packages/revorbis-rs" }
 rustwav-core = { version = "^0.3.1", path = "packages/rustwav-core" }
+fileparthasher = { version = "^0.0.1", path = "packages/fileparthasher" }
 shared_io_utils = { version = "^0.0.1", path = "packages/shared_io_utils" }
 
 sampletypes = "0.1.3"
