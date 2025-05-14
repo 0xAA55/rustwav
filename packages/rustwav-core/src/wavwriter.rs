@@ -9,7 +9,7 @@ use std::{
 };
 
 use xlaw::XLaw;
-use crate::SampleType;
+use sampletypes::SampleType;
 use crate::WaveReader;
 use crate::io_utils::Writer;
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
