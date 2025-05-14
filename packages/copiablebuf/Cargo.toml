@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
+description = "Copiable buffer, a tinier `Vec`, uses a fixed-size array to store a variable number of items."
+keywords = ["container", "buffer", "array"]
 
 [dependencies]
 
