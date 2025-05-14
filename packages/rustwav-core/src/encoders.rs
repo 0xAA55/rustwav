@@ -3169,7 +3169,7 @@ pub mod oggvorbis_enc {
                     }
                     OggVorbisMode::NakedVorbis => {
                         // Save the header to `fmt ` chunk
-                        use vorbis::get_vorbis_headers_from_ogg_packet_bytes;
+                        use revorbis::get_vorbis_headers_from_ogg_packet_bytes;
                         self.writer.set_stream(1);
                         self.begin_to_encode()?;
                         let header = self.writer.get_cur_stream_mut().take_cursor_data();

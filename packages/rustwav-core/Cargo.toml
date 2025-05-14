@@ -9,13 +9,13 @@ repository.workspace = true
 [dependencies]
 ogg.workspace = true
 xlaw.workspace = true
-vorbis.workspace = true
 bitwise.workspace = true
 io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
 audioutils.workspace = true
 filehasher.workspace = true
+revorbis-rs.workspace = true
 copiablebuf.workspace = true
 
 tempfile.workspace = true
