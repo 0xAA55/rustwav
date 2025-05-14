@@ -7,8 +7,8 @@ license-file.workspace = true
 repository.workspace = true
 
 [dependencies]
-ogg.workspace = true
 xlaw.workspace = true
+tinyogg.workspace = true
 io_utils.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
