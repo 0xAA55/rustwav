@@ -1,0 +1,21 @@
+[package]
+name = "savagestr"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+encoding = { version = "0.2.33", optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
+
+[features]
+default = ["text_encoding"]
+text_encoding = ["dep:encoding"]
+
+[lib]
+name = "savagestr"
+path = "src/savagestr.rs"

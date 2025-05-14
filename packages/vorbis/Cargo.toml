@@ -1,0 +1,17 @@
+[package]
+name = "vorbis"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+ogg.workspace = true
+bitwise.workspace = true
+readwrite.workspace = true
+copiablebuf.workspace = true
+
+[lib]
+name = "vorbis"
+path = "src/vorbis.rs"

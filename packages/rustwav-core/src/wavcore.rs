@@ -7,10 +7,10 @@ use std::{
     io::{self, Read, SeekFrom, Write},
 };
 
-use crate::SampleType;
+use sampletypes::SampleType;
+use savagestr::{SavageStringCodecs, StringCodecMaps};
 use crate::adpcm::ms::AdpcmCoeffSet;
-use crate::readwrite::{self, string_io::*};
-use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
+use crate::io_utils::string_io::*;
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 use crate::options::*;
 use crate::io_utils::{Reader, Writer};

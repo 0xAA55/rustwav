@@ -1,0 +1,14 @@
+[package]
+name = "readwrite"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+savagestr.workspace = true
+
+[lib]
+name = "readwrite"
+path = "src/readwrite.rs"

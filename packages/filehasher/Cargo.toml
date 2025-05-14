@@ -1,0 +1,14 @@
+[package]
+name = "filehasher"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+readwrite.workspace = true
+
+[lib]
+name = "filehasher"
+path = "src/filehasher.rs"

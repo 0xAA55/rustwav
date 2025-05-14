@@ -1087,7 +1087,7 @@ where
 
 /// * This is for read/write strings from/to file with specific encoding and size, or read/write as NUL-terminated strings.
 pub mod string_io {
-    use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
+    use savagestr::{SavageStringCodecs, StringCodecMaps};
     use std::io::{self, Read, Write};
 
     /// * Read some bytes, and return the bytes, without you to create a local `vec![0u8; size]` and scratch your head with the messy codes

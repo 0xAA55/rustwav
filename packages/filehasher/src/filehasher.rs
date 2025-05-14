@@ -3,8 +3,6 @@ use std::{
     io::{Error, Read, Seek, SeekFrom, Write},
 };
 
-use crate::readwrite;
-
 /// * File hasher to calculate the hash for a section of a file, the hash is `u64` size. The `Write` trait was implemented for it.
 #[derive(Debug, Clone)]
 pub struct FileHasher {

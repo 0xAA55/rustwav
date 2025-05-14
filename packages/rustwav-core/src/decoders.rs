@@ -1140,7 +1140,7 @@ pub mod opus {
     use crate::chunks::FmtChunk;
     use crate::io_utils::Reader;
 
-    use opus::{Channels, Decoder};
+    use opus::{self, Channels, Decoder, ErrorCode};
 
     pub struct OpusDecoder {
         reader: Box<dyn Reader>,
@@ -1380,6 +1380,21 @@ pub mod opus {
                 .finish()
         }
     }
+
+    impl From<opus::Error> for AudioReadError {
+        fn from(err: opus::Error) -> Self {
+            match err.code() {
+                ErrorCode::BadArg => Self::InvalidArguments(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::BufferTooSmall => Self::BufferTooSmall(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::InternalError => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::InvalidPacket => Self::InvalidData(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::Unimplemented => Self::Unimplemented(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::InvalidState => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::AllocFail => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+                ErrorCode::Unknown => Self::OtherReason(format!("On calling `{}`: {}", err.function(), err.description())),
+            }
+        }
+    }
 }
 
 /// * The FLAC decoder for `WaveReader`
@@ -1389,13 +1404,13 @@ pub mod flac_dec {
         cmp::Ordering,
         collections::BTreeMap,
         fmt::{self, Debug, Formatter},
-        io::{self, Read, Seek, SeekFrom},
+        io::{self, ErrorKind, Read, Seek, SeekFrom},
         ptr,
     };
 
     use super::get_rounded_up_fft_size;
     use crate::SampleType;
-    use crate::errors::AudioReadError;
+    use crate::errors::{AudioReadError, IOErrorInfo};
     use crate::io_utils::Reader;
     use crate::audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
     use crate::chunks::{FmtChunk, ListChunk, ListInfo};
@@ -1661,6 +1676,122 @@ pub mod flac_dec {
                 .finish()
         }
     }
+
+    impl From<flac::FlacEncoderInitError> for AudioReadError {
+        fn from(err: flac::FlacEncoderInitError) -> Self {
+            let err_code = err.code;
+            let err_func = err.function;
+            let err_desc = err.message;
+            use flac::FlacEncoderInitErrorCode::*;
+            let err_code = flac::FlacEncoderInitErrorCode::from(err_code);
+            let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+            match err_code {
+                StreamEncoderInitStatusOk => Self::OtherReason(err_string),
+                StreamEncoderInitStatusEncoderError => Self::OtherReason(err_string),
+                StreamEncoderInitStatusUnsupportedContainer => Self::OtherReason(err_string),
+                StreamEncoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidNumberOfChannels => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidBitsPerSample => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidSampleRate => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidBlockSize => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidMaxLpcOrder => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusInvalidQlpCoeffPrecision => Self::InvalidArguments(err_string),
+                StreamEncoderInitStatusBlockSizeTooSmallForLpcOrder => Self::BufferTooSmall(err_string),
+                StreamEncoderInitStatusNotStreamable => Self::OtherReason(err_string),
+                StreamEncoderInitStatusInvalidMetadata => Self::FormatError(err_string),
+                StreamEncoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+            }
+        }
+    }
+
+    impl From<flac::FlacDecoderError> for AudioReadError {
+        fn from(err: flac::FlacDecoderError) -> Self {
+            let err_code = err.code;
+            let err_func = err.function;
+            let err_desc = err.message;
+            use flac::FlacDecoderInitErrorCode::*;
+            let err_code = flac::FlacDecoderInitErrorCode::from(err_code);
+            let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+            match err_code {
+                StreamDecoderInitStatusOk => Self::OtherReason(err_string),
+                StreamDecoderInitStatusUnsupportedContainer => Self::Unsupported(err_string),
+                StreamDecoderInitStatusInvalidCallbacks => Self::InvalidArguments(err_string),
+                StreamDecoderInitStatusMemoryAllocationError => Self::OtherReason(err_string),
+                StreamDecoderInitStatusErrorOpeningFile => {
+                    Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string))
+                }
+                StreamDecoderInitStatusAlreadyInitialized => Self::InvalidArguments(err_string),
+            }
+        }
+    }
+
+    impl From<flac::FlacDecoderInitError> for AudioReadError {
+        fn from(err: flac::FlacDecoderInitError) -> Self {
+            let err_code = err.code;
+            let err_func = err.function;
+            let err_desc = err.message;
+            use flac::FlacDecoderErrorCode::*;
+            let err_code = flac::FlacDecoderErrorCode::from(err_code);
+            let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+            match err_code {
+                StreamDecoderSearchForMetadata => Self::OtherReason(err_string),
+                StreamDecoderReadMetadata => Self::OtherReason(err_string),
+                StreamDecoderSearchForFrameSync => Self::OtherReason(err_string),
+                StreamDecoderReadFrame => Self::OtherReason(err_string),
+                StreamDecoderEndOfStream => Self::OtherReason(err_string),
+                StreamDecoderOggError => Self::OtherReason(err_string),
+                StreamDecoderSeekError => Self::OtherReason(err_string),
+                StreamDecoderAborted => Self::OtherReason(err_string),
+                StreamDecoderMemoryAllocationError => Self::OtherReason(err_string),
+                StreamDecoderUninitialized => Self::InvalidArguments(err_string),
+            }
+        }
+    }
+
+    impl From<&dyn flac::FlacError> for AudioReadError {
+        fn from(err: &dyn flac::FlacError) -> Self {
+            let err_code = err.get_code();
+            let err_func = err.get_function();
+            let err_desc = err.get_message();
+            if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
+                AudioReadError::from(*encoder_err)
+            } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>()
+            {
+                AudioReadError::from(*encoder_err)
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
+                AudioReadError::from(*decoder_err)
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>()
+            {
+                AudioReadError::from(*decoder_err)
+            } else {
+                Self::OtherReason(format!(
+                    "Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"
+                ))
+            }
+        }
+    }
+
+    impl From<flac::FlacEncoderError> for AudioReadError {
+        fn from(err: flac::FlacEncoderError) -> Self {
+            let err_code = err.code;
+            let err_func = err.function;
+            let err_desc = err.message;
+            use flac::FlacEncoderErrorCode::*;
+            let err_code = flac::FlacEncoderErrorCode::from(err_code);
+            let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
+            match err_code {
+                StreamEncoderOk => Self::OtherReason(err_string),
+                StreamEncoderUninitialized => Self::OtherReason(err_string),
+                StreamEncoderOggError => Self::OtherReason(err_string),
+                StreamEncoderVerifyDecoderError => Self::OtherReason(err_string),
+                StreamEncoderVerifyMismatchInAudioData => Self::OtherReason(err_string),
+                StreamEncoderClientError => Self::OtherReason(err_string),
+                StreamEncoderIOError => Self::IOError(IOErrorInfo::new(ErrorKind::Other, err_string)),
+                StreamEncoderFramingError => Self::FormatError(err_string),
+                StreamEncoderMemoryAllocationError => Self::OtherReason(err_string),
+            }
+        }
+    }
 }
 
 /// * The OggVorbis decoder for `WaveReader`
@@ -1668,18 +1799,18 @@ pub mod flac_dec {
 pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
-        io::{self, Read, Write, Seek, SeekFrom},
+        io::{self, ErrorKind, Read, Write, Seek, SeekFrom},
         rc::Rc,
         cell::RefCell,
         ops::{Deref, DerefMut},
     };
 
     use crate::SampleType;
-    use crate::errors::AudioReadError;
+    use crate::errors::{AudioReadError, IOErrorInfo};
     use crate::chunks::{FmtChunk, ext::ExtensionData};
     use crate::io_utils::{Reader, SharedReader, CombinedReader, CursorVecU8, SharedCursor, DishonestReader};
     use crate::options::{OggVorbisMode, OggVorbisEncoderParams};
-    use crate::ogg::{OggPacket, OggStreamWriter};
+    use ogg::{OggPacket, OggStreamWriter};
     use vorbis_rs::VorbisDecoder;
 
     type OggVorbisHeaderToBodyCombinedReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
@@ -2148,6 +2279,60 @@ pub mod oggvorbis_dec {
         fn flush(&mut self) -> io::Result<()> {
             self.cursor.seek(SeekFrom::End(0))?;
             self.ogg_stream_writer.flush()
+        }
+    }
+
+    impl From<vorbis_rs::VorbisError> for AudioReadError {
+        fn from(err: vorbis_rs::VorbisError) -> Self {
+            use vorbis_rs::VorbisError::*;
+            match err {
+                LibraryError(liberr) => {
+                    let lib = liberr.library();
+                    let func = liberr.function();
+                    let kind = liberr.kind();
+                    let message =
+                        format!("OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}");
+                    use vorbis_rs::VorbisLibraryErrorKind::*;
+                    match kind {
+                        False | InternalFault => Self::OtherReason(message),
+                        NotVorbis | BadHeader | BadPacket | BadLink => Self::InvalidData(message),
+                        BadVorbisVersion | NotAudio => Self::FormatError(message),
+                        Hole => Self::IOError(IOErrorInfo::new(ErrorKind::Interrupted, message)),
+                        Eof => Self::IOError(IOErrorInfo::new(ErrorKind::UnexpectedEof, message)),
+                        Io => Self::IOError(IOErrorInfo::new(ErrorKind::Other, message)),
+                        NotImplemented => Self::Unimplemented(message),
+                        InvalidValue => Self::InvalidArguments(message),
+                        NotSeekable => Self::IOError(IOErrorInfo::new(ErrorKind::NotSeekable, message)),
+                        Other { result_code: code } => Self::OtherReason(format!(
+                            "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind} code: {code}"
+                        )),
+                        o => Self::OtherReason(format!(
+                            "OggVorbis library error: lib: {lib}, function: {func}, kind: {kind}, error: {o}"
+                        )),
+                    }
+                }
+                InvalidAudioBlockChannelCount { expected, actual } => Self::InvalidArguments(format!(
+                    "Channel error: expected: {expected}, actual: {actual}"
+                )),
+                InvalidAudioBlockSampleCount { expected, actual } => Self::InvalidArguments(format!(
+                    "Invalid audio block sample count: expected: {expected}, actual: {actual}"
+                )),
+                UnsupportedStreamChaining => {
+                    Self::InvalidArguments("Unsupported stream chaining".to_string())
+                }
+                InvalidCommentString(err_char) => {
+                    Self::InvalidArguments(format!("Invalid comment string char {err_char}"))
+                }
+                RangeExceeded(try_error) => {
+                    Self::InvalidArguments(format!("Invalid parameters range exceeded: {try_error}"))
+                }
+                Io(ioerr) => Self::IOError(IOErrorInfo::new(ioerr.kind(), format!("{:?}", ioerr))),
+                Rng(rngerr) => Self::OtherReason(format!("Random number generator error: {rngerr}")),
+                ConsumedEncoderBuilderSink => {
+                    Self::InvalidArguments("The `writer` was already consumed".to_string())
+                }
+                o => Self::OtherReason(format!("Unknown error: {o}")),
+            }
         }
     }
 }

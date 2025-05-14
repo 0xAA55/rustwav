@@ -2,14 +2,14 @@
 use std::{
     cmp::max,
     fmt::{self, Debug, Formatter},
-    io::Write,
+    io::{self, Write},
     mem,
     ops::{Index, IndexMut, Range, RangeFrom, RangeTo, RangeFull},
 };
-use crate::errors::{AudioReadError, AudioError, AudioWriteError};
-use crate::format_array;
-use crate::io_utils::{Writer, CursorVecU8};
-use crate::utils::{BitwiseData, CopiableBuffer};
+use ogg::{OggPacket, OggPacketType};
+use readwrite::{Writer, CursorVecU8};
+use bitwise::{BitwiseData, format_array};
+use copiablebuf::CopiableBuffer;
 
 const MASK: [u32; 33] = [
     0x00000000,
@@ -194,9 +194,9 @@ impl<'a> BitReader<'a> {
 
     /// * Read data bit by bit
     /// * bits <= 32
-    pub fn read(&mut self, mut bits: i32) -> Result<i32, AudioReadError> {
+    pub fn read(&mut self, mut bits: i32) -> Result<i32, io::Error> {
         if !(0..=32).contains(&bits) {
-            return_Err!(AudioReadError::InvalidArguments(format!("Invalid bit number: {bits}")));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid bit number: {bits}")));
         }
         let mut ret: i32;
         let m = MASK[bits as usize];
@@ -204,10 +204,10 @@ impl<'a> BitReader<'a> {
         let cursor = self.cursor;
 
         // Don't want it panic, and don't want an Option.
-        let ptr_index = |mut index: usize| -> Result<u8, AudioReadError> {
+        let ptr_index = |mut index: usize| -> Result<u8, io::Error> {
             index += cursor;
-            let eof_err = || -> AudioReadError {
-                AudioReadError::UnexpectedEof(format!("UnexpectedEof when trying to read {origbits} bits from the input position 0x{:x}", index))
+            let eof_err = || -> io::Error {
+                io::Error::new(io::ErrorKind::UnexpectedEof, format!("UnexpectedEof when trying to read {origbits} bits from the input position 0x{:x}", index))
             };
             self.data.get(index).ok_or(eof_err()).copied()
         };
@@ -282,7 +282,7 @@ where
     }
 
     /// * Write data by bytes one by one
-    fn write_byte(&mut self, byte: u8) -> Result<(), AudioWriteError> {
+    fn write_byte(&mut self, byte: u8) -> Result<(), io::Error> {
         self.cache.write_all(&[byte])?;
         if self.cache.len() >= Self::CACHE_SIZE {
             self.flush()?;
@@ -291,9 +291,9 @@ where
     }
 
     /// * Write data in bits, max is 32 bit.
-    pub fn write(&mut self, mut value: u32, mut bits: i32) -> Result<(), AudioWriteError> {
+    pub fn write(&mut self, mut value: u32, mut bits: i32) -> Result<(), io::Error> {
         if !(0..=32).contains(&bits) {
-            return_Err!(AudioWriteError::InvalidArguments(format!("Invalid bits {bits}")));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid bits {bits}")));
         }
         value &= MASK[bits as usize];
         let origbits = bits;
@@ -323,7 +323,7 @@ where
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<(), AudioWriteError> {
+    pub fn flush(&mut self) -> Result<(), io::Error> {
         if self.cache.is_empty() {
             Ok(())
         } else if self.endbit == 0 {
@@ -340,7 +340,7 @@ where
         }
     }
 
-    pub fn force_flush(&mut self) -> Result<(), AudioWriteError> {
+    pub fn force_flush(&mut self) -> Result<(), io::Error> {
         self.writer.write_all(&self.cache[..])?;
         self.cache.clear();
         self.endbit = 0;
@@ -405,7 +405,7 @@ macro_rules! read_string {
             let s = read_slice!($bitreader, $length);
             match std::str::from_utf8(&s) {
                 Ok(s) => Ok(s.to_string()),
-                Err(_) => Err(AudioError::InvalidData(format!("Parse UTF-8 failed: {}", String::from_utf8_lossy(&s)))),
+                Err(_) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("Parse UTF-8 failed: {}", String::from_utf8_lossy(&s)))),
             }
         }
     };
@@ -429,9 +429,9 @@ macro_rules! write_string {
 
 /// * Any Vorbis objects that can pack into bitstreams should implement this `VorbisPackableObject`
 pub trait VorbisPackableObject {
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError> where W: Write;
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error> where W: Write;
 
-    fn to_packed(&self) -> Result<BitwiseData, AudioWriteError> {
+    fn to_packed(&self) -> Result<BitwiseData, io::Error> {
         let mut bitwriter = BitWriterCursor::default();
         let bits = self.pack(&mut bitwriter)?;
         Ok(BitwiseData::new(&bitwriter.into_bytes(), bits))
@@ -475,19 +475,19 @@ impl Debug for CodeBook {
 impl CodeBook {
     /// unpacks a codebook from the packet buffer into the codebook struct,
     /// readies the codebook auxiliary structures for decode
-    pub fn load(bitreader: &mut BitReader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader) -> Result<Self, io::Error> {
         let mut ret = Self::default();
 
         /* make sure alignment is correct */
         if read_bits!(bitreader, 24) != 0x564342 {
-            return_Err!(AudioReadError::FormatError("Check the `BCV` flag failed.".to_string()));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, "Check the `BCV` flag failed.".to_string()));
         }
 
         /* first the basic parameters */
         ret.dim = read_bits!(bitreader, 16);
         ret.entries = read_bits!(bitreader, 24);
         if ilog!(ret.dim) + ilog!(ret.entries) > 24 {
-            return_Err!(AudioReadError::FormatError(format!("{} + {} > 24", ilog!(ret.dim), ilog!(ret.entries))));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("{} + {} > 24", ilog!(ret.dim), ilog!(ret.entries))));
         }
 
         /* codeword ordering.... length ordered or unordered? */
@@ -524,7 +524,7 @@ impl CodeBook {
                 while i < ret.entries {
                     let num = read_bits!(bitreader, ilog!(ret.entries - i));
                     if length > 32 || num > ret.entries - i || (num > 0 && (num - 1) >> (length - 1) > 1) {
-                        return_Err!(AudioReadError::FormatError(format!("length({length}) > 32 || num({num}) > entries({}) - i({i}) || (num({num}) > 0 && (num({num}) - 1) >> (length({length}) - 1) > 1)", ret.entries)));
+                        return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("length({length}) > 32 || num({num}) > entries({}) - i({i}) || (num({num}) > 0 && (num({num}) - 1) >> (length({length}) - 1) > 1)", ret.entries)));
                     }
                     for _ in 0..num {
                         ret.lengthlist[i as usize] = length;
@@ -533,7 +533,7 @@ impl CodeBook {
                     length += 1;
                 }
             }
-            o => return_Err!(AudioReadError::FormatError(format!("Unexpected codeword ordering {o}"))),
+            o => return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Unexpected codeword ordering {o}"))),
         }
 
         /* Do we have a mapping to unpack? */
@@ -560,7 +560,7 @@ impl CodeBook {
                     ret.quantlist[i] = read_bits!(bitreader, ret.q_quant);
                 }
             }
-            o => return_Err!(AudioReadError::FormatError(format!("Unexpected maptype {o}"))),
+            o => return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Unexpected maptype {o}"))),
         }
         Ok(ret)
     }
@@ -610,7 +610,7 @@ impl CodeBook {
 
 impl VorbisPackableObject for CodeBook {
     /// * Pack the book into the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -695,7 +695,7 @@ impl VorbisPackableObject for CodeBook {
             0 => (),
             1 | 2 => {
                 if self.quantlist.is_empty() {
-                    return_Err!(AudioWriteError::MissingData("Missing quantlist data".to_string()));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, "Missing quantlist data".to_string()));
                 }
 
                 write_bits!(bitwriter, self.q_min, 32);
@@ -713,7 +713,7 @@ impl VorbisPackableObject for CodeBook {
                     write_bits!(bitwriter, self.quantlist[i].unsigned_abs(), self.q_quant);
                 }
             }
-            o => return_Err!(AudioWriteError::InvalidData(format!("Unexpected maptype {o}"))),
+            o => return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Unexpected maptype {o}"))),
         }
 
         Ok(bitwriter.total_bits - begin_bits)
@@ -730,7 +730,7 @@ pub struct CodeBooksPacked {
 }
 
 impl CodeBooksPacked {
-    pub fn unpack(&self) -> Result<CodeBooks, AudioReadError> {
+    pub fn unpack(&self) -> Result<CodeBooks, io::Error> {
         CodeBooks::load_from_slice(&self.books.data)
     }
 
@@ -805,7 +805,7 @@ pub struct CodeBooks {
 
 impl CodeBooks {
     /// * Unpack the codebooks from the bitstream
-    pub fn load(bitreader: &mut BitReader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader) -> Result<Self, io::Error> {
         let begin_bits = bitreader.total_bits;
         let num_books = (read_bits!(bitreader, 8).wrapping_add(1)) as usize;
         let mut books = Vec::<CodeBook>::with_capacity(num_books);
@@ -823,7 +823,7 @@ impl CodeBooks {
     }
 
     /// * Unpack from a slice
-    pub fn load_from_slice(data: &[u8]) -> Result<Self, AudioReadError> {
+    pub fn load_from_slice(data: &[u8]) -> Result<Self, io::Error> {
         let mut bitreader = BitReader::new(data);
         Self::load(&mut bitreader)
     }
@@ -849,7 +849,7 @@ impl CodeBooks {
     }
 
     /// * Pack the codebook to binary for storage.
-    pub fn to_packed_codebooks(&self) -> Result<CodeBooksPacked, AudioWriteError> {
+    pub fn to_packed_codebooks(&self) -> Result<CodeBooksPacked, io::Error> {
         let mut bitwriter = BitWriter::new(CursorVecU8::default());
         let mut bits_of_books = Vec::<usize>::with_capacity(self.books.len());
         write_bits!(bitwriter, self.books.len().wrapping_sub(1), 8);
@@ -869,7 +869,7 @@ impl CodeBooks {
 
 impl VorbisPackableObject for CodeBooks {
     /// * Pack to bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -918,10 +918,10 @@ pub struct VorbisIdentificationHeader {
 
 impl VorbisIdentificationHeader {
     /// * Unpack from a bitstream
-    pub fn load(bitreader: &mut BitReader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader) -> Result<Self, io::Error> {
         let ident = read_slice!(bitreader, 7);
         if ident != b"\x01vorbis" {
-            Err(AudioReadError::InvalidData(format!("Not a Vorbis identification header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Not a Vorbis identification header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
         } else {
             let version = read_bits!(bitreader, 32);
             let channels = read_bits!(bitreader, 8);
@@ -939,7 +939,7 @@ impl VorbisIdentificationHeader {
             || block_size[1] < block_size[0]
             || block_size[1] > 8192
             || !end_of_packet {
-                Err(AudioReadError::InvalidData("Bad Vorbis identification header.".to_string()))
+                Err(io::Error::new(io::ErrorKind::InvalidData, "Bad Vorbis identification header.".to_string()))
             } else {
                 Ok(Self {
                     version,
@@ -955,7 +955,7 @@ impl VorbisIdentificationHeader {
     }
 
     /// * Unpack from a slice
-    pub fn load_from_slice(data: &[u8]) -> Result<Self, AudioReadError> {
+    pub fn load_from_slice(data: &[u8]) -> Result<Self, io::Error> {
         let mut bitreader = BitReader::new(data);
         Self::load(&mut bitreader)
     }
@@ -963,7 +963,7 @@ impl VorbisIdentificationHeader {
 
 impl VorbisPackableObject for VorbisIdentificationHeader {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let bs_1: u8 = ilog!(self.block_size[0] - 1);
@@ -992,31 +992,31 @@ pub struct VorbisCommentHeader {
 
 impl VorbisCommentHeader {
     /// * Unpack from a bitstream
-    pub fn load(bitreader: &mut BitReader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader) -> Result<Self, io::Error> {
         let ident = read_slice!(bitreader, 7);
         if ident != b"\x03vorbis" {
-            Err(AudioReadError::InvalidData(format!("Not a Vorbis comment header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Not a Vorbis comment header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
         } else {
             let vendor_len = read_bits!(bitreader, 32);
             if vendor_len < 0 {
-                return_Err!(AudioReadError::InvalidData(format!("Bad vendor string length {vendor_len}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Bad vendor string length {vendor_len}")));
             }
             let vendor = read_string!(bitreader, vendor_len as usize)?;
             let num_comments = read_bits!(bitreader, 32);
             if num_comments < 0 {
-                return_Err!(AudioReadError::InvalidData(format!("Bad number of comments {num_comments}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Bad number of comments {num_comments}")));
             }
             let mut comments = Vec::<String>::with_capacity(num_comments as usize);
             for _ in 0..num_comments {
                 let comment_len = read_bits!(bitreader, 32);
                 if comment_len < 0 {
-                    return_Err!(AudioReadError::InvalidData(format!("Bad comment string length {vendor_len}")));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Bad comment string length {vendor_len}")));
                 }
                 comments.push(read_string!(bitreader, comment_len as usize)?);
             }
             let end_of_packet = read_bits!(bitreader, 1) & 1 == 1;
             if !end_of_packet {
-                return_Err!(AudioReadError::InvalidData(format!("End of packet flag == {end_of_packet}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("End of packet flag == {end_of_packet}")));
             }
             Ok(Self{
                 comments,
@@ -1028,7 +1028,7 @@ impl VorbisCommentHeader {
 
 impl VorbisPackableObject for VorbisCommentHeader {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1056,12 +1056,12 @@ pub enum VorbisFloor {
 }
 
 impl VorbisFloor {
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, io::Error> {
         let floor_type = read_bits!(bitreader, 16);
         match floor_type {
             0 => Ok(VorbisFloor0::load(bitreader, vorbis_info)?),
             1 => Ok(VorbisFloor1::load(bitreader, vorbis_info)?),
-            o => Err(AudioReadError::InvalidData(format!("Invalid floor type {o}"))),
+            o => Err(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid floor type {o}"))),
         }
     }
 
@@ -1074,7 +1074,7 @@ impl VorbisFloor {
 }
 
 impl VorbisPackableObject for VorbisFloor {
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         match self {
@@ -1108,7 +1108,7 @@ pub struct VorbisFloor0 {
 }
 
 impl VorbisFloor0 {
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, io::Error> {
         let static_codebooks = &vorbis_info.static_codebooks;
         let mut ret = Self {
             order: read_bits!(bitreader, 8),
@@ -1124,7 +1124,7 @@ impl VorbisFloor0 {
         || ret.rate < 1
         || ret.barkmap < 1
         || num_books < 1 {
-            return_Err!(AudioReadError::InvalidData(format!("Invalid floor 0 data: \norder = {}\nrate = {}\nbarkmap = {}\nnum_books = {num_books}",
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid floor 0 data: \norder = {}\nrate = {}\nbarkmap = {}\nnum_books = {num_books}",
                 ret.order,
                 ret.rate,
                 ret.barkmap
@@ -1134,13 +1134,13 @@ impl VorbisFloor0 {
         for _ in 0..num_books {
             let book = read_bits!(bitreader, 8);
             if book < 0 || book as usize >= static_codebooks.len() {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid book number: {book}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid book number: {book}")));
             }
             if static_codebooks[book as usize].maptype == 0 {
-                return_Err!(AudioReadError::InvalidData("Invalid book maptype: 0".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "Invalid book maptype: 0".to_string()));
             }
             if static_codebooks[book as usize].dim < 1 {
-                return_Err!(AudioReadError::InvalidData("Invalid book dimension: 0".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "Invalid book dimension: 0".to_string()));
             }
             ret.books.push(book);
         }
@@ -1209,7 +1209,7 @@ pub struct VorbisFloor1 {
 }
 
 impl VorbisFloor1 {
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<VorbisFloor, io::Error> {
         let static_codebooks = &vorbis_info.static_codebooks;
         let mut ret = Self::default();
 
@@ -1231,14 +1231,14 @@ impl VorbisFloor1 {
                 ret.class_book[i] = read_bits!(bitreader, 8);
             }
             if ret.class_book[i] as usize >= static_codebooks.len() {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid class book index {}, max books is {}", ret.class_book[i], static_codebooks.len())));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid class book index {}, max books is {}", ret.class_book[i], static_codebooks.len())));
             }
             let sublen = 1usize << ret.class_subs[i];
             ret.class_subbook[i].resize(sublen, 0);
             for k in 0..sublen {
                 let subbook_index = read_bits!(bitreader, 8).wrapping_sub(1);
                 if subbook_index < -1 || subbook_index >= static_codebooks.len() as i32 {
-                    return_Err!(AudioReadError::InvalidData(format!("Invalid class subbook index {subbook_index}, max books is {}", static_codebooks.len())));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid class subbook index {subbook_index}, max books is {}", static_codebooks.len())));
                 }
                 ret.class_subbook[i][k] = subbook_index;
             }
@@ -1253,13 +1253,13 @@ impl VorbisFloor1 {
         for i in 0..ret.partitions_class.len() {
             count += ret.class_dim[ret.partitions_class[i] as usize] as usize;
             if count > 63 {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid class dim sum {count}, max is 63")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid class dim sum {count}, max is 63")));
             }
             ret.postlist.resize(count + 2, 0);
             while k < count {
                 let t = read_bits!(bitreader, rangebits);
                 if t < 0 || t >= maxrange {
-                    return_Err!(AudioReadError::InvalidData(format!("Invalid value for postlist {t}")));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid value for postlist {t}")));
                 }
                 ret.postlist[k + 2] = t;
                 k += 1;
@@ -1272,7 +1272,7 @@ impl VorbisFloor1 {
         checker.sort();
         for i in 1..checker.len() {
             if checker[i - 1] == checker[i] {
-                return_Err!(AudioReadError::InvalidData(format!("Bad postlist: [{}]", format_array!(ret.postlist, ", ", "{}"))));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Bad postlist: [{}]", format_array!(ret.postlist, ", ", "{}"))));
             }
         }
 
@@ -1282,7 +1282,7 @@ impl VorbisFloor1 {
 
 impl VorbisPackableObject for VorbisFloor1 {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1391,12 +1391,12 @@ pub struct VorbisResidue {
 }
 
 impl VorbisResidue {
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<Self, io::Error> {
         let static_codebooks = &vorbis_info.static_codebooks;
         let residue_type = read_bits!(bitreader, 16);
 
         if !(0..3).contains(&residue_type) {
-            return_Err!(AudioReadError::InvalidData(format!("Invalid residue type {residue_type}")))
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid residue type {residue_type}")))
         }
 
         let mut ret = Self {
@@ -1410,7 +1410,7 @@ impl VorbisResidue {
         };
 
         if !(0..static_codebooks.len()).contains(&(ret.groupbook as usize)) {
-            return_Err!(AudioReadError::InvalidData(format!("Invalid groupbook index {}", ret.groupbook)));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid groupbook index {}", ret.groupbook)));
         }
 
         let partitions = ret.partitions as usize;
@@ -1431,12 +1431,12 @@ impl VorbisResidue {
         for i in 0..acc {
             let book = read_bits!(bitreader, 8);
             if !(0..static_codebooks.len()).contains(&(book as usize)) {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid book index {book}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid book index {book}")));
             }
             ret.booklist[i] = book;
             let book_maptype = static_codebooks[book as usize].maptype;
             if book_maptype == 0 {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid book maptype {book_maptype}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid book maptype {book_maptype}")));
             }
         }
 
@@ -1445,12 +1445,12 @@ impl VorbisResidue {
         let mut dim = groupbook.dim;
         let mut partvals = 1i32;
         if dim < 1 {
-            return_Err!(AudioReadError::InvalidData(format!("Invalid groupbook dimension {dim}")));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid groupbook dimension {dim}")));
         }
         while dim > 0 {
             partvals *= ret.partitions;
             if partvals > entries {
-                return_Err!(AudioReadError::InvalidData(format!("Invalid partvals {partvals}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid partvals {partvals}")));
             }
             dim -= 1;
         }
@@ -1461,7 +1461,7 @@ impl VorbisResidue {
 
 impl VorbisPackableObject for VorbisResidue {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1550,11 +1550,11 @@ pub struct VorbisMapping {
 }
 
 impl VorbisMapping {
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader, ident_header: &VorbisIdentificationHeader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader, ident_header: &VorbisIdentificationHeader) -> Result<Self, io::Error> {
         let mapping_type = read_bits!(bitreader, 16);
 
         if mapping_type != 0 {
-            return_Err!(AudioReadError::InvalidData(format!("Invalid mapping type {mapping_type}")))
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid mapping type {mapping_type}")))
         }
 
         let channels = ident_header.channels as i32;
@@ -1563,7 +1563,7 @@ impl VorbisMapping {
         let submaps = if read_bits!(bitreader, 1) != 0 {
             let submaps = read_bits!(bitreader, 4).wrapping_add(1);
             if submaps == 0 {
-                return_Err!(AudioReadError::InvalidData("No submaps.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No submaps.".to_string()));
             }
             submaps
         } else {
@@ -1572,7 +1572,7 @@ impl VorbisMapping {
         let coupling_steps = if read_bits!(bitreader, 1) != 0 {
             let coupling_steps = read_bits!(bitreader, 8).wrapping_add(1);
             if coupling_steps == 0 {
-                return_Err!(AudioReadError::InvalidData("No coupling steps.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No coupling steps.".to_string()));
             }
             coupling_steps
         } else {
@@ -1599,13 +1599,13 @@ impl VorbisMapping {
             if test_m == test_a
             || test_m >= channels as i32
             || test_a >= channels as i32 {
-                return_Err!(AudioReadError::InvalidData(format!("Bad values for test_m = {test_m}, test_a = {test_a}, channels = {channels}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Bad values for test_m = {test_m}, test_a = {test_a}, channels = {channels}")));
             }
         }
 
         let reserved = read_bits!(bitreader, 2);
         if reserved != 0 {
-            return_Err!(AudioReadError::InvalidData(format!("Reserved value is {reserved}")));
+            return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Reserved value is {reserved}")));
         }
 
         if submaps > 1 {
@@ -1613,7 +1613,7 @@ impl VorbisMapping {
             for i in 0..channels {
                 let chmux = read_bits!(bitreader, 4);
                 if chmux >= submaps as i32 {
-                    return_Err!(AudioReadError::InvalidData(format!("Chmux {chmux} >= submaps {submaps}")));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Chmux {chmux} >= submaps {submaps}")));
                 }
                 ret.chmuxlist[i] = chmux;
             }
@@ -1624,12 +1624,12 @@ impl VorbisMapping {
             let _unused_time_submap = read_bits!(bitreader, 8);
             let floorsubmap = read_bits!(bitreader, 8);
             if floorsubmap >= floors {
-                return_Err!(AudioReadError::InvalidData(format!("floorsubmap {floorsubmap} >= floors {floors}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("floorsubmap {floorsubmap} >= floors {floors}")));
             }
             ret.floorsubmap[i] = floorsubmap;
             let residuesubmap = read_bits!(bitreader, 8);
             if residuesubmap >= residues {
-                return_Err!(AudioReadError::InvalidData(format!("residuesubmap {residuesubmap} >= residues {residues}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("residuesubmap {residuesubmap} >= residues {residues}")));
             }
             ret.residuesubmap[i] = residuesubmap;
         }
@@ -1639,7 +1639,7 @@ impl VorbisMapping {
 
 impl VorbisPackableObject for VorbisMapping {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1722,7 +1722,7 @@ pub struct VorbisMode {
 
 impl VorbisMode {
     /// * Unpack from the bitstream
-    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, vorbis_info: &VorbisSetupHeader) -> Result<Self, io::Error> {
         let ret = Self {
             block_flag: read_bits!(bitreader, 1) != 0,
             window_type: read_bits!(bitreader, 16),
@@ -1731,11 +1731,11 @@ impl VorbisMode {
         };
 
         if ret.window_type != 0 {
-            Err(AudioReadError::InvalidData(format!("Bad window type: {}", ret.window_type)))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Bad window type: {}", ret.window_type)))
         } else if ret.transform_type != 0 {
-            Err(AudioReadError::InvalidData(format!("Bad transfrom type: {}", ret.transform_type)))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Bad transfrom type: {}", ret.transform_type)))
         } else if ret.mapping as usize >= vorbis_info.maps.len() {
-            Err(AudioReadError::InvalidData(format!("Mapping exceeded boundary: {} >= {}", ret.mapping, vorbis_info.maps.len())))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Mapping exceeded boundary: {} >= {}", ret.mapping, vorbis_info.maps.len())))
         } else {
             Ok(ret)
         }
@@ -1744,7 +1744,7 @@ impl VorbisMode {
 
 impl VorbisPackableObject for VorbisMode {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1770,10 +1770,10 @@ pub struct VorbisSetupHeader {
 
 impl VorbisSetupHeader {
     /// * Unpack from a bitstream
-    pub fn load(bitreader: &mut BitReader, ident_header: &VorbisIdentificationHeader) -> Result<Self, AudioReadError> {
+    pub fn load(bitreader: &mut BitReader, ident_header: &VorbisIdentificationHeader) -> Result<Self, io::Error> {
         let ident = read_slice!(bitreader, 7);
         if ident != b"\x05vorbis" {
-            Err(AudioReadError::InvalidData(format!("Not a Vorbis comment header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
+            Err(io::Error::new(io::ErrorKind::InvalidData, format!("Not a Vorbis comment header, the header type is {}, the string is {}", ident[0], String::from_utf8_lossy(&ident[1..]))))
         } else {
             let mut ret = Self {
                 // codebooks
@@ -1786,14 +1786,14 @@ impl VorbisSetupHeader {
             for _ in 0..times {
                 let time_type = read_bits!(bitreader, 16);
                 if time_type != 0 {
-                    return_Err!(AudioReadError::InvalidData(format!("Invalid time type {time_type}")));
+                    return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid time type {time_type}")));
                 }
             }
 
             // floor backend settings
             let floors = read_bits!(bitreader, 6).wrapping_add(1);
             if floors == 0 {
-                return_Err!(AudioReadError::InvalidData("No floor backend settings.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No floor backend settings.".to_string()));
             }
             for _ in 0..floors {
                 ret.floors.push(VorbisFloor::load(bitreader, &ret)?);
@@ -1802,7 +1802,7 @@ impl VorbisSetupHeader {
             // residue backend settings
             let residues = read_bits!(bitreader, 6).wrapping_add(1);
             if residues == 0 {
-                return_Err!(AudioReadError::InvalidData("No residues backend settings.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No residues backend settings.".to_string()));
             }
             for _ in 0..residues {
                 ret.residues.push(VorbisResidue::load(bitreader, &ret)?);
@@ -1811,7 +1811,7 @@ impl VorbisSetupHeader {
             // map backend settings
             let maps = read_bits!(bitreader, 6).wrapping_add(1);
             if maps == 0 {
-                return_Err!(AudioReadError::InvalidData("No map backend settings.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No map backend settings.".to_string()));
             }
             for _ in 0..maps {
                 ret.maps.push(VorbisMapping::load(bitreader, &ret, ident_header)?);
@@ -1820,7 +1820,7 @@ impl VorbisSetupHeader {
             // mode settings
             let modes = read_bits!(bitreader, 6).wrapping_add(1);
             if modes == 0 {
-                return_Err!(AudioReadError::InvalidData("No mode settings.".to_string()));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, "No mode settings.".to_string()));
             }
             for _ in 0..modes {
                 ret.modes.push(VorbisMode::load(bitreader, &ret)?);
@@ -1829,7 +1829,7 @@ impl VorbisSetupHeader {
             // EOP
             let end_of_packet = read_bits!(bitreader, 1) & 1 == 1;
             if !end_of_packet {
-                return_Err!(AudioReadError::InvalidData(format!("End of packet flag == {end_of_packet}")));
+                return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("End of packet flag == {end_of_packet}")));
             }
 
             Ok(ret)
@@ -1839,7 +1839,7 @@ impl VorbisSetupHeader {
 
 impl VorbisPackableObject for VorbisSetupHeader {
     /// * Pack to the bitstream
-    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, AudioWriteError>
+    fn pack<W>(&self, bitwriter: &mut BitWriter<W>) -> Result<usize, io::Error>
     where
         W: Write {
         let begin_bits = bitwriter.total_bits;
@@ -1887,8 +1887,7 @@ impl VorbisPackableObject for VorbisSetupHeader {
 /// * This function extracts data from some Ogg packets, the packets contains the Vorbis headers.
 /// * There are 3 kinds of Vorbis headers, they are the identification header, the metadata header, and the setup header.
 #[allow(clippy::type_complexity)]
-pub fn get_vorbis_headers_from_ogg_packet_bytes(data: &[u8], stream_id: &mut u32) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), AudioError> {
-    use crate::ogg::OggPacket;
+pub fn get_vorbis_headers_from_ogg_packet_bytes(data: &[u8], stream_id: &mut u32) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), io::Error> {
     let mut cursor = CursorVecU8::new(data.to_vec());
     let ogg_packets = OggPacket::from_cursor(&mut cursor);
 
@@ -1910,7 +1909,7 @@ pub fn get_vorbis_headers_from_ogg_packet_bytes(data: &[u8], stream_id: &mut u32
                 1 => ident_header.extend(segment),
                 3 => metadata_header.extend(segment),
                 5 => setup_header.extend(segment),
-                o => return_Err!(AudioError::Unparseable(format!("Invalid Vorbis header type {o}"))),
+                o => return_Err!(io::Error::new(io::ErrorKind::InvalidData, format!("Invalid Vorbis header type {o}"))),
             }
         }
     }
@@ -1921,8 +1920,8 @@ pub fn get_vorbis_headers_from_ogg_packet_bytes(data: &[u8], stream_id: &mut u32
 
 /// * This function extracts data from Ogg packets, the packets contains the Vorbis header.
 /// * The packets were all decoded.
-pub fn parse_vorbis_headers(data: &[u8], stream_id: &mut u32) -> Result<(VorbisIdentificationHeader, VorbisCommentHeader, VorbisSetupHeader), AudioReadError> {
-    let (b1, b2, b3) = get_vorbis_headers_from_ogg_packet_bytes(data, stream_id)?;
+pub fn parse_vorbis_headers(data: &[u8], stream_id: &mut u32) -> (VorbisIdentificationHeader, VorbisCommentHeader, VorbisSetupHeader) {
+    let (b1, b2, b3) = get_vorbis_headers_from_ogg_packet_bytes(data, stream_id).unwrap();
     debugln!("b1 = [{}]", format_array!(b1, " ", "{:02x}"));
     debugln!("b2 = [{}]", format_array!(b2, " ", "{:02x}"));
     debugln!("b3 = [{}]", format_array!(b3, " ", "{:02x}"));
@@ -1932,14 +1931,14 @@ pub fn parse_vorbis_headers(data: &[u8], stream_id: &mut u32) -> Result<(VorbisI
     let h1 = VorbisIdentificationHeader::load(&mut br1).unwrap();
     let h2 = VorbisCommentHeader::load(&mut br2).unwrap();
     let h3 = VorbisSetupHeader::load(&mut br3, &h1).unwrap();
-    Ok((h1, h2, h3))
+    (h1, h2, h3)
 }
 
 /// * This function removes the codebooks from the Vorbis setup header. The setup header was extracted from the Ogg stream.
 /// * Since Vorbis stores data in bitwise form, all of the data are not aligned in bytes, we have to parse it bit by bit.
 /// * After parsing the codebooks, we can sum up the total bits of the codebooks, and then we can replace it with an empty codebook.
 /// * At last, use our `BitwiseData` to concatenate these bit-strings without any gaps.
-pub fn remove_codebook_from_setup_header(setup_header: &[u8]) -> Result<Vec<u8>, AudioError> {
+pub fn remove_codebook_from_setup_header(setup_header: &[u8]) -> Result<Vec<u8>, io::Error> {
     // Try to verify if this is the right way to read the codebook
     assert_eq!(&setup_header[0..7], b"\x05vorbis", "Checking the vorbis header that is a `setup_header` or not");
 
@@ -1968,8 +1967,7 @@ pub fn remove_codebook_from_setup_header(setup_header: &[u8]) -> Result<Vec<u8>,
 /// * And when decoding, he creates a temporary encoder with parameters referenced from the `fmt ` chunk, uses that encoder to create the Vorbis header to feed the decoder, and then can decode the Vorbis audio.
 /// * It has nothing to do with the codebook. I was pranked.
 /// * Thanks, the source code from 2001, and the author from Japan.
-pub fn _remove_codebook_from_ogg_stream(data: &[u8]) -> Result<Vec<u8>, AudioError> {
-    use crate::ogg::{OggPacket, OggPacketType};
+pub fn _remove_codebook_from_ogg_stream(data: &[u8]) -> Result<Vec<u8>, io::Error> {
     let mut stream_id = 0u32;
     let (identification_header, comment_header, setup_header) = get_vorbis_headers_from_ogg_packet_bytes(data, &mut stream_id)?;
 
@@ -1977,7 +1975,7 @@ pub fn _remove_codebook_from_ogg_stream(data: &[u8]) -> Result<Vec<u8>, AudioErr
     // If this packet doesn't have any `setup_header`
     // We return.
     if setup_header.is_empty() {
-        return_Err!(AudioError::NoSuchData("There's no setup header in the given Ogg packets.".to_string()));
+        return_Err!(io::Error::new(io::ErrorKind::InvalidData, "There's no setup header in the given Ogg packets.".to_string()));
     }
 
     let setup_header = remove_codebook_from_setup_header(&setup_header)?;

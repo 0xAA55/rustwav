@@ -15,7 +15,7 @@ use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
 use crate::encoders::{AdpcmEncoderWrap, Encoder, PcmEncoder, PcmXLawEncoderWrap};
 use crate::hacks;
 use crate::io_utils::string_io::*;
-use crate::savagestr::{SavageStringCodecs, StringCodecMaps};
+use crate::utils::{SavageStringCodecs, StringCodecMaps};
 use crate::wavcore::ChunkWriter;
 use crate::chunks::*;
 use crate::format_specs::*;

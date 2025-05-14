@@ -131,6 +131,7 @@ pub mod ima {
     use std::{cmp::min, io, mem};
 
     use super::{AdpcmDecoder, AdpcmEncoder, CurrentChannel};
+    use crate::errors::AudioReadError;
     use crate::utils::CopiableBuffer;
     use crate::chunks::{FmtChunk, ext::{FmtExtension, ExtensionData, AdpcmImaData}};
 
@@ -145,6 +146,14 @@ pub mod ima {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             match self {
                 Self::InvalidArgument(info) => write!(f, "Invalid arguments: {info}"),
+            }
+        }
+    }
+
+    impl From<ImaAdpcmError> for AudioReadError {
+        fn from(imaerr: ImaAdpcmError) -> Self {
+            match imaerr {
+                ImaAdpcmError::InvalidArgument(info) => Self::InvalidArguments(info),
             }
         }
     }
