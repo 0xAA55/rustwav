@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
+description = "PCM-aLaw and PCM-MuLaw codecs."
+keywords = ["PCM", "alaw", "ulaw", "mulaw", "audio"]
 
 [dependencies]
 
