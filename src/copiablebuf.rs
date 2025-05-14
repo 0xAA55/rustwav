@@ -266,7 +266,7 @@ where
         if range.start >= self.buf_used {
             panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
         }
-        unsafe{self.buffer.get_unchecked(range)}
+        unsafe{self.buffer.get_unchecked(range.start..self.buf_used)}
     }
 }
 
@@ -279,7 +279,7 @@ where
         if range.start >= self.buf_used {
             panic!("Slice start is of bounds: {} >= {}", range.start, self.buf_used);
         }
-        unsafe{self.buffer.get_unchecked_mut(range)}
+        unsafe{self.buffer.get_unchecked_mut(range.start..self.buf_used)}
     }
 }
 
