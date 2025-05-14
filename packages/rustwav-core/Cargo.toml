@@ -11,11 +11,11 @@ xlaw.workspace = true
 tinyogg.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
-audioutils.workspace = true
 revorbis-rs.workspace = true
 copiablebuf.workspace = true
 fileparthasher.workspace = true
 shared_io_utils.workspace = true
+audiochannelutils.workspace = true
 
 tempfile.workspace = true
 sampletypes.workspace = true
