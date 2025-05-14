@@ -4,11 +4,11 @@
 use std::fmt::Debug;
 
 use xlaw::{PcmXLawEncoder, XLaw};
+use audioutils::{sample_conv, sample_conv_batch, stereo_conv, stereos_conv};
 use sampletypes::{SampleType, i24, u24};
 use crate::adpcm;
 use crate::errors::AudioWriteError;
 use crate::io_utils::Writer;
-use crate::audioutils::{self, sample_conv, sample_conv_batch, stereo_conv, stereos_conv};
 use crate::format_specs::format_tags::*;
 use crate::format_specs::guids::*;
 use crate::wavcore::{ExtensibleData, FmtChunk, FmtExtension};
@@ -41,32 +41,32 @@ pub trait EncoderToImpl: Debug {
     fn write_interleaved_samples_f64(&mut self, samples: &[f64]) -> Result<(), AudioWriteError>;
 
     // Convenience interfaces for writing audio frames. Each frame is an array of samples per channel. Default implementations are provided.
-    fn write_frame__i8(&mut self, frame: &[i8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__i8(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_i16(&mut self, frame: &[i16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i16(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_i24(&mut self, frame: &[i24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i24(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_i32(&mut self, frame: &[i32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_i64(&mut self, frame: &[i64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame__u8(&mut self, frame: &[u8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__u8(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_u16(&mut self, frame: &[u16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u16(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_u24(&mut self, frame: &[u24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u24(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_u32(&mut self, frame: &[u32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_u64(&mut self, frame: &[u64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_f32(&mut self, frame: &[f32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
-    fn write_frame_f64(&mut self, frame: &[f64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()], Some(self.get_channels()))?)}
+    fn write_frame__i8(&mut self, frame: &[i8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__i8(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_i16(&mut self, frame: &[i16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i16(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_i24(&mut self, frame: &[i24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i24(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_i32(&mut self, frame: &[i32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_i64(&mut self, frame: &[i64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame__u8(&mut self, frame: &[u8 ]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__u8(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_u16(&mut self, frame: &[u16]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u16(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_u24(&mut self, frame: &[u24]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u24(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_u32(&mut self, frame: &[u32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_u64(&mut self, frame: &[u64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_f32(&mut self, frame: &[f32]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f32(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
+    fn write_frame_f64(&mut self, frame: &[f64]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f64(&audioutils::frames_to_interleaved_samples(&[frame.to_vec()])?)}
 
     // Convenience interfaces for writing multiple audio frames. Default implementations are provided.
-    fn write_frames__i8(&mut self, frames: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__i8(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_i16(&mut self, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i16(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_i24(&mut self, frames: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i24(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_i32(&mut self, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i32(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_i64(&mut self, frames: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i64(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames__u8(&mut self, frames: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__u8(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_u16(&mut self, frames: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u16(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_u24(&mut self, frames: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u24(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_u32(&mut self, frames: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u32(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_u64(&mut self, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u64(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_f32(&mut self, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f32(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
-    fn write_frames_f64(&mut self, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f64(&audioutils::frames_to_interleaved_samples(frames, Some(self.get_channels()))?)}
+    fn write_frames__i8(&mut self, frames: &[Vec<i8 >]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__i8(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_i16(&mut self, frames: &[Vec<i16>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i16(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_i24(&mut self, frames: &[Vec<i24>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i24(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_i32(&mut self, frames: &[Vec<i32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i32(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_i64(&mut self, frames: &[Vec<i64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_i64(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames__u8(&mut self, frames: &[Vec<u8 >]) -> Result<(), AudioWriteError> {self.write_interleaved_samples__u8(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_u16(&mut self, frames: &[Vec<u16>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u16(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_u24(&mut self, frames: &[Vec<u24>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u24(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_u32(&mut self, frames: &[Vec<u32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u32(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_u64(&mut self, frames: &[Vec<u64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_u64(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_f32(&mut self, frames: &[Vec<f32>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f32(&audioutils::frames_to_interleaved_samples(frames)?)}
+    fn write_frames_f64(&mut self, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_interleaved_samples_f64(&audioutils::frames_to_interleaved_samples(frames)?)}
 
     // Interfaces for writing mono audio frames (single-channel). Default implementations are provided.
     fn write_mono__i8(&mut self, sample: i8 ) -> Result<(), AudioWriteError> {self.write_interleaved_samples__i8(&(0..self.get_channels()).map(|_|sample).collect::<Vec<i8 >>())}
@@ -1520,7 +1520,7 @@ pub mod mp3 {
                     ))?),
                     Self::Stereo((l, r)) => {
                         if monos_l.len() != monos_r.len() {
-                            return Err(AudioWriteError::MultipleMonosAreNotSameSize);
+                            return Err(AudioWriteError::ChannelsNotInSameSize);
                         }
                         l.extend(monos_l);
                         r.extend(monos_r);

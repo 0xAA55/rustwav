@@ -1,0 +1,16 @@
+[package]
+name = "audioutils"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+sampletypes.workspace = true
+resampler-rs.workspace = true
+downmixer.workspace = true
+
+[lib]
+name = "audioutils"
+path = "src/audioutils.rs"

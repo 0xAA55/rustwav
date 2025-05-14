@@ -3,8 +3,16 @@
 use std::{any::TypeId, borrow::Cow, slice};
 
 use resampler::Resampler;
-use crate::SampleType;
-use crate::errors::AudioWriteError;
+use sampletypes::SampleType;
+use downmixer::{Downmixer, DownmixerParams};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AudioConvError {
+    InvalidArguments(String),
+    FrameChannelsNotSame,
+    ChannelsNotInSameSize,
+    TruncatedSamples,
+}
 
 /// * Turns a stereo audio into two individual mono waveforms.
 pub fn stereos_to_dual_monos<S>(stereos: &[(S, S)]) -> (Vec<S>, Vec<S>)
@@ -28,80 +36,63 @@ pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
 }
 
 /// * Convert audio frames into stereo audio. Mono audio will be converted to stereo by duplicating samples. Only support 1 or 2 channels of audio.
-pub fn frames_to_stereos<S>(frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioWriteError>
+pub fn frames_to_stereos<S>(channel_mask: u32, frames: &[Vec<S>]) -> Result<Vec<(S, S)>, AudioConvError>
 where
     S: SampleType,
 {
     match is_same_len(frames) {
         None => Ok(Vec::<(S, S)>::new()),
-        Some((equal, channels)) => match equal {
-            false => Err(AudioWriteError::FrameChannelsNotSame),
-            true => match channels {
-                1 => Ok(frames
-                    .iter()
-                    .map(|frame: &Vec<S>| -> (S, S) { (frame[0], frame[0]) })
-                    .collect()),
-                2 => Ok(frames
-                    .iter()
-                    .map(|frame: &Vec<S>| -> (S, S) { (frame[0], frame[1]) })
-                    .collect()),
-                o => Err(AudioWriteError::WrongChannels(format!("{o}"))),
-            },
+        Some((equal, _channels)) => match equal {
+            false => Err(AudioConvError::FrameChannelsNotSame),
+            true => {
+                let downmixer = Downmixer::new(channel_mask, DownmixerParams::default());
+                Ok(frames.iter().map(|frame: &Vec<S>| -> (S, S) {downmixer.downmix_frame_to_stereo(frame)}).collect())
+            }
         },
     }
 }
 
 /// * Convert audio frames into two individual mono waveforms. Only support two-channel audio.
-pub fn frames_to_dual_mono<S>(frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioWriteError>
+pub fn frames_to_dual_mono<S>(channel_mask: u32, frames: &[Vec<S>]) -> Result<(Vec<S>, Vec<S>), AudioConvError>
 where
     S: SampleType,
 {
-    Ok(stereos_to_dual_monos(&frames_to_stereos(frames)?))
+    Ok(stereos_to_dual_monos(&frames_to_stereos(channel_mask, frames)?))
 }
 
 /// * Convert audio frames into every individual mono waveform. Support any channels.
 /// * The param `channels` is optional, if you provide it, the conversion will be a little faster than if you just give it a `None.`
 pub fn frames_to_monos<S>(
     frames: &[Vec<S>],
-    channels: Option<u16>,
-) -> Result<Vec<Vec<S>>, AudioWriteError>
+) -> Result<Vec<Vec<S>>, AudioConvError>
 where
     S: SampleType,
 {
     match is_same_len(frames) {
         None => Ok(Vec::<Vec<S>>::new()),
         Some((equal, length)) => match equal {
-            false => Err(AudioWriteError::FrameChannelsNotSame),
-            true => {
-                if let Some(channels) = channels {
-                    if channels as usize != length {
-                        return Err(AudioWriteError::WrongChannels(format!(
-                            "The channels is {channels} but the frames are {length} channels"
-                        )));
-                    }
-                }
-                Ok((0..length)
+            false => Err(AudioConvError::FrameChannelsNotSame),
+            true => Ok((0..length)
                     .map(|channel| -> Vec<S> {
                         frames
                             .iter()
                             .map(|frame: &Vec<S>| -> S { frame[channel] })
                             .collect()
                     })
-                    .collect())
-            }
+                    .collect()),
         },
     }
 }
 
 /// * Convert every individual mono waveform into an audio frame array. Support any channels.
-pub fn monos_to_frames<S>(monos: &[Vec<S>]) -> Result<Vec<Vec<S>>, AudioWriteError>
+pub fn monos_to_frames<S>(monos: &[Vec<S>]) -> Result<Vec<Vec<S>>, AudioConvError>
 where
     S: SampleType,
 {
     match is_same_len(monos) {
         None => Ok(Vec::<Vec<S>>::new()),
         Some((equal, length)) => match equal {
-            false => Err(AudioWriteError::MultipleMonosAreNotSameSize),
+            false => Err(AudioConvError::ChannelsNotInSameSize),
             true => Ok((0..length)
                 .map(|position: usize| -> Vec<S> {
                     monos
@@ -115,7 +106,7 @@ where
 }
 
 /// * Convert every individual mono waveform into the interleaved samples of audio interleaved by channels. The WAV file stores PCM samples in this form.
-pub fn monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioWriteError>
+pub fn monos_to_interleaved_samples<S>(monos: &[Vec<S>]) -> Result<Vec<S>, AudioConvError>
 where
     S: SampleType,
 {
@@ -124,20 +115,19 @@ where
 
 /// * Convert audio frames into the interleaved samples of audio interleaved by channels. The WAV file stores PCM samples in this form.
 pub fn frames_to_interleaved_samples<S>(
-    frames: &[Vec<S>],
-    channels: Option<u16>,
-) -> Result<Vec<S>, AudioWriteError>
+    frames: &[Vec<S>]
+) -> Result<Vec<S>, AudioConvError>
 where
     S: SampleType,
 {
-    monos_to_interleaved_samples(&frames_to_monos(frames, channels)?)
+    monos_to_interleaved_samples(&frames_to_monos(frames)?)
 }
 
 /// * Convert the interleaved samples of audio interleaved by channels into audio frames.
 pub fn interleaved_samples_to_frames<S>(
     samples: &[S],
     channels: u16,
-) -> Result<Vec<Vec<S>>, AudioWriteError>
+) -> Result<Vec<Vec<S>>, AudioConvError>
 where
     S: SampleType,
 {
@@ -159,12 +149,12 @@ where
 pub fn interleaved_samples_to_monos<S>(
     samples: &[S],
     channels: u16,
-) -> Result<Vec<Vec<S>>, AudioWriteError>
+) -> Result<Vec<Vec<S>>, AudioConvError>
 where
     S: SampleType,
 {
     if channels == 0 {
-        Err(AudioWriteError::InvalidArguments(
+        Err(AudioConvError::InvalidArguments(
             "Channels must not be zero".to_owned(),
         ))
     } else {
@@ -184,13 +174,13 @@ where
 /// * Convert two individual mono waveforms into a stereo audio form.
 pub fn dual_monos_to_stereos<S>(
     dual_monos: &(Vec<S>, Vec<S>),
-) -> Result<Vec<(S, S)>, AudioWriteError>
+) -> Result<Vec<(S, S)>, AudioConvError>
 where
     S: SampleType,
 {
     let (l, r) = dual_monos;
     if l.len() != r.len() {
-        Err(AudioWriteError::MultipleMonosAreNotSameSize)
+        Err(AudioConvError::ChannelsNotInSameSize)
     } else {
         Ok(l.iter()
             .zip(r)
@@ -200,12 +190,12 @@ where
 }
 
 /// * Convert interleaved samples into a stereo audio form. The interleaved samples are treated as a two-channel audio.
-pub fn interleaved_samples_to_stereos<S>(samples: &[S]) -> Result<Vec<(S, S)>, AudioWriteError>
+pub fn interleaved_samples_to_stereos<S>(samples: &[S]) -> Result<Vec<(S, S)>, AudioConvError>
 where
     S: SampleType,
 {
     if (samples.len() & 1) != 0 {
-        Err(AudioWriteError::NotStereo)
+        Err(AudioConvError::TruncatedSamples)
     } else {
         Ok((0..(samples.len() / 2))
             .map(|position| -> (S, S) { (samples[position * 2], samples[position * 2 + 1]) })
@@ -214,13 +204,13 @@ where
 }
 
 /// * Convert two individual mono waveforms into one mono waveform. Stereo to mono conversion.
-pub fn dual_monos_to_monos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<S>, AudioWriteError>
+pub fn dual_monos_to_monos<S>(dual_monos: &(Vec<S>, Vec<S>)) -> Result<Vec<S>, AudioConvError>
 where
     S: SampleType,
 {
     let (l, r) = dual_monos;
     if l.len() != r.len() {
-        Err(AudioWriteError::MultipleMonosAreNotSameSize)
+        Err(AudioConvError::ChannelsNotInSameSize)
     } else {
         Ok(l.iter()
             .zip(r)
@@ -370,7 +360,7 @@ pub fn do_resample_frames<S>(
 where
     S: SampleType,
 {
-    let monos = frames_to_monos(input, None).unwrap();
+    let monos = frames_to_monos(input).unwrap();
     let monos: Vec<Vec<S>> = monos
         .into_iter()
         .map(|mono| do_resample_mono(resampler, &mono, src_sample_rate, dst_sample_rate))

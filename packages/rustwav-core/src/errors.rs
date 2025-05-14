@@ -105,10 +105,10 @@ pub enum AudioWriteError {
     ChunkSizeTooBig(String),
     StringDecodeError(Vec<u8>),
     BufferIsFull(String),
-    MultipleMonosAreNotSameSize,
+    ChannelsNotInSameSize,
     FrameChannelsNotSame,
     WrongChannels(String),
-    NotStereo,
+    TruncatedSamples,
     MissingData(String),
     OtherReason(String),
 }
@@ -129,10 +129,10 @@ impl Display for AudioWriteError {
             Self::ChunkSizeTooBig(info) => write!(f, "Chunk size is too big: {info}"),
             Self::StringDecodeError(bytes) => write!(f, "String decode error: {}", String::from_utf8_lossy(bytes)),
             Self::BufferIsFull(info) => write!(f, "The buffer is full: {info}"),
-            Self::MultipleMonosAreNotSameSize => write!(f, "The lengths of the channels are not equal."),
+            Self::ChannelsNotInSameSize => write!(f, "The lengths of the channels are not equal."),
             Self::FrameChannelsNotSame => write!(f, "The channels of each frames are not equal."),
             Self::WrongChannels(prompt) => write!(f, "Wrong channels: {prompt}"),
-            Self::NotStereo => write!(f, "The samples are not stereo audio samples"),
+            Self::TruncatedSamples => write!(f, "The samples seem truncated because they can not form an audio frame"),
             Self::MissingData(data) => write!(f, "Missing data: \"{data}\""),
             Self::OtherReason(info) => write!(f, "Unknown error: {info}"),
         }
@@ -220,6 +220,18 @@ impl From<AudioError> for AudioWriteError {
             AudioError::Unimplemented(_) => Self::Unimplemented(format!("{:?}", err)),
             AudioError::InvalidArguments(_) => Self::InvalidArguments(format!("{:?}", err)),
             AudioError::WrongExtensionData(_) => Self::InvalidData(format!("{:?}", err)),
+        }
+    }
+}
+
+use audioutils::AudioConvError;
+impl From<AudioConvError> for AudioWriteError {
+    fn from(err: AudioConvError) -> Self {
+        match err {
+            AudioConvError::InvalidArguments(_) => Self::InvalidArguments(format!("{:?}", err)),
+            AudioConvError::FrameChannelsNotSame => Self::FrameChannelsNotSame,
+            AudioConvError::ChannelsNotInSameSize => Self::ChannelsNotInSameSize,
+            AudioConvError::TruncatedSamples => Self::TruncatedSamples,
         }
     }
 }

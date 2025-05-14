@@ -6,9 +6,6 @@ mod adpcm;
 #[macro_use]
 mod hacks;
 
-/// * The utility for both you and me to convert waveform format and do resampling and convert sample types.
-pub mod audioutils;
-
 /// * The encoders for the `WaveWriter`, each of these provides the same API for it to use. You can use it too.
 pub mod encoders;
 
@@ -47,6 +44,9 @@ pub mod io_utils {
         string_io,
     };
 }
+/// * The utility for both you and me to convert waveform format and do resampling and convert sample types.
+pub use audioutils;
+
 /// * The downmixer
 pub use downmixer;
 

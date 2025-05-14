@@ -28,6 +28,7 @@ bitwise.workspace = true
 readwrite.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
+audioutils.workspace = true
 filehasher.workspace = true
 copiablebuf.workspace = true
 rustwav-core.workspace = true
@@ -44,6 +45,7 @@ bitwise = { version = "*", path = "packages/bitwise" }
 readwrite = { version = "*", path = "packages/readwrite" }
 downmixer = { version = "*", path = "packages/downmixer" }
 savagestr = { version = "*", path = "packages/savagestr" }
+audioutils = { version = "*", path = "packages/audioutils" }
 filehasher = { version = "*", path = "packages/filehasher" }
 copiablebuf = { version = "*", path = "packages/copiablebuf" }
 rustwav-core = { version = "*", path = "packages/rustwav-core" }

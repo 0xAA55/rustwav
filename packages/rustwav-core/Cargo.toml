@@ -14,6 +14,7 @@ bitwise.workspace = true
 readwrite.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
+audioutils.workspace = true
 filehasher.workspace = true
 copiablebuf.workspace = true
 
