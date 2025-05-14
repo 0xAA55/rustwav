@@ -15,8 +15,8 @@ pub struct CopiableBuffer<T, const N: usize>
 where
     T: CopiableItem,
 {
-    buffer: [T; N],
     buf_used: usize,
+    buffer: [T; N],
 }
 
 /// * The iterator for the copiable buffer
