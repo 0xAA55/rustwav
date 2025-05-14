@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
+description = "File hasher to calculate the hash for a section of a file, the hash is `u64` size. The `Write` trait was implemented for it."
+keywords = ["hash", "write"]
 
 [dependencies]
 shared_io_utils.workspace = true
