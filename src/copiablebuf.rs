@@ -70,6 +70,9 @@ where
     }
 
     pub fn resize(&mut self, new_len: usize, val: T) {
+        if new_len > N {
+            panic!("The new size {new_len} exceeded `CopiableBuffer<{}, {N}>` capacity", std::any::type_name::<T>());
+        }
         if new_len > self.buf_used {
             for i in self.buf_used..new_len {
                 self.buffer[i] = val;
