@@ -1,0 +1,15 @@
+[package]
+name = "downmixer"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+copiablebuf.workspace = true
+sampletypes.workspace = true
+
+[lib]
+name = "downmixer"
+path = "src/downmixer.rs"
