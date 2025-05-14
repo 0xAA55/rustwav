@@ -25,8 +25,8 @@ pub struct CopiableBufferIter<'a, T, const N: usize>
 where
     T: CopiableItem,
 {
-    refbuf: &'a CopiableBuffer<T, N>,
     iter_index: usize,
+    refbuf: &'a CopiableBuffer<T, N>,
 }
 
 /// * The mutable iterator for the copiable buffer
@@ -35,8 +35,8 @@ pub struct CopiableBufferIterMut<'a, T, const N: usize>
 where
     T: CopiableItem,
 {
-    refbuf: &'a mut CopiableBuffer<T, N>,
     iter_index: usize,
+    refbuf: &'a mut CopiableBuffer<T, N>,
 }
 
 /// * The iterator with owned data for the copiable buffer
@@ -45,9 +45,9 @@ pub struct CopiableBufferIntoIter<T, const N: usize>
 where
     T: CopiableItem,
 {
-    buffer: [T; N],
-    buf_used: usize,
     iter_index: usize,
+    buf_used: usize,
+    buffer: [T; N],
 }
 
 impl<T, const N: usize> CopiableBuffer<T, N>
@@ -56,8 +56,8 @@ where
 {
     pub fn new() -> Self {
         Self {
-            buffer: [T::default(); N],
             buf_used: 0,
+            buffer: [T::default(); N],
         }
     }
 
@@ -419,8 +419,8 @@ where
             "CopiableBuffer<{}, {N}>",
             std::any::type_name::<T>()
         ))
-        .field("buffer", &&self.buffer[..self.buf_used])
         .field("buf_used", &self.buf_used)
+        .field("buffer", &&self[..])
         .finish()
     }
 }
@@ -434,9 +434,9 @@ where
             "CopiableBufferIntoIter<{}, {N}>",
             std::any::type_name::<T>()
         ))
-        .field("buffer", &&self.buffer[..self.buf_used])
-        .field("buf_used", &self.buf_used)
         .field("iter_index", &self.iter_index)
+        .field("buf_used", &self.buf_used)
+        .field("buffer", &&self.buffer[..self.buf_used])
         .finish()
     }
 }
