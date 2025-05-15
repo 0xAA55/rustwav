@@ -1,10 +1,11 @@
 [package]
 name = "xlaw"
-version = "0.0.1"
+version = "0.0.2"
 edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
+readme = "Readme.md"
 description = "PCM-aLaw and PCM-MuLaw codecs."
 keywords = ["PCM", "alaw", "ulaw", "mulaw", "audio"]
 
