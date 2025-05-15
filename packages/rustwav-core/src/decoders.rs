@@ -44,48 +44,83 @@ where
 
     /// Decode a mono sample, multiple channels will be mixed into one channel.
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> {
-        match self.get_channels() {
-            1 => Ok(self.decode_frame()?.map(|samples| samples[0])),
-            _ => Ok(self.decode_frame()?.map(|samples| S::average_arr(&samples))),
+        if let Some(frame) = self.decode_frame()? {
+            if let Some(downmixer) = self.get_downmixer() {
+                Ok(Some(downmixer.downmix_frame_to_mono(&frame)))
+            } else {
+                match self.get_channels() {
+                    1 => Ok(Some(frame[0])),
+                    _ => Ok(Some(S::average_arr(&frame))),
+                }
+            }
+        } else {
+            Ok(None)
         }
     }
 
     /// Decode a stereo sample with left and right samples, if the audio has > 2 channels, this method fails.
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> {
-        match self.get_channels() {
-            1 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[0]))),
-            2 => Ok(self.decode_frame()?.map(|samples| (samples[0], samples[1]))),
-            o => Err(AudioReadError::Unsupported(format!(
-                "Unsupported to merge {o} channels to 2 channels."
-            ))),
+        if let Some(frame) = self.decode_frame()? {
+            if let Some(downmixer) = self.get_downmixer() {
+                Ok(Some(downmixer.downmix_frame_to_stereo(&frame)))
+            } else {
+                match self.get_channels() {
+                    1 => Ok(Some((frame[0], frame[0]))),
+                    2 => Ok(Some((frame[0], frame[1]))),
+                    o => Err(AudioReadError::Unsupported(format!(
+                        "Unsupported to merge {o} channels to 2 channels, downmixer is not set up."
+                    ))),
+                }
+            }
+        } else {
+            Ok(None)
         }
     }
 
     /// Decode multiple audio frames. This method supports > 2 channels.
     fn decode_frames(&mut self, num_frames: usize) -> Result<Vec<Vec<S>>, AudioReadError> {
-        let mut frames = Vec::<Option<Vec<S>>>::with_capacity(num_frames);
+        let mut frames = Vec::<Vec<S>>::with_capacity(num_frames);
         for _ in 0..num_frames {
-            frames.push(self.decode_frame()?);
+            match self.decode_frame()? {
+                Some(frame) => frames.push(frame),
+                None => break,
+            }
         }
-        Ok(frames.into_iter().flatten().collect())
+        Ok(frames)
     }
 
     /// Decode multiple mono samples, multiple channels will be mixed into one channel.
     fn decode_monos(&mut self, num_monos: usize) -> Result<Vec<S>, AudioReadError> {
-        let mut monos = Vec::<Option<S>>::with_capacity(num_monos);
+        let mut monos = Vec::<S>::with_capacity(num_monos);
         for _ in 0..num_monos {
-            monos.push(self.decode_mono()?);
+            match self.decode_mono()? {
+                Some(mono) => monos.push(mono),
+                None => break,
+            }
         }
-        Ok(monos.into_iter().flatten().collect())
+        Ok(monos)
     }
 
-    // Decode multiple stereo samples with left and right samples, if the audio has > 2 channels, this method fails.
+    /// Decode multiple stereo samples with left and right samples, if the audio has > 2 channels, this method fails.
     fn decode_stereos(&mut self, num_stereos: usize) -> Result<Vec<(S, S)>, AudioReadError> {
-        let mut stereos = Vec::<Option<(S, S)>>::with_capacity(num_stereos);
+        let mut stereos = Vec::<(S, S)>::with_capacity(num_stereos);
         for _ in 0..num_stereos {
-            stereos.push(self.decode_stereo()?);
+            match self.decode_stereo()? {
+                Some(stereo) => stereos.push(stereo),
+                None => break,
+            }
         }
-        Ok(stereos.into_iter().flatten().collect())
+        Ok(stereos)
+    }
+
+    /// Set the downmixer
+    fn set_downmixer(&mut self, _downmixer: &Downmixer) {
+        eprintln!("This decoder doesn't supports downmixing");
+    }
+
+    /// Get the downmixer
+    fn get_downmixer(&self) -> Option<Downmixer> {
+        None
     }
 }
 
