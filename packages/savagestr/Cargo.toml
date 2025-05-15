@@ -1,6 +1,6 @@
 [package]
 name = "savagestr"
-version = "0.0.1"
+version = "0.0.2"
 edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
@@ -9,10 +9,10 @@ description = "SAVAGE string encoder/decoder. If can encode or decode by specify
 keywords = ["string", "utf8", "mbcs", "i18n"]
 
 [dependencies]
-encoding = { version = "0.2.33", optional = true }
+encoding = { version = "^0", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_Globalization"]}
+windows = { version = "^0", features = ["Win32_Foundation", "Win32_Globalization"]}
 
 [features]
 default = ["text_encoding"]
