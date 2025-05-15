@@ -1409,26 +1409,49 @@ pub mod flac_dec {
     };
 
     use super::get_rounded_up_fft_size;
-    use crate::SampleType;
-    use crate::errors::{AudioReadError, IOErrorInfo};
-    use crate::io_utils::Reader;
-    use crate::audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
-    use crate::chunks::{FmtChunk, ListChunk, ListInfo};
-    use crate::wavcore::get_listinfo_flacmeta;
     use flac::{FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo};
     use resampler::Resampler;
+    use downmixer::Downmixer;
+    use sampletypes::SampleType;
+    use io_utils::Reader;
+    use audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
+    use crate::errors::{AudioReadError, IOErrorInfo};
+    use crate::chunks::{FmtChunk, ListChunk, ListInfo};
+    use crate::wavcore::get_listinfo_flacmeta;
 
+    /// A wrapper for the WaveReader to decode FLAC audio encapsulated in the WAV file.
     pub struct FlacDecoderWrap<'a> {
+        /// The decoder core
         decoder: Box<FlacDecoderUnmovable<'a, Box<dyn Reader>>>,
+
+        /// The resampler for decoding. What if some of the blocks has different sample rate, this thing will help
         resampler: Resampler,
+
+        /// The number of channels of the FLAC audio
         channels: u16,
+
+        /// The sample rate of the FLAC audio
         sample_rate: u32,
+
+        /// The offset of the FLAC file data in the source file
         data_offset: u64,
+
+        /// The length of the FLAC file data in the source file
         data_length: u64,
+
+        /// The decoded frames of the current block
         decoded_frames: Vec<Vec<i32>>,
+
+        /// The decode position in the decoded frames
         decoded_frames_index: usize,
+
+        /// The current decode position
         frame_index: u64,
+
+        /// How many frames in total
         total_frames: u64,
+
+        /// A boxed pointer points to this struct itself. The `extern "system"` callback functions rely on this poiner to convert the call to our closure calls.
         self_ptr: Box<*mut FlacDecoderWrap<'a>>,
     }
 
