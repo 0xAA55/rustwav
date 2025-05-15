@@ -49,9 +49,9 @@ fileparthasher = { version = "^0", path = "packages/fileparthasher" }
 shared_io_utils = { version = "^0", path = "packages/shared_io_utils" }
 audiochannelutils = { version = "^0", path = "packages/audiochannelutils" }
 
-sampletypes = "0.1.3"
-resampler-rs = "0.0.1"
-tempfile = "3.18.0"
+sampletypes = "^0"
+resampler-rs = "^0"
+tempfile = "^3"
 
 [features]
 default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac", "vorbis", "oggvorbis"]
