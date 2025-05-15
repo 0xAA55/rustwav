@@ -2256,13 +2256,7 @@ pub mod oggvorbis_dec {
         {
             match self.decode_frame()? {
                 None => Ok(None),
-                Some(frame) => match frame.len() {
-                    1 => Ok(Some((frame[0], frame[0]))),
-                    2 => Ok(Some((frame[0], frame[1]))),
-                    o => Err(AudioReadError::Unsupported(format!(
-                        "Could not convert {o} channel audio to stereo audio."
-                    ))),
-                },
+                Some(frame) => Ok(Some(self.downmixer.downmix_frame_to_stereo(&frame))),
             }
         }
 
@@ -2273,7 +2267,7 @@ pub mod oggvorbis_dec {
         {
             match self.decode_frame()? {
                 None => Ok(None),
-                Some(frame) => Ok(Some(S::average_arr(&frame))),
+                Some(frame) => Ok(Some(self.downmixer.downmix_frame_to_mono(&frame))),
             }
         }
     }
