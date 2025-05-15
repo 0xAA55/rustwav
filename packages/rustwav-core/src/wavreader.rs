@@ -11,13 +11,13 @@ use std::{
 };
 
 use xlaw::XLaw;
-use io_utils::string_io::*;
+use io_utils::{Reader, string_io::*};
+use savagestr::{SavageStringCodecs, StringCodecMaps};
+use filehasher::FileHasher;
+use copiablebuf::CopiableBuffer;
 use crate::SampleType;
-use crate::io_utils::Reader;
 use crate::adpcm::{DecIMA, DecMS, DecYAMAHA};
-use crate::utils::{CopiableBuffer, SavageStringCodecs, StringCodecMaps};
 use crate::decoders::{AdpcmDecoderWrap, Decoder, ExtensibleDecoder, PcmDecoder, PcmXLawDecoderWrap};
-use crate::utils::FileHasher;
 use crate::wavcore;
 use crate::wavcore::ChunkHeader;
 use crate::wavcore::Spec;
