@@ -132,6 +132,8 @@ impl<S> Decoder<S> for PcmDecoder<S>
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono() }
+    fn set_downmixer(&mut self, downmixer: &Downmixer) { self.downmixer = *downmixer; }
+    fn get_downmixer(&self) -> Option<Downmixer> { Some(self.downmixer) }
 }
 
 impl<S, D> Decoder<S> for AdpcmDecoderWrap<D>
@@ -186,6 +188,8 @@ impl<S> Decoder<S> for FlacDecoderWrap<'_>
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+    fn set_downmixer(&mut self, downmixer: &Downmixer) { self.downmixer = *downmixer; }
+    fn get_downmixer(&self) -> Option<Downmixer> { Some(self.downmixer) }
 }
 
 #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
@@ -197,6 +201,8 @@ impl<S> Decoder<S> for OggVorbisDecoderWrap
     fn decode_frame(&mut self) -> Result<Option<Vec<S>>, AudioReadError> { self.decode_frame::<S>() }
     fn decode_stereo(&mut self) -> Result<Option<(S, S)>, AudioReadError> { self.decode_stereo::<S>() }
     fn decode_mono(&mut self) -> Result<Option<S>, AudioReadError> { self.decode_mono::<S>() }
+    fn set_downmixer(&mut self, downmixer: &Downmixer) { self.downmixer = *downmixer; }
+    fn get_downmixer(&self) -> Option<Downmixer> { Some(self.downmixer) }
 }
 
 #[derive(Debug)]
