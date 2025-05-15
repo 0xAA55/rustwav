@@ -16,6 +16,8 @@ use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 use mp3::*;
 use opus::*;
 use flac::*;
+use oggvorbis::*;
+
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -2851,6 +2853,88 @@ pub mod flac {
             .copied()
             .collect()
         })
+    }
+}
+
+pub mod oggvorbis {
+    /// * OggVorbis encoder mode
+    #[derive(Debug, Clone, Copy, Default, PartialEq)]
+    pub enum OggVorbisMode {
+        /// * Please use this mode, it works well because it just uses the WAV `data` chunk to encapsulate the whole Ogg Vorbis audio stream.
+        #[default]
+        OriginalStreamCompatible = 1,
+
+        /// * This mode works on some players. It separates the Ogg Vorbis header into the `fmt ` chunk extension data.
+        /// * Some players with the Ogg Vorbis decoder for the WAV file may fail because the header is separated.
+        HaveIndependentHeader = 2,
+
+        /// * Please don't use this mode. The encoder strips the Ogg Vorbis header in this mode, and to decode it, the decoder should use another encoder to create an Ogg Vorbis header for the audio stream to be decoded.
+        /// * What if the decoder has a different version of `libvorbis`, the header info is misaligned to the audio body, then BAM, it's unable to play.
+        /// * I'm still wondering why the Japanese developer invented this mode. to reduce the audio file size? Or to use the `fmt ` chunk info to create the header?
+        /// * The result is that you can't control the bitrate, thus the file would be very large at full bitrate settings by default.
+        HaveNoCodebookHeader = 3,
+
+        /// * Another mode that exists but doesn't work.
+        /// * The naked Vorbis audio without Ogg encapsulation, invented by the author of FFmpeg? I guess.
+        /// * Without the Ogg packet header `granule position` field, `libvorbis` is unable to decode it correctly.
+        /// * The decoder will try to fake the Ogg encapsulation, and if you are lucky enough, it still has some chance to decode correctly.
+        /// * BTW. FFmpeg can encode audio into this format, but can't decode it correctly.
+        NakedVorbis = 4
+    }
+
+    /// * OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`
+    #[derive(Debug, Clone, Copy, Default, PartialEq)]
+    pub struct OggVorbisEncoderParams {
+        /// OggVorbis encoder mode
+        pub mode: OggVorbisMode,
+
+        /// Num channels
+        pub channels: u16,
+
+        /// Sample rate
+        pub sample_rate: u32,
+
+        /// The serials for the generated OggVorbis streams will be randomly generated, as dictated by the Ogg specification. If this behavior is not desirable, set this field to `Some(your_serial_number)`.
+        pub stream_serial: Option<i32>,
+
+        /// OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
+        pub bitrate: Option<OggVorbisBitrateStrategy>,
+
+        /// * Specifies the minimum size of OggVorbis stream data to put into each Ogg page, except for some header pages,
+        /// * which have to be cut short to conform to the OggVorbis specification.
+        /// * This value controls the tradeoff between Ogg encapsulation overhead and ease of seeking and packet loss concealment.
+        /// * By default, it is set to None, which lets the encoder decide.
+        pub minimum_page_data_size: Option<u16>,
+    }
+
+    /// * OggVorbis bitrate strategy represents a bitrate management strategy that a OggVorbis encoder can use.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum OggVorbisBitrateStrategy {
+        /// * Pure VBR quality mode, selected by a target bitrate (in bit/s).
+        /// * The bitrate management engine is not enabled.
+        /// * The average bitrate will usually be close to the target, but there are no guarantees.
+        /// * Easier or harder than expected to encode audio may be encoded at a significantly different bitrate.
+        Vbr(u32),
+
+        /// * Similar to `Vbr`, this encoding strategy fixes the output subjective quality level,
+        /// * but lets OggVorbis vary the target bitrate depending on the qualities of the input signal.
+        /// * An upside of this approach is that OggVorbis can automatically increase or decrease the target bitrate according to how difficult the signal is to encode,
+        /// * which guarantees perceptually-consistent results while using an optimal bitrate.
+        /// * Another upside is that there always is some mode to encode audio at a given quality level.
+        /// * The downside is that the output bitrate is harder to predict across different types of audio signals.
+        QualityVbr(f32),
+
+        /// * ABR mode, selected by an average bitrate (in bit/s).
+        /// * The bitrate management engine is enabled to ensure that the instantaneous bitrate does not divert significantly from the specified average over time,
+        /// * but no hard bitrate limits are imposed. Any bitrate fluctuations are guaranteed to be minor and short.
+        Abr(u32),
+
+        /// * Constrained ABR mode, selected by a hard maximum bitrate (in bit/s).
+        /// * The bitrate management engine is enabled to ensure that the instantaneous bitrate never exceeds the specified maximum bitrate,
+        /// * which is a hard limit. Internally, the encoder will target an average bitrate that  s slightly lower than the specified maximum bitrate.
+        /// * The stream is guaranteed to never go above the specified bitrate, at the cost of a lower bitrate,
+        /// * and thus lower audio quality, on average.
+        ConstrainedAbr(u32),
     }
 }
 
