@@ -79,23 +79,20 @@ pub mod format_specs {
 pub mod options {
     pub use crate::wavwriter::FileSizeOption;
 
+    #[doc(inline)]
     pub use crate::wavcore::AdpcmSubFormat;
 
-    #[cfg(feature = "flac")]
-    pub use flac::{FlacCompression, FlacEncoderParams};
-
-    #[cfg(not(feature = "flac"))]
+    #[doc(inline)]
     pub use crate::wavcore::flac::{FlacCompression, FlacEncoderParams};
 
     #[doc(inline)]
-    pub use crate::encoders::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
+    pub use crate::wavcore::mp3::{Mp3Bitrate, Mp3Channels, Mp3EncoderOptions, Mp3Quality, Mp3VbrMode};
 
     #[doc(inline)]
-    pub use crate::encoders::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
+    pub use crate::wavcore::opus::{OpusBitrate, OpusEncoderOptions, OpusEncoderSampleDuration};
 
     #[doc(inline)]
-    pub use crate::encoders::{OggVorbisEncoderParams, OggVorbisMode, OggVorbisBitrateStrategy};
-
+    pub use crate::wavcore::oggvorbis::{OggVorbisEncoderParams, OggVorbisMode, OggVorbisBitrateStrategy};
 }
 
 /// * WAV chunks
