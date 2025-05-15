@@ -1447,7 +1447,11 @@ pub mod flac_dec {
         ptr,
     };
 
-    use flac::{FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo};
+    use flac::{
+        FlacDecoderUnmovable,
+        options::FlacAudioForm,
+        closure_objects::{FlacReadStatus, SamplesInfo, FlacInternalDecoderError},
+    };
     use resampler::Resampler;
     use downmixer::Downmixer;
     use sampletypes::SampleType;
@@ -1455,7 +1459,7 @@ pub mod flac_dec {
     use audioutils::{do_resample_frames, sample_conv, sample_conv_batch};
     use crate::errors::{AudioReadError, IOErrorInfo};
     use crate::chunks::{FmtChunk, ListChunk, ListInfo};
-    use crate::wavcore::get_listinfo_flacmeta;
+    use crate::wavcore::flac::get_listinfo_flacmeta;
 
     /// A wrapper for the WaveReader to decode FLAC audio encapsulated in the WAV file.
     pub struct FlacDecoderWrap<'a> {
@@ -1754,13 +1758,14 @@ pub mod flac_dec {
         }
     }
 
-    impl From<flac::FlacEncoderInitError> for AudioReadError {
-        fn from(err: flac::FlacEncoderInitError) -> Self {
+    use flac::errors::*;
+    impl From<FlacEncoderInitError> for AudioReadError {
+        fn from(err: FlacEncoderInitError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacEncoderInitErrorCode::*;
-            let err_code = flac::FlacEncoderInitErrorCode::from(err_code);
+            use FlacEncoderInitErrorCode::*;
+            let err_code = FlacEncoderInitErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamEncoderInitStatusOk => Self::OtherReason(err_string),
@@ -1781,13 +1786,13 @@ pub mod flac_dec {
         }
     }
 
-    impl From<flac::FlacDecoderError> for AudioReadError {
-        fn from(err: flac::FlacDecoderError) -> Self {
+    impl From<FlacDecoderError> for AudioReadError {
+        fn from(err: FlacDecoderError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacDecoderInitErrorCode::*;
-            let err_code = flac::FlacDecoderInitErrorCode::from(err_code);
+            use FlacDecoderInitErrorCode::*;
+            let err_code = FlacDecoderInitErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamDecoderInitStatusOk => Self::OtherReason(err_string),
@@ -1802,13 +1807,13 @@ pub mod flac_dec {
         }
     }
 
-    impl From<flac::FlacDecoderInitError> for AudioReadError {
-        fn from(err: flac::FlacDecoderInitError) -> Self {
+    impl From<FlacDecoderInitError> for AudioReadError {
+        fn from(err: FlacDecoderInitError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacDecoderErrorCode::*;
-            let err_code = flac::FlacDecoderErrorCode::from(err_code);
+            use FlacDecoderErrorCode::*;
+            let err_code = FlacDecoderErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamDecoderSearchForMetadata => Self::OtherReason(err_string),
@@ -1825,36 +1830,36 @@ pub mod flac_dec {
         }
     }
 
-    impl From<&dyn flac::FlacError> for AudioReadError {
-        fn from(err: &dyn flac::FlacError) -> Self {
+    impl From<&dyn FlacError> for AudioReadError {
+        fn from(err: &dyn FlacError) -> Self {
             let err_code = err.get_code();
             let err_func = err.get_function();
             let err_desc = err.get_message();
-            if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
+            if let Some(encoder_err) = err.as_any().downcast_ref::<FlacEncoderError>() {
                 AudioReadError::from(*encoder_err)
-            } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>()
+            } else if let Some(encoder_err) = err.as_any().downcast_ref::<FlacEncoderInitError>()
             {
                 AudioReadError::from(*encoder_err)
-            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<FlacDecoderError>() {
                 AudioReadError::from(*decoder_err)
-            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>()
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<FlacDecoderInitError>()
             {
                 AudioReadError::from(*decoder_err)
             } else {
                 Self::OtherReason(format!(
-                    "Unknown error type from `flac::FlacError`: `{err_func}`: {err_code}: {err_desc}"
+                    "Unknown error type from `FlacError`: `{err_func}`: {err_code}: {err_desc}"
                 ))
             }
         }
     }
 
-    impl From<flac::FlacEncoderError> for AudioReadError {
-        fn from(err: flac::FlacEncoderError) -> Self {
+    impl From<FlacEncoderError> for AudioReadError {
+        fn from(err: FlacEncoderError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacEncoderErrorCode::*;
-            let err_code = flac::FlacEncoderErrorCode::from(err_code);
+            use FlacEncoderErrorCode::*;
+            let err_code = FlacEncoderErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamEncoderOk => Self::OtherReason(err_string),

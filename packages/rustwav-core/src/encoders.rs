@@ -1941,13 +1941,41 @@ pub mod flac_enc {
 
     use super::EncoderToImpl;
 
+    use flac::{FlacEncoderUnmovable, options::{FlacCompression as RealFlacCompression, FlacEncoderParams as RealFlacEncoderParams}};
+    use io_utils::Writer;
+    use sampletypes::{i24, u24};
+    use audioutils::{sample_conv, sample_conv_batch, stereos_conv};
     use crate::errors::{AudioWriteError, IOErrorInfo};
-    use crate::io_utils::Writer;
-    use crate::audioutils::{sample_conv, sample_conv_batch, stereos_conv};
-    use crate::wavcore::format_tags::*;
-    use crate::wavcore::{FmtChunk, ListChunk, get_listinfo_flacmeta};
-    use crate::{i24, u24};
-    use flac::{FlacEncoderParams, FlacEncoderUnmovable};
+    use crate::wavcore::{format_tags::*, FmtChunk, ListChunk, flac::{FlacCompression, FlacEncoderParams, get_listinfo_flacmeta}};
+
+    impl Into<RealFlacCompression> for FlacCompression {
+        fn into(self) -> RealFlacCompression {
+            match self {
+                Self::Level0 => RealFlacCompression::Level0,
+                Self::Level1 => RealFlacCompression::Level1,
+                Self::Level2 => RealFlacCompression::Level2,
+                Self::Level3 => RealFlacCompression::Level3,
+                Self::Level4 => RealFlacCompression::Level4,
+                Self::Level5 => RealFlacCompression::Level5,
+                Self::Level6 => RealFlacCompression::Level6,
+                Self::Level7 => RealFlacCompression::Level7,
+                Self::Level8 => RealFlacCompression::Level8,
+            }
+        }
+    }
+
+    impl Into<RealFlacEncoderParams> for FlacEncoderParams {
+        fn into(self) -> RealFlacEncoderParams {
+            RealFlacEncoderParams {
+                verify_decoded: self.verify_decoded,
+                compression: self.compression.into(),
+                channels: self.channels,
+                sample_rate: self.sample_rate,
+                bits_per_sample: self.bits_per_sample,
+                total_samples_estimate: self.total_samples_estimate,
+            }
+        }
+    }
 
     #[derive(Debug)]
     pub struct FlacEncoderWrap<'a> {
@@ -1963,6 +1991,8 @@ pub mod flac_enc {
             writer: &'a mut dyn Writer,
             params: &FlacEncoderParams,
         ) -> Result<Self, AudioWriteError> {
+            let params = *params;
+            let real_params: RealFlacEncoderParams = params.into();
             let write_offset = writer.stream_position()?;
             let mut bytes_written = Box::new(0u64);
             let bytes_written_ptr = (&mut *bytes_written) as *mut u64;
@@ -1985,9 +2015,9 @@ pub mod flac_enc {
                     Box::new(move |writer: &mut &'a mut dyn Writer| -> io::Result<u64> {
                         Ok(write_offset + writer.stream_position()?)
                     }),
-                    params,
+                    &real_params,
                 )?),
-                params: *params,
+                params,
                 write_offset,
                 frames_written: 0,
                 bytes_written,
@@ -2264,13 +2294,14 @@ pub mod flac_enc {
         fn write_frames_f64(&mut self, frames: &[Vec<f64>]) -> Result<(), AudioWriteError> {self.write_frames(&sample_conv_batch(frames))}
     }
 
-    impl From<flac::FlacEncoderError> for AudioWriteError {
-        fn from(err: flac::FlacEncoderError) -> Self {
+    use flac::errors::*;
+    impl From<FlacEncoderError> for AudioWriteError {
+        fn from(err: FlacEncoderError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacEncoderErrorCode::*;
-            let err_code = flac::FlacEncoderErrorCode::from(err_code);
+            use FlacEncoderErrorCode::*;
+            let err_code = FlacEncoderErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamEncoderOk => Self::OtherReason(err_string),
@@ -2286,13 +2317,13 @@ pub mod flac_enc {
         }
     }
 
-    impl From<flac::FlacEncoderInitError> for AudioWriteError {
-        fn from(err: flac::FlacEncoderInitError) -> Self {
+    impl From<FlacEncoderInitError> for AudioWriteError {
+        fn from(err: FlacEncoderInitError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacEncoderInitErrorCode::*;
-            let err_code = flac::FlacEncoderInitErrorCode::from(err_code);
+            use FlacEncoderInitErrorCode::*;
+            let err_code = FlacEncoderInitErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamEncoderInitStatusOk => Self::OtherReason(err_string),
@@ -2313,13 +2344,13 @@ pub mod flac_enc {
         }
     }
 
-    impl From<flac::FlacDecoderError> for AudioWriteError {
-        fn from(err: flac::FlacDecoderError) -> Self {
+    impl From<FlacDecoderError> for AudioWriteError {
+        fn from(err: FlacDecoderError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacDecoderErrorCode::*;
-            let err_code = flac::FlacDecoderErrorCode::from(err_code);
+            use FlacDecoderErrorCode::*;
+            let err_code = FlacDecoderErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamDecoderSearchForMetadata => Self::OtherReason(err_string),
@@ -2336,13 +2367,13 @@ pub mod flac_enc {
         }
     }
 
-    impl From<flac::FlacDecoderInitError> for AudioWriteError {
-        fn from(err: flac::FlacDecoderInitError) -> Self {
+    impl From<FlacDecoderInitError> for AudioWriteError {
+        fn from(err: FlacDecoderInitError) -> Self {
             let err_code = err.code;
             let err_func = err.function;
             let err_desc = err.message;
-            use flac::FlacDecoderInitErrorCode::*;
-            let err_code = flac::FlacDecoderInitErrorCode::from(err_code);
+            use FlacDecoderInitErrorCode::*;
+            let err_code = FlacDecoderInitErrorCode::from(err_code);
             let err_string = format!("On function `{err_func}`: {err_desc}: {err_code}");
             match err_code {
                 StreamDecoderInitStatusOk => Self::OtherReason(err_string),
@@ -2357,20 +2388,18 @@ pub mod flac_enc {
         }
     }
 
-    impl From<&dyn flac::FlacError> for AudioWriteError {
-        fn from(err: &dyn flac::FlacError) -> Self {
+    impl From<&dyn FlacError> for AudioWriteError {
+        fn from(err: &dyn FlacError) -> Self {
             let err_code = err.get_code();
             let err_func = err.get_function();
             let err_desc = err.get_message();
-            if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderError>() {
+            if let Some(encoder_err) = err.as_any().downcast_ref::<FlacEncoderError>() {
                 AudioWriteError::from(*encoder_err)
-            } else if let Some(encoder_err) = err.as_any().downcast_ref::<flac::FlacEncoderInitError>()
-            {
+            } else if let Some(encoder_err) = err.as_any().downcast_ref::<FlacEncoderInitError>() {
                 AudioWriteError::from(*encoder_err)
-            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderError>() {
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<FlacDecoderError>() {
                 AudioWriteError::from(*decoder_err)
-            } else if let Some(decoder_err) = err.as_any().downcast_ref::<flac::FlacDecoderInitError>()
-            {
+            } else if let Some(decoder_err) = err.as_any().downcast_ref::<FlacDecoderInitError>() {
                 AudioWriteError::from(*decoder_err)
             } else {
                 Self::OtherReason(format!(
