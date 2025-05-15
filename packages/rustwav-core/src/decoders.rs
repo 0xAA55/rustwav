@@ -1718,13 +1718,7 @@ pub mod flac_dec {
             S: SampleType,
         {
             if let Some(frame) = self.decode_frame::<S>()? {
-                match frame.len() {
-                    1 => Ok(Some((frame[0], frame[0]))),
-                    2 => Ok(Some((frame[0], frame[1]))),
-                    o => Err(AudioReadError::Unsupported(format!(
-                        "Unsupported to merge {o} channels to 2 channels."
-                    ))),
-                }
+                Ok(Some(self.downmixer.downmix_frame_to_stereo(&frame)))
             } else {
                 Ok(None)
             }
@@ -1735,7 +1729,7 @@ pub mod flac_dec {
             S: SampleType,
         {
             if let Some(frame) = self.decode_frame::<S>()? {
-                Ok(Some(S::average_arr(&frame)))
+                Ok(Some(self.downmixer.downmix_frame_to_mono(&frame)))
             } else {
                 Ok(None)
             }
