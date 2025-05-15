@@ -11,9 +11,7 @@ use sampletypes::SampleType;
 use savagestr::{SavageStringCodecs, StringCodecMaps};
 use downmixer::*;
 use io_utils::{Reader, Writer, string_io::*};
-use crate::adpcm::ms::AdpcmCoeffSet;
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
-use crate::options::*;
 
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
@@ -644,6 +642,29 @@ pub enum ExtensionData {
 
     /// * Extensible data, it has channel mask, GUID for formats, etc, dedicated for multi-channel PCM format.
     Extensible(ExtensibleData),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AdpcmCoeffSet {
+    pub coeff1: i16,
+    pub coeff2: i16,
+}
+
+impl AdpcmCoeffSet {
+    pub fn new() -> Self {
+        Self {
+            coeff1: 0,
+            coeff2: 0,
+        }
+    }
+
+    pub fn get(&self, index: usize) -> i16 {
+        match index {
+            1 => self.coeff1,
+            2 => self.coeff2,
+            o => panic!("Index must be 1 or 2, not {o}"),
+        }
+    }
 }
 
 /// * The extension data for ADPCM-MS

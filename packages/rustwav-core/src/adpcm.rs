@@ -736,16 +736,12 @@ pub mod ms {
     use crate::utils::CopiableBuffer;
     use crate::chunks::{FmtChunk, ext::{FmtExtension, AdpcmMsData, ExtensionData}};
 
+    use crate::wavcore::AdpcmCoeffSet;
+
     const ADAPTATIONTABLE: [i16; 16] = [
         230, 230, 230, 230, 307, 409, 512, 614,
         768, 614, 512, 409, 307, 230, 230, 230
     ];
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct AdpcmCoeffSet {
-        pub coeff1: i16,
-        pub coeff2: i16,
-    }
 
     const DEF_COEFF_TABLE: [AdpcmCoeffSet; 7] = [
         AdpcmCoeffSet{coeff1: 256, coeff2: 0   },
@@ -759,23 +755,6 @@ pub mod ms {
 
     const BLOCK_SIZE: usize = 1024;
     const HEADER_SIZE: usize = 7;
-
-    impl AdpcmCoeffSet {
-        pub fn new() -> Self {
-            Self {
-                coeff1: 0,
-                coeff2: 0,
-            }
-        }
-
-        pub fn get(&self, index: usize) -> i16 {
-            match index {
-                1 => self.coeff1,
-                2 => self.coeff2,
-                o => panic!("Index must be 1 or 2, not {o}"),
-            }
-        }
-    }
 
     impl Default for AdpcmCoeffSet {
         fn default() -> Self {
