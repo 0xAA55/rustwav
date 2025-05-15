@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
+readme.workspace = true
 description = "The core implementation of WAV format audio file parser and creator, with resampler and downmixer, can change the sample rate of the audio file, and a lot of sub-format support e.g. ADPCM, aLaw, MuLaw, mp3, opus, flac, ogg vorbis, etc, can't use directly, please use `rustwav`."
 keywords = ["audio", "WAV", "codec", "RIFF"]
 
