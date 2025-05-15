@@ -13,6 +13,7 @@ use downmixer::*;
 use io_utils::{Reader, Writer, string_io::*};
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 
+use mp3::*;
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -2592,3 +2593,169 @@ impl From<DownmixerError> for AudioError {
         }
     }
 }
+
+pub mod mp3 {
+    /// * MP3 supports two channels in multiple ways.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[repr(u8)]
+    pub enum Mp3Channels {
+        /// * Mono audio
+        Mono = 3,
+
+        /// * Stereo audio (not telling how it is)
+        Stereo = 0,
+
+        /// * Joint stereo (most commonly used, for better compression)
+        JointStereo = 1,
+
+        /// * Dual channel stereo (for better audio quality)
+        DualChannel = 2,
+
+        /// * Not set
+        NotSet = 4,
+    }
+
+    /// * MP3 quality. Affects the speed of encoding.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[repr(u8)]
+    pub enum Mp3Quality {
+        Best = 0,
+        SecondBest = 1,
+        NearBest = 2,
+        VeryNice = 3,
+        Nice = 4,
+        Good = 5,
+        Decent = 6,
+        Ok = 7,
+        SecondWorst = 8,
+        Worst = 9,
+    }
+
+    /// * The tier 1 factor for MP3 audio quality, bigger bitrate means better audio quality.
+    /// * Most of the music website provides 128 kbps music for free, and 320 kbps music for the purchased subscribed members.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[repr(u16)]
+    pub enum Mp3Bitrate {
+        Kbps8 = 8,
+        Kbps16 = 16,
+        Kbps24 = 24,
+        Kbps32 = 32,
+        Kbps40 = 40,
+        Kbps48 = 48,
+
+        /// * The bitrate for audio chatting.
+        Kbps64 = 64,
+        Kbps80 = 80,
+        Kbps96 = 96,
+        Kbps112 = 112,
+
+        /// * The bitrate for free users.
+        Kbps128 = 128,
+        Kbps160 = 160,
+        Kbps192 = 192,
+        Kbps224 = 224,
+
+        /// * Laboratories uses this bitrate.
+        Kbps256 = 256,
+
+        /// * The bitrate for VIP users who pay for it.
+        Kbps320 = 320,
+    }
+
+    /// * The VBR mode for MP3. If you turn VBR on, the audio quality for MP3 will be a little bit worse.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[repr(u8)]
+    pub enum Mp3VbrMode {
+        /// * This option disables the VBR mode.
+        Off = 0,
+
+        Mt = 1,
+        Rh = 2,
+        Abr = 3,
+
+        /// * This option is used most commonly.
+        Mtrh = 4,
+    }
+
+    const ID3_FIELD_LENGTH: usize = 250;
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Mp3Id3Tag {
+        pub title: [u8; ID3_FIELD_LENGTH],
+        pub artist: [u8; ID3_FIELD_LENGTH],
+        pub album: [u8; ID3_FIELD_LENGTH],
+        pub album_art: [u8; ID3_FIELD_LENGTH],
+        pub year: [u8; ID3_FIELD_LENGTH],
+        pub comment: [u8; ID3_FIELD_LENGTH],
+    }
+
+    /// * The encoder options for MP3
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Mp3EncoderOptions {
+        /// * MP3 channels, not just mono and stereo. MP3 supports two channels in multiple ways.
+        pub channels: Mp3Channels,
+
+        /// * MP3 quality. Affects the speed of encoding.
+        pub quality: Mp3Quality,
+
+        /// * MP3 bitrate. Affects the audio quality and file size, bigger is better.
+        pub bitrate: Mp3Bitrate,
+
+        /// * VBR mode for better compression, turn it off to get better audio quality.
+        pub vbr_mode: Mp3VbrMode,
+
+        /// * ID3 tags, if you have, fill this field.
+        pub id3tag: Option<Mp3Id3Tag>,
+    }
+
+    impl Mp3EncoderOptions {
+        pub fn new() -> Self {
+            Self {
+                channels: Mp3Channels::NotSet,
+                quality: Mp3Quality::Best,
+                bitrate: Mp3Bitrate::Kbps320,
+                vbr_mode: Mp3VbrMode::Off,
+                id3tag: None,
+            }
+        }
+
+        pub fn new_mono() -> Self {
+            Self {
+                channels: Mp3Channels::Mono,
+                quality: Mp3Quality::Best,
+                bitrate: Mp3Bitrate::Kbps320,
+                vbr_mode: Mp3VbrMode::Off,
+                id3tag: None,
+            }
+        }
+
+        pub fn new_stereo() -> Self {
+            Self {
+                channels: Mp3Channels::JointStereo,
+                quality: Mp3Quality::Best,
+                bitrate: Mp3Bitrate::Kbps320,
+                vbr_mode: Mp3VbrMode::Off,
+                id3tag: None,
+            }
+        }
+
+        pub fn get_channels(&self) -> u16 {
+            match self.channels {
+                Mp3Channels::Mono => 1,
+                Mp3Channels::Stereo | Mp3Channels::DualChannel | Mp3Channels::JointStereo => 2,
+                Mp3Channels::NotSet => 0,
+            }
+        }
+
+        pub fn get_bitrate(&self) -> u32 {
+            self.bitrate as u32 * 1000
+        }
+    }
+
+    impl Default for Mp3EncoderOptions {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
