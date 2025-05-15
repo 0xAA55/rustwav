@@ -14,6 +14,7 @@ use io_utils::{Reader, Writer, string_io::*};
 use crate::errors::{AudioError, AudioReadError, AudioWriteError};
 
 use mp3::*;
+use opus::*;
 /// * Specify the audio codecs of the WAV file.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -2753,6 +2754,100 @@ pub mod mp3 {
     }
 
     impl Default for Mp3EncoderOptions {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
+pub mod opus {
+    pub const OPUS_ALLOWED_SAMPLE_RATES: [u32; 5] = [8000, 12000, 16000, 24000, 48000];
+    pub const OPUS_MIN_SAMPLE_RATE: u32 = 8000;
+    pub const OPUS_MAX_SAMPLE_RATE: u32 = 48000;
+
+    /// * The opus encoder only eats these durations of the samples to encode.
+    /// * Longer duration means better quality and compression.
+    /// * If longer than or equal to 10ms, the compression algorithm could be able to use some advanced technology.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[repr(u32)]
+    pub enum OpusEncoderSampleDuration {
+        MilliSec2_5,
+        MilliSec5,
+        MilliSec10,
+        MilliSec20,
+        MilliSec40,
+        MilliSec60,
+    }
+
+    /// * The bitrate option for the Opus encoder, the higher the better for audio quality.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+    pub enum OpusBitrate {
+        Bits(i32),
+        Max,
+        Auto,
+    }
+
+    impl OpusEncoderSampleDuration {
+        pub fn get_num_samples(&self, channels: u16, sample_rate: u32) -> usize {
+            let ms_m_10 = match self {
+                Self::MilliSec2_5 => 25,
+                Self::MilliSec5 => 50,
+                Self::MilliSec10 => 100,
+                Self::MilliSec20 => 200,
+                Self::MilliSec40 => 400,
+                Self::MilliSec60 => 600,
+            };
+            (sample_rate as usize * ms_m_10 as usize) * channels as usize / 10000
+        }
+    }
+
+    /// * The encoder options for Opus
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct OpusEncoderOptions {
+        /// * The tier 1 factor for Opus audio quality, bigger bitrate means better audio quality.
+        pub bitrate: OpusBitrate,
+
+        /// * VBR mode for better compression, turn it off to get better audio quality.
+        pub encode_vbr: bool,
+
+        /// * The opus encoder only eats these durations of the samples to encode.
+        /// * Longer duration means better quality and compression.
+        pub samples_cache_duration: OpusEncoderSampleDuration,
+    }
+
+    impl OpusEncoderOptions {
+        pub fn new() -> Self {
+            Self {
+                bitrate: OpusBitrate::Max,
+                encode_vbr: false,
+                samples_cache_duration: OpusEncoderSampleDuration::MilliSec60,
+            }
+        }
+
+        pub fn get_allowed_sample_rates(&self) -> [u32; OPUS_ALLOWED_SAMPLE_RATES.len()] {
+            OPUS_ALLOWED_SAMPLE_RATES
+        }
+
+        pub fn get_rounded_up_sample_rate(&self, sample_rate: u32) -> u32 {
+            if sample_rate <= OPUS_MIN_SAMPLE_RATE {
+                OPUS_MIN_SAMPLE_RATE
+            } else if sample_rate >= OPUS_MAX_SAMPLE_RATE {
+                OPUS_MAX_SAMPLE_RATE
+            } else {
+                for (l, h) in OPUS_ALLOWED_SAMPLE_RATES[..OPUS_ALLOWED_SAMPLE_RATES.len() - 1]
+                    .iter()
+                    .zip(OPUS_ALLOWED_SAMPLE_RATES[1..].iter())
+                {
+                    if sample_rate > *l && sample_rate <= *h {
+                        return *h;
+                    }
+                }
+                OPUS_MAX_SAMPLE_RATE
+            }
+        }
+    }
+
+    impl Default for OpusEncoderOptions {
         fn default() -> Self {
             Self::new()
         }
