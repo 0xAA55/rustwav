@@ -1885,13 +1885,14 @@ pub mod oggvorbis_dec {
         ops::{Deref, DerefMut},
     };
 
-    use crate::SampleType;
+    use ogg::{OggPacket, OggStreamWriter};
+    use io_utils::{Reader, SharedReader, CombinedReader, CursorVecU8, SharedCursor, DishonestReader};
+    use vorbis_rs::VorbisDecoder;
+    use downmixer::Downmixer;
+    use sampletypes::SampleType;
     use crate::errors::{AudioReadError, IOErrorInfo};
     use crate::chunks::{FmtChunk, ext::ExtensionData};
-    use crate::io_utils::{Reader, SharedReader, CombinedReader, CursorVecU8, SharedCursor, DishonestReader};
     use crate::options::{OggVorbisMode, OggVorbisEncoderParams};
-    use ogg::{OggPacket, OggStreamWriter};
-    use vorbis_rs::VorbisDecoder;
 
     type OggVorbisHeaderToBodyCombinedReader = CombinedReader<CursorVecU8, SharedReader<Box<dyn Reader>>>;
     type OggVorbisDecoderReader = SharedReader<DishonestReader<OggVorbisHeaderToBodyCombinedReader>>;
