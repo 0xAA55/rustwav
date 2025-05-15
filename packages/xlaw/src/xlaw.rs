@@ -11,7 +11,7 @@ pub enum XLaw {
 impl Display for XLaw {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::ALaw => write!(f, "ALaw"),
+            Self::ALaw => write!(f, "aLaw"),
             Self::MuLaw => write!(f, "MuLaw"),
         }
     }
