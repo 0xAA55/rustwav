@@ -780,27 +780,6 @@ where
                 "not implemented for decoding MP3 audio data inside the WAV file",
             )));
         }
-        FORMAT_TAG_VORBIS |
-        FORMAT_TAG_OGG_VORBIS1 |
-        FORMAT_TAG_OGG_VORBIS2 |
-        FORMAT_TAG_OGG_VORBIS3 |
-        FORMAT_TAG_OGG_VORBIS1P |
-        FORMAT_TAG_OGG_VORBIS2P |
-        FORMAT_TAG_OGG_VORBIS3P => {
-            // OggVorbis
-            #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
-            return Ok(Box::new(OggVorbisDecoderWrap::new(
-                reader,
-                data_offset,
-                data_length,
-                fmt,
-                fact_data,
-            )?));
-            #[cfg(not(any(feature = "vorbis", feature = "oggvorbis")))]
-            return Err(AudioReadError::Unimplemented(String::from(
-                "not implemented for decoding ogg vorbis audio data inside the WAV file",
-            )));
-        }
         FORMAT_TAG_OPUS => {
             #[cfg(feature = "opus")]
             return Ok(Box::new(OpusDecoder::new(
@@ -828,6 +807,27 @@ where
             #[cfg(not(feature = "flac"))]
             return Err(AudioReadError::Unimplemented(String::from(
                 "not implemented for decoding FLAC audio data inside the WAV file",
+            )));
+        }
+        FORMAT_TAG_VORBIS |
+        FORMAT_TAG_OGG_VORBIS1 |
+        FORMAT_TAG_OGG_VORBIS2 |
+        FORMAT_TAG_OGG_VORBIS3 |
+        FORMAT_TAG_OGG_VORBIS1P |
+        FORMAT_TAG_OGG_VORBIS2P |
+        FORMAT_TAG_OGG_VORBIS3P => {
+            // OggVorbis
+            #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+            return Ok(Box::new(OggVorbisDecoderWrap::new(
+                reader,
+                data_offset,
+                data_length,
+                fmt,
+                fact_data,
+            )?));
+            #[cfg(not(any(feature = "vorbis", feature = "oggvorbis")))]
+            return Err(AudioReadError::Unimplemented(String::from(
+                "not implemented for decoding ogg vorbis audio data inside the WAV file",
             )));
         }
         FORMAT_TAG_EXTENSIBLE => Ok(ExtensibleDecoder::<S>::new(
