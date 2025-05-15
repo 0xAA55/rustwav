@@ -47,7 +47,7 @@ revorbis-rs = { version = "^0.0.1", path = "packages/revorbis-rs" }
 rustwav-core = { version = "^0.3.1", path = "packages/rustwav-core" }
 fileparthasher = { version = "^0.0.1", path = "packages/fileparthasher" }
 shared_io_utils = { version = "^0.0.1", path = "packages/shared_io_utils" }
-audiochannelutils = { version = "^0.0.1", path = "packages/audiochannelutils" }
+audiochannelutils = { version = "^0.0.2", path = "packages/audiochannelutils" }
 
 sampletypes = "0.1.3"
 resampler-rs = "0.0.1"
