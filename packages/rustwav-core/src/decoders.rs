@@ -8,7 +8,6 @@ use io_utils::Reader;
 use downmixer::{Downmixer, DownmixerParams};
 use sampletypes::{SampleType, i24, u24};
 use crate::adpcm;
-use crate::get_rounded_up_fft_size;
 use crate::format_specs::{Spec, WaveSampleType, format_tags::*};
 use crate::chunks::{FmtChunk, ext::{ExtensibleData, ExtensionData}};
 use crate::errors::{AudioError, AudioReadError};
@@ -846,7 +845,6 @@ pub mod mp3 {
         mem,
     };
 
-    use super::get_rounded_up_fft_size;
     use crate::SampleType;
     use crate::errors::AudioReadError;
     use crate::io_utils::Reader;
@@ -930,7 +928,7 @@ pub mod mp3 {
                 cur_frame: None,
                 sample_pos: 0,
                 total_frames: total_samples,
-                resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
+                resampler: Resampler::new(Resampler::get_rounded_up_fft_size(fmt.sample_rate)),
             };
             ret.cur_frame = ret.get_next_frame();
             if let Some(ref mp3frame) = ret.cur_frame {
@@ -1449,7 +1447,6 @@ pub mod flac_dec {
         ptr,
     };
 
-    use super::get_rounded_up_fft_size;
     use flac::{FlacAudioForm, FlacDecoderUnmovable, FlacInternalDecoderError, FlacReadStatus, SamplesInfo};
     use resampler::Resampler;
     use downmixer::Downmixer;
@@ -1618,7 +1615,7 @@ pub mod flac_dec {
             };
             let mut ret = Self {
                 decoder,
-                resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
+                resampler: Resampler::new(Resampler::get_rounded_up_fft_size(fmt.sample_rate)),
                 channels: fmt.channels,
                 sample_rate: fmt.sample_rate,
                 data_offset,
