@@ -803,6 +803,7 @@ where
                 data_length,
                 fmt,
                 fact_data,
+                None,
             )?));
             #[cfg(not(feature = "flac"))]
             return Err(AudioReadError::Unimplemented(String::from(
