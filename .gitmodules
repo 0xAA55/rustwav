@@ -1,0 +1,9 @@
+[submodule "packages/flac-rs"]
+	path = packages/flac-rs
+	url = https://github.com/0xAA55-rs/flac-rs.git
+[submodule "packages/sampletypes-rs"]
+	path = packages/sampletypes-rs
+	url = https://github.com/0xAA55-rs/sampletypes-rs.git
+[submodule "packages/resampler-rs"]
+	path = packages/resampler-rs
+	url = https://github.com/0xAA55-rs/resampler-rs.git
