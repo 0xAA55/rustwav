@@ -8,9 +8,16 @@ use downmixer::{Downmixer, DownmixerParams};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AudioConvError {
+    /// * The parameters are invalid
     InvalidArguments(String),
+
+    /// * When the input audio is an array of audio frames, each frame should have the same channels, otherwise, this error occurs.
     FrameChannelsNotSame,
+
+    /// * When the input audio is an array of individual waveforms, each waveform should have the same length.
     ChannelsNotInSameSize,
+
+    /// * When the input audio is the interleaved sample array, the number of samples must be divisible by the number of channels
     TruncatedSamples,
 }
 
@@ -25,7 +32,10 @@ where
 }
 
 /// * Check every element in the data has the same length. The length will be returned.
-pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)> {
+pub fn is_same_len<S>(data: &[Vec<S>]) -> Option<(bool, usize)>
+where
+    S: SampleType,
+{
     if data.is_empty() {
         None
     } else {
