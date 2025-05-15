@@ -1928,6 +1928,9 @@ pub mod oggvorbis_dec {
 
         /// Current block frame index. The start index of the decoded samples.
         cur_block_frame_index: u64,
+
+        /// The downmixer for multiple channels audio to decode into 2 or 1 channels
+        pub downmixer: Downmixer,
     }
 
     // ## An shared `OggStreamWriteToCursor`
@@ -1967,6 +1970,7 @@ pub mod oggvorbis_dec {
             data_length: u64,
             fmt: &FmtChunk,
             total_samples: u64,
+            downmixer: Option<Downmixer>,
         ) -> Result<Self, AudioReadError> {
             use crate::wavcore::format_tags::*;
             let mut ogg_stream_writer: Option<SharedOggStreamWriteToCursor> = None;
@@ -2133,6 +2137,23 @@ pub mod oggvorbis_dec {
             let decoder = VorbisDecoder::new(reader.clone())?;
             let channels = decoder.channels().get() as u16;
             let sample_rate = decoder.sampling_frequency().get();
+            let downmixer = if let Some(downmixer) = downmixer {
+                downmixer
+            } else {
+                use downmixer::{speaker_positions::*, DownmixerParams};
+                let channel_mask = match channels {
+                    1 => MONO_LAYOUT,
+                    2 => STEREO_LAYOUT,
+                    3 => SURROUND_LAYOUT,
+                    4 => STEREO_LAYOUT | BACK_LR_BITS,
+                    5 => SURROUND_LAYOUT | BACK_LR_BITS,
+                    6 => DOLBY_5_1_FRONT_SIDE_LAYOUT,
+                    7 => DOLBY_6_1_LAYOUT,
+                    8 => DOLBY_7_1_LAYOUT,
+                    o => return Err(AudioReadError::InvalidArguments(format!("Bad channel number: {o}"))),
+                };
+                Downmixer::new(channel_mask, DownmixerParams::new())
+            };
             let mut ret = Self {
                 reader,
                 decoder,
@@ -2144,6 +2165,7 @@ pub mod oggvorbis_dec {
                 decoded_samples: None,
                 cur_frame_index: 0,
                 cur_block_frame_index: 0,
+                downmixer,
             };
             assert_eq!(fmt.channels, ret.channels);
             assert_eq!(fmt.sample_rate, ret.sample_rate);
