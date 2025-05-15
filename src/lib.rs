@@ -1,5 +1,8 @@
 pub use rustwav_core::*;
 
+use format_specs::*;
+use options::*;
+
 use std::{env::args, process::ExitCode};
 
 /// * The list for the command line program to parse the argument and we have the pre-filled encoder initializer parameter structs for each format.
@@ -124,7 +127,7 @@ pub const FORMATS: [(&str, DataFormat); 16] = [
 /// * arg2: the input file to parse and decode, tests the decoder for the input file.
 /// * arg3: the output file to encode, test the encoder.
 /// * arg4: re-decode arg3 and encode to pcm to test the decoder.
-pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn Error>> {
+pub fn test(arg1: &str, arg2: &str, arg3: &str, arg4: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut data_format = DataFormat::Unspecified;
     for format in FORMATS {
         if arg1 == format.0 {
