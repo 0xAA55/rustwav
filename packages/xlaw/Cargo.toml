@@ -9,7 +9,8 @@ readme = "Readme.md"
 description = "PCM-aLaw and PCM-MuLaw codecs."
 keywords = ["PCM", "alaw", "ulaw", "mulaw", "audio"]
 
-[dependencies]
+[profile.release]
+lto = "fat"
 
 [lib]
 name = "xlaw"

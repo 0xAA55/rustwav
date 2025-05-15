@@ -12,6 +12,9 @@ keywords = ["downmixer", "audio"]
 copiablebuf.workspace = true
 sampletypes.workspace = true
 
+[profile.release]
+lto = "fat"
+
 [lib]
 name = "downmixer"
 path = "src/downmixer.rs"

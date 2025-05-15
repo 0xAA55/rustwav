@@ -13,6 +13,9 @@ sampletypes.workspace = true
 resampler-rs.workspace = true
 downmixer.workspace = true
 
+[profile.release]
+lto = "fat"
+
 [lib]
 name = "audioutils"
 path = "src/audioutils.rs"
