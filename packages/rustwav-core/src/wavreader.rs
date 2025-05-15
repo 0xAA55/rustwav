@@ -825,6 +825,7 @@ where
                 data_length,
                 fmt,
                 fact_data,
+                None,
             )?));
             #[cfg(not(any(feature = "vorbis", feature = "oggvorbis")))]
             return Err(AudioReadError::Unimplemented(String::from(
