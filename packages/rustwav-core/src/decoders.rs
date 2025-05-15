@@ -1494,6 +1494,9 @@ pub mod flac_dec {
 
         /// A boxed pointer points to this struct itself. The `extern "system"` callback functions rely on this poiner to convert the call to our closure calls.
         self_ptr: Box<*mut FlacDecoderWrap<'a>>,
+
+        /// The downmixer for multiple channels audio to decode into 2 or 1 channels
+        pub downmixer: Downmixer,
     }
 
     impl FlacDecoderWrap<'_> {
@@ -1503,6 +1506,7 @@ pub mod flac_dec {
             data_length: u64,
             fmt: &FmtChunk,
             total_samples: u64,
+            downmixer: Option<Downmixer>,
         ) -> Result<Self, AudioReadError> {
             // `self_ptr`: A boxed raw pointer points to the `FlacDecoderWrap`, before calling `decoder.decode()`, must set the pointer inside the box to `self`
             let mut self_ptr: Box<*mut Self> = Box::new(ptr::null_mut());
@@ -1595,6 +1599,23 @@ pub mod flac_dec {
                 true, // scale_to_i32_range
                 FlacAudioForm::FrameArray,
             )?);
+            let downmixer = if let Some(downmixer) = downmixer {
+                downmixer
+            } else {
+                use downmixer::{DownmixerParams, speaker_positions::*};
+                let channel_mask = match fmt.channels {
+                    1 => MONO_LAYOUT,
+                    2 => STEREO_LAYOUT,
+                    3 => SURROUND_LAYOUT,
+                    4 => STEREO_LAYOUT | BACK_LR_BITS,
+                    5 => SURROUND_LAYOUT | BACK_LR_BITS,
+                    6 => DOLBY_5_1_FRONT_SIDE_LAYOUT,
+                    7 => DOLBY_6_1_LAYOUT,
+                    8 => DOLBY_7_1_LAYOUT,
+                    o => return Err(AudioReadError::InvalidArguments(format!("Bad channel number: {o}"))),
+                };
+                Downmixer::new(channel_mask, DownmixerParams::new())
+            };
             let mut ret = Self {
                 decoder,
                 resampler: Resampler::new(get_rounded_up_fft_size(fmt.sample_rate)),
@@ -1607,6 +1628,7 @@ pub mod flac_dec {
                 frame_index: 0,
                 total_frames: total_samples / fmt.channels as u64,
                 self_ptr,
+                downmixer,
             };
             *ret.self_ptr = &mut ret as *mut Self;
             ret.decoder.initialize()?;
