@@ -4,3 +4,6 @@
 [submodule "packages/shared_io_utils"]
 	path = packages/shared_io_utils
 	url = https://github.com/0xAA55-rs/shared_io_utils.git
+[submodule "packages/tinyogg"]
+	path = packages/tinyogg
+	url = https://github.com/0xAA55-rs/tinyogg.git
