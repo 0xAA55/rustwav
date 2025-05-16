@@ -1,6 +1,6 @@
 [submodule "packages/revorbis-rs"]
 	path = packages/revorbis-rs
 	url = https://github.com/0xAA55-rs/revorbis-rs
-[submodule "packages/--init"]
-	path = packages/--init
+[submodule "packages/shared_io_utils"]
+	path = packages/shared_io_utils
 	url = https://github.com/0xAA55-rs/shared_io_utils.git
