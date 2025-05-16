@@ -47,7 +47,7 @@ downmixer = { version = "^0" }
 savagestr = { version = "^0", path = "packages/savagestr" }
 copiablebuf = { version = "^0" }
 revorbis-rs = { version = "^0", path = "packages/revorbis-rs" }
-resampler-rs = { version = "^0", path = "packages/resampler-rs" }
+resampler-rs = { version = "^0" }
 sampletypes = { version = "^0" }
 rustwav-core = { version = "^0", path = "packages/rustwav-core" }
 fileparthasher = { version = "^0", path = "packages/fileparthasher" }
