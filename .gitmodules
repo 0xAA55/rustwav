@@ -4,6 +4,3 @@
 [submodule "packages/shared_io_utils"]
 	path = packages/shared_io_utils
 	url = https://github.com/0xAA55-rs/shared_io_utils.git
-[submodule "packages/savagestr"]
-	path = packages/savagestr
-	url = https://github.com/0xAA55-rs/savagestr.git
