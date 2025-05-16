@@ -41,9 +41,6 @@ flac = []
 vorbis = ["dep:vorbis_rs"]
 oggvorbis = ["dep:vorbis_rs"]
 
-[profile.release]
-lto = "fat"
-
 [lib]
 name = "rustwav_core"
 path = "src/lib.rs"

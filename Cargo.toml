@@ -3,7 +3,7 @@ members = ["packages/*"]
 resolver = "3"
 
 [workspace.package]
-version = "0.3.4"
+version = "0.3.5"
 edition = "2024"
 authors = ["0xAA55 <838816058@qq.com>"]
 license-file = "LICENSE"
@@ -40,19 +40,19 @@ audiochannelutils.workspace = true
 tempfile.workspace = true
 
 [workspace.dependencies]
-xlaw = { version = "^0", path = "packages/xlaw" }
-flac-rs = { version = "^0", path = "packages/flac-rs" }
+xlaw = { version = "^0" }
+flac-rs = { version = "^0" }
 tinyogg = { version = "^0", path = "packages/tinyogg" }
-downmixer = { version = "^0", path = "packages/downmixer" }
+downmixer = { version = "^0" }
 savagestr = { version = "^0", path = "packages/savagestr" }
-copiablebuf = { version = "^0", path = "packages/copiablebuf" }
+copiablebuf = { version = "^0" }
 revorbis-rs = { version = "^0", path = "packages/revorbis-rs" }
 resampler-rs = { version = "^0", path = "packages/resampler-rs" }
-sampletypes = { version = "^0", path = "packages/sampletypes-rs" }
+sampletypes = { version = "^0" }
 rustwav-core = { version = "^0", path = "packages/rustwav-core" }
 fileparthasher = { version = "^0", path = "packages/fileparthasher" }
 shared_io_utils = { version = "^0", path = "packages/shared_io_utils" }
-audiochannelutils = { version = "^0", path = "packages/audiochannelutils" }
+audiochannelutils = { version = "^0" }
 
 tempfile = "^3"
 

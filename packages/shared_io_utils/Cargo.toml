@@ -12,9 +12,6 @@ keywords = ["IO", "shared", "reader", "writer"]
 [dependencies]
 savagestr.workspace = true
 
-[profile.release]
-lto = "fat"
-
 [lib]
 name = "io_utils"
 path = "src/io_utils.rs"
