@@ -7,3 +7,6 @@
 [submodule "packages/tinyogg"]
 	path = packages/tinyogg
 	url = https://github.com/0xAA55-rs/tinyogg.git
+[submodule "packages/savagestr"]
+	path = packages/savagestr
+	url = https://github.com/0xAA55-rs/savagestr.git
