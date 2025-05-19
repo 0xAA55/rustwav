@@ -11,7 +11,7 @@ pub enum CurrentChannel {
 /// * The `AdpcmEncoder` trait for all of the ADPCM encoders to implement
 /// * This thing is able to encode samples, write the `fmt ` chunk, update statistics, and finish encoding.
 pub trait AdpcmEncoder: Debug {
-    fn new(channels: u16) -> Result<Self, io::Error>
+    fn new(channels: u16) -> io::Result<Self>
     where
         Self: Sized;
 
@@ -36,7 +36,7 @@ pub trait AdpcmEncoder: Debug {
         channels: u16,
         sample_rate: u32,
         bits_per_sample: u16,
-    ) -> Result<FmtChunk, io::Error> {
+    ) -> io::Result<FmtChunk> {
         let block_align = (bits_per_sample as u32 * channels as u32 / 8) as u16;
         Ok(FmtChunk {
             format_tag: 1,
@@ -64,7 +64,7 @@ pub trait AdpcmEncoder: Debug {
 /// * The `AdpcmDecoder` trait for all of the ADPCM decoders to implement
 /// * To create this thing, you need the WAV `fmt ` chunk data for the encoder to get the critical data.
 pub trait AdpcmDecoder: Debug {
-    fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
+    fn new(fmt_chunk: &FmtChunk) -> io::Result<Self>
     where
         Self: Sized;
 
@@ -379,7 +379,7 @@ pub mod ima {
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error>
+        fn new(channels: u16) -> io::Result<Self>
         where
             Self: Sized,
         {
@@ -409,7 +409,7 @@ pub mod ima {
             channels: u16,
             sample_rate: u32,
             bits_per_sample: u16,
-        ) -> Result<FmtChunk, io::Error> {
+        ) -> io::Result<FmtChunk> {
             assert_eq!(bits_per_sample, 4);
             let block_align = BLOCK_SIZE as u16 * channels;
             Ok(FmtChunk {
@@ -673,7 +673,7 @@ pub mod ima {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> io::Result<Self>
         where
             Self: Sized,
         {
@@ -951,7 +951,7 @@ pub mod ms {
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error>
+        fn new(channels: u16) -> io::Result<Self>
         where
             Self: Sized,
         {
@@ -1069,7 +1069,7 @@ pub mod ms {
             channels: u16,
             sample_rate: u32,
             bits_per_sample: u16,
-        ) -> Result<FmtChunk, io::Error> {
+        ) -> io::Result<FmtChunk> {
             if bits_per_sample != 4 {
                 eprintln!(
                     "For ADPCM-MS, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored."
@@ -1352,7 +1352,7 @@ pub mod ms {
     }
 
     impl Decoder {
-        pub fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error> {
+        pub fn new(fmt_chunk: &FmtChunk) -> io::Result<Self> {
             match fmt_chunk.channels {
                 1 => Ok(Self::Mono(DecoderCore::new(fmt_chunk))),
                 2 => Ok(Self::Stereo(StereoDecoder::new(fmt_chunk))),
@@ -1407,7 +1407,7 @@ pub mod ms {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> io::Result<Self>
         where
             Self: Sized,
         {
@@ -1710,7 +1710,7 @@ pub mod yamaha {
     }
 
     impl AdpcmEncoder for Encoder {
-        fn new(channels: u16) -> Result<Self, io::Error>
+        fn new(channels: u16) -> io::Result<Self>
         where
             Self: Sized,
         {
@@ -1744,7 +1744,7 @@ pub mod yamaha {
             channels: u16,
             sample_rate: u32,
             bits_per_sample: u16,
-        ) -> Result<FmtChunk, io::Error> {
+        ) -> io::Result<FmtChunk> {
             if bits_per_sample != 4 {
                 eprintln!(
                     "For ADPCM-YAMAHA, bits_per_sample bust be 4, the value `{bits_per_sample}` is ignored."
@@ -1877,7 +1877,7 @@ pub mod yamaha {
     }
 
     impl AdpcmDecoder for Decoder {
-        fn new(fmt_chunk: &FmtChunk) -> Result<Self, io::Error>
+        fn new(fmt_chunk: &FmtChunk) -> io::Result<Self>
         where
             Self: Sized,
         {

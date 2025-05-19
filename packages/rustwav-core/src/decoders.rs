@@ -2035,7 +2035,7 @@ pub mod oggvorbis_dec {
             let combined_reader = CombinedReader::new(cursor, 0, vorbis_header_len as u64, SharedReader::new(reader), data_offset, data_length);
             let data_offset = 0;
             let data_length = vorbis_header_len as u64 + data_length;
-            let on_read = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, buflen: usize| -> Result<Vec<u8>, io::Error> {
+            let on_read = move |reader: &mut OggVorbisHeaderToBodyCombinedReader, buflen: usize| -> io::Result<Vec<u8>> {
                 let mut debug_file = debug_file.borrow_mut();
                 let mut body_bytes_written = 0u64;
                 if let Some(ref mut ogg_stream_writer) = ogg_stream_writer {

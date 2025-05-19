@@ -249,7 +249,7 @@ impl Display for GUID {
 }
 
 impl GUID {
-    pub fn read<T>(r: &mut T) -> Result<Self, io::Error>
+    pub fn read<T>(r: &mut T) -> io::Result<Self>
     where
         T: Read,
     {
