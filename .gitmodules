@@ -10,3 +10,6 @@
 [submodule "packages/savagestr"]
 	path = packages/savagestr
 	url = https://github.com/0xAA55-rs/savagestr.git
+[submodule "packages/fileparthasher"]
+	path = packages/fileparthasher
+	url = https://github.com/0xAA55/fileparthasher.git
