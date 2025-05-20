@@ -11,11 +11,11 @@ use std::{
 use xlaw::XLaw;
 use io_utils::{Writer, string_io::*};
 use sampletypes::SampleType;
+use savagestr::prelude::*;
 use crate::WaveReader;
 use crate::adpcm::{EncIMA, EncMS, EncYAMAHA};
 use crate::encoders::{AdpcmEncoderWrap, Encoder, PcmEncoder, PcmXLawEncoderWrap};
 use crate::hacks;
-use crate::utils::{SavageStringCodecs, StringCodecMaps};
 use crate::wavcore::ChunkWriter;
 use crate::chunks::*;
 use crate::format_specs::*;

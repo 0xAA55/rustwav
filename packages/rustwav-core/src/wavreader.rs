@@ -12,7 +12,7 @@ use std::{
 
 use xlaw::XLaw;
 use io_utils::{Reader, string_io::*};
-use savagestr::{SavageStringCodecs, StringCodecMaps};
+use savagestr::prelude::*;
 use filehasher::FileHasher;
 use copiablebuf::CopiableBuffer;
 use crate::SampleType;
@@ -910,7 +910,7 @@ impl FileDataSource {
             ));
         };
 
-        let mut hasher = FileHasher::new();
+        let hasher = FileHasher::new();
         let mut reader = BufReader::new(file);
         let datahash = hasher.hash(&mut reader, offset, data_size)?;
         let mut file = reader.into_inner();
