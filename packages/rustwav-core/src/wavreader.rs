@@ -34,7 +34,7 @@ use crate::decoders::opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use crate::decoders::flac_dec::FlacDecoderWrap;
 
-#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+#[cfg(feature = "oggvorbis")]
 use crate::decoders::oggvorbis_dec::OggVorbisDecoderWrap;
 
 /// * The data source for the `WaveReader`, currently we have a file reader or a file path.
@@ -810,7 +810,6 @@ where
                 "not implemented for decoding FLAC audio data inside the WAV file",
             )));
         }
-        FORMAT_TAG_VORBIS |
         FORMAT_TAG_OGG_VORBIS1 |
         FORMAT_TAG_OGG_VORBIS2 |
         FORMAT_TAG_OGG_VORBIS3 |
@@ -818,7 +817,7 @@ where
         FORMAT_TAG_OGG_VORBIS2P |
         FORMAT_TAG_OGG_VORBIS3P => {
             // OggVorbis
-            #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+            #[cfg(feature = "oggvorbis")]
             return Ok(Box::new(OggVorbisDecoderWrap::new(
                 reader,
                 data_offset,
@@ -827,7 +826,7 @@ where
                 fact_data,
                 None,
             )?));
-            #[cfg(not(any(feature = "vorbis", feature = "oggvorbis")))]
+            #[cfg(not(feature = "oggvorbis"))]
             return Err(AudioReadError::Unimplemented(String::from(
                 "not implemented for decoding ogg vorbis audio data inside the WAV file",
             )));

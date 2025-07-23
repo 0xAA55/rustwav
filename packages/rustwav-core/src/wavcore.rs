@@ -123,7 +123,6 @@ pub mod format_tags {
     pub const FORMAT_TAG_OGG_VORBIS1P : u16 = ('o' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_OGG_VORBIS2P : u16 = ('p' as u16) | (('g' as u16) << 8);
     pub const FORMAT_TAG_OGG_VORBIS3P : u16 = ('q' as u16) | (('g' as u16) << 8);
-    pub const FORMAT_TAG_VORBIS       : u16 = ('o' as u16) | (('V' as u16) << 8);
     pub const FORMAT_TAG_FLAC         : u16 = 0xF1AC;
     pub const FORMAT_TAG_EXTENSIBLE   : u16 = 0xFFFE;
 }
@@ -636,9 +635,6 @@ pub enum ExtensionData {
     /// * MP3 specified extension data.
     Mp3(Mp3Data),
 
-    /// * Naked Vorbis header data
-    Vorbis(VorbisHeaderData),
-
     /// * OggVorbis specified extension data.
     OggVorbis(OggVorbisData),
 
@@ -694,44 +690,6 @@ pub struct Mp3Data {
     pub block_size: u16,
     pub frames_per_block: u16,
     pub codec_delay: u16,
-}
-
-/// * The extension data for Naked vorbis audio without Ogg stream encapsulation
-#[derive(Default, Clone)]
-pub struct VorbisHeaderData {
-    /// The header for the Vorbis audio
-    pub header: Vec<u8>,
-}
-
-impl VorbisHeaderData {
-    pub fn new(header: &[u8]) -> Self {
-        Self {
-            header: header.to_vec(),
-        }
-    }
-
-    pub fn sizeof(&self) -> usize {
-        self.header.len()
-    }
-
-    pub fn read(reader: &mut impl Reader, ext_len: u16) -> Result<Self, AudioReadError> {
-        let mut buf = vec![0u8; ext_len as usize];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::new(&buf))
-    }
-
-    pub fn write(&self, writer: &mut dyn Writer) -> Result<(), AudioWriteError> {
-        writer.write_all(&self.header)?;
-        Ok(())
-    }
-}
-
-impl Debug for VorbisHeaderData {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("VorbisHeaderData")
-        .field("header", &format_args!("[u8; {}]", self.header.len()))
-        .finish()
-    }
 }
 
 /// * The extension data for OggVorbis
@@ -901,13 +859,6 @@ impl FmtExtension {
         }
     }
 
-    pub fn new_vorbis(vorbis: VorbisHeaderData) -> Self {
-        Self {
-            ext_len: vorbis.sizeof() as u16,
-            data: ExtensionData::Vorbis(vorbis),
-        }
-    }
-
     pub fn new_oggvorbis(oggvorbis: OggVorbisData) -> Self {
         Self {
             ext_len: OggVorbisData::sizeof() as u16,
@@ -968,9 +919,6 @@ impl FmtExtension {
                         )))
                     }
                 }
-                FORMAT_TAG_VORBIS => {
-                    Ok(ExtensionData::Vorbis(VorbisHeaderData::read(reader, ext_len)?))
-                }
                 FORMAT_TAG_OGG_VORBIS2 | FORMAT_TAG_OGG_VORBIS2P => {
                     if ext_len as usize >= OggVorbisWithHeaderData::sizeof_min() {
                         Ok(ExtensionData::OggVorbisWithHeader(OggVorbisWithHeaderData::read(reader, ext_len)?))
@@ -1019,7 +967,6 @@ impl FmtExtension {
                 ExtensionData::AdpcmMs(data) => Ok(data.write(writer)?),
                 ExtensionData::AdpcmIma(data) => Ok(data.write(writer)?),
                 ExtensionData::Mp3(data) => Ok(data.write(writer)?),
-                ExtensionData::Vorbis(data) => Ok(data.write(writer)?),
                 ExtensionData::OggVorbis(data) => Ok(data.write(writer)?),
                 ExtensionData::OggVorbisWithHeader(data) => Ok(data.write(writer)?),
                 ExtensionData::Extensible(data) => Ok(data.write(writer)?),
@@ -2873,13 +2820,6 @@ pub mod oggvorbis {
         /// * I'm still wondering why the Japanese developer invented this mode. to reduce the audio file size? Or to use the `fmt ` chunk info to create the header?
         /// * The result is that you can't control the bitrate, thus the file would be very large at full bitrate settings by default.
         HaveNoCodebookHeader = 3,
-
-        /// * Another mode that exists but doesn't work.
-        /// * The naked Vorbis audio without Ogg encapsulation, invented by the author of FFmpeg? I guess.
-        /// * Without the Ogg packet header `granule position` field, `libvorbis` is unable to decode it correctly.
-        /// * The decoder will try to fake the Ogg encapsulation, and if you are lucky enough, it still has some chance to decode correctly.
-        /// * BTW. FFmpeg can encode audio into this format, but can't decode it correctly.
-        NakedVorbis = 4
     }
 
     /// * OggVorbis encoder parameters, NOTE: Most of the comments or documents were copied from `vorbis_rs`

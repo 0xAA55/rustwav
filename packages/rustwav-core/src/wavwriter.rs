@@ -31,7 +31,7 @@ use crate::encoders::opus::OpusEncoder;
 #[cfg(feature = "flac")]
 use crate::encoders::flac_enc::FlacEncoderWrap;
 
-#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+#[cfg(feature = "oggvorbis")]
 use crate::encoders::oggvorbis_enc::OggVorbisEncoderWrap;
 
 /// * These options are used to specify what type of WAV file you want to create.
@@ -192,7 +192,7 @@ impl<'a> WaveWriter<'a> {
                 hacks::force_borrow_mut!(*self.writer, dyn Writer),
                 flac_options,
             )?),
-            #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+            #[cfg(feature = "oggvorbis")]
             DataFormat::OggVorbis(vorbis_options) => Encoder::new(OggVorbisEncoderWrap::new(
                 hacks::force_borrow_mut!(*self.writer, dyn Writer),
                 vorbis_options,

@@ -2416,10 +2416,10 @@ pub mod flac_enc {
 pub mod oggvorbis_enc {
     use crate::wavcore::oggvorbis::*;
 
-    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+    #[cfg(feature = "oggvorbis")]
     use super::EncoderToImpl;
 
-    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+    #[cfg(feature = "oggvorbis")]
     mod impl_vorbis {
         use std::{
             collections::BTreeMap,
@@ -2435,7 +2435,7 @@ pub mod oggvorbis_enc {
         use crate::errors::{AudioWriteError, IOErrorInfo};
         use crate::io_utils::{Reader, Writer, ReadWrite, CursorVecU8, SharedMultistreamIO, StreamType};
         use crate::audioutils::{self, sample_conv, sample_conv_batch};
-        use crate::chunks::{FmtChunk, ext::{FmtExtension, VorbisHeaderData, OggVorbisData, OggVorbisWithHeaderData}};
+        use crate::chunks::{FmtChunk, ext::{FmtExtension, OggVorbisData, OggVorbisWithHeaderData}};
         use crate::format_specs::format_tags::*;
         use crate::{i24, u24};
 
@@ -2759,9 +2759,6 @@ pub mod oggvorbis_enc {
                     OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
                         let frames = audioutils::interleaved_samples_to_monos(samples, channels)?;
                         encoder.encode_audio_block(&frames)?;
-                        if self.params.mode == OggVorbisMode::NakedVorbis {
-                            self.peel_ogg()?;
-                        }
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += frames[0].len() as u64;
                         Ok(())
@@ -2784,9 +2781,6 @@ pub mod oggvorbis_enc {
                     )),
                     OggVorbisEncoderOrBuilder::Encoder(ref mut encoder) => {
                         encoder.encode_audio_block(monos)?;
-                        if self.params.mode == OggVorbisMode::NakedVorbis {
-                            self.peel_ogg()?;
-                        }
                         self.bytes_written = self.writer.stream_position()? - self.data_offset;
                         self.frames_written += monos.len() as u64;
                         Ok(())
@@ -2833,7 +2827,6 @@ pub mod oggvorbis_enc {
                         let _header = self.writer.get_stream_mut(1).take_cursor_data();
                         Ok(())
                     }
-                    OggVorbisMode::NakedVorbis => Ok(())
                 }
             }
 
@@ -2863,22 +2856,6 @@ pub mod oggvorbis_enc {
                         let _header = self.writer.get_cur_stream_mut().take_cursor_data();
                         self.writer.set_stream(0);
                     }
-                    OggVorbisMode::NakedVorbis => {
-                        // Save the header to `fmt ` chunk
-                        use revorbis::get_vorbis_headers_from_ogg_packet_bytes;
-                        self.writer.set_stream(1);
-                        self.begin_to_encode()?;
-                        let header = self.writer.get_cur_stream_mut().take_cursor_data();
-                        let mut _stream_id = 0u32;
-                        let (identification_header, comments_header, setup_header) = get_vorbis_headers_from_ogg_packet_bytes(&header, &mut _stream_id)?;
-                        self.vorbis_header.clear();
-                        self.vorbis_header.push(2); // Two field of the header size
-                        self.vorbis_header.push(identification_header.len() as u8);
-                        self.vorbis_header.push(comments_header.len() as u8);
-                        self.vorbis_header.extend(identification_header);
-                        self.vorbis_header.extend(comments_header);
-                        self.vorbis_header.extend(setup_header);
-                    }
                 }
                 Ok(FmtChunk {
                     format_tag: match self.params.mode {
@@ -2903,7 +2880,6 @@ pub mod oggvorbis_enc {
                                 FORMAT_TAG_OGG_VORBIS3P
                             }
                         }
-                        OggVorbisMode::NakedVorbis => FORMAT_TAG_VORBIS,
                     },
                     channels: self.get_channels(),
                     sample_rate: self.get_sample_rate(),
@@ -2912,10 +2888,8 @@ pub mod oggvorbis_enc {
                     bits_per_sample: 16,
                     extension: Some(if self.vorbis_header.is_empty() {
                         FmtExtension::new_oggvorbis(OggVorbisData::new())
-                    } else if self.params.mode != OggVorbisMode::NakedVorbis {
-                        FmtExtension::new_oggvorbis_with_header(OggVorbisWithHeaderData::new(&self.vorbis_header))
                     } else {
-                        FmtExtension::new_vorbis(VorbisHeaderData::new(&self.vorbis_header))
+                        FmtExtension::new_oggvorbis_with_header(OggVorbisWithHeaderData::new(&self.vorbis_header))
                     }),
                 })
             }
@@ -3011,7 +2985,7 @@ pub mod oggvorbis_enc {
 
     }
 
-    #[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+    #[cfg(feature = "oggvorbis")]
     pub use impl_vorbis::*;
 }
 

@@ -21,7 +21,7 @@ use opus::OpusDecoder;
 #[cfg(feature = "flac")]
 use flac_dec::FlacDecoderWrap;
 
-#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+#[cfg(feature = "oggvorbis")]
 use oggvorbis_dec::OggVorbisDecoderWrap;
 
 /// * Decodes audio into samples of the caller-provided format `S`.
@@ -191,7 +191,7 @@ impl<S> Decoder<S> for FlacDecoderWrap<'_>
     fn get_downmixer(&self) -> Option<Downmixer> { Some(self.downmixer) }
 }
 
-#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+#[cfg(feature = "oggvorbis")]
 impl<S> Decoder<S> for OggVorbisDecoderWrap
     where S: SampleType {
     fn get_channels(&self) -> u16 { OggVorbisDecoderWrap::get_channels(self) }
@@ -1877,7 +1877,7 @@ pub mod flac_dec {
 }
 
 /// * The OggVorbis decoder for `WaveReader`
-#[cfg(any(feature = "vorbis", feature = "oggvorbis"))]
+#[cfg(feature = "oggvorbis")]
 pub mod oggvorbis_dec {
     use std::{
         fmt::{self, Debug, Formatter},
@@ -1978,14 +1978,6 @@ pub mod oggvorbis_dec {
             let mut ogg_stream_writer: Option<SharedOggStreamWriteToCursor> = None;
             let vorbis_header = if let Some(extension) = &fmt.extension {
                 match &extension.data {
-                    ExtensionData::Vorbis(data) => {
-                        if fmt.format_tag == FORMAT_TAG_VORBIS {
-                            ogg_stream_writer = Some(SharedOggStreamWriteToCursor::new(0xAA55));
-                            data.header.clone()
-                        } else {
-                            return Err(AudioReadError::FormatError("The extension data of the `fmt ` chunk provides the Ogg Vorbis header data, but the `format_tag` value indicates that there shouldn't need to be any Ogg Vorbis header data in the `fmt ` chunk.".to_string()));
-                        }
-                    }
                     ExtensionData::OggVorbis(_) => {
                         if [
                             FORMAT_TAG_OGG_VORBIS1,
