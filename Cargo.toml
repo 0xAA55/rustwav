@@ -30,7 +30,6 @@ downmixer.workspace = true
 savagestr.workspace = true
 sampletypes.workspace = true
 copiablebuf.workspace = true
-revorbis-rs.workspace = true
 resampler-rs.workspace = true
 rustwav-core.workspace = true
 fileparthasher.workspace = true
@@ -46,7 +45,6 @@ tinyogg = { version = "^0", path = "packages/tinyogg" }
 downmixer = { version = "^0" }
 savagestr = { version = "^0" }
 copiablebuf = { version = "^0" }
-revorbis-rs = { version = "^0", path = "packages/revorbis-rs" }
 resampler-rs = { version = "^0" }
 sampletypes = { version = "^0" }
 rustwav-core = { version = "^0", path = "packages/rustwav-core" }
@@ -57,14 +55,13 @@ audiochannelutils = { version = "^0" }
 tempfile = "^3"
 
 [features]
-default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac", "vorbis", "oggvorbis"]
+default = ["id3", "text_encoding", "mp3dec", "mp3enc", "opus", "flac", "oggvorbis"]
 text_encoding = ["savagestr/text_encoding"]
 id3 = ["rustwav-core/id3"]
 mp3dec = ["rustwav-core/mp3dec"]
 mp3enc = ["rustwav-core/mp3enc"]
 opus = ["rustwav-core/opus"]
 flac = ["rustwav-core/flac"]
-vorbis = ["rustwav-core/vorbis"]
 oggvorbis = ["rustwav-core/oggvorbis"]
 
 [profile.release]

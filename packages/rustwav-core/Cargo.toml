@@ -15,7 +15,6 @@ flac-rs.workspace = true
 tinyogg.workspace = true
 downmixer.workspace = true
 savagestr.workspace = true
-revorbis-rs.workspace = true
 copiablebuf.workspace = true
 sampletypes.workspace = true
 resampler-rs.workspace = true
@@ -32,13 +31,12 @@ rmp3 = { version = "^0", optional = true, features = ["mp1-mp2", "std"] }
 vorbis_rs = { version = "^0", optional = true}
 
 [features]
-default = ["id3", "mp3dec", "mp3enc", "opus", "flac", "vorbis", "oggvorbis"]
+default = ["id3", "mp3dec", "mp3enc", "opus", "flac", "oggvorbis"]
 id3 = ["dep:id3"]
 mp3dec = ["dep:rmp3"]
 mp3enc = ["dep:mp3lame-encoder"]
 opus = ["dep:opus"]
 flac = []
-vorbis = ["dep:vorbis_rs"]
 oggvorbis = ["dep:vorbis_rs"]
 
 [lib]
