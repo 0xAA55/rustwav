@@ -106,17 +106,6 @@ pub const FORMATS: [(&str, DataFormat); 16] = [
         }),
     ),
     (
-        "vorbis",
-        DataFormat::OggVorbis(OggVorbisEncoderParams {
-            mode: OggVorbisMode::NakedVorbis,
-            channels: 2,
-            sample_rate: 44100,
-            stream_serial: None,
-            bitrate: Some(OggVorbisBitrateStrategy::Vbr(320_000)),
-            minimum_page_data_size: None,
-        }),
-    ),
-    (
         "oggvorbis1",
         DataFormat::OggVorbis(OggVorbisEncoderParams {
             mode: OggVorbisMode::OriginalStreamCompatible,
